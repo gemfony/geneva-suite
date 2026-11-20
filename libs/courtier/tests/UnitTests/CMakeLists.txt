@@ -98,10 +98,21 @@ gem_courtier_test(GCourtierWebsocketTransportTests S  GCourtierWebsocketTranspor
 # The end of a run on the websocket transport (T7.1 to T7.4): every client is told, within a bound
 gem_courtier_test(GCourtierWebsocketStopTests M  GCourtierWebsocketStopTests.cpp)
 # The rules of GPeerI.hpp on the in-process pair of GInProcessPeer.hpp (a header of this
-# directory, used by later tests of the roles as their transport) and on the MPI transport's ends
-# over the in-memory stand-in for MPI (GMPIFakeCalls.hpp): one set of rule tests for both
-gem_courtier_test(GCourtierPeerRulesTests   S  GCourtierPeerRulesTests.cpp GInProcessPeer.hpp
-	GInProcessTestSupport.hpp GMPIFakeCalls.hpp GPeerTestRole.hpp)
+# directory, used by later tests of the roles as their transport), on the MPI transport's ends
+# over the in-memory stand-in for MPI (GMPIFakeCalls.hpp) and, where courtier has it, on the MQTT
+# transport's ends (see below): one set of rule tests for all. Its cases on the MQTT transport go
+# through a broker (about 8 s, most of it in the 40 ms the broker waits before it sends a second
+# small packet: its set_tcp_nodelay is off, see tests/mqttTestBroker.sh), which makes the entry M.
+IF(GEM_MQTT_CONSUMER_ENABLED)
+	FIND_PROGRAM(GEM_MOSQUITTO_EXECUTABLE mosquitto PATHS /usr/sbin /usr/local/sbin)
+ENDIF()
+IF(GEM_MQTT_CONSUMER_ENABLED AND GEM_MOSQUITTO_EXECUTABLE)
+	SET(_gem_rules_size M)
+ELSE()
+	SET(_gem_rules_size S)
+ENDIF()
+gem_courtier_test(GCourtierPeerRulesTests ${_gem_rules_size} GCourtierPeerRulesTests.cpp GInProcessPeer.hpp
+	GInProcessTestSupport.hpp GMPIFakeCalls.hpp GPeerTestRole.hpp GMqttTestSupport.hpp)
 gem_courtier_test(GCourtierPeerSessionTests S  GCourtierPeerSessionTests.cpp GInProcessPeer.hpp
 	GInProcessTestSupport.hpp)
 gem_courtier_test(GCourtierPeerConsumerTests S  GCourtierPeerConsumerTests.cpp GInProcessPeer.hpp
@@ -137,6 +148,50 @@ gem_courtier_test(GCourtierWebsocketLivenessTests L  SPEC "~[slowcodec]" GCourti
 # A connection survives a message that takes one end three ping intervals to encode or decode: six
 # cases of 4 to 7 s, in an entry of their own so that neither entry grows beyond L
 gem_courtier_test_entry(GCourtierWebsocketCodecLivenessTests GCourtierWebsocketLivenessTests L "[slowcodec]")
+
+# The MQTT transport, against a broker of the tests' own: tests/mqttTestBroker.sh starts a mosquitto
+# on a free port of the loopback interface and ends it by its pid (a CTest fixture; never the host's
+# broker). Its directory, with the port, is GEM_MQTT_TEST_BROKER_DIR; the tests that need it require
+# the fixture courtier_mqtt_broker and use a topic prefix of their own each. Registered where
+# courtier has the transport and configure finds mosquitto (GEM_MOSQUITTO_EXECUTABLE, looked for
+# above, at the rule tests).
+IF(GEM_MQTT_CONSUMER_ENABLED)
+	IF(GEM_MOSQUITTO_EXECUTABLE)
+		SET(GEM_MQTT_TEST_BROKER_DIR ${CMAKE_BINARY_DIR}/mqtt-test-broker
+			CACHE INTERNAL "Where the tests' MQTT broker writes its port")
+		FOREACH(_action start stop)
+			STRING(SUBSTRING ${_action} 0 1 _first)
+			STRING(TOUPPER ${_first} _first)
+			STRING(SUBSTRING ${_action} 1 -1 _rest)
+			SET(_entry GCourtierMqttBroker${_first}${_rest})
+			ADD_TEST(NAME ${_entry} COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/../mqttTestBroker.sh ${_action}
+				${GEM_MOSQUITTO_EXECUTABLE} ${GEM_MQTT_TEST_BROKER_DIR})
+			SET_TESTS_PROPERTIES(${_entry} PROPERTIES LABELS "courtier" TIMEOUT 60)
+			GEM_TEST_SIZE(${_entry} S)
+		ENDFOREACH()
+		SET_TESTS_PROPERTIES(GCourtierMqttBrokerStart PROPERTIES FIXTURES_SETUP courtier_mqtt_broker)
+		SET_TESTS_PROPERTIES(GCourtierMqttBrokerStop PROPERTIES FIXTURES_CLEANUP courtier_mqtt_broker)
+
+		gem_courtier_test(GCourtierMqttTransportTests M GCourtierMqttTransportTests.cpp GMqttTestSupport.hpp
+			GTcpRelay.hpp)
+		TARGET_COMPILE_DEFINITIONS(GCourtierMqttTransportTests
+			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
+		SET_TESTS_PROPERTIES(GCourtierMqttTransportTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
+		# The MQTT consumer and its client when a process comes late or goes (a client before its
+		# server, a client that dies, a server that dies): about 15 s of waiting for limits
+		gem_courtier_test(GCourtierMqttConsumerTests L GCourtierMqttConsumerTests.cpp GMqttTestSupport.hpp
+			GTcpRelay.hpp)
+		TARGET_COMPILE_DEFINITIONS(GCourtierMqttConsumerTests
+			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
+		SET_TESTS_PROPERTIES(GCourtierMqttConsumerTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
+		# The rules of GPeerI.hpp on the MQTT transport too
+		TARGET_COMPILE_DEFINITIONS(GCourtierPeerRulesTests
+			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}")
+		SET_TESTS_PROPERTIES(GCourtierPeerRulesTests PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker)
+	ELSE()
+		MESSAGE(STATUS "The tests of the MQTT transport are not registered: no mosquitto found")
+	ENDIF()
+ENDIF()
 
 # The GPU consumer's own logic, exercised against a stand-in backend: no device is needed, but the
 # consumer's backend factory is, and that is compiled into the library only with the GPU consumer.

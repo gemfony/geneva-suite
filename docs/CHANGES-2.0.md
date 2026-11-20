@@ -365,6 +365,23 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   is constructed from the inner-EA config file alone; the former `execMode` constructor
   parameter and `setExecMode` / `getExecMode` have been **removed** (the nested
   refinement never submits to the process consumer, so there was no mode to select).
+- **An MQTT consumer: `--consumer mqtt`.** Server and clients talk through an MQTT 5 broker
+  instead of a port of the server's: `--mqtt_ip` and `--mqtt_port` name the broker (default
+  127.0.0.1:1883), `--mqtt_topic` the prefix of the topics (default `gem`; runs that share a
+  broker use different ones). `--mqtt_prefetchDepth`, `--mqtt_parallelEvaluations`,
+  `--mqtt_firstContactLimit`, `--mqtt_reconnectLimit` and `--mqtt_serializationMode` work as
+  their `beast` namesakes. Every connection has an MQTT client of its own at both ends: a lost
+  broker connection ends the connection, and its client connects again, as with `beast`; the
+  broker's will of a process that died or hangs ends the other end, and its items go back.
+  `--mqtt_pingInterval` (default 15 s) is each end's MQTT keep-alive; a client keeps its own
+  value (it is fixed when it connects) and says so in its log when its server names another, so
+  set it alike on both sides. A client may start long before its server: it waits without a
+  limit by default (`--mqtt_firstContactLimit` 0) and is served at most about two keep-alive
+  intervals after the server has started. An item travels as one packet of at most 2,000,000
+  bytes; a larger one fails (`beast` and `mpi` carry larger ones). No encryption and no login, as
+  with `beast`: the broker belongs on a trusted network and needs `set_tcp_nodelay` (`INSTALL`).
+  With 402 clients it reached 71 % of `beast`'s speed-up at evaluations of 10 ms and the same
+  from about 1 s on. Built when the Boost in use has Boost.MQTT5 (`BUILDMQTTCONSUMER`).
 
 ## 6. Packaging: libraries and runtime-loadable modules
 

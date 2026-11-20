@@ -196,9 +196,12 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
 void GWebsocketListener::accept_() {
     acceptor_.async_accept(
         boost::asio::make_strand(io_context_),
-        boost::asio::bind_executor(accept_strand_, [this](error_code ec, tcp::socket socket) {
-            this->whenAccepted_(ec, std::move(socket));
-        })
+        boost::asio::bind_executor(
+            accept_strand_,
+            [this](error_code ec, GWebsocketPeer::socket_type socket) {
+                this->whenAccepted_(ec, std::move(socket));
+            }
+        )
     );
 }
 
@@ -215,7 +218,7 @@ void GWebsocketListener::accept_() {
  * @param ec A possible error of the accept
  * @param socket The accepted connection
  */
-void GWebsocketListener::whenAccepted_(const error_code &ec, tcp::socket socket) {
+void GWebsocketListener::whenAccepted_(const error_code &ec, GWebsocketPeer::socket_type socket) {
     if(stopped_.load()) {
         return; // a connection that arrives now is dropped: its client sees a loss
     }
@@ -366,10 +369,10 @@ struct GWebsocketConnector::GAttempt {
         }
     }
 
-    tcp::resolver resolver; ///< Looks the server up
-    tcp::socket socket;     ///< The socket until it is connected
-    done_type done;         ///< Who wants to know; dropped when called or given up
-    bool cancelled = false; ///< cancel() was called
+    tcp::resolver resolver;             ///< Looks the server up
+    GWebsocketPeer::socket_type socket; ///< The socket until it is connected
+    done_type done;                     ///< Who wants to know; dropped when called or given up
+    bool cancelled = false;             ///< cancel() was called
 };
 
 /******************************************************************************/

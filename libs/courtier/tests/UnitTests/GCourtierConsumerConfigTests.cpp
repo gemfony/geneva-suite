@@ -38,6 +38,7 @@
 // compile. (Every Boost.Asio header defines BOOST_ASIO_VERSION, every Beast header
 // BOOST_BEAST_VERSION, mpi.h MPI_VERSION.)
 #include "courtier/consumers/GMPIConsumerConfig.hpp"
+#include "courtier/consumers/GMqttConsumerConfig.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp" // read by programs and tests without MPI
@@ -77,6 +78,7 @@
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 
+using Gem::Courtier::GMqttConsumerConfig;
 using Gem::Courtier::GStdThreadConsumerConfig;
 using Gem::Courtier::GWebsocketConsumerConfig;
 using Gem::Courtier::Consumers::MPIConsumerConfig;
@@ -92,6 +94,9 @@ static_assert(GWebsocketConsumerConfig::MNEMONIC == "beast");
 static_assert(std::is_aggregate_v<MPIConsumerConfig>);
 static_assert(std::copyable<MPIConsumerConfig>);
 static_assert(MPIConsumerConfig::MNEMONIC == "mpi");
+static_assert(std::is_aggregate_v<GMqttConsumerConfig>);
+static_assert(std::copyable<GMqttConsumerConfig>);
+static_assert(GMqttConsumerConfig::MNEMONIC == "mqtt");
 
 namespace {
 
@@ -191,6 +196,15 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK_FALSE(beast.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == 1);
     CHECK(beast.ip == Gem::Courtier::GCONSUMERDEFAULTSERVER);
+
+    // The MQTT consumer meets its clients on a broker on this host, under the prefix "gem"
+    const GMqttConsumerConfig mqtt{};
+    CHECK(mqtt.ip == "127.0.0.1");
+    CHECK(mqtt.port == 1883);
+    CHECK(mqtt.topic == "gem");
+    CHECK(mqtt.pingInterval == Gem::Courtier::GBEASTCONSUMERPINGINTERVAL);
+    CHECK(mqtt.clientPrefetchDepth == 1);
+    CHECK(mqtt.clientParallelEvaluations == 1);
 
     // The MPI consumer's sessions run on two threads unless told otherwise (one more thread polls),
     // and its client fetches the next item while it evaluates one

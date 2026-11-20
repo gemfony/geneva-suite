@@ -121,7 +121,7 @@ GPeerClose closeFor(std::uint16_t code) {
  *        server's end
  */
 GWebsocketPeer::GWebsocketPeer(
-    boost::asio::ip::tcp::socket socket,
+    socket_type socket,
     GOptions options,
     const boost::asio::any_io_executor &handler_executor,
     std::string host
@@ -563,8 +563,7 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
 
     if(ws_.next_layer().is_open()) {
         error_code ignored; // the other end may be gone already
-        std::ignore =
-            ws_.next_layer().shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored);
+        std::ignore = ws_.next_layer().shutdown(socket_type::shutdown_both, ignored);
         std::ignore = ws_.next_layer().close(ignored);
     }
 

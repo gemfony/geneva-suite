@@ -38,9 +38,10 @@
 #     binary       the GParallelisationOverhead (or GSubClientOverhead) executable
 #     workdir      a directory OUTSIDE the source tree
 #     consumer     the consumer to measure: a networked one such as beast (a
-#                  server process and N client processes), or mpi (one mpirun
-#                  with N + 1 ranks: rank 0 is the server, the others its clients;
-#                  with GROUP > 1, 1 + N x GROUP ranks laid out in groups)
+#                  server process and N client processes), mqtt (the same, meeting
+#                  on an MQTT broker, see BROKER_PORT), or mpi (one mpirun with
+#                  N + 1 ranks: rank 0 is the server, the others its clients; with
+#                  GROUP > 1, 1 + N x GROUP ranks laid out in groups)
 #     delays       the evaluation times, as "(seconds,milliseconds), ..."
 #     reference delays   the (short) evaluation times of the serial reference
 #     measurements how often each evaluation time is measured
@@ -84,6 +85,10 @@
 #            server has begun to wait for its clients (default 0: with the others)
 #   SERVER_PORT  the port the websocket server tries first (default: one drawn at random from
 #            15000 to 16999); a port another process holds is replaced by another one
+#   BROKER_PORT, BROKER_HOST  mqtt: the MQTT broker the server and its clients meet on (the
+#            port is required, so that no run takes a host's broker unasked; the host is
+#            127.0.0.1 unless set). They use a topic prefix of this run's own, and the
+#            clients are started once the server waits for them.
 #
 # The program may be GParallelisationOverhead or GSubClientOverhead: the script
 # sets the configuration of either individual. The output of the clients of
@@ -203,25 +208,44 @@ if [ "$C" = mpi ]; then
     MPIJOB=$!
     wait "$MPIJOB"; STATUS=$?
     MPIJOB=""
+elif [ "$C" = mqtt ] && [ -z "${BROKER_PORT:-}" ]; then
+    echo "Error: the mqtt consumer needs BROKER_PORT, the port of the MQTT broker of this run"
+    exit 1
 else
-    # The port is drawn at random; another process on the host may hold it. A server that could
-    # not bind it is started again on another one (SERVER_PORT: the first port to try).
-    PORT=${SERVER_PORT:-$((15000 + RANDOM % 2000))}
-    for _ in $(seq 1 10); do
-        "$X" -c "$C" "--${C}_port" "$PORT" "${GATE[@]}" "$@" > server.log 2>&1 &
+    if [ "$C" = mqtt ]; then
+        # The server binds no port: it and its clients meet on the broker, under a topic prefix of
+        # this run's own. A client that joins before the server listens is not heard; the clients
+        # are started once the server waits for them.
+        CONNECT=(--mqtt_ip "${BROKER_HOST:-127.0.0.1}" --mqtt_port "$BROKER_PORT"
+                 --mqtt_topic "gem-run-$$-$RANDOM")
+        "$X" -c "$C" "${CONNECT[@]}" "${GATE[@]}" "$@" > server.log 2>&1 &
         SRV=$!
-        sleep 2
-        if kill -0 "$SRV" 2>/dev/null || ! grep -q 'could not bind to port' server.log; then
-            break
+        for _ in $(seq 1 600); do
+            grep -q '^Waiting for [0-9]* clients' server.log 2>/dev/null && break
+            kill -0 "$SRV" 2>/dev/null || break
+            sleep 0.1
+        done
+    else
+        # The port is drawn at random; another process on the host may hold it. A server that
+        # could not bind it is started again on another one (SERVER_PORT: the first port to try).
+        PORT=${SERVER_PORT:-$((15000 + RANDOM % 2000))}
+        for _ in $(seq 1 10); do
+            "$X" -c "$C" "--${C}_port" "$PORT" "${GATE[@]}" "$@" > server.log 2>&1 &
+            SRV=$!
+            sleep 2
+            if kill -0 "$SRV" 2>/dev/null || ! grep -q 'could not bind to port' server.log; then
+                break
+            fi
+            # Reaped: its pid may be reused, and the trap must not signal it
+            wait "$SRV" 2>/dev/null; SRV=""
+            echo "port $PORT is taken; the server is started on another one"
+            PORT=$((15000 + RANDOM % 2000))
+        done
+        if [ -z "$SRV" ]; then
+            echo "the server found no free port in 10 attempts; see server.log"
+            exit 1
         fi
-        # Reaped: its pid may be reused, and the trap must not signal it
-        wait "$SRV" 2>/dev/null; SRV=""
-        echo "port $PORT is taken; the server is started on another one"
-        PORT=$((15000 + RANDOM % 2000))
-    done
-    if [ -z "$SRV" ]; then
-        echo "the server found no free port in 10 attempts; see server.log"
-        exit 1
+        CONNECT=("--${C}_port" "$PORT")
     fi
     # A client with sub-clients is an MPI job of its own; its rank 0 is the client.
     LAUNCH=()
@@ -240,7 +264,7 @@ else
             sleep "$LAST_CLIENT_DELAY"
         fi
         OMPI_MCA_btl_sm_backing_directory=$(jobdir "client-$i") \
-            "${LAUNCH[@]}" "$X" -c "$C" --client "--${C}_port" "$PORT" "${GROUPOPT[@]}" "$@" \
+            "${LAUNCH[@]}" "$X" -c "$C" --client "${CONNECT[@]}" "${GROUPOPT[@]}" "$@" \
             >> clients.log 2>&1 &
         PIDS+=($!)
     done

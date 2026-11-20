@@ -82,6 +82,10 @@ Optional:
 
  - A CUDA toolkit, for the GPU consumer and/or the CUDA random-number backend.
  - An MPI implementation, for the MPI consumer.
+ - An MQTT broker, for the MQTT consumer (built when the Boost in use has
+   Boost.MQTT5, which is part of every Boost Geneva accepts; BUILDMQTTCONSUMER in
+   genevaConfig.gcfg). Its tests start a mosquitto of their own (Debian/Ubuntu:
+   the package mosquitto) and are registered when configure finds it.
  - A plotting viewer -- ROOT (http://root.cern), gnuplot, matplotlib or octave --
    to render the plot scripts that some examples emit. None of these is required to
    run Geneva or to produce the scripts, only to view them.
@@ -129,6 +133,43 @@ nvidia-smi -q | grep CUDA
 
 The toolkit lands in /usr/local/cuda-13.3, reachable as /usr/local/cuda, where
 the build finds it without further settings.
+
+
+The broker of the MQTT consumer
+-------------------------------
+
+The MQTT consumer (--consumer mqtt) needs an MQTT 5 broker that its server and
+its clients reach: mosquitto 2 or any other broker that speaks MQTT 5. Geneva
+starts none; --mqtt_ip and --mqtt_port name it (default 127.0.0.1:1883).
+
+ - The broker must send small packets at once. In mosquitto that is
+   "set_tcp_nodelay true" (its default is false). Without it every second small
+   message waits about 40 ms for the receiver's delayed acknowledgement: with 8
+   clients and evaluations of 10 ms the speed-up was 1.6 instead of websocket's
+   6.0. With it, 402 clients reached 203 (websocket 286) at 10 ms and the same as
+   websocket from about 1 s on.
+ - Server and clients connect anonymously and without encryption, as the
+   websocket consumer does: run the broker on a trusted network only.
+ - Every client takes two broker connections (one of its own, one of its
+   server's): 400 clients need about 800, more than the 1024 open files a broker
+   started by systemd may have. Raise its limit.
+ - Runs that share a broker use different topic prefixes (--mqtt_topic): a
+   server takes every client that joins under its prefix.
+ - A work item or a result travels as one MQTT packet of at most 2,000,000 bytes
+   (mosquitto 2.1's default limit, and the fixed limit of every end); a larger
+   one fails. Use the websocket or the MPI consumer for larger items.
+
+A mosquitto configuration for one machine (where an AppArmor profile confines
+mosquitto, as on Ubuntu, it reads one only from /etc/mosquitto):
+
+listener 18830 127.0.0.1
+allow_anonymous true
+set_tcp_nodelay true
+max_connections -1
+persistence false
+
+Start it with "mosquitto -c <that file>" and pass --mqtt_port 18830 to the server
+and its clients.
 
 
 Building and installing Geneva

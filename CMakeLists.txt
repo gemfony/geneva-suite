@@ -84,6 +84,16 @@ set_property(CACHE GEM_USE_CUDA_RNG PROPERTY STRINGS auto on off)
 set(GEM_BUILD_WITH_GPU_CONSUMER "auto" CACHE STRING "Build the GPU consumer (GGPUConsumerT) into courtier and expose the 'gpu' mnemonic: auto|on|off")
 set_property(CACHE GEM_BUILD_WITH_GPU_CONSUMER PROPERTY STRINGS auto on off)
 
+# Whether to build the MQTT transport (GMqttConsumerT, the "mqtt" consumer mnemonic) into courtier.
+# It needs Boost.MQTT5, a header-only part of Boost that not every Boost has:
+#   auto -> build it when the Boost found has boost/mqtt5/mqtt_client.hpp
+#   on   -> require it (FATAL_ERROR if the header is missing)
+#   off  -> never build it
+# Resolved in CMakeModules/CommonGemBuild.cmake, once Boost is found, into the boolean
+# GEM_MQTT_CONSUMER_ENABLED used downstream.
+set(GEM_BUILD_WITH_MQTT_CONSUMER "auto" CACHE STRING "Build the MQTT transport into courtier and expose the 'mqtt' mnemonic: auto|on|off")
+set_property(CACHE GEM_BUILD_WITH_MQTT_CONSUMER PROPERTY STRINGS auto on off)
+
 # Selects the source the default Gem::Hap::GRandom proxy draws from (compile-time only -- exactly
 # one backend exists in a given build):
 #   queue      -> the central factory package queue (the default; producers may bulk-fill via cuRAND/SIMD)

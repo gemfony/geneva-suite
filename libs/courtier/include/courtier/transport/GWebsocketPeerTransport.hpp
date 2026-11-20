@@ -128,7 +128,7 @@ public:
 
 private:
     void accept_();
-    void whenAccepted_(const boost::system::error_code &ec, boost::asio::ip::tcp::socket socket);
+    void whenAccepted_(const boost::system::error_code &ec, GWebsocketPeer::socket_type socket);
     void closeAcceptor_();
     void joinIo_();
 

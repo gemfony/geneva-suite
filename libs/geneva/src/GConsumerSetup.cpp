@@ -67,9 +67,15 @@
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // GNetworkedTimeoutConfig
 #include "courtier/consumers/GStdThreadConsumerT.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
+#ifdef GEM_BUILD_WITH_MQTT_CONSUMER
+#include "courtier/consumers/GMqttConsumerT.hpp"
+#endif /* GEM_BUILD_WITH_MQTT_CONSUMER */
 
 // Like the consumers, the concrete client types are known ONLY here.
 #include "courtier/transport/GWebsocketTransportT.hpp" // GWebsocketClientT
+#ifdef GEM_BUILD_WITH_MQTT_CONSUMER
+#include "courtier/transport/GMqttTransportT.hpp" // GMqttClientT
+#endif                                            /* GEM_BUILD_WITH_MQTT_CONSUMER */
 
 // The GPU consumer + the marshaller store it is built from -- known ONLY here (folded into
 // gemfony-courtier / geneva only when the GPU consumer is built).
@@ -251,6 +257,121 @@ public:
     }
 };
 
+#ifdef GEM_BUILD_WITH_MQTT_CONSUMER
+/** @brief Provider for the MQTT networked consumer: server and clients meet on an MQTT broker,
+ *  under a topic prefix of their own. */
+class GMqttConsumerProvider final : public GConsumerProviderT {
+public:
+    [[nodiscard]] std::string getMnemonic() const override {
+        return "mqtt";
+    }
+    [[nodiscard]] std::string getName() const override {
+        return "GMqttConsumerT";
+    }
+    [[nodiscard]] bool needsClient() const override {
+        return true;
+    }
+    /** @brief The server binds no port, but it takes every join of its topic prefix: a second
+     *  server in the process would take them too, so a second build reuses the first.
+     *  @return true */
+    [[nodiscard]] bool bindsListeningPort() const override {
+        return true;
+    }
+
+    std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> setup(const c2::ConsumerSpec &spec) override {
+        auto consumer = std::make_shared<c2::GMqttConsumerT<gen::GGenome>>(
+            c2::configOf<c2::GMqttConsumerConfig>(spec)
+        );
+        consumer->startServer();
+        return consumer;
+    }
+
+    [[nodiscard]] std::any configFromCommandLine(const po::variables_map &vm) const override {
+        c2::GMqttConsumerConfig config;
+        if(vm.contains("mqtt_ip")) {
+            config.ip = vm["mqtt_ip"].as<std::string>();
+        }
+        if(vm.contains("mqtt_port")) {
+            config.port = vm["mqtt_port"].as<unsigned short>();
+        }
+        if(vm.contains("mqtt_topic")) {
+            config.topic = vm["mqtt_topic"].as<std::string>();
+        }
+        if(vm.contains("mqtt_serializationMode")) {
+            config.serializationMode =
+                vm["mqtt_serializationMode"].as<Gem::Common::serializationMode>();
+        }
+        if(vm.contains("mqtt_pingInterval")) {
+            config.pingInterval = vm["mqtt_pingInterval"].as<std::size_t>();
+        }
+        if(vm.contains("mqtt_prefetchDepth")) {
+            config.clientPrefetchDepth = vm["mqtt_prefetchDepth"].as<std::size_t>();
+        }
+        if(vm.contains("mqtt_parallelEvaluations")) {
+            config.clientParallelEvaluations = vm["mqtt_parallelEvaluations"].as<std::size_t>();
+        }
+        if(vm.contains("mqtt_firstContactLimit")) {
+            config.clientFirstContactLimit = vm["mqtt_firstContactLimit"].as<std::size_t>();
+        }
+        if(vm.contains("mqtt_reconnectLimit")) {
+            config.clientReconnectLimit = vm["mqtt_reconnectLimit"].as<std::size_t>();
+        }
+        return config;
+    }
+
+    [[nodiscard]] std::shared_ptr<c2::GBaseClientT<gen::GGenome>>
+    buildClient(const c2::ConsumerSpec &spec) const override {
+        return std::make_shared<c2::Consumers::GMqttClientT<gen::GGenome>>(
+            c2::configOf<c2::GMqttConsumerConfig>(spec)
+        );
+    }
+
+    void addCLOptions(po::options_description &visible, po::options_description &hidden) override {
+        using Gem::Common::serializationMode;
+        // The defaults are the configuration's (one place for them)
+        const c2::GMqttConsumerConfig defaults;
+        visible.add_options()(
+            "mqtt_ip",
+            po::value<std::string>()->default_value(defaults.ip),
+            "\t[mqtt] The name or ip of the MQTT broker"
+        )("mqtt_port",
+          po::value<unsigned short>()->default_value(defaults.port),
+          "\t[mqtt] The port of the MQTT broker")(
+            "mqtt_topic",
+            po::value<std::string>()->default_value(defaults.topic),
+            "\t[mqtt] The prefix of the topics: a server and its clients use the same one, servers "
+            "on one broker different ones"
+        );
+        hidden.add_options()(
+            "mqtt_serializationMode",
+            po::value<serializationMode>()->default_value(defaults.serializationMode),
+            ("\t[mqtt] Serialization in " + Gem::Common::serializationModeChoices()).c_str())(
+            "mqtt_pingInterval",
+            po::value<std::size_t>()->default_value(defaults.pingInterval),
+            "\t[mqtt] The MQTT keep-alive in seconds, for server and client (0 == off): the broker "
+            "publishes the will of a process it has not heard from within one and a half intervals, "
+            "which ends the other end of its connections. A client keeps its own value: set it "
+            "alike on both sides. A client that waits for its server joins again every two "
+            "intervals")(
+            "mqtt_prefetchDepth",
+            po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
+            "\t[mqtt] n: how many work items a client holds at once (see --beast_prefetchDepth)")(
+            "mqtt_parallelEvaluations",
+            po::value<std::size_t>()->default_value(defaults.clientParallelEvaluations),
+            "\t[mqtt] m: how many of the items a client holds it evaluates at the same time; from 1 "
+            "to the prefetch depth")(
+            "mqtt_firstContactLimit",
+            po::value<std::size_t>()->default_value(defaults.clientFirstContactLimit),
+            "\t[mqtt] Seconds a client tries to reach its server before it gives up (0 == for as "
+            "long as it runs)")(
+            "mqtt_reconnectLimit",
+            po::value<std::size_t>()->default_value(defaults.clientReconnectLimit),
+            "\t[mqtt] Seconds a client that has lost its connection tries to reach its server "
+            "again (0 == for as long as it runs)");
+    }
+};
+#endif /* GEM_BUILD_WITH_MQTT_CONSUMER */
+
 #ifdef GEM_BUILD_WITH_GPU_CONSUMER
 /**
  * @brief Provider for the (local, device-only) GPU consumer.
@@ -384,6 +505,9 @@ struct ConsumerProviderRegistrar {
             std::make_shared<GStdThreadConsumerProvider>()
         );
         store->setOnce("beast", std::make_shared<GWebsocketConsumerProvider>());
+#ifdef GEM_BUILD_WITH_MQTT_CONSUMER
+        store->setOnce("mqtt", std::make_shared<GMqttConsumerProvider>());
+#endif /* GEM_BUILD_WITH_MQTT_CONSUMER */
 #ifdef GEM_BUILD_WITH_GPU_CONSUMER
         store->setOnce("gpu", std::make_shared<GGPUConsumerProvider>());
 #endif /* GEM_BUILD_WITH_GPU_CONSUMER */

@@ -50,6 +50,8 @@ SET ( COMMUNICATIONINCLUDES
 # courtier2 rework, merged in at Stage E).
 SET ( CONSUMER_INCLUDES
     consumers/GMPIConsumerConfig.hpp
+    consumers/GMqttConsumerConfig.hpp
+    consumers/GMqttConsumerT.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GNetworkedTimeoutConfig.hpp
     consumers/GPeerConsumerT.hpp
@@ -60,7 +62,7 @@ SET ( CONSUMER_INCLUDES
 )
 
 # Transport classes (namespace Gem::Courtier::Consumers): the neutral session, client and peer
-# interface, and the websocket and MPI transports (ends, listeners, connectors, the MPI poll)
+# interface, and the websocket, MPI and MQTT transports (ends, listeners, connectors, the MPI poll)
 # that the networked consumers stand on. Named under transport/ so they no
 # longer collide with the consumer headers of the same mnemonic.
 SET ( TRANSPORT_INCLUDES
@@ -68,6 +70,8 @@ SET ( TRANSPORT_INCLUDES
     transport/GMPICallsI.hpp
     transport/GMPIPeerTransport.hpp
     transport/GMPIPollCore.hpp
+    transport/GMqttPeerTransport.hpp
+    transport/GMqttTransportT.hpp
     transport/GPeerClientT.hpp
     transport/GPeerI.hpp
     transport/GPeerSessionT.hpp

@@ -54,6 +54,15 @@ IF (GEM_GPU_CONSUMER_ENABLED)
             ${COURTIER_GPU_SRCS})
 ENDIF ()
 
+# The MQTT transport is optional (GEM_MQTT_CONSUMER_ENABLED, see CMakeModules/CommonGemBuild.cmake):
+# it needs Boost.MQTT5, which is header-only and slow to compile, so every use of it is in this one
+# file; its headers include none of it.
+IF (GEM_MQTT_CONSUMER_ENABLED)
+    SET( COMMUNICATIONSOURCES
+            ${COMMUNICATIONSOURCES}
+            GMqttPeerTransport.cpp)
+ENDIF ()
+
 set_source_files_properties(
         ${COMMUNICATIONSOURCES}
         PROPERTIES

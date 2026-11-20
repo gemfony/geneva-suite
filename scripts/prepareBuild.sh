@@ -223,6 +223,7 @@ INSTALLDIR="/opt/geneva"
 MPIROOT=""
 BUILDMPICONSUMER="0"
 BUILDGPUCONSUMER="auto"
+BUILDMQTTCONSUMER="auto"
 USECUDARNG="auto"
 SKIPALLCUDA="0"
 FORCECUDA="0"
@@ -269,7 +270,8 @@ _check_bool() {
 	fi
 }
 
-# The two CUDA opt-ins (USECUDARNG, BUILDGPUCONSUMER) are tri-state: auto|on|off.
+# The two CUDA opt-ins (USECUDARNG, BUILDGPUCONSUMER) and BUILDMQTTCONSUMER are tri-state:
+# auto|on|off.
 # Legacy 0|1 values are still accepted (and forwarded as-is; CMake maps them).
 _check_cuda_tristate() {
 	case "${2}" in
@@ -322,6 +324,7 @@ _check_bool VERBOSEMAKEFILE  "${VERBOSEMAKEFILE}"
 _check_bool BUILDMPICONSUMER "${BUILDMPICONSUMER}"
 _check_cuda_tristate USECUDARNG       "${USECUDARNG}"
 _check_cuda_tristate BUILDGPUCONSUMER "${BUILDGPUCONSUMER}"
+_check_cuda_tristate BUILDMQTTCONSUMER "${BUILDMQTTCONSUMER}"
 _check_bool SKIPALLCUDA      "${SKIPALLCUDA}"
 _check_bool FORCECUDA        "${FORCECUDA}"
 _check_bool GIMAGE_USE_FLOAT "${GIMAGE_USE_FLOAT}"
@@ -418,6 +421,7 @@ if [ "${GENERATE_PRESET}" = "1" ]; then
 	_preset_add "GEM_BUILD_BENCHMARKS"         "BOOL"   "${BUILDBENCHMARKS}"
 	_preset_add "GEM_BUILD_WITH_MPI_CONSUMER"  "BOOL"   "${BUILDMPICONSUMER}"
 	_preset_add "GEM_BUILD_WITH_GPU_CONSUMER"  "STRING" "${BUILDGPUCONSUMER}"
+	_preset_add "GEM_BUILD_WITH_MQTT_CONSUMER" "STRING" "${BUILDMQTTCONSUMER}"
 	_preset_add "GEM_USE_CUDA_RNG"             "STRING" "${USECUDARNG}"
 
 	if [ -n "${BOOSTROOT}" ]; then
@@ -495,6 +499,7 @@ cmake_args+=(
 	"-DCMAKE_INSTALL_PREFIX=${INSTALLDIR}"
 	"-DGEM_BUILD_WITH_MPI_CONSUMER=${BUILDMPICONSUMER}"
 	"-DGEM_BUILD_WITH_GPU_CONSUMER=${BUILDGPUCONSUMER}"
+	"-DGEM_BUILD_WITH_MQTT_CONSUMER=${BUILDMQTTCONSUMER}"
 	"-DGEM_USE_CUDA_RNG=${USECUDARNG}"
 	"-DGEM_SKIP_CUDA=${SKIPALLCUDA}"
 	"-DGEM_FORCE_CUDA=${FORCECUDA}"

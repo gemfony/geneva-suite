@@ -212,6 +212,34 @@ IF(NOT COMMON_GEM_BUILD_INCLUDED)
 
 	INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 
+	# The MQTT transport (GEM_BUILD_WITH_MQTT_CONSUMER: auto|on|off, declared in the top-level
+	# CMakeLists.txt) needs Boost.MQTT5, which not every Boost has. Resolved here into
+	# GEM_MQTT_CONSUMER_ENABLED and the compile definition GEM_BUILD_WITH_MQTT_CONSUMER.
+	SET(GEM_MQTT_CONSUMER_ENABLED FALSE)
+	IF(NOT DEFINED GEM_BUILD_WITH_MQTT_CONSUMER)
+		SET(GEM_BUILD_WITH_MQTT_CONSUMER "auto")
+	ENDIF()
+	STRING(TOLOWER "${GEM_BUILD_WITH_MQTT_CONSUMER}" _gem_mqtt)
+	IF(NOT _gem_mqtt MATCHES "^(off|0|false|no)$")
+		SET(_gem_mqtt_found FALSE)
+		FOREACH(_gem_dir IN LISTS Boost_INCLUDE_DIRS)
+			IF(EXISTS "${_gem_dir}/boost/mqtt5/mqtt_client.hpp")
+				SET(_gem_mqtt_found TRUE)
+			ENDIF()
+		ENDFOREACH()
+		IF(_gem_mqtt_found)
+			SET(GEM_MQTT_CONSUMER_ENABLED TRUE)
+			ADD_COMPILE_DEFINITIONS(GEM_BUILD_WITH_MQTT_CONSUMER)
+			MESSAGE(STATUS "MQTT consumer (GEM_BUILD_WITH_MQTT_CONSUMER=${GEM_BUILD_WITH_MQTT_CONSUMER}): built (Boost.MQTT5 found)")
+		ELSEIF(_gem_mqtt MATCHES "^(on|1|true|yes)$")
+			MESSAGE(FATAL_ERROR "GEM_BUILD_WITH_MQTT_CONSUMER=on, but the Boost in use has no Boost.MQTT5 (boost/mqtt5/mqtt_client.hpp)")
+		ELSE()
+			MESSAGE(STATUS "MQTT consumer (GEM_BUILD_WITH_MQTT_CONSUMER=auto): not built, the Boost in use has no Boost.MQTT5")
+		ENDIF()
+	ELSE()
+		MESSAGE(STATUS "MQTT consumer (GEM_BUILD_WITH_MQTT_CONSUMER=off): not built")
+	ENDIF()
+
 	# Optionally Search for MPI
 	IF(GEM_BUILD_WITH_MPI_CONSUMER)
 		MESSAGE("Searching for MPI...\n")
