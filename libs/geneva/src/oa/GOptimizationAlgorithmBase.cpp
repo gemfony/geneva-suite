@@ -536,12 +536,16 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     }
     //! [monitors:info-cycle#1]
 
-    // We want to know if no better values were found for a longer period of time
-    double const worst_case = this->at(0)->getWorstCase();
-    best_known_primary_fitness_ = std::make_tuple(worst_case, worst_case);
-    best_current_primary_fitness_ = std::make_tuple(worst_case, worst_case);
+    // We want to know if no better values were found for a longer period of time. A run resumed
+    // from a checkpoint goes on with the best-so-far records and the stall counter it holds: they
+    // belong to the state of the run, which started before this job.
+    if(not resumed_from_checkpoint_) {
+        double const worst_case = this->at(0)->getWorstCase();
+        best_known_primary_fitness_ = std::make_tuple(worst_case, worst_case);
+        best_current_primary_fitness_ = std::make_tuple(worst_case, worst_case);
 
-    stall_counter_ = 0;
+        stall_counter_ = 0;
+    }
 
     // Give derived classes the opportunity to perform any other necessary preparatory work.
     init();

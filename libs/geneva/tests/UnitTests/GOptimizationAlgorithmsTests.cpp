@@ -854,6 +854,67 @@ TEST_CASE(
 
 /******************************************************************************/
 
+TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[oa]") {
+    // The best-so-far record and the stall counter belong to the state of a run, which a
+    // checkpoint supplies. Regression (2026-11-20): optimize() reset both at every start, a resume
+    // included, so a resumed run reported and checkpointed only the best of its own iterations
+    // (worse than the checkpoint's, where the population keeps no parents) and counted stalls anew.
+    // The checkpoint is edited to hold a record no fitness can reach (a squared error is >= 0) and a
+    // stall counter of 7, so that the outcome is certain.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(2);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-record-resume-test";
+    fs::remove_all(cp_dir);
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName(cp_dir.string(), "record.cp");
+    job1->optimize();
+    fs::path cp;
+    for(const auto &entry : fs::directory_iterator(cp_dir)) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            cp = entry.path();
+        }
+    }
+    REQUIRE(not cp.empty());
+
+    std::string content = Gem::Common::loadTextDataFromFile(cp);
+    const auto replace_value = [&content](const std::string &key, char end, const std::string &by) {
+        const auto at = content.find("\"" + key + "\":");
+        REQUIRE(at != std::string::npos);
+        const auto from = at + key.size() + 3;
+        content.replace(from, content.find(end, from) - from, by);
+    };
+    replace_value("best_known_primary_fitness_", ']', R"(["-1","-1")");
+    replace_value("stall_counter_", ',', "7");
+    {
+        std::ofstream out(cp, std::ofstream::trunc);
+        out << content;
+    }
+
+    oa::GEvolutionaryAlgorithm job2;
+    job2.loadCheckpoint(cp);
+    fs::remove_all(cp_dir);
+    job2.setCheckpointInterval(0);
+    job2.setMaxIteration(job2.getIteration() + 2); // one iteration
+    job2.setMaxStallIteration(0);
+    job2.setAdaptionConfig(adaption_config);
+    job2.optimize(job2.getIteration() + 1);
+
+    CHECK(std::get<0>(job2.getBestKnownPrimaryFitness()) == -1.); // the record went on
+    CHECK(job2.getStallCounter() == 8);                           // and so did the stall count
+}
+
+/******************************************************************************/
+
 TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
     // Regression (2026-11-20): an empty checkpoint file -- left by a job that was killed while it
     // wrote one in place -- was reported as "usually means the individual type ... is not available".
