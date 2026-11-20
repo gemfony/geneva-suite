@@ -116,4 +116,20 @@ IF ( GEM_BUILD_EXAMPLES )
 		WORKING_DIRECTORY ${ONERANK_WORKDIR} )
 	SET_TESTS_PROPERTIES ( GMPIOneRankRefused PROPERTIES LABELS "geneva" )
 	GEM_TEST_SIZE ( GMPIOneRankRefused S )
+
+	# A batch job started again from its last checkpoint (checkpointRestart.sh says what it
+	# requires): job 1 under the MPI consumer, with three ranks each in a directory of its own, ends
+	# by its iteration limit; job 2, started with --cp_file on its final checkpoint and a higher
+	# limit, continues the run.
+	SET ( RESTART_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-restart )
+	FILE ( MAKE_DIRECTORY ${RESTART_WORKDIR} )
+	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartLimit TIMEOUT 120
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh limit 3
+			rank-0/config/GEvolutionaryAlgorithm.json rank-0/checkpoints --
+			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
+			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
+			$<TARGET_FILE:GSimpleOptimizer> ${MPIEXEC_POSTFLAGS} --consumer mpi
+		WORKING_DIRECTORY ${RESTART_WORKDIR} )
+	SET_TESTS_PROPERTIES ( GMPICheckpointRestartLimit PROPERTIES LABELS "geneva" PROCESSORS 3 )
+	GEM_TEST_SIZE ( GMPICheckpointRestartLimit M )
 ENDIF ()
