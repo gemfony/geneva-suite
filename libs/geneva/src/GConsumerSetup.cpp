@@ -351,8 +351,9 @@ public:
             "\t[mqtt] The MQTT keep-alive in seconds, for server and client (0 == off): the broker "
             "publishes the will of a process it has not heard from within one and a half intervals, "
             "which ends the other end of its connections. A client keeps its own value: set it "
-            "alike on both sides. A client that waits for its server joins again every two "
-            "intervals")(
+            "alike on both sides. A client that waits for its server joins again after two "
+            "intervals and a pause that grows to 30 s: it finds a server that has started within "
+            "at most both, about a minute at the defaults")(
             "mqtt_prefetchDepth",
             po::value<std::size_t>()->default_value(defaults.clientPrefetchDepth),
             "\t[mqtt] n: how many work items a client holds at once (see --beast_prefetchDepth)")(

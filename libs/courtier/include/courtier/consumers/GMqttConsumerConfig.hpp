@@ -75,8 +75,9 @@ struct GMqttConsumerConfig {
     /// Both: the MQTT keep-alive in seconds (0: off). The broker publishes the will of an end it
     /// has not heard from within one and a half intervals, which ends the other end. The server
     /// names its value to its clients; a client keeps its own (it is fixed when it connects), so
-    /// both sides set it alike. A client that waits for its server joins again every two
-    /// intervals.
+    /// both sides set it alike. A client that waits for its server joins again after two
+    /// intervals and its reconnect pause (up to 30 s): it finds a server that has started within
+    /// at most both, about a minute at the defaults (see GMqttClientT).
     std::size_t pingInterval = GBEASTCONSUMERPINGINTERVAL;
     /// Client: n, how many work items it holds at once (see GWebsocketConsumerConfig)
     std::size_t clientPrefetchDepth = 1;

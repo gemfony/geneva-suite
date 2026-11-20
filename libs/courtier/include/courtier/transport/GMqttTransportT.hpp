@@ -51,8 +51,12 @@ namespace Gem::Courtier::Consumers {
  * connects again (see GPeerClientT); one that hears no server within twice its keep-alive (no
  * server took its join, say because none had started yet) ends too, and the client tries again:
  * a client started long before its server waits without a limit by default
- * (clientFirstContactLimit 0) and is served at most about two keep-alive intervals after the server
- * has started. Its MQTT keep-alive is its own pingInterval, fixed when it connects; it says so in
+ * (clientFirstContactLimit 0). Each round it joins, waits two keep-alive intervals for an answer,
+ * and then pauses before it joins again; the pause doubles with every round from 0.25 s up to 30 s
+ * (GCLIENTRECONNECTPAUSEMIN, GCLIENTRECONNECTPAUSEMAX; drawn from its upper half) and starts small
+ * again only after a contact. A server that starts meanwhile is found at the end of the client's
+ * current wait and pause: at most two keep-alive intervals and 30 s later, about a minute at the
+ * defaults. Its MQTT keep-alive is its own pingInterval, fixed when it connects; it says so in
  * its log when the server's HELLO names another, so server and clients set it alike. A client
  * that is told that the run has ended ends.
  *
