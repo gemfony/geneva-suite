@@ -2558,7 +2558,7 @@ private:
     [[nodiscard]] boost::json::value
     buildConfigDocument_(std::string const &header, bool write_all) const;
     /** @brief Atomically replaces @p config_file with the pretty-printed serialization of @p document
-     *  (writes a temp sibling, then renames it over the target), bypassing the deliberate no-overwrite
+     *  (Gem::Common::replaceFileAtomically()), bypassing the deliberate no-overwrite
      *  guard of writeConfigFile() -- the update path is the one caller that legitimately overwrites a file. */
     void atomicReplaceConfigFile_(
         std::filesystem::path const &config_file,

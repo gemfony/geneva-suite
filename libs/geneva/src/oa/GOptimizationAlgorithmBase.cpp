@@ -62,6 +62,7 @@
 #include <ranges>
 #include <set>
 #include <span>
+#include <system_error>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -184,24 +185,29 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
     // Deserialize the checkpoint. A checkpoint is a GArchive of this algorithm AND its polymorphic
     // population, so the concrete individual type must be registered (compiled in, or loaded from an
     // --individual plugin) BEFORE this point -- exactly like the networked wire. If it is not, the codec
-    // throws deep inside deserialization (an unknown archive tag); translate that into actionable
-    // guidance rather than an opaque archive error, while preserving the original message.
+    // throws deep inside deserialization (an unknown archive tag). The file itself may also be empty or
+    // incomplete (written by another program, or by a Geneva that wrote checkpoints in place). Translate
+    // both into actionable guidance rather than an opaque archive error, keeping the original message.
     try {
         this->fromFile(cp_file, this->getCheckpointSerializationMode());
     }
     catch(const std::exception &e) {
+        std::error_code ec;
+        bool const empty = std::filesystem::file_size(cp_file, ec) == 0 && not ec;
         throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase<>::loadCheckpoint(): Error!" << '\n'
             << "Failed to deserialize the checkpoint file " << cp_file << '\n'
             << "Underlying error: " << e.what() << '\n'
-            << "This usually means the individual (optimization-problem) type stored in the "
-               "checkpoint is"
-            << '\n'
-            << "not available. Resume with the SAME individual that wrote the checkpoint -- "
-               "compiled in, or"
-            << '\n'
-            << "loaded via --individual <path>.so -- built against the same Geneva version." << '\n'
+            << (empty ? "The file is empty: it holds no checkpoint. Resume from another checkpoint "
+                        "file.\n"
+                      : "Either the file is incomplete or damaged, or the individual "
+                        "(optimization-problem)\n"
+                        "type stored in it is not available. In the second case resume with the "
+                        "SAME individual\n"
+                        "that wrote the checkpoint -- compiled in, or loaded via --individual "
+                        "<path>.so -- built\n"
+                        "against the same Geneva version.\n")
         );
     }
 

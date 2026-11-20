@@ -736,6 +736,26 @@ TEST_CASE(
 
 /******************************************************************************/
 
+TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
+    // Regression (2026-11-20): an empty checkpoint file -- left by a job that was killed while it
+    // wrote one in place -- was reported as "usually means the individual type ... is not available".
+    const std::filesystem::path cp =
+        std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-0-0-emptytest.cp";
+    {
+        std::ofstream const create(cp, std::ofstream::trunc);
+    }
+
+    oa::GEvolutionaryAlgorithm ea;
+    CHECK_THROWS_WITH(
+        ea.loadCheckpoint(cp),
+        Catch::Matchers::ContainsSubstring("The file is empty") &&
+            not Catch::Matchers::ContainsSubstring("individual")
+    );
+    std::filesystem::remove(cp);
+}
+
+/******************************************************************************/
+
 TEST_CASE(
     "a Go2 resumed from a checkpoint does not add its own individuals to the population",
     "[oa][go2]"

@@ -214,7 +214,9 @@ public:
 
     /***************************************************************************/
     /**
-     * Writes a serial representation of this object to a file. Can be used for check-pointing.
+     * Writes a serial representation of this object to a file. Can be used for check-pointing. An
+     * existing file is replaced as a whole (Gem::Common::replaceFileAtomically()): a process that is
+     * ended while it writes leaves the old file or the new one, never a part of the new one.
      *
      * @tparam self_type The deduced most-derived type of *this (forwarded to toStream)
      * @param self The (deduced) object being serialized
@@ -227,30 +229,11 @@ public:
         const std::filesystem::path &p,
         Gem::Common::serializationMode ser_mod
     ) {
-        std::ofstream ofstr( // NOLINT(cppcoreguidelines-init-variables)
-            p
-            , std::ofstream::trunc
-        ); // Note: will overwrite existing files
-
-        if(not ofstr) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GCommonInterfaceT::toFile():" << '\n'
-                << "Problems connecting to file " << p.string() << '\n'
-            );
-        }
-
-        self.toStream(ofstr, ser_mod);
-
-#ifdef DEBUG
-        if(not ofstr.good()) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GCommonInterfaceT::toFile():" << '\n'
-                << "Stream error after writing to " << p.string() << '\n'
-            );
-        }
-#endif
+        Gem::Common::replaceFileAtomically(
+            p,
+            [&self, ser_mod](std::ostream &os) { self.toStream(os, ser_mod); },
+            "GCommonInterfaceT::toFile()"
+        );
     }
 
     /***************************************************************************/
