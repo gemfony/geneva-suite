@@ -57,6 +57,7 @@
 #include <utility>
 #include <vector>
 
+#include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
@@ -730,6 +731,57 @@ TEST_CASE(
         }
     }
     CHECK(have_final); // the run's final state was checkpointed
+
+    fs::remove_all(cp_dir);
+}
+
+/******************************************************************************/
+
+TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
+    // A resume starts at the iteration after the one its checkpoint holds (Go2). Regression
+    // (2026-11-20): the final checkpoint was written after the loop had counted on, so it held the
+    // iteration that would have come next, and a run resumed from it skipped one iteration.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-final-checkpoint-iteration-test";
+    fs::remove_all(cp_dir);
+
+    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    ea->push_back(gind::GLineFitIndividual(data_points).clone());
+    ea->setPopulationSizes(4, 2);
+    ea->setMaxIteration(3); // iterations 0, 1 and 2
+    ea->setReportIteration(0);
+    ea->setAdaptionConfig(
+        dynamic_cast<gind::GLineFitIndividual &>((*ea->at(0))).getAdaptionConfig()
+    );
+    ea->setCheckpointInterval(1);
+    ea->setRemoveCheckpointFiles(false); // keep the numbered checkpoints beside the final one
+    ea->setCheckpointBaseName(cp_dir.string(), "iteration.cp");
+    ea->optimize();
+
+    fs::path numbered;
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(cp_dir)) {
+        const auto tokens = Gem::Common::splitString(entry.path().filename().string(), "-");
+        REQUIRE(tokens.size() > 2);
+        if(tokens[2] == "2") {
+            numbered = entry.path();
+        }
+        else if(tokens[2] == "final") {
+            final_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not numbered.empty());
+    REQUIRE(not final_checkpoint.empty());
+
+    oa::GEvolutionaryAlgorithm from_numbered;
+    from_numbered.loadCheckpoint(numbered);
+    oa::GEvolutionaryAlgorithm from_final;
+    from_final.loadCheckpoint(final_checkpoint);
+    CHECK(from_numbered.getIteration() == 2);
+    CHECK(from_final.getIteration() == 2);
+    CHECK(ea->getIteration() == 3); // the run itself still ends having counted on
 
     fs::remove_all(cp_dir);
 }

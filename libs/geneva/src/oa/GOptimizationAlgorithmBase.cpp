@@ -595,8 +595,13 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // in-loop checkpoint() call, so the in-loop calls never see halted() == true --
     // without this post-loop call the "final" checkpoint (see checkpoint()'s halted()
     // branch and the "final" file-name tag) would never be written at all. checkpoint()
-    // itself gates on the user having enabled checkpointing (cp_interval_ != 0).
+    // itself gates on the user having enabled checkpointing (cp_interval_ != 0). The loop has
+    // already counted on to the iteration that would come next: the final checkpoint holds the
+    // last iteration that ran, as a numbered one does, so that a resume (Go2: the checkpoint's
+    // iteration + 1) starts right after it instead of skipping one.
+    --iteration_;
     checkpoint(progress());
+    ++iteration_;
     //! [geneva.oa.cycle]
 
     // Give derived classes the opportunity to perform any remaining clean-up work
