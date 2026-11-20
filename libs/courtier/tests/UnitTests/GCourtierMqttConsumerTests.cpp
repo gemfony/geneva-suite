@@ -40,11 +40,13 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <future>
 #include <memory>
 #include <span>
 #include <string>
+#include <system_error>
 #include <thread>
 #include <tuple>
 #include <utility>
@@ -183,19 +185,33 @@ private:
 /**
  * A broker of the case's own, started and ended by the tests' script (tests/mqttTestBroker.sh), on
  * a free port that it keeps when it is started again: the fixture's broker serves the other tests
- * at the same time and is not stopped. Ended when this goes.
+ * at the same time and is not stopped. Every instance has a directory of its own (made with
+ * mkdtemp() below GCOURTIER_MQTT_OWN_BROKER_DIR), where the script keeps its pid, port and log, so
+ * that the case can run in several processes at once without one ending another's broker. The
+ * broker is ended when this goes, and its files and directory are removed then.
  */
 class OwnBroker {
 public:
     OwnBroker() {
-        REQUIRE(script_("start") == 0);
-        std::ifstream file(std::string(GCOURTIER_MQTT_OWN_BROKER_DIR) + "/port");
+        std::error_code ignored;
+        std::filesystem::create_directories(GCOURTIER_MQTT_OWN_BROKER_DIR, ignored);
+        std::string pattern = std::string(GCOURTIER_MQTT_OWN_BROKER_DIR) + "/broker-XXXXXX";
+        REQUIRE(::mkdtemp(pattern.data()) != nullptr);
+        dir_ = pattern;
+        REQUIRE(this->script_("start") == 0);
+        std::ifstream file(dir_ + "/port");
         unsigned int port = 0;
         REQUIRE(static_cast<bool>(file >> port));
         port_ = static_cast<unsigned short>(port);
     }
     ~OwnBroker() {
-        std::ignore = script_("stop");
+        if(this->script_("stop") == 0) {
+            std::error_code ignored;
+            for(const char *name : {"/pid", "/port", "/broker.log"}) {
+                std::filesystem::remove(dir_ + name, ignored);
+            }
+            std::filesystem::remove(dir_, ignored); // only if it is empty
+        }
     }
     OwnBroker(const OwnBroker &) = delete;
     OwnBroker(OwnBroker &&) = delete;
@@ -208,25 +224,26 @@ public:
     }
     /** @brief Ends it (its process goes; its clients lose their connections) */
     void stop() {
-        REQUIRE(script_("stop") == 0);
+        REQUIRE(this->script_("stop") == 0);
     }
     /** @brief Starts it again on its port */
     void startAgain() {
-        REQUIRE(script_("start", port_) == 0);
+        REQUIRE(this->script_("start", port_) == 0);
     }
 
 private:
-    /** @brief Runs the script (it ends within seconds) @return Its exit status */
-    static int script_(const std::string &action, unsigned short port = 0) {
+    /** @brief Runs the script on this broker's directory (it ends within seconds)
+     *  @return Its exit status */
+    [[nodiscard]] int script_(const std::string &action, unsigned short port = 0) const {
         std::string command = std::string("'") + GCOURTIER_MQTT_BROKER_SCRIPT + "' " + action +
-                              " '" + GCOURTIER_MOSQUITTO + "' '" + GCOURTIER_MQTT_OWN_BROKER_DIR +
-                              "'";
+                              " '" + GCOURTIER_MOSQUITTO + "' '" + dir_ + "'";
         if(port != 0) {
             command += " " + std::to_string(port);
         }
         return std::system((command + " > /dev/null 2>&1").c_str());
     }
 
+    std::string dir_;         ///< Its own directory
     unsigned short port_ = 0; ///< Its port
 };
 

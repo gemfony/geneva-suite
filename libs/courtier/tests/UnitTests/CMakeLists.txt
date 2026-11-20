@@ -182,7 +182,8 @@ IF(GEM_MQTT_CONSUMER_ENABLED)
 		# waiting for limits
 		gem_courtier_test(GCourtierMqttConsumerTests L GCourtierMqttConsumerTests.cpp GMqttTestSupport.hpp
 			GTcpRelay.hpp)
-		# A case restarts a broker of its own with the same script
+		# A case restarts a broker of its own with the same script, in a directory of its own below
+		# GCOURTIER_MQTT_OWN_BROKER_DIR (one per instance: the case may run in several processes)
 		TARGET_COMPILE_DEFINITIONS(GCourtierMqttConsumerTests
 			PRIVATE GCOURTIER_MQTT_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}"
 			GCOURTIER_MQTT_OWN_BROKER_DIR="${GEM_MQTT_TEST_BROKER_DIR}-restart"
