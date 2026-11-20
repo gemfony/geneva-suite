@@ -169,7 +169,11 @@ private:
     bool connected_ = false;      ///< A CONNACK has arrived
 };
 
-using client_type = mqtt::mqtt_client<boost::asio::ip::tcp::socket, std::monostate, GLinkWatch>;
+/// The stream of an MQTT client's broker connection: TCP. The one place where the transport names
+/// it: an encrypted connection would put a TLS stream here (and a TLS context in place of
+/// std::monostate below, with its settings in GMqttOptions).
+using stream_type = boost::asio::ip::tcp::socket;
+using client_type = mqtt::mqtt_client<stream_type, std::monostate, GLinkWatch>;
 
 /** @brief An MQTT client with its broker, keep-alive and largest packet set (before it runs)
  *  @param client The client @param options Broker and keep-alive */

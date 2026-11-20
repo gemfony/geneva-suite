@@ -117,7 +117,14 @@ class GWebsocketPeer final
   : public GPeerI
   , public std::enable_shared_from_this<GWebsocketPeer> {
 public:
-    /** @brief How this end of the connection is set up. */
+    /// The stream of a connection: websocket over TCP. The one place where the transport names
+    /// it: an encrypted connection would put a TLS stream here (with its settings in GOptions).
+    using stream_type = boost::beast::websocket::stream<boost::asio::ip::tcp::socket>;
+    /// What the listener accepts and the connector connects: the layer below the websocket
+    using socket_type = stream_type::next_layer_type;
+
+    /** @brief How this end of the connection is set up. The place where the settings of an
+     *  encrypted connection (TLS) would join; there are none yet. */
     struct GOptions {
         std::string name; ///< Who this end is, for the lines logged about control frames
         Gem::Common::serializationMode mode =
@@ -134,7 +141,7 @@ public:
      *  empty. With a host name this is the client's end, which performs the websocket handshake
      *  with that name; without one it is the server's end, which waits for the client's. */
     GWebsocketPeer(
-        boost::asio::ip::tcp::socket,
+        socket_type,
         GOptions,
         const boost::asio::any_io_executor & = {},
         std::string = {}
@@ -177,7 +184,7 @@ private:
     void closeWhenSent_();
     void finish_(const boost::system::error_code &cause, bool report_inline = false);
 
-    boost::beast::websocket::stream<boost::asio::ip::tcp::socket> ws_; ///< The connection
+    stream_type ws_; ///< The connection
     GOptions options_;
     std::string host_; ///< The server's name for the client's handshake; empty on the server's end
     GPeerHandlers handlers_; ///< Set by start(); on the handler strand; dropped once it is over

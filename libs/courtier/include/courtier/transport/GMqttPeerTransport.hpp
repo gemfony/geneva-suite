@@ -125,7 +125,8 @@ namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
 /** @brief Where the ends of the MQTT transport find their broker, and how they name their topics.
- *  The server and its clients must agree on host, port and topic. */
+ *  The server and its clients must agree on host, port and topic. The place where the settings of
+ *  an encrypted broker connection (TLS) or of a login would join; there are none yet. */
 struct GMqttOptions {
     std::string name = "GMqttPeer";         ///< Who uses the transport, for the log
     std::string host = GMQTTDEFAULTBROKER;  ///< The broker's name or address
@@ -200,7 +201,12 @@ public:
     /** @brief Whether the end has ended. Any thread. @return Whether it has */
     [[nodiscard]] bool ended() const noexcept;
     /** @brief How many messages of the role have arrived from the other end so far (handed to the
-     *  handler strand, or waiting for start()). Any thread. @return The count */
+     *  handler strand, or waiting for start()). Any thread. A help for the rule tests of GPeerI.hpp
+     *  (their arrived()): they must know that this end has read a message while its handler strand
+     *  is held, or before it has been started. Both happen on the end's own I/O strand, where no
+     *  handler of a role or of a test runs; what is visible from outside (bytes through a relay, a
+     *  second subscriber) shows only messages on their way, which a close may still overtake.
+     *  @return The count */
     [[nodiscard]] std::uint64_t received() const noexcept;
 
 private:

@@ -51,7 +51,9 @@ namespace Gem::Courtier {
  *
  * Server and client are built from the same struct; each member says which side reads it. A plain
  * aggregate, to be copied freely. It includes no network library, so a program can name the
- * consumer by its configuration without seeing the consumer's header.
+ * consumer by its configuration without seeing the consumer's header. The settings of an encrypted
+ * broker connection (TLS) or of a login would join here and reach the transport through
+ * GMqttOptions; there are none yet.
  */
 struct GMqttConsumerConfig {
     /// The mnemonic of the consumer family this struct configures, as chosen with --consumer
