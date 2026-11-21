@@ -29,7 +29,7 @@
 
 /**
  * @file
- * @brief A deliberately broken module: it advertises a contribution kind this Geneva does not serve.
+ * @brief A deliberately broken module: it advertises a contribution kind no program accepts.
  *
  * Part of the loader's negative-path coverage (see GGenomeTests.cpp, "[plugin][reject]"). Its stamp and
  * fingerprint are correct, so both gates pass and the defect is found during the contribution walk. The
@@ -45,8 +45,8 @@
 
 namespace {
 
-/** A kind number no Geneva has ever defined. */
-constexpr std::uint32_t UNKNOWN_KIND = 99u;
+/** A kind no library of the collection defines. */
+constexpr const char *UNKNOWN_KIND = "nowhere.something";
 
 const GemContribution CONTRIBUTION{
     .kind = UNKNOWN_KIND,

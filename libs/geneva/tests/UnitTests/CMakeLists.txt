@@ -56,6 +56,10 @@ SET ( ${EXECUTABLENAME}_SRCS
 ADD_EXECUTABLE(${EXECUTABLENAME}
 	${${EXECUTABLENAME}_SRCS}
 )
+# Linked with exported symbols: the default consumer comes from Geneva's module "stc", and the tests
+# count the consumers it builds through a static of the consumer's class, which the module shares
+# with the program only then.
+SET_TARGET_PROPERTIES(${EXECUTABLENAME} PROPERTIES ENABLE_EXPORTS ON)
 
 SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}
@@ -84,9 +88,8 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 # -UGEM_TESTING, pinned ABI flags), carrying one specific defect. The unit tests really dlopen them, so the
 # rejection is proved through the whole loader path rather than against a hand-made in-process struct.
 # Their paths are handed to the test executable as compile definitions -- nothing has to be installed, and
-# the tests skip themselves if this wiring is ever dropped. One more, GMpiMnemonicModule, is a good
-# consumer module that claims the mnemonic of Geneva's optional MPI module; it is built only where
-# that module is.
+# the tests skip themselves if this wiring is ever dropped. The three consumer modules among them are
+# refused by courtier's consumer handler for GGenome (a launcher loads consumers, not Geneva's loader).
 #
 SET(GENEVA_BAD_MODULES
 	GStaleAbiModule
@@ -117,13 +120,6 @@ TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
 	# A perfectly good shared library that is not a Geneva module at all -- the "you pointed me at
 	# something else" path. Geneva's own library is the one guaranteed to be there.
 	"GENEVA_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${GENEVA_LIBNAME}>\"")
-
-IF(GEM_BUILD_WITH_MPI_CONSUMER)
-	GENEVA_ADD_INDIVIDUAL_MODULE(GMpiMnemonicModule badmodules/GMpiMnemonicModule.cpp)
-	ADD_DEPENDENCIES(${EXECUTABLENAME} GMpiMnemonicModule ${GENEVA_MPI_LIBNAME})
-	TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
-		"GENEVA_TEST_MODULE_MPI_MNEMONIC=\"$<TARGET_FILE:GMpiMnemonicModule>\"")
-ENDIF()
 
 #
 # CTest registration: the binary is registered as SHARDS, not as one entry.
@@ -188,14 +184,6 @@ ADD_TEST(
 )
 SET_TESTS_PROPERTIES(${EXECUTABLENAME}-shard-completeness PROPERTIES LABELS "geneva")
 GEM_TEST_SIZE(${EXECUTABLENAME}-shard-completeness M)
-
-# Run alone, in a process of its own: see the case's comment. Hidden cases are in no shard
-# (as the benchmark case "[.oabench]"), so the shard partition is not touched.
-IF(GEM_BUILD_WITH_MPI_CONSUMER)
-	ADD_TEST(NAME GenevaOptionalModulesFirst COMMAND ${EXECUTABLENAME} "[optional-first]")
-	SET_TESTS_PROPERTIES(GenevaOptionalModulesFirst PROPERTIES LABELS "geneva")
-	GEM_TEST_SIZE(GenevaOptionalModulesFirst S)
-ENDIF()
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/tests/geneva/UnitTests )
 

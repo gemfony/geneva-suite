@@ -110,13 +110,8 @@ GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 
 // clang-format off
 //! [quickstart-tour-main]
-int main(int argc, char **argv) {
-    // Reads the command line and ./config/Go2.json (written with defaults if absent).
-    geneva::Go2 go(argc, argv, "./config/Go2.json");
-    if(go.clientMode()) {
-        return go.clientRun(); // a worker process in a networked run
-    }
-
+/** The search, on the process that submits the work; returns the exit code */
+int solve(geneva::Go2 &go) {
     // One prototype candidate, and how the evolutionary algorithm mutates it.
     auto problem = std::make_shared<first::GFirstProblem>();
     go.registerAdaptionConfig("PERSONALITY_EA", problem->adaptionConfig());
@@ -130,21 +125,30 @@ int main(int argc, char **argv) {
     go.registerPluggableOM(plotter);
 
     // Run, then read the best candidate found.
-    auto best_solution = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
+    auto best = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
     std::vector<double> best_parameters;
-    best_solution->streamline<double>(best_parameters);
+    best->streamline<double>(best_parameters);
     std::cout << "best solution: x = " << best_parameters[0]
               << ", y = " << best_parameters[1]
-              << ", f = " << best_solution->raw_fitness(0) << '\n';
+              << ", f = " << best->raw_fitness(0) << '\n';
 
-    // Check the answer against the known minimum at (1, -2) -- with a tolerance, as the
-    // search is stochastic.
+    // Check the answer against the known minimum at (1, -2) -- with a tolerance, as
+    // the search is stochastic.
     const bool close_enough = std::abs(best_parameters[0] - 1.) < 0.1
                               && std::abs(best_parameters[1] + 2.) < 0.1;
     if(not close_enough) {
-        std::cerr << "GQuickStart: the search did not get close enough to (1, -2)\n";
+        std::cerr << "GQuickStart: the search did not get close to (1, -2)\n";
     }
     return close_enough ? 0 : 1;
+}
+
+int main(int argc, char **argv) {
+    // Reads the command line and ./config/Go2.json (written with defaults if absent).
+    // Only the process that submits the work runs solve(); a worker of a networked run
+    // evaluates what it is sent.
+    return geneva::runOptimization(argc, argv, {
+        .produce = [](geneva::Go2 &go, const auto &) { return solve(go); }
+    });
 }
 //! [quickstart-tour-main]
 // clang-format on

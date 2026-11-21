@@ -44,8 +44,6 @@
 
 #include <sstream>
 
-#include <boost/program_options.hpp>
-
 #include "courtier/consumers/GMPIConsumerConfig.hpp"
 
 #include "common/GCommonEnums.hpp"
@@ -89,8 +87,9 @@
 #include <chrono>
 #include <thread>
 
-// The consumer catalogue: optionalConsumerNotes(), consumerListing()
-#include "geneva/GConsumerSetup.hpp"
+// The consumer catalogue of GGenome and its modules
+#include "courtier/GLauncherT.hpp"
+#include "geneva/GOptimizationDescription.hpp"
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
@@ -2480,6 +2479,29 @@ bool mentions(const std::string &haystack, const std::string &needle) {
     return haystack.find(needle) != std::string::npos;
 }
 
+/** @brief Loads the consumer module @p path as a launcher of GGenome does, requires that it
+ *  throws, and returns the diagnostic text.
+ *  @param path The module
+ *  @return The exception's message (empty if nothing was thrown) */
+std::string consumerRejectionMessage(const std::filesystem::path &path) {
+    try {
+        Gem::Common::loadModule(
+            path,
+            std::array{Gem::Courtier::consumerContributionHandler<GGenome>()}
+        );
+    }
+    catch(const std::exception &e) {
+        return e.what();
+    }
+    return {};
+}
+
+/** @brief Whether the consumer catalogue of GGenome holds @p mnemonic @param mnemonic The consumer
+ *  @return true if a module provided it */
+bool knownConsumer(const std::string &mnemonic) {
+    return Gem::Courtier::consumerCatalog<GGenome>()->exists(mnemonic);
+}
+
 } // anonymous namespace
 
 TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin][reject]") {
@@ -2521,18 +2543,18 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         CHECK(mentions(msg, GENEVA_TEST_MODULE_CONTRIBUTION_SIZE));
     }
 
-    SECTION("a contribution of a kind this Geneva cannot load") {
+    SECTION("a contribution of a kind this program does not accept") {
         const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_UNKNOWN_KIND);
         REQUIRE_FALSE(msg.empty());
-        CHECK(mentions(msg, "kind 99"));            // names the offending kind
-        CHECK(mentions(msg, "GUnknownKindModule")); // ... and the module, by its own name
-        CHECK(mentions(msg, "SomethingElse"));      // ... and the contribution
-        CHECK(mentions(msg, "Supported kinds"));    // ... and what this Geneva does serve
-        // ... namely all four of Geneva's kinds, each with its noun
-        CHECK(mentions(msg, "1 (individual)"));
-        CHECK(mentions(msg, "2 (optimization algorithm)"));
-        CHECK(mentions(msg, "5 (GPU marshaller)"));
-        CHECK(mentions(msg, "4 (consumer)"));
+        CHECK(mentions(msg, "\"nowhere.something\"")); // names the offending kind
+        CHECK(mentions(msg, "GUnknownKindModule"));    // ... and the module, by its own name
+        CHECK(mentions(msg, "SomethingElse"));         // ... and the contribution
+        CHECK(mentions(msg, "Supported kinds"));       // ... and what this program does accept
+        // ... namely Geneva's three kinds, each with its noun (consumers are the launcher's)
+        CHECK(mentions(msg, "\"geneva.individual\" (individual)"));
+        CHECK(mentions(msg, "\"geneva.oa\" (optimization algorithm)"));
+        CHECK(mentions(msg, "\"geneva.marshaller\" (GPU marshaller)"));
+        CHECK_FALSE(mentions(msg, "\"courtier.consumer\""));
     }
 
     SECTION("a manifest that advertises nothing") {
@@ -2551,36 +2573,41 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
     }
 
     // A consumer contribution names the item type its provider distributes. One for another item
-    // type, or one that names none, is refused before its factory is called -- the factories of
-    // both modules end the process.
+    // type, or one that names none, is refused by courtier's consumer handler (the one a launcher
+    // of GGenome uses) before its factory is called -- the factories of both modules end the
+    // process.
     SECTION("a consumer contribution for another item type") {
-        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_FOREIGN_SUBJECT);
+        const std::string msg = consumerRejectionMessage(GENEVA_TEST_MODULE_FOREIGN_SUBJECT);
         REQUIRE_FALSE(msg.empty());
         CHECK(mentions(msg, "GForeignSubjectModule"));
-        CHECK(mentions(msg, "'foreign'"));
         CHECK(mentions(msg, "Gem::Tests::GForeignItem"));     // the item type found, demangled
         CHECK(mentions(msg, "Gem::Geneva::Genome::GGenome")); // ... and the one expected
-        CHECK_FALSE(Gem::Geneva::isKnownConsumer("foreign"));
+        CHECK_FALSE(knownConsumer("foreign"));
     }
 
     SECTION("a consumer contribution that names no item type") {
-        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_NULL_SUBJECT);
+        const std::string msg = consumerRejectionMessage(GENEVA_TEST_MODULE_NULL_SUBJECT);
         REQUIRE_FALSE(msg.empty());
         CHECK(mentions(msg, "GNullSubjectModule"));
-        CHECK(mentions(msg, "'nosubject'"));
         CHECK(mentions(msg, "no item type"));
         CHECK(mentions(msg, "Gem::Geneva::Genome::GGenome"));
-        CHECK_FALSE(Gem::Geneva::isKnownConsumer("nosubject"));
+        CHECK_FALSE(knownConsumer("nosubject"));
     }
 
     SECTION("a consumer whose provider has another mnemonic than its manifest entry") {
-        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MNEMONIC_MISMATCH);
+        const std::string msg = consumerRejectionMessage(GENEVA_TEST_MODULE_MNEMONIC_MISMATCH);
         REQUIRE_FALSE(msg.empty());
         CHECK(mentions(msg, "GMnemonicMismatchModule"));
         CHECK(mentions(msg, "'manifest-says'"));
         CHECK(mentions(msg, "'provider-says'"));
-        CHECK_FALSE(Gem::Geneva::isKnownConsumer("manifest-says"));
-        CHECK_FALSE(Gem::Geneva::isKnownConsumer("provider-says"));
+        CHECK_FALSE(knownConsumer("manifest-says"));
+        CHECK_FALSE(knownConsumer("provider-says"));
+    }
+
+    SECTION("a consumer module given to Geneva's own loader") {
+        const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MNEMONIC_MISMATCH);
+        REQUIRE_FALSE(msg.empty());
+        CHECK(mentions(msg, "\"courtier.consumer\""));
     }
 
     SECTION("a path that does not exist") {
@@ -2593,54 +2620,26 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
     }
 }
 
-#ifdef GENEVA_TEST_MODULE_MPI_MNEMONIC
-// Needs a process in which no function of the consumer catalogue has run: once one has, the
-// optional modules are loaded whatever loadModule() does, and this case could not fail. It is
-// therefore hidden from the shards and run alone by the ctest entry GenevaOptionalModulesFirst.
-TEST_CASE(
-    "A module cannot take the mnemonic of an optional consumer module",
-    "[.optional-first][plugin]"
-) {
-    const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_MPI_MNEMONIC);
-    REQUIRE_FALSE(msg.empty());
-    CHECK(mentions(msg, "already registered"));
-    CHECK(mentions(msg, "'mpi'"));
-    CHECK(mentions(msg, GENEVA_TEST_MODULE_MPI_MNEMONIC));
-    // The consumer of that mnemonic is the one of Geneva's own module.
-    CHECK(Gem::Geneva::optionalConsumerNotes().empty());
-    CHECK(mentions(Gem::Geneva::consumerListing(), "mpi:  GMPIConsumerT"));
-}
-#endif
-
 #ifdef GEM_BUILD_WITH_MPI_CONSUMER
-// The command-line options of the "mpi" consumer are registered by Geneva's MPI module. Their
-// defaults must be those of MPIConsumerConfig: an option left unset must leave the consumer as a
-// default-constructed configuration describes it, and a default changed in the struct must change
-// what the command line gives, without a second place to edit.
+// The command-line options of the "mpi" consumer are registered by its provider in Geneva's MPI
+// module. Their defaults must be those of MPIConsumerConfig: an option left unset must leave the
+// consumer as a default-constructed configuration describes it, and a default changed in the
+// struct must change what the command line gives, without a second place to edit.
 TEST_CASE("The mpi consumer's options default to MPIConsumerConfig", "[genome][plugin][mpi]") {
-    REQUIRE(Gem::Geneva::isKnownConsumer("mpi")); // loads Geneva's MPI module
-    std::shared_ptr<
-        Gem::Common::GProviderT<Gem::Courtier::GBaseConsumerT<Gem::Geneva::Genome::GGenome>>>
-        base;
-    REQUIRE(Gem::Geneva::consumerProviderStore()->get("mpi", base));
-    REQUIRE(base);
-    const auto provider = std::static_pointer_cast<Gem::Geneva::GConsumerProviderT>(base);
+    const auto provider = Gem::Courtier::consumerProvider<GGenome>(
+        "mpi",
+        Gem::Geneva::consumerModules()
+    ); // loads Geneva's MPI module
+    REQUIRE(provider);
 
-    boost::program_options::options_description visible;
-    boost::program_options::options_description hidden;
-    provider->addCLOptions(visible, hidden);
-    boost::program_options::options_description all;
-    all.add(visible).add(hidden);
-    const std::vector<const char *> argv{"test"};
-    boost::program_options::variables_map vm;
-    boost::program_options::store(
-        boost::program_options::parse_command_line(static_cast<int>(argv.size()), argv.data(), all),
-        vm
-    );
-    boost::program_options::notify(vm);
+    Gem::Common::GParserBuilder gpb;
+    provider->registerOptions(gpb);
+    char arg0[] = "test";
+    char *argv[] = {arg0, nullptr};
+    (void)gpb.parseCommandLine(1, argv);
 
     const auto config = std::any_cast<Gem::Courtier::Consumers::MPIConsumerConfig>(
-        provider->configFromCommandLine(vm)
+        provider->configuration(gpb, std::any{})
     );
     const Gem::Courtier::Consumers::MPIConsumerConfig defaults;
     CHECK(config.serializationMode == defaults.serializationMode);
@@ -2659,7 +2658,7 @@ namespace {
 class ProbeGPUMarshaller final : public GBaseGPUMarshallerT<double> {};
 } // anonymous namespace
 
-// A runtime module may contribute a GPU marshaller (manifest kind GEM_CONTRIBUTION_MARSHALLER): the device
+// A runtime module may contribute a GPU marshaller (manifest kind "geneva.marshaller"): the device
 // adapter that makes --consumer gpu work for a loaded problem. This pins the author helper (marshallerManifest)
 // and the registration mechanics the loader uses -- the whole marshaller (device target, GPU-config path and,
 // via the produced handle, the scalar kind) travels inside the provider with no manifest ABI change.
@@ -2675,7 +2674,7 @@ TEST_CASE(
     CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
     const GemContribution &contribution = manifest->contributions[0];
-    CHECK(contribution.kind == GEM_CONTRIBUTION_MARSHALLER);
+    CHECK(std::string_view(contribution.kind) == MARSHALLER_CONTRIBUTION_KIND);
     CHECK(std::string(contribution.name_or_mnemonic) == "cuda");
 
     // The contribution thunk yields the marshaller provider across the plain-C void* boundary (the same
@@ -2690,12 +2689,12 @@ TEST_CASE(
     REQUIRE(provider);
     CHECK(provider->getMnemonic() == "cuda");
     CHECK(provider->gpuConfigFile() == "config/ProbeGPU.json");
-    CHECK(provider->provide()->scalarKind() == GPUScalarKind::Double);
+    CHECK(provider->provide()->scalarKind() == Gem::Courtier::GPU::GPUScalarKind::Double);
 
     // It registers into marshallerProviderStore() exactly like a compiled-in registerGPUMarshaller, and the
     // one-per-target rule (setOnce) rejects a second marshaller for the same device target -- one problem per
     // process, so a module cannot shadow an existing marshaller.
-    auto store = Gem::Geneva::marshallerProviderStore();
+    auto store = Gem::Courtier::GPU::marshallerProviderStore();
     store->remove("cuda"); // start from a clean slot (independent of any other test / registration)
     CHECK(store->setOnce("cuda", provider));
 
@@ -2740,7 +2739,7 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
     REQUIRE(manifest != nullptr);
     CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
-    CHECK(manifest->contributions[0].kind == GEM_CONTRIBUTION_OA);
+    CHECK(std::string_view(manifest->contributions[0].kind) == Gem::Geneva::OA_CONTRIBUTION_KIND);
     REQUIRE(manifest->contributions[0].make_factory != nullptr);
 
     void *raw = manifest->contributions[0].make_factory();
@@ -2770,131 +2769,76 @@ TEST_CASE(
     const fs::path base = fs::temp_directory_path() / "geneva_claimonce_tests";
     fs::create_directories(base);
 
-    int const argc = 1;
-    char arg0[] = "unit-test";
-    char *argv[] = {arg0, nullptr};
-    Go2 go(argc, argv, base / "Go2.json");
+    Go2 go;
 
     auto f1 = std::make_shared<GIndividualFactory<FactorySphere>>(base / "claimonce1.json");
     auto f2 = std::make_shared<GIndividualFactory<FactorySphere>>(base / "claimonce2.json");
 
     go.registerContentCreator(f1); // first claim succeeds
     REQUIRE(go.getContentCreator());
-    // A second registration (here a second compiled-in creator; the same guard fires for a plugin load
-    // when one is already provided) is refused: one individual type per process.
+    // A second registration (here a second compiled-in creator; the same guard fires for an
+    // individual a module contributed) is refused: one individual type per process.
     CHECK_THROWS(go.registerContentCreator(f2));
 }
 
 /******************************************************************************/
-// Two-phase Go2 configuration (D3/D4): the constructor only PARSES the command line / config; a lazy
-// ensureConfigured_() -- fired by the first of optimize() / clientRun() / clientMode() -- then builds the
-// consumer and resolves the algorithm chain. A setter called AFTER construction is therefore honoured, and a
-// value given on the command line overrides a programmatic one. Regression guard for that precedence and for
-// the new setter/getter symmetry (a defect here would silently ignore a main()-side configuration or let it
-// win over an explicit command-line flag).
-TEST_CASE(
-    "Go2 two-phase configuration: programmatic setters and CLI precedence",
-    "[flat][go2][config]"
-) {
-    namespace fs = std::filesystem;
-    namespace c2 = Gem::Courtier;
-    const fs::path base = fs::temp_directory_path() / "geneva_twophase_tests";
-    fs::create_directories(base);
+// Go2 built from Geneva's description: the algorithms of -a win over a chain set in code
+// (setAlgorithmChain()), and the chain is resolved when optimize() runs. The description is parsed
+// here as the launcher parses it (its options in a parser of their own), without a launcher.
+namespace {
 
-    SECTION("setters and getters are symmetric (before configuration is finalized)") {
-        int const argc = 1;
-        char arg0[] = "unit-test";
-        char *argv[] = {arg0, nullptr};
-        Go2 go(argc, argv, base / "Go2.json");
+/** @brief Geneva's description after a parse of a command line, as the launcher does it */
+struct GParsedDescription {
+    GOptimizationDescription geneva;
+    Gem::Common::GParserBuilder gpb;
 
-        go.setConsumerName("beast");
-        go.setModulePaths({"first.so", "second.so"});
-        go.addModulePath("third.so");
+    /** @brief Parses @p args (the program's name first) @param args The command line */
+    explicit GParsedDescription(std::vector<std::string> args) {
+        geneva.addEarlyOptions(gpb);
+        geneva.addOptions(gpb);
+        std::vector<char *> argv;
+        for(auto &a : args) {
+            argv.push_back(a.data());
+        }
+        argv.push_back(nullptr);
+        (void)gpb.parseCommandLine(static_cast<int>(args.size()), argv.data());
+    }
+};
+
+} // namespace
+
+TEST_CASE("Go2 from the description: -a and setAlgorithmChain()", "[flat][go2][config]") {
+    SECTION("the chain set in code is kept as it was set") {
+        Go2 go;
         go.setAlgorithmChain({"ea", "sa"});
-
-        CHECK(go.getConsumerName() == "beast");
-        CHECK(go.getModulePaths() == std::vector<std::string>{"first.so", "second.so", "third.so"});
         CHECK(go.getAlgorithmChain() == std::vector<std::string>{"ea", "sa"});
     }
 
-    // Configuration is finalized (consumer resolved, algorithm chain resolved, precedence applied) lazily at
-    // the start of optimize()/clientRun(). optimize() runs ensureConfigured_() FIRST, then throws here
-    // because no individual was registered -- so wrapping it in CHECK_THROWS is a cheap way to force
-    // finalization and then inspect the effective (post-precedence) configuration, without running a full
-    // optimization.
-    SECTION("a --consumer on the command line overrides a programmatic setConsumerName") {
-        int const argc = 3;
-        char arg0[] = "unit-test";
-        char arg1[] = "--consumer";
-        char arg2[] = "stc";
-        char *argv[] = {arg0, arg1, arg2, nullptr};
-        Go2 go(argc, argv, base / "Go2.json");
-
-        CHECK(go.getConsumerName() == "stc");   // bound from the command line at construction
-        go.setConsumerName("beast");            // a later, programmatic attempt to change it
-        CHECK(go.getConsumerName() == "beast"); // the member now holds the programmatic value...
-
-        CHECK_THROWS(go.optimize()); // ...but finalizing configuration restores the CLI value
-        CHECK(go.getConsumerName() == "stc");
-
-        c2::GConsumerRegistryT<GGenome>::instance().clear();
-    }
-
-    SECTION("a --optimizationAlgorithms list overrides a programmatic setAlgorithmChain") {
-        int const argc = 3;
-        char arg0[] = "unit-test";
-        char arg1[] = "--optimizationAlgorithms";
-        char arg2[] = "ea";
-        char *argv[] = {arg0, arg1, arg2, nullptr};
-        Go2 go(argc, argv, base / "Go2.json");
-
-        go.setConsumerName("stc");
-        go.setAlgorithmChain({"sa", "cgd"}); // a two-element programmatic chain, to be overridden
-
-        CHECK_THROWS(go.optimize()); // finalizes: the CLI's single "ea" wins over the two above
-        CHECK(go.getNAlgorithms() == 1);
-
-        c2::GConsumerRegistryT<GGenome>::instance().clear();
-    }
-
-    SECTION("with no command-line algorithms, the programmatic chain is resolved") {
-        int const argc = 1;
-        char arg0[] = "unit-test";
-        char *argv[] = {arg0, nullptr};
-        Go2 go(argc, argv, base / "Go2.json");
-
-        go.setConsumerName("stc");
-        go.setAlgorithmChain({"ea", "sa"});
-
+    // optimize() resolves the chain FIRST and then throws here because no individual was
+    // registered -- a cheap way to see the effective chain without running an optimization.
+    SECTION("an -a list on the command line overrides setAlgorithmChain()") {
+        const GParsedDescription parsed({"unit-test", "-a", "ea"});
+        CHECK(parsed.geneva.algorithms() == std::vector<std::string>{"ea"});
+        Go2 go(parsed.geneva);
+        go.setAlgorithmChain({"sa", "cgd"}); // a two-element chain in code, to be overridden
         CHECK_THROWS(go.optimize());
-        CHECK(go.getNAlgorithms() == 2); // both programmatically-set algorithms were resolved
-
-        c2::GConsumerRegistryT<GGenome>::instance().clear();
+        CHECK(go.getNAlgorithms() == 1);
     }
 
-    SECTION("clientMode() finalizes only for a consumer whose role is unknown until runtime") {
-        // stc takes its role from --client (known at construction), so clientMode() is a plain getter for it
-        // and does NOT finalize configuration -- the programmatic chain is still unresolved afterwards. It is
-        // resolved only once the run actually starts. (A role-at-runtime consumer such as mpi would instead
-        // finalize here, so its rank-derived client/server role is settled before the caller dispatches; that
-        // path needs a live MPI environment and is covered by the MPI examples.)
-        int const argc = 1;
-        char arg0[] = "unit-test";
-        char *argv[] = {arg0, nullptr};
-        Go2 go(argc, argv, base / "Go2.json");
-
-        go.setConsumerName("stc");
+    SECTION("without -a, the chain set in code is resolved") {
+        const GParsedDescription parsed({"unit-test"});
+        CHECK(parsed.geneva.algorithms().empty());
+        CHECK(parsed.geneva.checkpointFile() == "empty");
+        Go2 go(parsed.geneva);
         go.setAlgorithmChain({"ea", "sa"});
-
-        (void)go.clientMode();
-        CHECK(
-            go.getNAlgorithms() == 0
-        ); // stc: clientMode() did not finalize -> chain still unresolved
-
-        CHECK_THROWS(go.optimize()); // ...the run start finalizes it
+        CHECK(go.getNAlgorithms() == 0); // nothing is resolved before optimize()
+        CHECK_THROWS(go.optimize());
         CHECK(go.getNAlgorithms() == 2);
+    }
 
-        c2::GConsumerRegistryT<GGenome>::instance().clear();
+    SECTION("--cp_file is the description's") {
+        const GParsedDescription parsed({"unit-test", "--cp_file", "some/checkpoint.json"});
+        CHECK(parsed.geneva.checkpointFile() == "some/checkpoint.json");
     }
 }
 

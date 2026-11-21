@@ -31,10 +31,13 @@ SET ( COMMUNICATIONINCLUDES
     GBaseClientT.hpp
     GBaseConsumerT.hpp
     GCommandContainerT.hpp
+    GConsumerPlugin.hpp
+    GConsumerProviderT.hpp
     GConsumerRegistry.hpp
     GConsumerSpec.hpp
     GCourtierEnums.hpp
     GCourtierHelperFunctions.hpp
+    GLauncherT.hpp
     GProcessable.hpp
     GProcessingContainerT.hpp
     GProcessingOutcome.hpp
@@ -51,13 +54,16 @@ SET ( COMMUNICATIONINCLUDES
 SET ( CONSUMER_INCLUDES
     consumers/GMPIConsumerConfig.hpp
     consumers/GMqttConsumerConfig.hpp
+    consumers/GMqttConsumerProviderT.hpp
     consumers/GMqttConsumerT.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GNetworkedTimeoutConfig.hpp
     consumers/GPeerConsumerT.hpp
     consumers/GStdThreadConsumerConfig.hpp
+    consumers/GStdThreadConsumerProviderT.hpp
     consumers/GStdThreadConsumerT.hpp
     consumers/GWebsocketConsumerConfig.hpp
+    consumers/GWebsocketConsumerProviderT.hpp
     consumers/GWebsocketConsumerT.hpp
 )
 
@@ -90,15 +96,18 @@ SET ( GPU_INCLUDES
     gpu/GGPUBackendFactory.hpp
     gpu/GGPUConsumer.hpp
     gpu/GGPUConsumerConfig.hpp
+    gpu/GGPUConsumerProviderT.hpp
     gpu/GGPUDeviceBackendI.hpp
     gpu/GGPUEvaluableI.hpp
     gpu/GGPUKernelSpec.hpp
+    gpu/GGPUMarshallerHandle.hpp
 )
 
 # MPI consumer/transport is optional, only build it when requested
 IF (GEM_BUILD_WITH_MPI_CONSUMER)
     SET( CONSUMER_INCLUDES
             ${CONSUMER_INCLUDES}
+            consumers/GMPIConsumerProviderT.hpp
             consumers/GMPIConsumerT.hpp)
     SET( TRANSPORT_INCLUDES
             ${TRANSPORT_INCLUDES}

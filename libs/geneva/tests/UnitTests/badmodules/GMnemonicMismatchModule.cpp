@@ -41,22 +41,29 @@
 #include <any>
 #include <memory>
 #include <string>
+#include <string_view>
 
 // Boost headers go here
 #include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
-#include <boost/program_options.hpp>
 
 // Geneva headers go here
 #include "common/GModuleManifest.hpp"
+#include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
-#include "geneva/GConsumerPlugin.hpp"
-#include "geneva/GConsumerSetup.hpp"
+#include "courtier/GConsumerPlugin.hpp"
+#include "courtier/GConsumerProviderT.hpp"
+#include "geneva/genome/GGenome.hpp"
 
 namespace {
 
+using item_type = Gem::Geneva::Genome::GGenome;
+
 /** @brief A consumer provider that builds nothing; only its mnemonic matters. */
-class GMnemonicMismatchProvider final : public Gem::Geneva::GConsumerProviderT {
+class GMnemonicMismatchProvider final : public Gem::Courtier::GConsumerProviderT<item_type> {
 public:
+    /** @brief The mnemonic the manifest states (consumerManifest() takes it from here) */
+    static constexpr std::string_view MNEMONIC = "manifest-says";
+
     /** @brief Not the mnemonic the manifest states. @return "provider-says" */
     [[nodiscard]] std::string getMnemonic() const override {
         return "provider-says";
@@ -65,35 +72,28 @@ public:
     [[nodiscard]] std::string getName() const override {
         return "GMnemonicMismatchModule";
     }
-    /** @brief No client. @return false */
-    [[nodiscard]] bool needsClient() const override {
-        return false;
+    /** @brief Registers no options. */
+    void registerOptions(Gem::Common::GParserBuilder & /*gpb*/) override {
     }
-
-    /** @brief Builds no consumer. @return nullptr */
-    std::shared_ptr<Gem::Courtier::GBaseConsumerT<Gem::Geneva::Genome::GGenome>>
-    setup(const Gem::Courtier::ConsumerSpec & /*spec*/) override {
-        return nullptr;
-    }
-
     /** @brief Reads nothing. @return An empty configuration */
-    [[nodiscard]] std::any
-    configFromCommandLine(const boost::program_options::variables_map & /*vm*/) const override {
+    [[nodiscard]] std::any configuration(
+        const Gem::Common::GParserBuilder & /*gpb*/,
+        const std::any & /*chosen*/
+    ) const override {
         return {};
     }
-
+    /** @brief Builds no consumer. @return nullptr */
+    consumer_ptr setup(const Gem::Courtier::ConsumerSpec & /*spec*/) override {
+        return nullptr;
+    }
     /** @brief Builds no client. @return nullptr */
-    [[nodiscard]] std::shared_ptr<Gem::Courtier::GBaseClientT<Gem::Geneva::Genome::GGenome>>
+    [[nodiscard]] client_ptr
     buildClient(const Gem::Courtier::ConsumerSpec & /*spec*/) const override {
         return nullptr;
     }
-
-    /** @brief Adds no options. */
-    void addCLOptions(
-        boost::program_options::options_description & /*visible*/,
-        boost::program_options::options_description & /*hidden*/
-    ) override {
-        // no options
+    /** @brief No client. @return false */
+    [[nodiscard]] bool needsClient() const override {
+        return false;
     }
 };
 
@@ -104,5 +104,5 @@ public:
 extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
 // NOLINTNEXTLINE(readability-identifier-naming)
 extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
-    return Gem::Geneva::consumerManifest<GMnemonicMismatchProvider, "manifest-says">();
+    return Gem::Courtier::consumerManifest<GMnemonicMismatchProvider>();
 }

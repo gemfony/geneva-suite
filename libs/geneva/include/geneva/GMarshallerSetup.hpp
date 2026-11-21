@@ -39,53 +39,14 @@
 #include <utility>
 
 // Boost headers
-#include <boost/program_options/options_description.hpp>
 
 // Geneva headers
 #include "common/GProviderStoreT.hpp"
 #include "common/GProviderT.hpp"
+#include "courtier/gpu/GGPUMarshallerHandle.hpp" // the store, the provider base
 #include "geneva/genome/GBaseGPUMarshallerT.hpp"
 
 namespace Gem::Geneva {
-
-/******************************************************************************/
-/**
- * @brief The process-global store of GPU marshaller providers, keyed by device target.
- *
- * The marshaller is the problem's accelerator adapter (flatten / scatter + kernel); it is the ONE piece a
- * GPU problem contributes to make @c --consumer @c gpu work. A problem registers its marshaller under a
- * device target (today "cuda") here; the GPU consumer provider (see GConsumerSetup.cpp) looks it up and
- * builds the generic @c GGPUConsumerT around it. Selection stays consumer-based: the user picks a consumer
- * mnemonic, never a marshaller, and one-problem-per-process means the store holds at most one entry per
- * target.
- *
- * This is an instantiation of the shared @c Gem::Common::GProviderStoreT template (not a bespoke store),
- * the same map abstraction the OA and consumer catalogs use. The stored provide()-type is the
- * scalar-agnostic @c GGPUMarshallerHandle, so the store holds a float or a double marshaller uniformly.
- *
- * @return The shared marshaller-provider store singleton (never nullptr).
- */
-[[nodiscard]] inline auto marshallerProviderStore() {
-    return Gem::Common::providerStore<GGPUMarshallerHandle>();
-}
-
-/******************************************************************************/
-/**
- * @brief A provider for one GPU marshaller, registered under a device target ("cuda").
- *
- * Extends the shared @c Gem::Common::GProviderT with the GPU-consumer config path the problem's kernel
- * needs, mirroring how @c GConsumerProviderT extends it with @c setup(). @c provide() hands out the
- * problem's marshaller (as the scalar-agnostic handle); the GPU consumer provider reads its scalar kind
- * and downcasts to the matching @c GGPUEvaluableI<..,scalar_type> to build @c GGPUConsumerT.
- */
-class GGPUMarshallerProviderBase : public Gem::Common::GProviderT<GGPUMarshallerHandle> {
-public:
-    /**
-     * @brief The GPU-consumer config file (backend + kernel selection) this marshaller's kernel needs.
-     * @return The config-file path passed at registration
-     */
-    [[nodiscard]] virtual const std::string &gpuConfigFile() const = 0;
-};
 
 /******************************************************************************/
 /**
@@ -98,7 +59,7 @@ public:
  * @tparam marshaller_type A @c GBaseGPUMarshallerT<scalar_type> subclass (so it IS a @c GGPUMarshallerHandle)
  */
 template <typename marshaller_type>
-class GGPUMarshallerProviderT final : public GGPUMarshallerProviderBase {
+class GGPUMarshallerProviderT final : public Gem::Courtier::GPU::GGPUMarshallerProviderBase {
 public:
     /**
      * @brief Builds a provider for @p marshaller_type under @p device_target with @p gpu_config_file.
@@ -111,7 +72,7 @@ public:
     }
 
     /** @brief Hands out a fresh marshaller (as the scalar-agnostic handle). @return The marshaller. */
-    std::shared_ptr<GGPUMarshallerHandle> provide() override {
+    std::shared_ptr<Gem::Courtier::GPU::GGPUMarshallerHandle> provide() override {
         return std::make_shared<marshaller_type>();
     }
     /** @brief The device target this marshaller is registered under. @return The store key / mnemonic. */
@@ -128,10 +89,7 @@ public:
     }
 
     /** @brief A marshaller has no command-line options of its own. */
-    void addCLOptions(
-        boost::program_options::options_description & /*visible*/,
-        boost::program_options::options_description & /*hidden*/
-    ) override {
+    void addCLOptions(Gem::Common::GParserBuilder & /*gpb*/) override {
     }
 
 private:
@@ -154,7 +112,7 @@ private:
  */
 template <typename marshaller_type>
 void registerGPUMarshaller(const std::string &device_target, const std::string &gpu_config_file) {
-    marshallerProviderStore()->setOnce(
+    Gem::Courtier::GPU::marshallerProviderStore()->setOnce(
         device_target,
         std::make_shared<GGPUMarshallerProviderT<marshaller_type>>(device_target, gpu_config_file)
     );

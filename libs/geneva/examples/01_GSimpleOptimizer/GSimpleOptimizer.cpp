@@ -44,55 +44,57 @@
 
 using namespace Gem::Geneva;
 
+// The short form of a main(): Geneva's runOptimization() hands Geneva's description to courtier's
+// launcher, which owns the command line, the consumer and the role of this process; the lambda runs
+// on the submitter only. 02_GParaboloid2D shows the same program in the long form, with the
+// launcher built in main().
 int main(int argc, char **argv) {
-    Go2 go(argc, argv, "./config/Go2.json");
+    // What the process that submits the work does; a client never runs it
+    auto produce = [](Go2 &go, const GOptimizationDescription &) {
+        //-----------------------------------------------------------------------
+        // As we are dealing with the submitter, register a signal handler that allows us
+        // to interrupt execution "on the run"
+        //! [go2-sighup]
+        signal(G_SIGHUP, Gem::Common::sigHupHandler);
+        //! [go2-sighup]
 
-    //---------------------------------------------------------------------------
-    // Client mode
-    if(go.clientMode()) {
-        return go.clientRun();
-    } // Execution will end here in client mode
+        //-----------------------------------------------------------------------
+        // Create a factory for GFunctionIndividual objects and perform
+        // any necessary initial work.
+        std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
+            new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+        );
 
-    //---------------------------------------------------------------------------
-    // As we are dealing with a server, register a signal handler that allows us
-    // to interrupt execution "on the run"
-    //! [go2-sighup]
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
-    //! [go2-sighup]
+        // Add a content creator so Go2 can generate its own individuals, if necessary
+        go.registerContentCreator(gfi_ptr);
 
-    //---------------------------------------------------------------------------
-    // Create a factory for GFunctionIndividual objects and perform
-    // any necessary initial work.
-    std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-        new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-    );
+        // The genome carries only structure; the configured adaptor lives on an OA-owned config
+        // the factory authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it
+        // over before they run.
+        {
+            //! [adaptors-go2-register]
+            auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+            auto cfg = gfi_ptr->getAdaptionConfig(*sample);
+            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+            go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            //! [adaptors-go2-register]
+        }
 
-    // Add a content creator so Go2 can generate its own individuals, if necessary
-    go.registerContentCreator(gfi_ptr);
+        // Add a default optimization algorithm to the Go2 object. This is optional.
+        // Indeed "ea" is the default setting anyway. However, if you do not like it, you
+        // can register another default algorithm here, which will then be used, unless
+        // you specify other algorithms on the command line. You can also add a smart
+        // pointer to an optimization algorithm here instead of its mnemonic.
+        go.registerDefaultAlgorithm("ea");
 
-    // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory
-    // authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it over before they run.
-    {
-        //! [adaptors-go2-register]
-        auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
-        auto cfg = gfi_ptr->getAdaptionConfig(*sample);
-        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-        go.registerAdaptionConfig("PERSONALITY_SA", cfg);
-        //! [adaptors-go2-register]
-    }
+        // Perform the actual optimization
+        auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
-    // Add a default optimization algorithm to the Go2 object. This is optional.
-    // Indeed "ea" is the default setting anyway. However, if you do not like it, you
-    // can register another default algorithm here, which will then be used, unless
-    // you specify other algorithms on the command line. You can also add a smart
-    // pointer to an optimization algorithm here instead of its mnemonic.
-    go.registerDefaultAlgorithm("ea");
-
-    // Perform the actual optimization
-    auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
-
-    // Here you can do something with the best individual ("p") found.
-    // We simply print its content here, by means of an operator<< implemented
-    // in the GFunctionIndividual code.
-    std::cout << "Best result found:" << '\n' << p << '\n';
+        // Here you can do something with the best individual ("p") found.
+        // We simply print its content here, by means of an operator<< implemented
+        // in the GFunctionIndividual code.
+        std::cout << "Best result found:" << '\n' << p << '\n';
+        return 0;
+    };
+    return runOptimization(argc, argv, {.produce = produce});
 }

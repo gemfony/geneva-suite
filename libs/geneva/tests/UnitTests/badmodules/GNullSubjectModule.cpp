@@ -57,7 +57,7 @@ void *abortingFactory() {
 
 // The subject (the fourth member) is left out, as a hand-written entry of three members does.
 const GemContribution CONTRIBUTION{
-    .kind = GEM_CONTRIBUTION_CONSUMER,
+    .kind = "courtier.consumer",
     .name_or_mnemonic = "nosubject",
     .make_factory = abortingFactory
 };

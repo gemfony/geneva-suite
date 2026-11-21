@@ -45,7 +45,7 @@
 namespace {
 
 const GemContribution CONTRIBUTION{
-    .kind = GEM_CONTRIBUTION_OA,
+    .kind = "geneva.oa",
     .name_or_mnemonic = "nofactory",
     .make_factory = nullptr // the defect
 };

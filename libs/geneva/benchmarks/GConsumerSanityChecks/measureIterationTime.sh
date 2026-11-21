@@ -147,8 +147,8 @@ import sys
 tend, label, c, n, pop, delay, st, at, hz, who = sys.argv[1:]
 # Only what the server printed up to the end of the measurement counts; it may run on for a
 # moment after the signal that ends it.
-# The statistics start when all clients are connected: after the gate's line (GSpeedupMeasurement.hpp,
-# waitForClients()). Without it (a consumer that cannot tell) they start with the run, marked UNGATED.
+# The statistics start when all clients are connected: after the line of the launcher's client gate
+# (--waitForClients). Without it (a consumer that cannot tell) they start with the run, marked UNGATED.
 lines = open('srv.log').read().splitlines()
 gate = [float(l.split()[0]) for l in lines if 'clients connected after' in l]
 if gate:

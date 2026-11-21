@@ -32,172 +32,40 @@
 #include "common/GConfigEmission.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
-#include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GProviderT.hpp"
-#include "courtier/GBaseClientT.hpp" // the networked client run by clientRun_ (built via the setup layer)
-#include "weft/GArchivePolymorphic.hpp" // verifyArchiveRegistrations (boot-time completeness self-check)
-// courtier consumer construction, the per-mnemonic command-line spec, the consumer option surface and
-// the networked client all live in the shared setup layer (buildConsumer / specFromCommandLine /
-// addConsumerOptions / buildConsumerClient); Go2 no longer touches the concrete consumer
-// types or the consumer store at all.
-#include "geneva/GConsumerSetup.hpp"
-#include "geneva/GModuleLoader.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GFactoryStore.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "hap/GRandomFactory.hpp"
 #include <algorithm>
-#include <boost/program_options.hpp>
-#include <chrono>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <format>
-#include <iostream>
 #include <memory>
-#include <mutex>
-#include <print>
 #include <ranges>
 #include <string>
-#include <string_view>
 #include <vector>
 
 namespace Gem::Geneva {
 
 /******************************************************************************/
 /**
- * Set a number of parameters of the random number factory
- *
- * @param n_producer_threads The number of threads simultaneously producing random numbers
+ * A driver that only chains algorithms.
  */
-void setRNFParameters(std::uint16_t n_producer_threads) {
-    //--------------------------------------------
-    // Random numbers are our most valuable good.
-    // Set the number of threads. Gem::Hap::randomFactory() is
-    // a singleton that will be initialized by this call.
-    Gem::Hap::randomFactory()->setNProducerThreads(n_producer_threads);
-}
-
-std::once_flag fGo2; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-std::once_flag
-    fArchiveCheck; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables) -- boot self-check runs once
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * A constructor that first parses the command line for relevant parameters and then
- * loads data from a configuration file. The user may pass additional configuration
- * parameters. This is the only allowed constructor. It first installs the fatal report
- * (Gem::Common::installFatalReport()), so that the program ends on an error nobody handles with a
- * message and the exit code 1.
- *
- * @param argc The number of command line arguments
- * @param argv An array with the arguments
- * @param config_filename The name of a configuration file
- * @param user_descriptions A vector of additional command line options (cmp. boost::program_options)
- */
-Go2::Go2(
-    int argc,
-    char **argv,
-    std::string const &config_filename,
-    boost::program_options::options_description const &user_descriptions
-)
-  : config_filename_(config_filename) {
-    // An error nobody handles ends the program with a message and the exit code 1, not an abort
-    Gem::Common::installFatalReport();
-
-    //--------------------------------------------
-    // --update-configs: detected here, before this constructor parses Go2.json (so Go2's own config is
-    // refreshed too), through the shared config-emission facility -- the same switch, argv detection and
-    // update-in-place engine every config-owning binary uses (Go2-based or not). It flips GParserBuilder
-    // into update-in-place mode process-wide, so every config subsequently parsed -- Go2's, each
-    // algorithm's, the individual's -- is rewritten in canonical form (stale keys dropped, existing values
-    // preserved, new keys defaulted). optimize() then refreshes the remaining configs and returns without
-    // running an optimization.
-    update_configs_mode_ = Gem::Common::configEmissionRequested(argc, argv);
-    if(update_configs_mode_) {
-        Gem::Common::beginConfigEmission();
-    }
-
-    //--------------------------------------------
-    // The known optimization algorithms register themselves with the global factory store at
-    // library-load time (see the self-registration helpers in each factory's .cpp). Consumers are
-    // built on demand by the courtier setup layer. The GenevaInitializer member gi_ performs the
-    // required runtime initialization (random factory) via its constructor / destructor.
-
-    //--------------------------------------------
-    // Parse configuration file options
-    this->parseConfigFile(config_filename);
-
-    //--------------------------------------------
-    // Load configuration options from the command line. Any requested runtime modules / individual plugin
-    // are loaded from inside parseCommandLine (via loadRequestedModules_), after the command line is parsed
-    // but before the algorithm mnemonics are resolved -- so a module's optimization algorithms are usable by
-    // mnemonic, and a contributed individual claims the single content-creator slot (a compiled-in
-    // registerContentCreator() or a second plugin then hits the one-individual-per-process guard). Server
-    // and client are the same binary launched with different options, so both load identically.
-    parseCommandLine(argc, argv, user_descriptions);
-
-    // A client only evaluates and draws few random numbers. Keep it off the GPU, so that many clients
-    // on one machine do not each need a CUDA context (the role of a process for a consumer that
-    // determines it at run time, such as MPI, is asked for later, in setupChosenConsumer()).
-    if(client_mode_) {
-        Gem::Hap::setGpuRandomNumbersAllowed(false);
-    }
-
-    //--------------------------------------------
-    // GArchive registration completeness self-check. parseCommandLine (above) has loaded any
-    // command-line-requested runtime modules / individual plugins, so every concrete polymorphic
-    // type this process can (de)serialize is now registered. Assert that each identity-registered
-    // type is also archive-dispatchable, turning a missing GEM_REGISTER_ARCHIVABLE into a loud
-    // failure here at startup rather than an "unknown tag" at the first (possibly remote,
-    // possibly hours-into-a-run) deserialization -- the enumerable replacement for Boost's
-    // compiler-invisible void_cast gap. Runs once per process.
-    std::call_once(fArchiveCheck, []() {
-        Gem::Weft::verifyArchiveRegistrations();
-        glogger << "GArchive registration self-check passed: "
-                << Gem::Weft::archiveRegisteredHierarchyCount()
-                << " polymorphic hierarchies are fully archive-dispatchable." << '\n'
-                << GLOGGING;
-    });
-
-    //--------------------------------------------
-    // Random numbers are our most valuable good.
-    // Initialize all necessary variables
-    std::call_once(fGo2, [this]() { setRNFParameters(this->n_producer_threads_); });
-}
+Go2::Go2() = default;
 
 /******************************************************************************/
 /**
- * @brief Destructor. Releases the process consumer this Go2 established so a networked consumer's server
- * threads are torn down by RAII at the end of the run, instead of lingering in the process-global
- * registry until process exit. Only the consumer THIS Go2 registered is cleared (a later
- * Go2 / registerConsumer may have replaced it), and only if the registry still holds it.
+ * The driver of a program on the launcher, built from Geneva's description after the parse.
  */
-Go2::~Go2() {
-    this->releaseConsumer_();
-}
-
-/******************************************************************************/
-/**
- * @brief Releases the process consumer this Go2 established: cleared from the registry (only if the
- * registry still holds it -- a later Go2 / registerConsumer may have replaced it) and the own
- * reference dropped, so a networked consumer's server threads are torn down by RAII. Idempotent;
- * called by the destructor and by derived classes that must sequence their own teardown (e.g.
- * MPI finalization) after the consumer is gone.
- */
-void Go2::releaseConsumer_() {
-    if(consumer_) {
-        auto &registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance();
-        if(registry.consumer() == consumer_) {
-            registry.clear();
-        }
-        consumer_.reset(); // drop our reference -> RAII teardown once no one else holds it
+Go2::Go2(const GOptimizationDescription &description)
+  : copy_best_individuals_only_(description.copyBestIndividualsOnly())
+  , cp_file_(description.checkpointFile())
+  , cl_algorithm_mnemonics_(description.algorithms()) {
+    if(auto individual = description.loadedIndividual()) {
+        this->claimContentCreator_(individual, individualSource::LOADED);
     }
 }
 
@@ -299,105 +167,6 @@ bool Go2::hasOptimizationMonitors() const {
 
 /******************************************************************************/
 /**
- * @brief Allows to set the maximum running time for a client.
- *
- * A duration of 0 results in no time limit being set.
- *
- * @param max_duration The maximum running time for a client (in seconds); 0 means no time limit
- */
-void Go2::setMaxClientTime(std::chrono::duration<double> max_duration) {
-    max_client_duration_ = max_duration;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to retrieve the maximum running time for a client.
- *
- * @return The maximum running time for a client (in seconds); 0 means no time limit
- */
-std::chrono::duration<double> Go2::getMaxClientTime() const {
-    return max_client_duration_;
-}
-
-/******************************************************************************/
-/**
- * @brief Runs this process as a client of the chosen consumer; a bystander returns at once.
- *
- * Note that it is up to you to terminate the program after calling this function.
- *
- * @return The exit status of the client loop (0 on normal completion)
- */
-int Go2::clientRun() {
-    // Finalize configuration (build the consumer, resolve modules/algorithms) before serving as a client;
-    // idempotent if clientMode() already triggered it.
-    this->ensureConfigured_();
-    return this->clientRun_();
-}
-
-/**
- * @brief Implementation of the client loop, according to the role of this process.
- *
- * A bystander (a process that takes no part in the consumer's protocol, e.g. a member of an MPI cascade)
- * returns at once. A client builds the client of the chosen consumer (a socket client, or the MPI
- * client) and runs its processing loop.
- *
- * @return The exit status of the client loop (always 0 here)
- */
-int Go2::clientRun_() {
-    if(role_ == Gem::Courtier::processRole::BYSTANDER) {
-        return 0;
-    }
-
-    // Build the client for the chosen consumer through the courtier setup layer, from the spec
-    // assembled in setupChosenConsumer(). The client is wire-compatible with the consumer's server.
-    // Go2 thus stays free of the concrete consumer/client types and the consumer store.
-    std::shared_ptr<Gem::Courtier::GBaseClientT<gen::GGenome>> const p =
-        Gem::Geneva::buildConsumerClient(consumer_spec_);
-
-    if(not p) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Go2::clientRun(): Error!" << '\n'
-            << "Consumer \"" << consumer_name_ << "\" does not provide a networked client." << '\n'
-        );
-    }
-
-    // Set the maximum runtime of the client (the MPI client does not observe it and says so)
-    p->setMaxTime(this->max_client_duration_);
-
-    // Start the actual processing loop. This call will not return until run() is finished.
-    p->run();
-
-    return 0;
-}
-
-/******************************************************************************/
-/**
- * Checks whether this object is running in client mode
- *
- * @return True if the role of this process is client or bystander, false for the submitter
- */
-bool Go2::clientMode() const {
-    // Most consumers take the role from --client, so it is already known after construction and
-    // this is a plain getter. A consumer that determines the role at runtime instead (see
-    // GConsumerProviderT::determinesRoleAtRuntime -- e.g. the MPI consumer, from the rank of the
-    // process) can be asked for the role only once the configuration is final (the consumer is
-    // chosen): for such a consumer we finalize the configuration here, before the caller dispatches
-    // on the result, or a client or bystander would read the default (false) and wrongly call
-    // optimize() instead of clientRun(). We test the EFFECTIVE consumer (a --consumer on the
-    // command line wins over a programmatic setConsumerName, mirroring ensureConfigured_). The
-    // trigger is idempotent, so the later optimize()/clientRun() is a no-op; the const_cast
-    // reflects that this is a lazy-init concern, not a change to observable state.
-    const std::string &effective_consumer =
-        cli_consumer_name_ ? *cli_consumer_name_ : consumer_name_;
-    if(Gem::Geneva::consumerDeterminesRoleAtRuntime(effective_consumer)) {
-        const_cast<Go2 *>(this)->ensureConfigured_();
-    }
-    return client_mode_;
-}
-
-/******************************************************************************/
-/**
  * @brief Specifies whether only the best individuals of a population should be copied.
  *
  * @param copy_best_individuals_only If true, only the best individuals are carried over between algorithms
@@ -471,66 +240,12 @@ std::vector<std::shared_ptr<GOABase>> Go2::getRegisteredAlgorithms() {
     return algorithms_cnt_;
 }
 
-/**
- * @brief Returns the name of the consumer currently in use.
- *
- * The consumer is set using the command line argument `--consumer`.
- *
- * @return The used consumer's name
- */
-std::string Go2::getConsumerName() {
-    return consumer_name_;
-}
-
-/******************************************************************************/
-/**
- * @brief Selects the consumer by mnemonic (programmatic equivalent of --consumer). Takes effect when the
- * run is configured; a --consumer value on the command line overrides it.
- *
- * @param mnemonic The consumer mnemonic to use (e.g. "stc", "beast", "mpi", "gpu")
- */
-void Go2::setConsumerName(std::string const &mnemonic) {
-    consumer_name_ = mnemonic;
-}
-
-/******************************************************************************/
-/**
- * @brief Appends a runtime module (.so) path to load at startup (programmatic equivalent of --module).
- *
- * @param path Filesystem path to the module to load (an empty path is ignored)
- */
-void Go2::addModulePath(std::string const &path) {
-    if(not path.empty()) {
-        module_paths_.push_back(path);
-    }
-}
-
-/******************************************************************************/
-/**
- * @brief Replaces the list of runtime module (.so) paths to load at startup.
- *
- * @param paths The module paths to load
- */
-void Go2::setModulePaths(std::vector<std::string> paths) {
-    module_paths_ = std::move(paths);
-}
-
-/******************************************************************************/
-/**
- * @brief Retrieves the runtime module (.so) paths configured for loading.
- *
- * @return The module paths (config + --module + programmatic)
- */
-std::vector<std::string> Go2::getModulePaths() const {
-    return module_paths_;
-}
-
 /******************************************************************************/
 /**
  * @brief Sets the algorithm chain by mnemonic (programmatic equivalent of --optimizationAlgorithms).
  *
- * Resolution is deferred to run configuration, so a mnemonic contributed by a runtime module is available.
- * A --optimizationAlgorithms list on the command line overrides this.
+ * The mnemonics are resolved when optimize() runs. A --optimizationAlgorithms list on the command line
+ * (the description's) overrides this.
  *
  * @param mnemonics The ordered algorithm mnemonics forming the chain
  */
@@ -680,12 +395,17 @@ void Go2::claimContentCreator_(
  * @return A pointer to this object (after the optimization has run)
  */
 Go2 const *Go2::optimize_(std::uint32_t offset) {
-    // Finalize configuration first (build the consumer, load programmatically-added modules, resolve the
-    // algorithm chain); idempotent if clientMode() already triggered it.
-    this->ensureConfigured_();
+    // The algorithm chain of -a (it wins) or of setAlgorithmChain(), once
+    if(not chain_resolved_) {
+        chain_resolved_ = true;
+        this->resolveAlgorithmChain_(
+            cl_algorithm_mnemonics_.empty() ? programmatic_algorithm_mnemonics_
+                                            : cl_algorithm_mnemonics_
+        );
+    }
 
-    // --update-configs: refresh every config this binary owns and return without optimizing.
-    if(update_configs_mode_) {
+    // --update-configs: refresh every config this binary owns and end without optimizing.
+    if(Gem::Common::GParserBuilder::updateInPlace()) {
         this->refreshAllConfigs_();
         return this;
     }
@@ -700,12 +420,11 @@ Go2 const *Go2::optimize_(std::uint32_t offset) {
 /**
  * @brief --update-configs pass: refresh every configuration file this binary owns.
  *
- * With GParserBuilder in update-in-place mode (set in the constructor), Go2.json was already rewritten by
- * the constructor's parse. Here we additionally produce one object from each registered algorithm
- * factory -- which parses (and thus rewrites) that algorithm's config file --, let every consumer
- * provider write the configuration files it owns (materializeConsumerConfigFiles()), and produce
- * one individual from the content creator, refreshing the individual's config. No optimization is
- * run. Per-config failures are warned about rather than aborting, so one missing/odd config does
+ * With GParserBuilder in update-in-place mode (begun by the launcher), Go2.json and the consumers'
+ * files were already rewritten by the launcher. Here we additionally produce one object from each
+ * registered algorithm factory -- which parses (and thus rewrites) that algorithm's config file --
+ * and one individual from the content creator, refreshing the individual's config. No optimization
+ * is run. Per-config failures are warned about rather than aborting, so one missing/odd config does
  * not stop the rest from being refreshed.
  */
 void Go2::refreshAllConfigs_() {
@@ -720,10 +439,6 @@ void Go2::refreshAllConfigs_() {
                     << GWARNING;
         }
     }
-
-    // The configuration files that consumer providers own alone, those of loaded modules included.
-    // (A provider that fails is warned about inside; the others are still written.)
-    Gem::Geneva::materializeConsumerConfigFiles();
 
     // The individual (content-creator) config, if an individual is available.
     if(content_creator_ptr_) {
@@ -893,8 +608,8 @@ void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
     sorted_ = false;
     for(auto const &[alg_index, alg_ptr] : algorithms_cnt_ | std::views::enumerate) {
         // No per-algorithm broker injection: every algorithm submits through the one process consumer
-        // (registered in GConsumerRegistry by setupChosenConsumer / registerConsumer). A standalone
-        // algorithm with none set builds a default local consumer on first use.
+        // (registered in GConsumerRegistry by the launcher). A standalone algorithm with none set
+        // builds the default consumer on first use.
 
         // Add the pluggable optimization monitors to the algorithm
         for(auto const &pm_ptr : pluggable_monitors_cnt_) {
@@ -1099,112 +814,6 @@ void Go2::evaluatePopulation_() { /* nothing */
 
 /******************************************************************************/
 /**
- * Adds local configuration options to a GParserBuilder object
- *
- * @param gpb The GParserBuilder object to which configuration options should be added
- */
-void Go2::addConfigurationOptions(Gem::Common::GParserBuilder &gpb) {
-    this->addConfigurationOptions_(gpb);
-}
-
-/******************************************************************************/
-/**
- * Adds local configuration options to a GParserBuilder object
- *
- * @param gpb The GParserBuilder object to which configuration options should be added
- */
-void Go2::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
-    using namespace Gem::Common;
-
-    // Add local data only -- no options from parent classes
-    gpb.registerFileParameter<std::uint16_t>(
-        "n_producer_threads",
-        GO2_DEF_NPRODUCERTHREADS,
-        [this](std::uint16_t npt) { this->setNProducerThreads(npt); }
-    ) << "The number of threads simultaneously producing random numbers";
-
-    gpb.registerFileParameter<bool>(
-        "copy_best_individuals_only",
-        GO2_DEF_COPYBESTINDIVIDUALSONLY,
-        [this](bool copy_best_individuals_only) {
-            this->setCopyBestIndividualsOnly(copy_best_individuals_only);
-        }
-    ) << "Indicates whether only the best individuals should be copied when"
-      << '\n'
-      << "switching from one optimization algorithm to the next";
-
-    gpb.registerFileParameter<std::string>(
-        "individual_plugin_path",
-        std::string(),
-        [this](std::string const &p) { individual_plugin_path_ = p; }
-    ) << "Filesystem path to a runtime individual (optimization-problem) plugin (.so) to load at "
-         "startup."
-      << '\n'
-      << "Empty (the default) means the individual is compiled into this binary. The --individual"
-      << '\n'
-      << "command-line option overrides this setting.";
-
-    gpb.registerFileParameter<std::string>(
-        "module_paths",
-        module_paths_,
-        std::vector<std::string>(),
-        Gem::Common::VAR_IS_SECONDARY,
-        "Filesystem paths to runtime Geneva modules (.so) loaded at startup, each of which may "
-        "contribute "
-        "optimization algorithms (usable by their mnemonic) and/or the optimization individual. "
-        "Repeated "
-        "--module command-line options add to this list. Empty (the default) loads no modules."
-    );
-
-    gpb.registerFileParameter<std::string>(
-        "consumer",
-        GO2_DEF_CONSUMER,
-        [this](std::string const &c) { consumer_name_ = c; }
-    ) << "The consumer (parallelization backend) used when none is given on the command line."
-      << '\n'
-      << "One of: stc, beast, mpi, gpu (availability depends on build options and the problem;"
-      << '\n'
-      << "e.g. gpu requires a registered GPU consumer builder). The --consumer command-line option"
-      << '\n'
-      << "overrides this setting.";
-}
-
-/******************************************************************************/
-/**
- * Allows marking this object as belonging to a client as opposed to a server
- *
- * @param client_mode Allows marking this object as belonging to a client as opposed to a server
- */
-void Go2::setClientMode(bool client_mode) {
-    // Note: a consumer that determines the role at runtime (see
-    // GConsumerProviderT::determinesRoleAtRuntime, e.g. the MPI consumer, from the rank of the
-    // process) ignores this request when the configuration is finalized -- see
-    // setupChosenConsumer(), which derives client_mode_ from the role the consumer states.
-    client_mode_ = client_mode;
-}
-
-/******************************************************************************/
-/**
- * Allows to set the number of threads that will simultaneously produce random numbers.
- *
- * @param n_producer_threads The number of threads that will simultaneously produce random numbers
- */
-void Go2::setNProducerThreads(std::uint16_t n_producer_threads) {
-    n_producer_threads_ = n_producer_threads;
-}
-
-/******************************************************************************/
-/**
- * Allows to retrieve the number of threads that will simultaneously produce random numbers.
- *
- * @return The number of threads that will simultaneously produce random numbers
- */
-std::uint16_t Go2::getNProducerThreads() const {
-    return n_producer_threads_;
-}
-
-/******************************************************************************/
-/**
  * @brief Retrieval of the current iteration.
  *
  * @return The accumulated iteration count across all algorithms run so far (for reporting only)
@@ -1234,544 +843,6 @@ std::string Go2::getAlgorithmPersonalityType_() const {
 }
 
 /******************************************************************************/
-/******************************************************************************/
-namespace {
-
-/**
- * @brief Builds a "mnemonic:  human-readable-name" listing of all entries in a store.
- *
- * @tparam store_ptr_type The (pointer-like) type of the store being iterated
- * @param store The store whose registered keys and human-readable names should be listed
- * @return A newline-separated listing of "mnemonic:  name" for every entry in the store
- */
-template <typename store_ptr_type>
-std::string listMnemonics(const store_ptr_type &store) {
-    std::vector<std::string> keys;
-    store->getKeyVector(keys);
-    std::string result;
-    for(auto const &key : keys) {
-        result += std::format("{}:  {}\n", key, store->get(key)->getName());
-    }
-    return result;
-}
-
-} // anonymous namespace
-
-/******************************************************************************/
-/**
- * @brief Parses the command line for the algorithms, consumer, checkpoint file and client options.
- *
- * @param argc The number of command line arguments
- * @param argv An array with the arguments
- * @param user_options A program_options object for user-defined command line options
- */
-// NOLINTNEXTLINE(readability-function-size) -- one coherent CLI-option registration sweep (PHASE 1-3: module preload, option-surface assembly, parse + record); splitting would scatter the option list and the ordering invariant between phases
-void Go2::parseCommandLine(
-    int argc,
-    char **argv,
-    boost::program_options::options_description const &user_options
-) {
-    namespace po = boost::program_options;
-
-    try {
-        // PHASE 1 -- load command-line/config modules up front. Their optimization algorithms register into
-        // oaFactoryStore() here, BEFORE the help text and per-algorithm option surface are built below, so a
-        // module's OAs appear in --help and contribute their own command-line options. (--module is extracted
-        // by a permissive pre-parse because the full option surface it feeds does not exist yet.)
-        // Programmatically-added modules are loaded later, in ensureConfigured_().
-        this->extractEarlyModulePaths_(argc, argv);
-        this->loadRequestedModules_();
-
-        std::string max_client_duration = EMPTYDURATION; // 00:00:00
-
-        std::string optimization_algorithms; // NOLINT(cppcoreguidelines-init-variables)
-        std::string checkpoint_file = "empty";
-
-        // PHASE 2 -- build the option surface (now reflecting any module-contributed OAs).
-        // Help texts listing the registered algorithms / consumers
-        std::string const oa_help = std::format(
-            "A comma-separated list of optimization algorithms, e.g. \"arg1,arg2\". "
-            "{} algorithms have been registered: \n{}",
-            oaFactoryStore()->size(),
-            listMnemonics(oaFactoryStore())
-        );
-
-        std::string const consumer_help = std::format(
-            "The name of the process consumer used for work-item evaluation (see --help for "
-            "the registered consumer mnemonics). "
-            "{} consumers are available: \n{}",
-            Gem::Geneva::consumerCount(),
-            Gem::Geneva::consumerListing()
-        );
-
-        auto usage_string = std::string("Usage: ") + argv[0] + " [options]";
-
-        boost::program_options::options_description general(usage_string);
-        boost::program_options::options_description basic("Basic options");
-
-        // First add local options
-        basic.add_options()
-				("help,h", "Emit help message")
-				("showAll", "Show all available options")
-				("update-configs", "Refresh every configuration file this binary owns (Go2.json, each algorithm's config and the individual's config) in place -- drop keys no registered parameter consumes, keep existing values, add newly-registered keys with defaults -- then exit without optimizing. Runs on the local thread-pool consumer regardless of --consumer.")
-				("optimizationAlgorithms,a", po::value<std::string>(&optimization_algorithms), oa_help.c_str())
-				("cp_file,f", po::value<std::string>(&checkpoint_file)->default_value("empty"),
-				 "A file (including its path) holding a checkpoint for the first optimization algorithm. The run continues from the state it holds, with the settings of this job: halt criteria, checkpoint settings, threads and report interval come from this job's configuration and command line, and only the optimization monitors registered by this job observe the run")
-				("client", "Indicates that this program should run as a client or in server mode. Note that "
-				 "this setting will trigger an error unless called in conjunction with a consumer capable "
-				 "of dealing with clients. "
-				 "This option is ignored when working with the mpi consumer, whose role (submitter, client "
-				 "or bystander) follows the rank of the process.")
-				("max_client_duration", po::value<std::string>(&max_client_duration)->default_value(EMPTYDURATION),
-				 R"(The maximum runtime for a client in the form "hh:mm:ss". Note that a client may run )"
-				 "longer as this time-frame if its work load still runs. "
-				 "The MPI client does not observe it: it runs until the master tells it to stop. "
-				 R"(The default value "00:00:00" means: "no time limit")")
-				("consumer,c", po::value<std::string>(&consumer_name_), consumer_help.c_str())
-				("individual,i", po::value<std::string>(&individual_plugin_path_),
-				 "Filesystem path to a runtime individual (optimization-problem) plugin (.so) to load at "
-				 "startup. Overrides the individual_plugin_path config-file setting. Omit it to use an "
-				 "individual compiled into this binary.")
-				("module,m", po::value<std::vector<std::string>>()->composing(),
-				 "Filesystem path to a runtime Geneva module (.so) to load at startup (repeatable). A module "
-				 "may contribute optimization algorithms (usable by their mnemonic) and/or the optimization "
-				 "individual. Adds to the module_paths config-file setting.");
-
-        // Add additional options coming from the algorithms and consumers
-        boost::program_options::options_description visible(
-            "Global algorithm- and consumer-options"
-        );
-        boost::program_options::options_description hidden(
-            "Hidden algorithm- and consumer-options"
-        );
-
-        // Register the consumer command-line options through the courtier setup layer (the single
-        // owner of the consumer option surface) -- no consumer store iteration.
-        Gem::Geneva::addConsumerOptions(visible, hidden);
-
-        // Retrieve available command-line options from registered optimization
-        // algorithm factories, if any (same snapshot pattern).
-        if(not oaFactoryStore()->empty()) {
-            for(auto const &factory : oaFactoryStore()->getContentSnapshot()) {
-                factory->addCLOptions(visible, hidden);
-            }
-        }
-
-        // Add the other options to "general"
-        if(user_options.options().empty()) {
-            general.add(basic).add(visible).add(hidden);
-        }
-        else {
-            general.add(basic).add(user_options).add(visible).add(hidden);
-        }
-
-        // PHASE 3 -- parse the command line and record the results into members. The consumer and the
-        // algorithm chain are NOT built here: that is deferred to ensureConfigured_() (D3), so a programmatic
-        // setter called after construction is honoured. The parsed map is retained (cl_vm_) for that step.
-        po::variables_map vm;
-        po::store(
-            po::parse_command_line<char>(argc, static_cast<const char *const *>(argv), general),
-            vm
-        );
-
-        // Emit a help message and exit the process, if requested
-        this->emitHelpIfRequested(vm, general, basic, visible, user_options, usage_string);
-
-        po::notify(vm);
-
-        // Record which settings were given explicitly on the command line, so ensureConfigured_() can let a
-        // command-line value override a programmatic one (D4). --consumer bound consumer_name_ directly (so
-        // getConsumerName() is correct right after construction, before any setConsumerName()); we remember
-        // that value to restore it should a later setConsumerName() overwrite the member.
-        if(vm.count("consumer") > 0) {
-            cli_consumer_name_ = consumer_name_;
-        }
-        if(vm.contains("optimizationAlgorithms")) {
-            cli_optimization_algorithms_ = optimization_algorithms;
-            cli_algorithms_explicit_ = true;
-        }
-
-        if(vm.contains("client")) {
-            client_mode_ = true;
-        }
-
-        // Set the name of a checkpoint file (if any)
-        cp_file_ = checkpoint_file;
-
-        // Set the maximum running time for the client (if any)
-        max_client_duration_ = Gem::Common::duration_from_string(max_client_duration);
-
-        // Retain the parsed command line; ensureConfigured_() builds the consumer from it later.
-        cl_vm_ = std::move(vm);
-    }
-    catch(const po::error &e) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "Error parsing the command line:" << '\n'
-            << e.what() << '\n'
-        );
-    }
-}
-
-/******************************************************************************/
-/**
- * @brief Whether the command line asks for the help text (--help, -h or --showAll, the options
- * of parseCommandLine() that emitHelpIfRequested() answers); a scan without side effects.
- *
- * @param argc The number of arguments
- * @param argv The arguments
- * @return Whether one of the three options is given
- */
-bool Go2::helpRequested(int argc, char **argv) {
-    for(int i = 1; i < argc; ++i) {
-        const std::string_view arg(argv[i]);
-        if(arg == "--help" or arg == "-h" or arg == "--showAll") {
-            return true;
-        }
-    }
-    return false;
-}
-
-/******************************************************************************/
-/**
- * @brief Emits the help message and exits the process, if --help / --showAll was given.
- *
- * @param vm The parsed program_options variables map (checked for the "help" / "showAll" flags)
- * @param general The full options description (printed for --showAll)
- * @param basic The basic Go2 options (included in the selected --help output)
- * @param visible The visible algorithm- and consumer-options (included in the selected --help output)
- * @param user_options The user-defined command line options (included if non-empty)
- * @param usage_string The usage banner string used as the heading of the selected options listing
- */
-void Go2::emitHelpIfRequested(
-    boost::program_options::variables_map const &vm,
-    boost::program_options::options_description const &general,
-    boost::program_options::options_description const &basic,
-    boost::program_options::options_description const &visible,
-    boost::program_options::options_description const &user_options,
-    std::string const &usage_string
-) {
-    if(not vm.contains("help") && not vm.contains("showAll")) {
-        return;
-    }
-    if(vm.contains("showAll")) { // Show all options
-        std::cout << general << '\n';
-    }
-    else { // Just show a selection
-        boost::program_options::options_description selected(usage_string);
-        if(user_options.options().empty()) {
-            selected.add(basic).add(visible);
-        }
-        else {
-            selected.add(basic).add(user_options).add(visible);
-        }
-        std::cout << selected << '\n';
-    }
-    exit(0); // NOLINT(concurrency-mt-unsafe) — --help path; no worker threads have started yet
-}
-
-/******************************************************************************/
-/**
- * @brief Registers a ready-built custom consumer as the process's single consumer, in place of the
- * consumer of the chosen mnemonic.
- *
- * The consumer of the mnemonic is built when the run is configured (ensureConfigured_()); a
- * consumer registered here before that is kept, and the mnemonic's consumer is then not built at
- * all. A consumer registered after the configuration replaces the one built for the mnemonic in
- * the GConsumerRegistry.
- *
- * @param consumer The ready-to-use consumer to register as the process consumer (ownership is moved in)
- */
-void Go2::registerConsumer(std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumer) {
-    consumer_ = consumer;
-    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().setConsumer(std::move(consumer));
-    std::println(
-        "Using a custom registered consumer; it replaces the default \"{}\" as the process "
-        "consumer",
-        consumer_name_
-    );
-}
-
-/******************************************************************************/
-/**
- * @brief The consumer this run submits through, on the submitting process. Configures the run
- * first (idempotent; optimize() and clientRun() do the same), which builds the consumer of the
- * chosen mnemonic unless one was registered. Weak: the consumer goes with this Go2 (see the
- * declaration).
- *
- * @return The consumer, weakly; empty in a client or bystander process
- */
-std::weak_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> Go2::consumer() {
-    this->ensureConfigured_();
-    return consumer_;
-}
-
-/******************************************************************************/
-
-namespace {
-
-/**
- * @brief Why consumers that live in optional modules are missing, as a paragraph for an error message.
- *
- * A consumer such as "mpi" lives in a module that is loaded at run time; if the module is installed but
- * could not be loaded -- typically because the MPI library is absent on this machine -- the user should
- * learn that, not only that the mnemonic is unknown.
- *
- * @return The explanation, or an empty string if every installed consumer module was loaded
- */
-std::string optionalConsumerNote_() {
-    const std::string notes = Gem::Geneva::optionalConsumerNotes();
-    if(notes.empty()) {
-        return {};
-    }
-    return "Consumer modules installed with Geneva that could not be loaded on this machine:\n" +
-           notes;
-}
-
-} // namespace
-
-/******************************************************************************/
-/**
- * @brief Validates, initialises, configures and enrols the consumer chosen on the command line.
- *
- * Operates on the consumer_name_ member; assembles the transport-agnostic consumer spec, asks for
- * the role of this process (consumerRole()), derives client_mode_ from it and builds the courtier
- * consumer on the submitter.
- *
- * @param vm The parsed program_options variables map (used to assemble the consumer spec)
- */
-void Go2::setupChosenConsumer(boost::program_options::variables_map const &vm) {
-    // The consumer may be chosen on the command line (--consumer) or in the configuration file (the
-    // "consumer" key, defaulting to stc); the command-line value takes precedence. Only passing
-    // --consumer more than once is ambiguous. consumer_name_ has already been resolved (config parse
-    // followed by the optional command-line override) and is validated for known-ness just below.
-    if(vm.count("consumer") > 1) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Go2::setupChosenConsumer(): Error!" << '\n'
-            << "You may specify at most one consumer on the command line. Found "
-            << vm.count("consumer") << "." << '\n'
-        );
-    }
-
-    // Check that the requested consumer is one the courtier setup layer can build.
-    if(not Gem::Geneva::isKnownConsumer(consumer_name_)) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Go2::setupChosenConsumer(): Error!" << '\n'
-            << "You have requested an unknown consumer \"" << consumer_name_ << "\"." << '\n'
-            << "Available consumers are:" << '\n'
-            << Gem::Geneva::consumerListing() << optionalConsumerNote_()
-        );
-    }
-
-    // Client mode requires a consumer with a networked client form (beast/mpi). A consumer that
-    // determines the role at runtime (e.g. mpi, from the rank) is exempt from this up-front check: its role
-    // is not decided from --client.
-    const bool role_at_runtime = Gem::Geneva::consumerDeterminesRoleAtRuntime(consumer_name_);
-    if(client_mode_ && not role_at_runtime &&
-       not Gem::Geneva::consumerNeedsClient(consumer_name_)) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Go2::setupChosenConsumer(): Error!" << '\n'
-            << "Requested client mode even though consumer " << consumer_name_
-            << " does not require a client" << '\n'
-        );
-    }
-
-    // courtier is the submission path. Assemble the transport-agnostic spec from the command line and
-    // remember it, so clientRun_() can build the matching networked client without a second pass.
-    consumer_spec_ = Gem::Geneva::specFromCommandLine(consumer_name_, vm);
-
-    if(not consumer_) {
-        std::println("Using consumer {}", consumer_name_);
-    }
-
-    // The role of this process is asked for, not inferred. A consumer that takes the role from
-    // --client must state the role the switch asked for; one that determines it at run time decides
-    // client_mode_.
-    role_ = Gem::Geneva::consumerRole(consumer_spec_, client_mode_);
-    const bool is_submitter = (role_ == Gem::Courtier::processRole::SUBMITTER);
-    if(not role_at_runtime && is_submitter == client_mode_) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Go2::setupChosenConsumer(): Error!" << '\n'
-            << "Consumer " << consumer_name_ << " states the role " << static_cast<int>(role_)
-            << " for this process, which contradicts the client switch (client mode: "
-            << client_mode_ << "), although it does not determine the role at run time" << '\n'
-        );
-    }
-    client_mode_ = not is_submitter;
-    if(role_at_runtime && client_mode_) {
-        // as for the socket clients, see the constructor
-        Gem::Hap::setGpuRandomNumbersAllowed(false);
-    }
-
-    // Build the courtier consumer on the submitter through the shared factory -- the single place
-    // that knows the concrete consumer types -- which registers the resulting consumer as the
-    // process's single consumer (GConsumerRegistry); every algorithm reads it from there. A
-    // consumer the program gave to registerConsumer() is the process consumer instead; the
-    // mnemonic's consumer is then not built (it would replace the registered one in the registry).
-    if(is_submitter && not consumer_) {
-        consumer_ = Gem::Geneva::buildConsumer(consumer_spec_);
-        if(consumer_) {
-            std::println("Routing consumer \"{}\" through courtier", consumer_name_);
-        }
-    }
-}
-
-/******************************************************************************/
-/******************************************************************************/
-/**
- * @brief Loads every not-yet-loaded requested runtime module and dispatches its contributions.
- *
- * Walks module_paths_ (config + --module + programmatic) and, last, the individual plugin path (config +
- * --individual): each module's optimization algorithms are registered into oaFactoryStore() and any
- * contributed individual claims the single content-creator slot. Idempotent -- a path already loaded (tracked
- * in loaded_module_paths_) is skipped, so this may safely run during command-line parsing (for
- * command-line/config modules) and again from ensureConfigured_() (for programmatically-added modules)
- * without re-loading a module (which would collide on its already-registered OA mnemonics). A genuine
- * collision (a module's OA mnemonic already registered by another module or built-in, or a second individual)
- * throws from the loader / the content-creator guard.
- *
- * --individual states what the module is FOR, so it is checked against what the module turns out to carry:
- * a module named there that contributes no individual is refused by name rather than left to surface much
- * later as "no optimization problem was registered". --module makes no such promise (a module may carry any
- * mix of contributions), so it is not checked -- the loader has already refused a module that contributes
- * nothing at all.
- */
-void Go2::loadRequestedModules_() {
-    auto loadOne = [this](std::string const &path, bool must_carry_individual) {
-        if(path.empty()) {
-            return;
-        }
-        if(not loaded_module_paths_.insert(path).second) {
-            return;
-        } // already loaded -> skip
-        LoadedModule const loaded = loadModule(path);
-        if(must_carry_individual and not loaded.individual) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In Go2::loadRequestedModules_(): Error!" << '\n'
-                << "'" << path
-                << "' was given as the optimization problem (--individual), but the module"
-                << " carries no individual." << '\n'
-                << "It contributes " << loaded.oa_count << " optimization algorithm(s) and "
-                << loaded.marshaller_count << " GPU marshaller(s)." << '\n'
-                << "A module that contributes algorithms rather than a problem is loaded with "
-                   "--module."
-                << '\n'
-            );
-        }
-        if(loaded.individual) {
-            this->claimContentCreator_(loaded.individual, individualSource::LOADED);
-        }
-    };
-
-    for(auto const &path : module_paths_) {
-        loadOne(path, /* must_carry_individual = */ false);
-    }
-    loadOne(individual_plugin_path_, /* must_carry_individual = */ true);
-}
-
-/******************************************************************************/
-/**
- * @brief Extracts --module / --individual paths from the raw command line via a permissive pre-parse.
- *
- * A minimal options description recognising only --module / --individual is parsed with unregistered options
- * allowed, so this runs before the full option surface (which depends on the OAs a module contributes) exists.
- * The extracted --module paths are appended to module_paths_, and a --individual path overrides the
- * individual_plugin_path_ config setting. A malformed command line is ignored here -- the full parse in
- * parseCommandLine() then produces the user-facing diagnostic.
- *
- * @param argc The number of command line arguments
- * @param argv The array of command line argument strings
- */
-void Go2::extractEarlyModulePaths_(int argc, char **argv) {
-    namespace po = boost::program_options;
-
-    po::options_description early("early module extraction");
-    early.add_options()("module,m", po::value<std::vector<std::string>>()->composing(), "")(
-        "individual,i",
-        po::value<std::string>(),
-        ""
-    );
-
-    po::variables_map early_vm;
-    try {
-        po::store(
-            po::command_line_parser(argc, static_cast<const char *const *>(argv))
-                .options(early)
-                .allow_unregistered()
-                .run(),
-            early_vm
-        );
-        po::notify(early_vm);
-    }
-    catch(po::error const &) {
-        // Ignore: parseCommandLine()'s full parse will report a malformed command line to the user.
-        return;
-    }
-
-    if(early_vm.contains("module")) {
-        for(auto const &p : early_vm["module"].as<std::vector<std::string>>()) {
-            module_paths_.push_back(p);
-        }
-    }
-    if(early_vm.contains("individual")) {
-        individual_plugin_path_ =
-            early_vm["individual"].as<std::string>(); // --individual overrides config
-    }
-}
-
-/******************************************************************************/
-/**
- * @brief Idempotently finalizes configuration: loads programmatically-added modules, builds the chosen
- * consumer and resolves the algorithm chain.
- *
- * Runs its body exactly once (guarded by configured_), at the first of optimize_() / clientRun() /
- * clientMode(). The constructor only parses the command line / config into members; nothing is built until
- * here, so a programmatic setter (setConsumerName / addModulePath / setAlgorithmChain) called after
- * construction is honoured. Where a setting was also given on the command line, the command-line value wins
- * (D4). This is the uniform lazy resolution for ALL consumers.
- */
-void Go2::ensureConfigured_() {
-    if(configured_) {
-        return;
-    }
-    configured_ = true;
-
-    // Load any modules added programmatically after construction (command-line/config modules were already
-    // loaded during parsing); loadRequestedModules_() skips those via loaded_module_paths_.
-    this->loadRequestedModules_();
-
-    // Consumer precedence (D4): a --consumer value on the command line wins over a programmatic
-    // setConsumerName() (which may have overwritten the member after construction).
-    if(cli_consumer_name_) {
-        consumer_name_ = *cli_consumer_name_;
-    }
-    // --update-configs only refreshes configuration files and never optimizes: force the local thread-pool
-    // consumer so no networked / GPU / MPI consumer is built (it might try to connect or need a device). This
-    // overrides any --consumer the user passed.
-    if(update_configs_mode_) {
-        consumer_name_ = "stc";
-    }
-
-    // Build the chosen consumer from the retained command line (registers it as the process consumer).
-    this->setupChosenConsumer(cl_vm_);
-
-    // Algorithm-chain precedence (D4): a --optimizationAlgorithms list on the command line wins over a
-    // programmatic setAlgorithmChain(); either resolves against oaFactoryStore() (now including loaded OAs)
-    // and appends to the chain. Algorithms added directly via addAlgorithm()/operator& remain in the chain.
-    if(cli_algorithms_explicit_) {
-        this->resolveAlgorithmChain_(Gem::Common::splitString(cli_optimization_algorithms_, ","));
-    }
-    else if(not programmatic_algorithm_mnemonics_.empty()) {
-        this->resolveAlgorithmChain_(programmatic_algorithm_mnemonics_);
-    }
-}
-
-/******************************************************************************/
 /**
  * @brief Resolves a list of algorithm mnemonics against oaFactoryStore() and appends the produced algorithms.
  *
@@ -1792,25 +863,6 @@ void Go2::resolveAlgorithmChain_(std::vector<std::string> const &mnemonics) {
         // Retrieve an algorithm from the provider and add it to the list
         algorithms_cnt_.push_back(p->provide());
     }
-}
-
-/******************************************************************************/
-/**
- * Parses a configuration file for configuration options
- *
- * @param config_filename The name of a configuration file to be parsed
- */
-void Go2::parseConfigFile(std::filesystem::path const &config_filename) {
-    // Create a parser builder object. It will be destroyed at
-    // the end of this scope and thus cannot cause trouble
-    // due to registered call-backs and references
-    Gem::Common::GParserBuilder gpb;
-
-    // Add local configuration options
-    this->addConfigurationOptions(gpb);
-
-    // Do the actual parsing (throws if the file cannot be read or applied)
-    gpb.parseConfigFile(config_filename);
 }
 
 /******************************************************************************/

@@ -25,12 +25,14 @@ example a server and its clients:
   ./GParallelisationOverhead -c beast --client      (once per worker)
 
 It reads the stored reference, runs the delays of config/GDelayIndividual.json
-and writes the plot. With --waitForClients N the server waits, before its
-first (unmeasured) run, until its consumer reports N connected clients, so
-that the measurement starts when all clients run, not when the server starts;
-it prints how long it waited, and ends with an error if fewer than N have come
-within --clientWaitLimit seconds (600 by default). A consumer that cannot tell
-how many clients it has is not waited for; the log says so. The reference and the measurement must use the same
+and writes the plot. With --waitForClients N (an option of courtier's
+launcher, which every program on it has) the server waits, before its first
+(unmeasured) run, until its consumer reports N connected clients, so that the
+measurement starts when all clients run, not when the server starts; it prints
+how long it waited, and ends with an error if fewer than N have come within
+--clientWaitLimit seconds (600 by default). A consumer that cannot tell how
+many clients it has is not waited for; the log says so. A consumer without
+clients (stc, the default) refuses the option. The reference and the measurement must use the same
 config/GEvolutionaryAlgorithm.json. Both halves used to run in one process;
 an algorithm submits through the one consumer of its process, so that
 reference ran on the same workers as the measurement.
@@ -77,11 +79,12 @@ GSpeedupFigure draws the tables of several runs into one figure with linear
 axes, one series per label, with error bars and the ideal speed-up as a line:
 
   ./GSpeedupFigure --ideal 400 --figure comparison.C \
-      websocket=run-1/shortDelayResults.txt MPI=run-2/shortDelayResults.txt ...
+      --table websocket=run-1/shortDelayResults.txt \
+      --table MPI=run-2/shortDelayResults.txt ...
 
 Tables with the same label are averaged as compareSpeedups.py does. Further
 pads show the short evaluation times alone, which a linear axis crowds at the
-left (--zoom). Each pad's legend goes where it covers the least of the curves,
-the lower right where that is free (--legend sets a place), and --no-title
+left (--zoom, once per pad). Each pad's legend goes where it covers the least of
+the curves, the lower right where that is free (--legend sets a place), and --no-title
 leaves out the figure's title. It writes a ROOT script unless --backend names another one;
 GSpeedupFigure --help lists the options.

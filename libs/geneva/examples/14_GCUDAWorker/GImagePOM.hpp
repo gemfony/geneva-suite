@@ -134,7 +134,7 @@ private:
  * picture is reconstructed purely from the candidate's parameters.
  *
  * It reads the best candidate through the flat-genome base (Genome::GGenome): only streamline() and
- * raw_fitness() are needed, so the monitor is problem-type-agnostic and can be registered by a launcher
+ * raw_fitness() are needed, so the monitor is problem-type-agnostic and can be registered by a program
  * that loads the concrete image individual from a runtime module (it never names GImageIndividual).
  */
 class GImagePOM final

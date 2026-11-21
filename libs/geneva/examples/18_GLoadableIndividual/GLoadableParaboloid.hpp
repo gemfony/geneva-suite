@@ -67,7 +67,7 @@
  *  - @c buildGenome() turning the config into the (structure-only) genome;
  *  - @c buildAdaptionConfig() supplying the OA-owned mutation config (the "config-strip" model: the
  *    adaptors live on the algorithm, not the genome), which the factory exposes through its base so a
- *    generic launcher can wire it up WITHOUT knowing this concrete type;
+ *    generic optimizer program can wire it up WITHOUT knowing this concrete type;
  *  - @c evaluate() computing the objective;
  *  - @c serialize() + a GEM_REGISTER_ARCHIVABLE in the .cpp, so the individual can cross the wire / a checkpoint.
  */
@@ -130,7 +130,7 @@ public:
     // clang-format on
 
     /** @brief The OA-owned Gauss adaption config for a genome this problem produces. Reached generically
-     *  through GGenomeFactory::getAdaptionConfig(), so a launcher need not know this type. */
+     *  through GGenomeFactory::getAdaptionConfig(), so a generic optimizer program need not know this type. */
     static std::shared_ptr<Gem::Geneva::OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const Gem::Geneva::Genome::GGenome &sample, const Config &c) {
         namespace oa = Gem::Geneva::OptimizationAlgorithms;

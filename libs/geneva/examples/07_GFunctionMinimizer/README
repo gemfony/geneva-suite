@@ -1,4 +1,14 @@
 This directory contains a demo application that uses a stripped-down version of 
 GFunctionIndividual to illustrate various advanced aspects of optimization with 
-the Geneva library collection. It also shows a way to add custom command line options
-to Go2's parsing functions.
+the Geneva library collection. It also shows how an individual registers options of its own
+in its configuration file (GFMinIndividual::describeConfig(), through common's GParserBuilder).
+
+The example has no main() of its own: it is a runtime-loadable module, libGFMinIndividual.so,
+that the generic optimizer of example 18 loads:
+
+  GGenericOptimizer --individual ./libGFMinIndividual.so
+
+GFMinIndividual.{hpp,cpp} hold the individual; GFMinIndividualPlugin.cpp is only the module's
+entry point (gem_module_manifest(), which names the individual's factory and its configuration
+file).
+

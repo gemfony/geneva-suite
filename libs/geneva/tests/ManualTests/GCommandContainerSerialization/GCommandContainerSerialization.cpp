@@ -53,6 +53,7 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
+#include "common/GFatalReport.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "hap/GRandomT.hpp"
@@ -67,6 +68,7 @@ const Gem::Common::serializationMode PRINTOUTSERMOD = Gem::Common::serialization
 
 // NOLINTNEXTLINE(readability-function-size) -- main() of a manual serialization round-trip test: CL parsing, then one coherent per-iteration round-trip/process/round-trip check sequence with inline error reporting; splitting would scatter one linear test script
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     // --update-configs: materialize the one config this test owns (the GFunctionIndividual factory's)
     // from code defaults, then exit without running the serialization test.
     if(Gem::Common::configEmissionRequested(argc, argv)) {

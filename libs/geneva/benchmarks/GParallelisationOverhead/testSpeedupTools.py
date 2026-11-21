@@ -64,7 +64,10 @@ Usage:
   testSpeedupTools.py groups <GSubClientOverhead> <workdir>
       a job that does not form whole groups is refused, in both layouts, with a message that
       names its size and the group; a job of -c mpi whose submitter fails (an option only it
-      refuses, no serial reference) ends at once, with the submitter's message
+      is given, no serial reference) ends at once, with the submitter's message
+  testSpeedupTools.py bounded
+      a command that runs into its limit is ended, and the check's failure names what still ran
+      and the end of its output
   testSpeedupTools.py refusal <GParallelisationOverhead> <workdir>
       a serial reference of two measurements is refused with a message that says why
   testSpeedupTools.py gate <GParallelisationOverhead> <workdir> <reference dir>
@@ -149,7 +152,8 @@ def check_figure(program, workdir):
     write_table('fast-2.txt', [(0.01, 3.4, 0.1), (0.1, 3.81, 0.05)])
     write_table('slow.txt', [(0.01, 1.0, 0.2), (0.1, 2.0, 0.1), (1, 3.9, 0.01)])
     run = subprocess.run([program, '--ideal', '4', '--figure', 'figure.C', '--means', 'means.txt',
-                          'fast=fast-1.txt', 'fast=fast-2.txt', 'slow=slow.txt'],
+                          '--table', 'fast=fast-1.txt', '--table', 'fast=fast-2.txt',
+                          '--table', 'slow=slow.txt'],
                          capture_output=True, text=True, check=False)
     if run.returncode != 0:
         fail(f'GSpeedupFigure exited with {run.returncode}: {run.stderr}')
@@ -196,20 +200,25 @@ def check_figure(program, workdir):
     for args, expected in (([], 'new TLegend(0.56, 0.3875, 0.88, 0.6125)'),
                            (['--legend', 'top_left'], 'new TLegend(0.12, 0.655, 0.44, 0.88)')):
         placed = subprocess.run([program, '--ideal', '4', '--zoom', '0', '--figure', 'placed.C']
-                                + args + ['high=high.txt', 'low=low.txt'],
+                                + args + ['--table', 'high=high.txt', '--table', 'low=low.txt'],
                                 capture_output=True, text=True, check=False)
         if placed.returncode != 0 or expected not in open('placed.C', encoding='utf-8').read():
             fail(f'the legend is not at {expected} with {args}')
 
-    untitled = subprocess.run([program, '--no-title', '--figure', 'untitled.C', 'fast=fast-1.txt'],
+    untitled = subprocess.run([program, '--no-title', '--figure', 'untitled.C',
+                               '--table', 'fast=fast-1.txt'],
                               capture_output=True, text=True, check=False)
     if untitled.returncode != 0 or 'TPaveLabel' in open('untitled.C', encoding='utf-8').read():
         fail('--no-title does not leave the title out')
 
-    bad = subprocess.run([program, 'fast=missing.txt'], capture_output=True, text=True,
+    bad = subprocess.run([program, '--table', 'fast=missing.txt'], capture_output=True, text=True,
                          check=False)
     if bad.returncode == 0 or 'missing.txt' not in bad.stderr:
         fail('a missing table is not refused with its name')
+    none = subprocess.run([program, '--figure', 'none.C'], capture_output=True, text=True,
+                          check=False)
+    if none.returncode == 0 or '--table' not in none.stderr:
+        fail('a call without a table is not refused with a hint to --table')
     print('figure and means as expected')
 
 
@@ -217,21 +226,27 @@ def run_bounded(command, limit, env=None, capture=True):
     """Runs a command in a process group of its own and returns its exit code and its output
     (stdout and stderr; empty unless captured). At the limit the whole group is ended -- the
     command and every process it started, an MPI job included, which would otherwise outlive it
-    -- and the check fails."""
+    -- and the check fails, with what still ran (every thread of the session and the kernel
+    function it waited in, where ps knows -L) and the end of the output, so that a hang that
+    happens rarely is not lost."""
     with subprocess.Popen(command, env=env, text=True, start_new_session=True,
                           stdout=subprocess.PIPE if capture else None,
                           stderr=subprocess.STDOUT if capture else None) as job:
         try:
             out, _ = job.communicate(timeout=limit)
         except subprocess.TimeoutExpired:
+            running = subprocess.run(['ps', '-L', '-o', 'pid,tid,stat,wchan:32,comm', '--sid',
+                                      str(job.pid)], text=True, capture_output=True,
+                                     check=False).stdout
             os.killpg(job.pid, signal.SIGTERM)
             try:
-                job.communicate(timeout=20)
+                out, _ = job.communicate(timeout=20)
             except subprocess.TimeoutExpired:
                 os.killpg(job.pid, signal.SIGKILL)
-                job.communicate()
+                out, _ = job.communicate()
             fail(f'{" ".join(command[:3])} ... did not end within {limit} s; it was ended with '
-                 'every process it started')
+                 f'every process it started. What still ran:\n{running}'
+                 f'The end of its output:\n{(out or "")[-4000:]}')
     return job.returncode, out or ''
 
 
@@ -824,19 +839,42 @@ def check_groups(program, workdir):
     if os.path.exists('referenceLine.txt'):
         os.remove('referenceLine.txt')
     launcher = mpi_launcher()
-    for ranks, args, expected in (
+    # rest: the ranks and arguments of a second part of the job (MPMD), if any
+    for ranks, args, expected, rest in (
             ('6', ['-c', 'mpi', '--group', '3'], 'the MPI job has 6 processes, but with -c mpi '
-             'and --group 3 it needs 1 + clients x 3'),
+             'and --group 3 it needs 1 + clients x 3', []),
             ('2', ['-c', 'beast', '--client', '--group', '3'], 'the MPI job has 2 processes, '
-             'but a client with --group 3 is one job of 3'),
-            # An option only the submitter's Go2 refuses (the leads parse leniently)
-            ('4', ['-c', 'mpi', '--group', '3', '--no-such-option', '1'], 'no-such-option'),
-            ('4', ['-c', 'mpi', '--group', '3'], 'no serial reference in "referenceLine.txt"')):
-        status, out = run_bounded(launcher + [ranks, program] + args, 60)
+             'but a client with --group 3 is one job of 3', []),
+            # An option only the submitter is given, while its leads wait for it. Every process
+            # refuses a bad option, and a job in which two ranks call MPI_Abort at once can hang
+            # Open MPI's launcher (PRRTE 4.1.1rc2, PMIx 6.1.1rc2): one rank aborts here.
+            ('1', ['-c', 'mpi', '--group', '3', '--no-such-option', '1'], 'no-such-option',
+             ['3', '-c', 'mpi', '--group', '3']),
+            ('4', ['-c', 'mpi', '--group', '3'], 'no serial reference in "referenceLine.txt"',
+             [])):
+        command = launcher + [ranks, program] + args
+        if rest:
+            command += [':', launcher[-1], rest[0], program] + rest[1:]
+        status, out = run_bounded(command, 60)
+        job = f'{ranks} processes with {" ".join(args)}' + (
+            f' : {rest[0]} with {" ".join(rest[1:])}' if rest else '')
         if status == 0 or expected not in out:
-            fail(f'{ranks} processes with {args} were not refused (exit {status}) '
-                 f'with "{expected}": {out[-1000:]}')
-        print(f'{ranks} processes with {" ".join(args)}: refused')
+            fail(f'{job} was not refused (exit {status}) with "{expected}": {out[-1000:]}')
+        print(f'{job}: refused')
+
+
+def check_bounded():
+    """A command that does not end within its limit: the failure carries its output."""
+    try:
+        # The output is computed, so that the command line the failure names does not hold it
+        run_bounded(['sh', '-c', 'echo output-$((6 * 7)); exec sleep 60'], 1)
+    except SystemExit as e:
+        message = str(e.code)
+        if 'did not end within 1 s' not in message or 'output-42' not in message:
+            fail(f'the failure at the limit does not carry the output: {message}')
+        print('a command at its limit is ended, and the failure carries its output')
+        return
+    fail('a command that ran into its limit did not fail the check')
 
 
 def check_refusal(program, workdir):
@@ -921,6 +959,8 @@ def main(args):
         check_groups(os.path.abspath(args[1]), os.path.abspath(args[2]))
     elif len(args) >= 4 and args[0] == 'gate':
         check_gate(os.path.abspath(args[1]), os.path.abspath(args[2]), os.path.abspath(args[3]))
+    elif len(args) >= 1 and args[0] == 'bounded':
+        check_bounded()
     elif len(args) >= 3 and args[0] == 'refusal':
         check_refusal(os.path.abspath(args[1]), os.path.abspath(args[2]))
     else:

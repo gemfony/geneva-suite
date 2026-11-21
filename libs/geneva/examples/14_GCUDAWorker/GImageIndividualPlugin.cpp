@@ -32,7 +32,7 @@
  * The plugin glue that turns the Mona-Lisa problem of example 14 into a RUNTIME-LOADABLE module carrying
  * TWO contributions in one shared object -- the optimization individual (GImageIndividual) AND its GPU
  * marshaller (GMonaLisaGPUMarshaller). This is the GPU-problem pattern of example 21 applied to a real,
- * image-fitting problem: with both in one .so, a launcher runs a runtime-loaded image problem on the device
+ * image-fitting problem: with both in one .so, a generic optimizer program runs a runtime-loaded image problem on the device
  * (`--consumer gpu`) or cross-checks it on the CPU (`--consumer stc`, the individual's own evaluate()).
  *
  * The single-contribution author helpers (individualManifest / oaManifest / marshallerManifest) each emit a
@@ -53,10 +53,10 @@
 
 // Geneva headers
 #include "common/GBuildFingerprint.hpp" // GEM_BUILD_FINGERPRINT
-#include "common/GModuleManifest.hpp" // GemContribution / GemModuleManifest / kinds / version string
-#include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr / GGPUMarshallerProviderT
+#include "common/GModuleManifest.hpp" // GemContribution / GemModuleManifest / version string
+#include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr, its kind
 #include "geneva/genome/GIndividualFactory.hpp" // Gem::Geneva::Genome::GIndividualFactory<>
-#include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr
+#include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr, its kind
 
 // Example-local headers
 #include "GImageIndividual.hpp"       // the problem individual + GImageIndividualFactory alias
@@ -92,8 +92,8 @@ void *make_marshaller() {
 
 /** @brief The module manifest: two contributions in one .so, walked by kind by the loader. */
 const GemContribution g_contributions[] = {
-    {GEM_CONTRIBUTION_INDIVIDUAL, "GImageIndividual", &make_individual},
-    {GEM_CONTRIBUTION_MARSHALLER, "cuda", &make_marshaller},
+    {Gem::Geneva::INDIVIDUAL_CONTRIBUTION_KIND, "GImageIndividual", &make_individual},
+    {Gem::Geneva::MARSHALLER_CONTRIBUTION_KIND, "cuda", &make_marshaller},
 };
 
 const GemModuleManifest

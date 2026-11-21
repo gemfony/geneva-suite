@@ -52,6 +52,7 @@
 #include <vector>
 
 #include "GDemoProcessingContainers.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GNetworkedConsumerT.hpp"
@@ -84,6 +85,7 @@ public:
 } /* anonymous namespace */
 
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::string scenario;
     Gem::Common::GParserBuilder gpb;
     gpb.registerCLParameter(

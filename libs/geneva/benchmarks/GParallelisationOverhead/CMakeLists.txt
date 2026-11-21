@@ -161,6 +161,12 @@ IF (Python3_Interpreter_FOUND)
 		PASS_REGULAR_EXPRESSION "FAILED: MPIRUN is not set")
 	GEM_TEST_SIZE(SpeedupToolsLauncherRequired S)
 
+	# A job that runs into its limit is ended, and the failure carries its output and what still
+	# ran: a rare hang leaves its evidence
+	ADD_TEST(NAME SpeedupToolsBoundedOutput COMMAND ${SPEEDUP_TOOLS_CHECK} bounded)
+	SET_TESTS_PROPERTIES(SpeedupToolsBoundedOutput PROPERTIES LABELS "benchmark" TIMEOUT 60)
+	GEM_TEST_SIZE(SpeedupToolsBoundedOutput S)
+
 	ADD_TEST(NAME ${EXECUTABLENAME}ShortReferenceRefused
 		COMMAND ${SPEEDUP_TOOLS_CHECK} refusal $<TARGET_FILE:${EXECUTABLENAME}>
 			${CMAKE_CURRENT_BINARY_DIR}/check-refusal)

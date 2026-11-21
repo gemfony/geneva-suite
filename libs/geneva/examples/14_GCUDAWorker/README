@@ -29,12 +29,12 @@ run cross-checks the GPU result (see the parity-check mode below).
 Because there is no network involved, this example doubles as a convenient stress-test harness for the
 courtier consumer framework and Hap.
 
-Structure: a loadable module + a thin launcher
+Structure: a loadable module + a thin program
 ----------------------------------------------
 The optimization individual (GImageIndividual) AND its GPU marshaller (GMonaLisaGPUMarshaller) are
 packaged into ONE runtime-loadable shared object, libGImageIndividual.so (built by
 GImageIndividualPlugin.cpp, a two-contribution manifest -- the same GPU-problem-as-a-module shape as
-example 21). GCUDAWorker is a thin launcher: it loads that module with `--module`, names only the
+example 21). GCUDAWorker is a thin program: it loads that module with `--module`, names only the
 flat-genome base and the loaded factory, and adds the two pieces a generic optimizer cannot -- it loads
 the target image (the fitness reference + canvas) and registers GImagePOM (the per-iteration PNG output).
 
@@ -71,3 +71,16 @@ Configuration files (config/)
   GEvolutionaryAlgorithm.json the evolutionary algorithm (population size, iterations, ...)
   GImageIndividual.json      the image individual (number of triangles, adaption, ...)
   GGPUConsumer.json          GPU consumer: backend (cpu|cuda), kernel path/entry, launch sizes
+
+Files
+-----
+  GCUDAWorker.cpp              the thin program: loads the module, the target image and GImagePOM
+  GImageIndividual.{hpp,cpp}   the individual (triangles, background, CPU evaluate())
+  GImageIndividualPlugin.cpp   the module's entry point (individual + marshaller)
+  GMonaLisaGPUMarshaller.hpp   flattens a generation for the device kernel
+  GMonaLisaProblem.hpp         the host renderer and score, shared by CPU and the parity check
+  GImagePOM.hpp                the monitor that writes the best image of each iteration
+  GImageHelperFunctions.{hpp,cpp}  reading and writing RGB images (PNG)
+  GImageScalar.hpp             the compile-time choice of float or double for the whole example
+  kernels/                     the CUDA kernels, compiled at run time (NVRTC)
+

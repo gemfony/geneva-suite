@@ -48,57 +48,51 @@ using namespace Gem::Geneva;
 // clang-format off
 //! [go2-main-quickstart]
 int main(int argc, char **argv) {
-    Go2 go(argc, argv, "./config/Go2.json");
+    // Geneva on courtier's launcher: the lambda runs on the process that submits work
+    return runOptimization(argc, argv, {.produce = [](Go2 &go, const auto &) {
+        // Add a "pluggable optimization monitor" to Go2. This particular monitor will
+        // log solutions that were found into the file allLog.txt.
+        //! [monitors:register-simple]
+        std::shared_ptr<GAllSolutionFileLogger> allSolutionLogger_ptr(
+            new GAllSolutionFileLogger("allLog.txt")
+        );
+        // Also log the initial population, prior to optimization
+        allSolutionLogger_ptr->setPrintInitial();
+        // Makes the log easier to read
+        allSolutionLogger_ptr->setShowIterationBoundaries();
 
-    //---------------------------------------------------------------------
-    // Client mode
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
+        go.registerPluggableOM(allSolutionLogger_ptr);
+        //! [monitors:register-simple]
 
-    //---------------------------------------------------------------------
-    // Server mode, serial or multi-threaded execution
+        // Create a factory for GStarterIndividual objects and perform
+        // any necessary initial work.
+        std::shared_ptr<GStarterIndividualFactory> gsif_ptr(
+            new GStarterIndividualFactory("./config/GStarterIndividual.json")
+        );
 
-    // Add a "pluggable optimization monitor" to Go2. This particular monitor will log
-    // solutions that were found into the file allLog.txt.
-    //! [monitors:register-simple]
-    std::shared_ptr<GAllSolutionFileLogger> allSolutionLogger_ptr(
-        new GAllSolutionFileLogger("allLog.txt")
-    );
-    allSolutionLogger_ptr
-        ->setPrintInitial(); // Also log the initial population, prior to optimization
-    allSolutionLogger_ptr->setShowIterationBoundaries(); // Makes the log easier to read
+        // Add a content creator so Go2 can generate its own individuals if necessary
+        go.registerContentCreator(gsif_ptr);
 
-    go.registerPluggableOM(allSolutionLogger_ptr);
-    //! [monitors:register-simple]
+        // The genome carries only structure; its Gauss adaptor lives on an OA-owned
+        // config the factory authors from the configuration. Register it for the
+        // adapting algorithms (EA / SA).
+        {
+            auto sample = gsif_ptr->get_as<GStarterIndividual>();
+            auto cfg = gsif_ptr->getAdaptionConfig(*sample);
+            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+            go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+        }
 
-    // Create a factory for GStarterIndividual objects and perform
-    // any necessary initial work.
-    std::shared_ptr<GStarterIndividualFactory> gsif_ptr(
-        new GStarterIndividualFactory("./config/GStarterIndividual.json")
-    );
+        // Perform the actual optimization
+        //! [results-harvest]
+        auto bestIndividual_ptr =
+            go.optimize()->getBestGlobalIndividual<GStarterIndividual>();
 
-    // Add a content creator so Go2 can generate its own individuals, if necessary
-    go.registerContentCreator(gsif_ptr);
-
-    // The genome carries only structure; its Gauss adaptor lives on an OA-owned config
-    // the factory authors from the configuration. Register it for the adapting
-    // algorithms (EA / SA).
-    {
-        auto sample = gsif_ptr->get_as<GStarterIndividual>();
-        auto cfg = gsif_ptr->getAdaptionConfig(*sample);
-        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-        go.registerAdaptionConfig("PERSONALITY_SA", cfg);
-    }
-
-    // Perform the actual optimization
-    //! [results-harvest]
-    auto bestIndividual_ptr =
-        go.optimize()->getBestGlobalIndividual<GStarterIndividual>();
-
-    // Do something with the best result. Here we simply print the result to stdout.
-    std::cout << bestIndividual_ptr << '\n';
-    //! [results-harvest]
+        // Do something with the best result. Here we simply print the result to stdout.
+        std::cout << bestIndividual_ptr << '\n';
+        //! [results-harvest]
+        return 0;
+    }});
 }
 //! [go2-main-quickstart]
 // clang-format on

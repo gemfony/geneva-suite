@@ -4,6 +4,20 @@
             "This configuration file was automatically created by GParserBuilder"
         ]
     },
+    "consumer": {
+        "comment": [
+            "The consumer used when none is given on the command line (--consumer)."
+        ],
+        "default": "stc",
+        "value": "stc"
+    },
+    "module_paths": {
+        "comment": [
+            "Modules (.so) loaded at the start, e.g. consumer modules. Repeated --module options add to this list."
+        ],
+        "default": [],
+        "value": []
+    },
     "n_producer_threads": {
         "comment": [
             "The number of threads simultaneously producing random numbers"
@@ -27,22 +41,5 @@
         ],
         "default": "",
         "value": ""
-    },
-    "module_paths": {
-        "comment": [
-            "Filesystem paths to runtime Geneva modules (.so) loaded at startup, each of which may contribute optimization algorithms (usable by their mnemonic) and/or the optimization individual. Repeated --module command-line options add to this list. Empty (the default) loads no modules."
-        ],
-        "default": [],
-        "value": []
-    },
-    "consumer": {
-        "comment": [
-            "The consumer (parallelization backend) used when none is given on the command line.",
-            "One of: stc, beast, mpi, gpu (availability depends on build options and the problem",
-            "e.g. gpu requires a registered GPU consumer builder). The --consumer command-line option",
-            "overrides this setting."
-        ],
-        "default": "stc",
-        "value": "stc"
     }
 }

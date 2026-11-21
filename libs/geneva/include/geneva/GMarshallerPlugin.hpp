@@ -45,12 +45,17 @@
 namespace Gem::Geneva {
 
 /******************************************************************************/
+/** @brief The kind of a module contribution that carries a GPU marshaller: a name with
+ *  the prefix of the library that handles it (common/GModuleManifest.hpp). */
+inline constexpr const char *MARSHALLER_CONTRIBUTION_KIND = "geneva.marshaller";
+
+/******************************************************************************/
 /**
  * @brief The type a loaded GPU-marshaller contribution hands back: a provider over the marshaller base, the
  * exact provider type @c marshallerProviderStore() holds. The module builds it (where the concrete marshaller
  * type is known) and the loader registers it type-erased, so the loader stays free of the concrete marshaller.
  */
-using GMarshallerProviderPtr = std::shared_ptr<GGPUMarshallerProviderBase>;
+using GMarshallerProviderPtr = std::shared_ptr<Gem::Courtier::GPU::GGPUMarshallerProviderBase>;
 
 /******************************************************************************/
 /**
@@ -103,7 +108,7 @@ const GemModuleManifest *marshallerManifest() {
         );
     };
     static const GemContribution contribution{
-        GEM_CONTRIBUTION_MARSHALLER,
+        MARSHALLER_CONTRIBUTION_KIND,
         DEVICE_TARGET.c_str(),
         factory_thunk
     };

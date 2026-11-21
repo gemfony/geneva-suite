@@ -45,45 +45,10 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "courtier/gpu/GGPUEvaluableI.hpp"
+#include "courtier/gpu/GGPUMarshallerHandle.hpp" // GGPUMarshallerHandle, GPUScalarKind
 #include "geneva/genome/GGenome.hpp"
 
 namespace Gem::Geneva {
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * @brief The device scalar (flat-buffer element) a GPU marshaller was built for.
- *
- * The scalar stays a compile-time template parameter of the marshaller / consumer (never type-erased);
- * this enum is only its runtime witness, so a scalar-agnostic store can hold a marshaller of either
- * precision and the GPU consumer provider can recover the matching typed pointer.
- */
-enum class GPUScalarKind {
-    Float,
-    Double
-};
-
-/******************************************************************************/
-/**
- * @brief A scalar-agnostic handle to a GPU marshaller.
- *
- * @c GBaseGPUMarshallerT<scalar_type> is templated on the device scalar, so a float marshaller and a
- * double marshaller share no common @c GGPUEvaluableI base. This tiny non-templated base gives the
- * marshaller-provider store a single type to hold, and lets the GPU consumer provider read a marshaller's
- * scalar kind and then @c dynamic_cast it back to the matching @c GGPUEvaluableI<..,scalar_type> to build
- * the correctly-typed @c GGPUConsumerT.
- */
-class GGPUMarshallerHandle { // NOLINT(cppcoreguidelines-special-member-functions)
-public:
-    /** @brief The (defaulted) destructor */
-    virtual ~GGPUMarshallerHandle() = default;
-    /**
-     * @brief The device scalar this marshaller flattens / scatters in.
-     * @return @c GPUScalarKind::Float or @c GPUScalarKind::Double
-     */
-    [[nodiscard]] virtual GPUScalarKind scalarKind() const = 0;
-};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,7 +91,7 @@ public:
 template <typename scalar_type = double>
 class GBaseGPUMarshallerT
   : public Gem::Courtier::GPU::GGPUEvaluableI<Gem::Geneva::Genome::GGenome, scalar_type>
-  , public GGPUMarshallerHandle {
+  , public Gem::Courtier::GPU::GGPUMarshallerHandle {
     using base_type = Gem::Courtier::GPU::GGPUEvaluableI<Gem::Geneva::Genome::GGenome, scalar_type>;
     static_assert(
         std::is_same_v<scalar_type, float> || std::is_same_v<scalar_type, double>,
@@ -141,12 +106,12 @@ public:
      * @brief The device scalar this marshaller was instantiated for (its runtime witness).
      * @return @c GPUScalarKind::Float for a @c float marshaller, @c GPUScalarKind::Double for @c double
      */
-    [[nodiscard]] GPUScalarKind scalarKind() const override {
+    [[nodiscard]] Gem::Courtier::GPU::GPUScalarKind scalarKind() const override {
         if constexpr(std::is_same_v<scalar_type, float>) {
-            return GPUScalarKind::Float;
+            return Gem::Courtier::GPU::GPUScalarKind::Float;
         }
         else {
-            return GPUScalarKind::Double;
+            return Gem::Courtier::GPU::GPUScalarKind::Double;
         }
     }
 

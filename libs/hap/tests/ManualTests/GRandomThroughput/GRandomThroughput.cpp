@@ -44,6 +44,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "hap/GRandomDistributionsT.hpp"
 #include "hap/GRandomT.hpp"
@@ -79,6 +80,7 @@ double run_measurement(std::uint32_t packageSize, std::uint32_t nCycles, double 
 
 // NOLINTNEXTLINE(readability-function-size) -- main() of a manual test: CLI parsing, then a switch selecting which randomSource to benchmark via run_measurement()
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::uint16_t nProducerThreads = 4;
     std::uint32_t packageSize = 10000;
     std::uint32_t nCycles = 1000;

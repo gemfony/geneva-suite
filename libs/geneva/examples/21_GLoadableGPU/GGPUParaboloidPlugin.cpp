@@ -47,10 +47,10 @@
 
 // Geneva headers
 #include "common/GBuildFingerprint.hpp" // GEM_BUILD_FINGERPRINT
-#include "common/GModuleManifest.hpp" // GemContribution / GemModuleManifest / kinds / version string
-#include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr / GGPUMarshallerProviderT
+#include "common/GModuleManifest.hpp" // GemContribution / GemModuleManifest / version string
+#include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr, its kind
 #include "geneva/genome/GIndividualFactory.hpp" // Gem::Geneva::Genome::GIndividualFactory<>
-#include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr
+#include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr, its kind
 
 #include "GGPUParaboloid.hpp"
 #include "GGPUParaboloidMarshaller.hpp"
@@ -90,8 +90,8 @@ void *make_marshaller() {
 //! [modules-multi-contribution]
 /** @brief The manifest: two contributions in one .so, walked by kind by the loader. */
 const GemContribution g_contributions[] = {
-    {GEM_CONTRIBUTION_INDIVIDUAL, "GGPUParaboloid", &make_individual},
-    {GEM_CONTRIBUTION_MARSHALLER, "cuda", &make_marshaller},
+    {Gem::Geneva::INDIVIDUAL_CONTRIBUTION_KIND, "GGPUParaboloid", &make_individual},
+    {Gem::Geneva::MARSHALLER_CONTRIBUTION_KIND, "cuda", &make_marshaller},
 };
 
 const GemModuleManifest g_manifest{

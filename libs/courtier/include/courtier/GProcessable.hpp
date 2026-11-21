@@ -35,8 +35,10 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <concepts>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -874,6 +876,26 @@ protected:
  */
 template <typename processable_type>
 using GItemProcessorT = std::move_only_function<void(processable_type &) const>;
+
+/******************************************************************************/
+/**
+ * @brief What a consumer requires of the items it distributes, and all it knows of them: an item
+ * is a GProcessable (its status and lifecycle), processes itself (process()), and can be copied --
+ * by a clone() that yields an owning pointer, or by its copy constructor (a refill, a copy shipped
+ * to a client; see GBaseConsumerT::clone_item_()). That it travels over the wire is said by its
+ * serialization and its registration with Weft (GEM_REGISTER_ARCHIVABLE), which a C++ concept
+ * cannot see. The consumer providers and the launcher (courtier/GLauncherT.hpp) are constrained
+ * by it.
+ *
+ * @tparam processable_type The item type
+ */
+template <typename processable_type>
+concept ProcessableItem =
+    std::derived_from<processable_type, GProcessable> && requires(processable_type &item) {
+        item.process();
+    } && (std::copy_constructible<processable_type> || requires(const processable_type &item) {
+        { item.clone() } -> std::convertible_to<std::unique_ptr<processable_type>>;
+    });
 
 /******************************************************************************/
 

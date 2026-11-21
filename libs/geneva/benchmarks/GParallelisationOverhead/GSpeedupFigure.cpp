@@ -37,7 +37,7 @@
 // the same kind; the figure shows their mean, with the error compareSpeedups.py gives it.
 //
 // Usage: GSpeedupFigure [--ideal S] [--figure F] [--backend B] [--zoom T]... [--means M] [--no-title]
-//                       label=table...
+//                       --table label=table...
 //
 // With linear axes the short evaluation times crowd at the left of the figure, so every --zoom
 // adds a pad with the evaluation times up to T (default: up to 1 s and up to 0.1 s).
@@ -61,11 +61,9 @@
 #include <utility>
 #include <vector>
 
-// Boost header files go here
-#include <boost/program_options.hpp>
-
 // Geneva header files go here
 #include "common/GFatalReport.hpp"
+#include "common/GParserBuilder.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 
 namespace {
@@ -334,7 +332,7 @@ void declarePad(
 /** What the command line asks for */
 struct Arguments {
     double ideal = 0.;                          ///< The ideal speed-up; no line if 0
-    std::vector<double> zooms{1., 0.1};         ///< The further pads, by longest time shown
+    std::vector<double> zooms;                  ///< The further pads, by longest time shown
     std::string figure = "speedupComparison.C"; ///< The plot script to write
     std::string backend = "root";               ///< The dietrich backend, by name
     std::string meansFile;                      ///< Where the means go; nowhere if empty
@@ -351,56 +349,67 @@ struct Arguments {
  * @return The arguments, or nothing if the help was shown
  */
 std::optional<Arguments> parseArguments(int argc, char **argv) {
-    using boost::program_options::value;
     Arguments args;
-    boost::program_options::options_description options("GSpeedupFigure [options] label=table...");
-    options.add_options()("help,h", "Show this help")(
+    Gem::Common::GParserBuilder parser;
+    parser.registerCLParameter<double>(
         "ideal",
-        value<double>(&args.ideal)->default_value(args.ideal),
+        args.ideal,
+        args.ideal,
         "The ideal speed-up, drawn as a line (0: none)"
-    )("figure", value<std::string>(&args.figure)->default_value(args.figure), "The plot script to write")(
+    );
+    parser.registerCLParameter<std::string>(
+        "figure",
+        args.figure,
+        args.figure,
+        "The plot script to write"
+    );
+    parser.registerCLParameter<std::string>(
         "backend",
-        value<std::string>(&args.backend)->default_value(args.backend),
+        args.backend,
+        args.backend,
         "root, gnuplot, matplotlib or octave"
-    )(
+    );
+    parser.registerCLRepeatableParameter<double>(
         "zoom",
-        value<std::vector<double>>(&args.zooms)->multitoken(),
+        args.zooms,
         "Each adds a pad with the evaluation times up to this one [s], which a linear axis crowds "
-        "at the left of the first pad (default: 1 0.1; 0: no further pad)"
-    )(
+        "at the left of the first pad; given once per pad (default: --zoom 1 --zoom 0.1; "
+        "--zoom 0: no further pad)"
+    );
+    parser.registerCLParameter<std::string>(
         "means",
-        value<std::string>(&args.meansFile),
+        args.meansFile,
+        args.meansFile,
         "Also write the combined speed-up per label and evaluation time to this file"
-    )(
+    );
+    parser.registerCLParameter<std::string>(
         "legend",
-        value<std::string>(&args.legend)->default_value(args.legend),
+        args.legend,
+        args.legend,
         "Where the legend of a pad lies: free (the corner, per pad, that covers the least of the "
         "curves, the lower right where it is free), bottom_right, center_right, "
         "top_left, bottom_left or top_right"
-    )(
-        "no-title",
-        boost::program_options::bool_switch(&args.noTitle),
-        "Leave out the title of the figure (a figure in a book carries it in its caption)"
-    )("table", value<std::vector<std::string>>(&args.tables), "label=table, once per run");
-    boost::program_options::positional_options_description positional;
-    positional.add("table", -1);
-
-    boost::program_options::variables_map vm;
-    boost::program_options::store(
-        boost::program_options::command_line_parser(argc, argv)
-            .options(options)
-            .positional(positional)
-            .run(),
-        vm
     );
-    boost::program_options::notify(vm);
-    if(vm.contains("help")) {
-        std::cout << options << '\n';
+    parser.registerCLFlag(
+        "no-title",
+        args.noTitle,
+        "Leave out the title of the figure (a figure in a book carries it in its caption)"
+    );
+    parser.registerCLRepeatableParameter<std::string>(
+        "table",
+        args.tables,
+        "label=table, once per run (required; given once per table, in the order of the legend)"
+    );
+    if(parser.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return std::nullopt;
     }
+    if(args.zooms.empty()) {
+        args.zooms = {1., 0.1};
+    }
     if(args.tables.empty()) {
-        std::cerr << options << '\n';
-        throw std::runtime_error("GSpeedupFigure: no table given");
+        throw std::runtime_error(
+            "GSpeedupFigure: no table given (--table label=table, once per run)"
+        );
     }
     return args;
 }

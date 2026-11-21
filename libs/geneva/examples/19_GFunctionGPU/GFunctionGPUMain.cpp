@@ -40,7 +40,7 @@
  * It demonstrates the store-based GPU path end-to-end for an ORDINARY library individual (not the
  * image-specific example 14): the problem contributes nothing but a marshaller
  * (GFunctionGPUMarshaller, which derives Gem::Geneva::GBaseGPUMarshallerT<double> and adds only the
- * function-id problem constant) via registerGPUMarshaller("cuda", ...) before constructing Go2, and Go2
+ * function-id problem constant) via registerGPUMarshaller("cuda", ...) before the launcher runs, and the launcher
  * builds + selects the generic GGPUConsumerT like any other consumer. The device kernel
  * (kernels/function_eval.cu, runtime-compiled by NVRTC) runs the SAME benchmark-function math as
  * GFunctionIndividual::evaluate() (Gem::Geneva::Benchmarks::eval), so a GPU run and a CPU run
@@ -250,58 +250,61 @@ int main(int argc, char **argv) {
     gpb.parseConfigFile("./config/GFunctionGPUGeneral.json");
 
     // ---- contribute the GPU marshaller; select it with "--consumer gpu" -----------------------
-    // Registering BEFORE constructing Go2 makes gpu a normal construction-time mnemonic: Go2 builds the
-    // generic GGPUConsumerT around this marshaller. The GPU consumer is device-only -- a CPU run uses the
+    // Registering BEFORE runOptimization() starts the launcher makes the marshaller known when
+    // the consumer is chosen: the launcher builds the generic GGPUConsumerT around this
+    // marshaller. The GPU consumer is device-only -- a CPU run uses the
     // individual's own evaluate() via a CPU consumer (the default "--consumer stc"), no code change.
     registerGPUMarshaller<FunctionGPU::GFunctionGPUMarshaller>("cuda", consumerConfig);
 
-    // Go2 parses its own framework options from the command line / its own config file.
-    Go2 go(argc, argv, "./config/Go2.json");
+    // courtier's launcher (inside runOptimization()) reads the command line and Go2.json.
+    return runOptimization(
+        argc,
+        argv,
+        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+            // ---- --update-configs: materialize the configs this example owns, then exit ---------------
+            // The launcher forces the local thread-pool consumer for a config refresh, so the GPU consumer
+            // is not built and its config would be missed; materialize it directly here (the constructor
+            // only loads its config; the backend/kernel are acquired lazily on the first dispatch, so no
+            // device is required).
+            if(Gem::Common::GParserBuilder::updateInPlace()) {
+                auto marshaller = std::make_shared<FunctionGPU::GFunctionGPUMarshaller>();
+                gpu::GGPUConsumerT<gen::GGenome, double>(consumerConfig, marshaller);
+                gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+                    .get_as<gind::GFunctionIndividual>();
+                go.optimize(); // refreshes Go2's owned configs, then exits; nothing device-dependent has run
+            }
 
-    // ---- --update-configs: materialize the configs this example owns, then exit ---------------
-    // Go2 forces the local thread-pool consumer for a config refresh, so the GPU consumer is not built and
-    // its config would be missed; materialize it directly here (the constructor only loads its config; the
-    // backend/kernel are acquired lazily on the first dispatch, so no device is required).
-    if(go.updateConfigsMode()) {
-        auto marshaller = std::make_shared<FunctionGPU::GFunctionGPUMarshaller>();
-        gpu::GGPUConsumerT<gen::GGenome, double>(consumerConfig, marshaller);
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-            .get_as<gind::GFunctionIndividual>();
-        go.optimize(); // refreshes Go2's owned configs, then exits; nothing device-dependent has run
-    }
+            // ---- parity-check mode: cross-check the GPU kernel against the CPU evaluate(), then exit ---
+            if(parityCheckN > 0) {
+                return runParityCheck(parityCheckN, consumerConfig);
+            }
 
-    // ---- client mode (networked consumers) ----------------------------------------------------
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
+            // ---- as this is a server, allow interrupting the run "on the fly" -------------------------
+            signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
-    // ---- parity-check mode: cross-check the GPU kernel against the CPU evaluate(), then exit ---
-    if(parityCheckN > 0) {
-        return runParityCheck(parityCheckN, consumerConfig);
-    }
+            // ---- create the individual factory and wire the optimization ------------------------------
+            auto gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
+                "./config/GFunctionIndividual.json"
+            );
+            go.registerContentCreator(gfi_ptr);
 
-    // ---- as this is a server, allow interrupting the run "on the fly" -------------------------
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
+            // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory
+            // authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it over before they run.
+            {
+                auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+                auto cfg = gfi_ptr->getAdaptionConfig(*sample);
+                go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+                go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            }
 
-    // ---- create the individual factory and wire the optimization ------------------------------
-    auto gfi_ptr =
-        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
-    go.registerContentCreator(gfi_ptr);
+            // Default algorithm is "ea"; override on the command line (e.g. --optimizationAlgorithms "sa").
+            go.registerDefaultAlgorithm("ea");
 
-    // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory
-    // authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it over before they run.
-    {
-        auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
-        auto cfg = gfi_ptr->getAdaptionConfig(*sample);
-        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-        go.registerAdaptionConfig("PERSONALITY_SA", cfg);
-    }
+            // Perform the optimization. With "--consumer gpu" every generation is scored in one bulk kernel launch.
+            auto p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
 
-    // Default algorithm is "ea"; override on the command line (e.g. --optimizationAlgorithms "sa").
-    go.registerDefaultAlgorithm("ea");
-
-    // Perform the optimization. With "--consumer gpu" every generation is scored in one bulk kernel launch.
-    auto p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
-
-    std::cout << "Best result found:" << '\n' << p << '\n';
+            std::cout << "Best result found:" << '\n' << p << '\n';
+            return 0;
+        }}
+    );
 }

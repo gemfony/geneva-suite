@@ -116,9 +116,8 @@ CheckOptions:
   # ------------------------------------------------------------------
   # Header / implementation parameter consistency.
   # ------------------------------------------------------------------
-  # Geneva says headers SHOULD omit parameter names. clang-tidy cannot
-  # enforce that directly, but it can catch the more common drift:
-  # parameters renamed in the .cpp without updating the .hpp.
+  # A header declaration uses the same parameter names as the definition;
+  # this check reports a parameter renamed in one place but not the other.
   readability-inconsistent-declaration-parameter-name.Strict: 'true'
 
   # ------------------------------------------------------------------
@@ -274,8 +273,9 @@ CheckOptions:
 #   (Use a Doxygen completeness checker or pre-commit hook instead.)
 # - Exact file header / license block.
 #   (Use a custom regex script in CI.)
-# - Header declarations must omit parameter names.
-#   (No clang-tidy check exists; static review only.)
+# - No 'using namespace' in a header, also not in a function body.
+#   (google-build-using-namespace is off: it would also flag the uses
+#    allowed in the file of main() and in tests.)
 # - Prefer 'typename' over 'class' in template parameter lists.
 #   (modernize-use-using covers part of this; full check requires custom.)
 # - Template classes / structs ending with 'T' only.
@@ -290,7 +290,6 @@ CheckOptions:
 # Modernization beyond the original conventions:
 # - std::uint32_t etc. (from <cstdint>) replace boost::uint32_t.
 # - noexcept replaces throw() specifications.
-# - using namespace is forbidden (google-build-using-namespace).
 # - Macros for constants are flagged (cppcoreguidelines-macro-usage).
 # - C-style casts are flagged (google-readability-casting,
 #   cppcoreguidelines-pro-type-cstyle-cast).

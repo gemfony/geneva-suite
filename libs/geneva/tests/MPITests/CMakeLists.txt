@@ -53,8 +53,9 @@ GEM_ADD_MPI_TEST ( NAME GMPICascadeBaseCommTest TIMEOUT 60
 SET_TESTS_PROPERTIES ( GMPICascadeBaseCommTest PROPERTIES LABELS "geneva" PROCESSORS 5 )
 GEM_TEST_SIZE ( GMPICascadeBaseCommTest M )
 
-# A bystander in a plain Go2 program: three ranks, of which the MPI consumer's communicator holds
-# two. The third must be in client mode, and its clientRun() must return at once. Each rank runs in
+# A bystander in a plain Geneva program on the launcher: three ranks, of which the MPI consumer's
+# communicator holds two. The third must have the role of a bystander, and its run() must return at
+# once. Each rank runs in
 # a directory of its own, because the program writes its configuration files where it starts. The
 # program links courtier's MPI library, where it builds the environment, and not Geneva's MPI
 # module, which libgemfony-geneva loads at run time: the roles show that both find the same
@@ -80,7 +81,7 @@ GEM_TEST_SIZE ( GMPIBystanderTest M )
 
 # No rank enters MPI on the way out: a Go2 program asked for its help text, or for a refresh of its
 # configuration files, with the MPI consumer named, must end with 0 under the launcher. A rank that
-# initialized MPI and exited without finalizing it would make the launcher fail the job. Each rank
+# initialized MPI and exited without finalizing it would make mpirun fail the job. Each rank
 # runs in a directory of its own below a scratch directory, because both paths write configuration
 # files.
 IF ( GEM_BUILD_EXAMPLES )

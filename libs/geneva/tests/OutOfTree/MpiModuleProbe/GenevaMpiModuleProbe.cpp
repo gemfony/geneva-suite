@@ -39,11 +39,13 @@
  */
 
 #include <cstdio>
+#include <exception>
 #include <type_traits>
 
+#include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GMPIConsumerT.hpp"
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"
-#include "geneva/GConsumerSetup.hpp"
+#include "geneva/GOptimizationDescription.hpp"
 #include "geneva/genome/GGenome.hpp"
 
 // The MPI consumer is a class template in an installed header: it must be there for a program
@@ -59,8 +61,14 @@ int main(int argc, char **argv) {
     }
 
     // Loaded at run time: the "mpi" consumer, from the module installed next to libgemfony-geneva.
-    if(not Gem::Geneva::isKnownConsumer("mpi")) {
-        std::fputs(Gem::Geneva::optionalConsumerNotes().c_str(), stderr);
+    try {
+        (void)Gem::Courtier::consumerProvider<Gem::Geneva::Genome::GGenome>(
+            "mpi",
+            Gem::Geneva::consumerModules()
+        );
+    }
+    catch(const std::exception &e) {
+        std::fputs(e.what(), stderr);
         std::fputs("GenevaMpiModuleProbe: the mpi consumer is not available\n", stderr);
         return 1;
     }

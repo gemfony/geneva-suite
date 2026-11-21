@@ -10,6 +10,21 @@ in ../quickstart instead: it is a self-contained project that consumes an
 as-is. The examples below are built as part of the Geneva tree and illustrate
 individual aspects of the library.
 
+Every example program's main() has one of two forms (the manual's chapter on Go2 explains them):
+o The short form: Gem::Geneva::runOptimization(argc, argv, {.produce = ...}). Geneva's
+  description is handed to courtier's launcher, which owns the command line, the consumer and
+  the role of the process; the producing function runs on the submitter only, with a Go2 built
+  for it. This is the form to use unless the program sets something on the launcher.
+  01_GSimpleOptimizer shows it.
+o The long form: the program builds Geneva's description (GOptimizationDescription) and
+  courtier's launcher (Gem::Courtier::GLauncherT<GGenome>) in main() and hands the producing
+  function to launcher.run(description, {...}). It is needed when something is set on the
+  launcher before it runs -- a consumer chosen in code (11_GExternalEvaluator), a module path,
+  the item processor of a client (16_GMPISubClients). 02_GParaboloid2D shows it next to 01.
+A program needs neither form if it builds its consumer itself, without a launcher
+(06_GDirect*, 15_GMPIConsumer): courtier's buildConsumer() and buildConsumerClient() find the
+consumer in its module like the launcher does.
+
 The following examples are provided:
 
 00_GQuickStart:
@@ -24,7 +39,8 @@ chapter walks through it line by line; start here.
 
 This example is meant as the first starting point for exploring Geneva. It provides
 easy command line access to the minimization of various mathematical functions, through
-different algorithms.
+different algorithms. Its main() has the short form (runOptimization()); 02_GParaboloid2D
+shows the long form.
 
 02_GParaboloid2D:
 -----------------
@@ -33,7 +49,8 @@ The main purpose of this example is to provide users with a first insight into
 how an optimization problem may be specified in Geneva. You should thus particularly
 look at the GParaboloidIndividual2D class. The main function illustrates additional
 ways of specifying the optimization algorithms to be used, and how individuals can
-be added to the optimization handler class "go2".
+be added to the optimization driver Go2. Its main() has the long form: Geneva's description and
+courtier's launcher are built in main(); 01_GSimpleOptimizer shows the short form.
 
 03_GParameterObjectUsagePatterns:
 ---------------------------------

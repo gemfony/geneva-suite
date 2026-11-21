@@ -35,7 +35,6 @@
 #include <iostream>
 
 // Boost header files go here
-#include <boost/program_options.hpp>
 
 // Geneva header files go here
 #include "geneva/Go2.hpp"
@@ -45,89 +44,45 @@
 #include "geneva/individuals/GFunctionIndividual.hpp"
 
 using namespace Gem::Geneva;
-namespace po = boost::program_options;
 
-/******************************************************************************/
+/** The program's own options */
+struct ProgramOptions {
+    bool printValid = false;                 ///< --printValid
+    bool useRawFitness = false;              ///< --useRawFitness
+    std::string monitorSpec = "empty";       ///< --monitorSpec
+    bool bestOnly = false;                   ///< --bestOnly
+    bool observeBoundaries = false;          ///< --observeBoundaries
+    std::string logAll = "empty";            ///< --logAll
+    std::string monitorNAdaptions = "empty"; ///< --monitorNAdaptions
+    std::string logSigma = "empty";          ///< --logSigma
+    std::string monitorTimings = "empty";    ///< --monitorTimings
+    bool addOneOnly = false;                 ///< --addOneOnly
+    bool printInitial = false;               ///< --printInitial
+    bool showIterationBoundaries = false;    ///< --showIterationBoundaries
+};
+
 /**
- * The main function
+ * The optimization, on the process that submits the work.
+ *
+ * @param go The Go2 of the run
+ * @param options The program's own options
+ * @return The exit code
  */
-// NOLINTNEXTLINE(readability-function-size) -- single example main: additional CLI options, pluggable-monitor registration, Go2 setup and the optimization run all belong to one driver
-int main(int argc, char **argv) {
-    //---------------------------------------------------------------------------
-    // We want to add additional command line options
-
-    bool printValid = false;
-    bool useRawFitness = false;
-    std::string monitorSpec = "empty";
-    bool bestOnly = false;
-    bool observeBoundaries = false;
-    std::string logAll = "empty";
-    std::string monitorNAdaptions = "empty";
-    std::string logSigma = "empty";
-    std::string monitorTimings = "empty";
-    bool addOneOnly = false;
-    bool printInitial = false;
-    bool showIterationBoundaries = false;
-
-    // Assemble command line options
-    boost::program_options::options_description user_options;
-    user_options.add_options()(
-		"validOnly"
-		, po::value<bool>(&printValid)->implicit_value(true)->default_value(false) // This allows you to say both --validOnly and --validOnly=true
-		, "Enforces output of valid solutions only"
-	)(
-		"useRawFitness"
-		, po::value<bool>(&useRawFitness)->implicit_value(true)->default_value(false) // This allows you to say both --useRawFitness and --useRawFitness=true
-		, "Plot untransformed fitness value, even if a transformation takes place for the purpose of optimization"
-	)(
-		"monitorSpec"
-		, po::value<std::string>(&monitorSpec)->default_value(std::string("empty"))
-		, "Allows you to specify variables to be monitored like this: \"d(0, -10, 10)\" (a double, by its index)"
-	)(
-		"bestOnly"
-		, po::value<bool>(&bestOnly)->implicit_value(true)->default_value(false)
-		, "Allows you to specify whether only the best solutions should be monitored. This option only has an effect when monitorSpec is set."
-	)(
-		"observeBoundaries"
-		, po::value<bool>(&observeBoundaries)->implicit_value(true)->default_value(false) // This allows you say both --observeBoundaries and --observeBoundaries=true
-		, "Only plot inside of specified boundaries (no effect, when monitorSpec hasn't been set)"
-	)(
-		"logAll"
-		, po::value<std::string>(&logAll)->implicit_value(std::string("./logAll.txt"))->default_value("empty")
-		, "Logs all solutions to the file name provided as argument to this switch"
-	)(
-		"monitorAdaptions"
-		, po::value<std::string>(&monitorNAdaptions)->implicit_value(std::string("./nAdaptions.C"))->default_value("empty")
-		, "Logs the number of adaptions for all individuals over the course of the optimization. Useful for evolutionary algorithms only."
-	)(
-		"logSigma"
-		, po::value<std::string>(&logSigma)->implicit_value(std::string("./sigmaLog.C"))->default_value("empty")
-		, "Logs the value of sigma for all or the best adaptors, if GDoubleGaussAdaptors are being used"
-	)(
-		"monitorTimings"
-		, po::value<std::string>(&monitorTimings)->implicit_value(std::string("timingsLog"))->default_value("empty")
-		, "Logs the times for all processing steps"
-	)(
-		"addOneIndividualOnly"
-		, po::value<bool>(&addOneOnly)->implicit_value(true)->default_value(false)
-		, "When set, results in a single individual being added to the collection. This may be useful for debugging"
-	)(
-		"printInitial"
-		, po::value<bool>(&printInitial)->implicit_value(true)->default_value(false)
-		, "[logAll] When set, forces the printout of the initial population prior to the optimization"
-	)(
-		"showIterationBoundaries"
-		, po::value<bool>(&showIterationBoundaries)->implicit_value(true)->default_value(false)
-		, "[logAll] When set, prints a comment inbetween iterations"
-	);
-
-    Go2 go(argc, argv, "./config/Go2.json", user_options);
-
-    //---------------------------------------------------------------------------
-    // Client mode
-    if(go.clientMode()) {
-        return go.clientRun();
-    } // Execution will end here in client mode
+// NOLINTNEXTLINE(readability-function-size) -- single example driver: the pluggable monitors the options ask for, and the optimization run
+int optimize(Go2 &go, const ProgramOptions &options) {
+    const auto
+        &[printValid,
+          useRawFitness,
+          monitorSpec,
+          bestOnly,
+          observeBoundaries,
+          logAll,
+          monitorNAdaptions,
+          logSigma,
+          monitorTimings,
+          addOneOnly,
+          printInitial,
+          showIterationBoundaries] = options;
 
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
@@ -261,4 +216,128 @@ int main(int argc, char **argv) {
     // We simply print its content here, by means of an operator<< implemented
     // in the GFunctionIndividual code.
     std::cout << "Best result found:" << '\n' << p << '\n';
+    return 0;
+}
+
+/******************************************************************************/
+
+/******************************************************************************/
+/**
+ * The main function
+ */
+int main(int argc, char **argv) {
+    //---------------------------------------------------------------------------
+    // The program's own options, in the launcher's command line and help text
+    ProgramOptions options;
+    auto user_options = [&](Gem::Common::GParserBuilder &gpb) {
+        gpb.registerCLParameter<bool>(
+            "validOnly",
+            options.printValid,
+            false,
+            "Enforces output of valid solutions only",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+        gpb.registerCLParameter<bool>(
+            "useRawFitness",
+            options.useRawFitness,
+            false,
+            "Plot untransformed fitness value, even if a transformation takes place for the "
+            "purpose of optimization",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+        gpb.registerCLParameter<std::string>(
+            "monitorSpec",
+            options.monitorSpec,
+            std::string("empty"),
+            "Allows you to specify variables to be monitored like this: \"d(0, -10, 10)\" (a "
+            "double, by its index)"
+        );
+        gpb.registerCLParameter<bool>(
+            "bestOnly",
+            options.bestOnly,
+            false,
+            "Allows you to specify whether only the best solutions should be monitored. This "
+            "option only has an effect when monitorSpec is set.",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+        gpb.registerCLParameter<bool>(
+            "observeBoundaries",
+            options.observeBoundaries,
+            false,
+            "Only plot inside of specified boundaries (no effect, when monitorSpec hasn't been "
+            "set)",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+        gpb.registerCLParameter<std::string>(
+            "logAll",
+            options.logAll,
+            std::string("empty"),
+            "Logs all solutions to the file name provided as argument to this switch",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            std::string("./logAll.txt")
+        );
+        gpb.registerCLParameter<std::string>(
+            "monitorAdaptions",
+            options.monitorNAdaptions,
+            std::string("empty"),
+            "Logs the number of adaptions for all individuals over the course of the optimization. "
+            "Useful for evolutionary algorithms only.",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            std::string("./nAdaptions.C")
+        );
+        gpb.registerCLParameter<std::string>(
+            "logSigma",
+            options.logSigma,
+            std::string("empty"),
+            "Logs the value of sigma for all or the best adaptors, if GDoubleGaussAdaptors are "
+            "being used",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            std::string("./sigmaLog.C")
+        );
+        gpb.registerCLParameter<std::string>(
+            "monitorTimings",
+            options.monitorTimings,
+            std::string("empty"),
+            "Logs the times for all processing steps",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            std::string("timingsLog")
+        );
+        gpb.registerCLParameter<bool>(
+            "addOneIndividualOnly",
+            options.addOneOnly,
+            false,
+            "When set, results in a single individual being added to the collection. This may be "
+            "useful for debugging",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+        gpb.registerCLParameter<bool>(
+            "printInitial",
+            options.printInitial,
+            false,
+            "[logAll] When set, forces the printout of the initial population prior to the "
+            "optimization",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+        gpb.registerCLParameter<bool>(
+            "showIterationBoundaries",
+            options.showIterationBoundaries,
+            false,
+            "[logAll] When set, prints a comment inbetween iterations",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+    };
+
+    return runOptimization(
+        argc,
+        argv,
+        {.userOptions = user_options,
+         .produce = [&](Go2 &go, const auto &) { return optimize(go, options); }}
+    );
 }

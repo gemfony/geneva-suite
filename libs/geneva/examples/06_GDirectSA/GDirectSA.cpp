@@ -54,9 +54,10 @@
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
-#include "geneva/GConsumerSetup.hpp"
+#include "geneva/GOptimizationDescription.hpp"
 #include "geneva/GenevaInitializer.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 
@@ -69,7 +70,6 @@ using namespace Gem::Hap;
 using namespace Gem::Common;
 
 using namespace Gem::Common;
-namespace po = boost::program_options;
 
 /******************************************************************************/
 // Default settings
@@ -296,14 +296,16 @@ int main(int argc, char **argv) {
     // If this is a client in networked mode, we can just start the listener and
     // return when it has finished
     if(PM_NETWORKED == parallelizationMode && !serverMode) {
-        // Build the networked client through the courtier setup layer. The configuration struct
-        // names the consumer and drives both this client and the server below.
-        auto client = buildConsumerClient(
+        // Build the networked client through courtier's function, from Geneva's consumer module.
+        // The configuration struct names the consumer and drives both this client and the server
+        // below.
+        auto client = buildConsumerClient<gen::GGenome>(
             GWebsocketConsumerConfig{
                 .ip = ip,
                 .port = port,
                 .serializationMode = serMode,
-            }
+            },
+            consumerModules()
         );
 
         // Start the actual processing loop
@@ -354,13 +356,14 @@ int main(int argc, char **argv) {
     switch(parallelizationMode) {
     //----------------------------------------------------------------------------
     case PM_SERIAL: // Serial (single-threaded) execution
-        buildConsumer(GStdThreadConsumerConfig{.nThreads = 1});
+        buildConsumer<gen::GGenome>(GStdThreadConsumerConfig{.nThreads = 1}, consumerModules());
         break;
 
         //----------------------------------------------------------------------------
     case PM_MULTITHREADED: // Multi-threaded local execution
-        buildConsumer(
-            GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)}
+        buildConsumer<gen::GGenome>(
+            GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)},
+            consumerModules()
         );
         break;
 
@@ -368,14 +371,18 @@ int main(int argc, char **argv) {
     case PM_NETWORKED: // Networked execution (or a purely local consumer for testing)
         if(addLocalConsumer) {
             // "Broker mode" with only a local multi-threaded consumer (testing / benchmarking).
-            buildConsumer(
-                GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)}
+            buildConsumer<gen::GGenome>(
+                GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)},
+                consumerModules()
             );
         }
         else {
             // Build a courtier websocket server via the shared factory; the clients started above
             // (built by buildConsumerClient from the same configuration struct) connect to it.
-            buildConsumer(GWebsocketConsumerConfig{.port = port, .serializationMode = serMode});
+            buildConsumer<gen::GGenome>(
+                GWebsocketConsumerConfig{.port = port, .serializationMode = serMode},
+                consumerModules()
+            );
         }
         break;
 

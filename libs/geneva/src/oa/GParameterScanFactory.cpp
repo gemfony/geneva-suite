@@ -36,7 +36,6 @@
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
-#include <boost/program_options.hpp>
 #include <cstddef>
 #include <memory>
 #include <string>
@@ -46,27 +45,24 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 
 /***************************************************************************/
 /**
- * @brief Adds local command line options to a boost::program_options::options_description object.
+ * @brief Registers local command line options with the program's parser (listed by --showAll).
  *
- * @param visible Command line options that should always be visible
- * @param hidden Command line options that should only be visible upon request
+ * @param gpb The parser of the program's command line
  */
-void GParameterScanFactory::addCLOptions(
-    boost::program_options::options_description &visible,
-    boost::program_options::options_description &hidden
-) {
-    namespace po = boost::program_options;
-
-    hidden.add_options()(
-        "parameterSpec",
-        po::value<std::string>(&parameter_spec_cl_)->default_value(std::string("empty")),
-        "\t[GParameterScanFactory] Specification of parameters to be scanned. Syntax: \"d(0, -10., "
-        "10., 100)\". Use a comma-separated list for more than one variable. A single entry "
-        "\"s(1000)\" will lead to a random scan over all parameters of up to 1000 individuals"
-    );
+void GParameterScanFactory::addCLOptions(Gem::Common::GParserBuilder &gpb) {
+    gpb.registerCLParameter<std::string>(
+           "parameterSpec",
+           parameter_spec_cl_,
+           std::string("empty"),
+           "\t[GParameterScanFactory] Specification of parameters to be scanned. Syntax: \"d(0, "
+           "-10., 10., 100)\". Use a comma-separated list for more than one variable. A single "
+           "entry \"s(1000)\" will lead to a random scan over all parameters of up to 1000 "
+           "individuals"
+    )
+        .setHidden();
 
     // Add the parent class'es options
-    GOAFactoryT<GOptimizationAlgorithmBase>::addCLOptions(visible, hidden);
+    GOAFactoryT<GOptimizationAlgorithmBase>::addCLOptions(gpb);
 }
 
 /******************************************************************************/

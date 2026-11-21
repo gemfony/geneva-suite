@@ -44,6 +44,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -372,6 +373,29 @@ constexpr bool GCL_NO_HELP_REQUESTED = false;
 // Indicates whether implicit values are allowed (such as in --server vs. --server=true)
 constexpr bool GCL_IMPLICIT_ALLOWED = true;
 constexpr bool GCL_IMPLICIT_NOT_ALLOWED = false;
+
+/******************************************************************************/
+/**
+ * The exception GParserBuilder throws for a command line it cannot read: an unknown option, a value
+ * that does not read as its type, a missing value, a flag given a value. A malformed command line is
+ * the user's error, so the parser does not end the process: the caller decides. A program that does
+ * not catch it ends through the fatal report (common/GFatalReport.hpp) with its message and the exit
+ * code 1; a caller that catches it can print usage(), the text --help prints, and return.
+ */
+class GCommandLineError : public gem_exception {
+public:
+    /** @brief Stores the message (what()) and the text --help prints */
+    GCommandLineError(std::string const &message, std::string usage)
+      : gem_exception(message)
+      , usage_(std::move(usage)) { /* nothing */
+    }
+
+    /** @brief The text --help prints: the usage line and the options --help lists */
+    [[nodiscard]] std::string const &usage() const noexcept { return usage_; }
+
+private:
+    std::string usage_; ///< The text --help prints
+};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -1730,6 +1754,15 @@ public:
     GCLParsableI &operator=(GCLParsableI const &) = delete;
     GCLParsableI &operator=(GCLParsableI &&) = delete;
 
+    /** @brief Lists this option only under --showAll, not under --help (false: under both again);
+     *  it is read from the command line all the same */
+    GCLParsableI &setHidden(bool hidden = true) {
+        hidden_ = hidden;
+        return *this;
+    }
+    /** @brief Whether this option is listed only under --showAll */
+    [[nodiscard]] bool isHidden() const { return hidden_; }
+
 protected:
     /** @brief Registers this option with a Boost.ProgramOptions options description
      *  @param desc The options description to which this option is added */
@@ -1738,6 +1771,10 @@ protected:
     /** @brief Returns the content of this object as a std::string
      *  @return A human-readable representation of this option's name and value */
     [[nodiscard]] virtual std::string content() const = 0;
+
+private:
+    bool hidden_ = false;     ///< Whether --help leaves this option out (--showAll lists it)
+    std::size_t section_ = 0; ///< The section of the help text it is listed in (GParserBuilder::beginCLSection())
 };
 
 /******************************************************************************/
@@ -1876,12 +1913,54 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
+ * A command-line option whose Boost.ProgramOptions value semantic comes from a function: a flag
+ * (GParserBuilder::registerCLFlag()) or an option that may be given several times
+ * (GParserBuilder::registerCLRepeatableParameter()).
+ */
+class GCLSemanticParsableParameter : public GCLParsableI {
+public:
+    /** @brief Stores the option's name and comment, the function that makes its value semantic
+     *  (a new object, which Boost.ProgramOptions owns) and the one that describes its value */
+    GCLSemanticParsableParameter(
+        std::string const &option_name_var,
+        std::string const &comment_var,
+        std::function<boost::program_options::value_semantic *()> make_semantic,
+        std::function<std::string()> describe_value
+    )
+      : GCLParsableI(option_name_var, comment_var)
+      , make_semantic_(std::move(make_semantic))
+      , describe_value_(std::move(describe_value)) { /* nothing */
+    }
+
+private:
+    /** @brief Registers this option with a Boost.ProgramOptions options description */
+    void save_to(boost::program_options::options_description &desc) const override {
+        desc.add_options()((this->optionName()).c_str(), make_semantic_(), (this->comment()).c_str());
+    }
+    /** @brief Returns the option's name and value as a std::string */
+    [[nodiscard]] std::string content() const override {
+        return this->optionName() + " :\t" + describe_value_();
+    }
+
+    std::function<boost::program_options::value_semantic *()>
+        make_semantic_; ///< Makes the value semantic the option is registered with
+    std::function<std::string()> describe_value_; ///< Describes the current value
+};
+
+/******************************************************************************/
+////////////////////////////////////////////////////////////////////////////////
+/******************************************************************************/
+/**
  * This class implements a "parser builder", that allows to easily specify
  * the options that the parser should search for in a configuration file.
  * Results of the parsing process will be written directly into the supplied
  * variables. If not found, a default value will be used. Note that this
  * class assumes that the parameter_type can be streamed using operator<< or
  * operator>>
+ *
+ * Command-line options may be hidden (listed by --showAll, not by --help), grouped into sections of
+ * the help text, flags or repeatable; a malformed command line throws GCommandLineError; an early
+ * parse reads only the options known so far; givenExplicitly() tells a given option from a default.
  */
 class GParserBuilder {
 public:
@@ -1949,8 +2028,22 @@ public:
     /** @brief Provides information on the number of file configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfFileOptions() const;
 
-    /** @brief Parses the commandline for options */
+    /** @brief Parses the command line for options; throws GCommandLineError if it is malformed */
     bool parseCommandLine(int argc, char **argv, bool verbose = false);
+    /** @brief Reads the command-line options registered so far and ignores all others, without
+     *  error (an early parse, no help); throws GCommandLineError if a known option is malformed */
+    void parseKnownOptions(int argc, char **argv);
+    /** @brief Whether the last parse found the option on the command line, not its default */
+    [[nodiscard]] bool givenExplicitly(std::string const &option_name) const;
+    /** @brief Starts a section of the help text: the command-line options registered from now on
+     *  are listed under @p caption, the hidden ones (--showAll) under @p hidden_caption if given */
+    void beginCLSection(std::string const &caption, std::string const &hidden_caption = "");
+    /** @brief Registers a flag, an option without a value: @p flag is true if it is given */
+    GCLParsableI &registerCLFlag(
+        std::string const &option_name,
+        bool &flag,
+        std::string const &comment = std::string()
+    );
     /** @brief Provides information on the number of command line configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfCLOptions() const;
 
@@ -2430,7 +2523,7 @@ public:
 	  * @return A reference to the registered parameter proxy, to allow further configuration
 	  */
     template <typename parameter_type>
-    GParsableI &registerCLParameter(
+    GCLParsableI &registerCLParameter(
         std::string const &option_name,
         parameter_type &parameter,
         parameter_type const &def_val,
@@ -2468,9 +2561,48 @@ public:
             );
         }
 
-        // Add to the proxy store
-        cl_parameter_proxies_.push_back(ref_parm_ptr);
-        return *ref_parm_ptr;
+        return addCLProxy_(ref_parm_ptr);
+    }
+
+    /***************************************************************************/
+    /**
+	  * Adds an option that may be given several times (--module a --module b) to the command line
+	  * parameters. @p values receives all values in the order they are given, and is empty if the
+	  * option is not given.
+	  *
+	  * @tparam parameter_type The type of one value
+	  * @param option_name The name of the option
+	  * @param values The vector that receives the values
+	  * @param comment A comment to be shown in the command-line help
+	  * @return A reference to the registered parameter proxy, to allow further configuration
+	  */
+    template <typename parameter_type>
+    GCLParsableI &registerCLRepeatableParameter(
+        std::string const &option_name,
+        std::vector<parameter_type> &values,
+        std::string const &comment = std::string()
+    ) {
+#ifdef DEBUG
+        assertNotRegistered_(option_name, cl_parameter_proxies_, "registerCLRepeatableParameter()");
+#endif /* DEBUG */
+        namespace po = boost::program_options;
+        return addCLProxy_(std::make_shared<GCLSemanticParsableParameter>(
+            option_name,
+            comment,
+            [&values] {
+                return po::value<std::vector<parameter_type>>(&values)->default_value(
+                    std::vector<parameter_type>{},
+                    "" // No text for the empty default in the help
+                );
+            },
+            [&values] {
+                std::ostringstream text; // NOLINT(cppcoreguidelines-init-variables)
+                for(auto const &value : values) {
+                    text << value << ' ';
+                }
+                return text.str();
+            }
+        ));
     }
 
 private:
@@ -2529,7 +2661,38 @@ private:
     std::vector<std::shared_ptr<GCLParsableI>>
         cl_parameter_proxies_; ///< Holds command line parameter proxies, in registration order
 
+    /** A section of the help text (beginCLSection()) */
+    struct CLSection {
+        std::string caption;       ///< The heading of the options --help lists
+        std::string hiddenCaption; ///< The heading of the hidden options; empty: listed under caption
+    };
+    std::vector<CLSection>
+        cl_sections_; ///< The sections of the help text, in the order they were begun
+    std::set<std::string>
+        given_explicitly_; ///< The options the last parse found on the command line (long names)
+
     std::filesystem::path config_base_dir_;
+
+    /** @brief Stores a command-line proxy in the current section of the help text */
+    GCLParsableI &addCLProxy_(std::shared_ptr<GCLParsableI> proxy);
+    /** @brief Adds the command-line options to @p desc, grouped by section; with @p show_all the
+     *  hidden ones too, with @p with_help --help and --showAll at the head of the first section */
+    void describeCLOptions_(
+        boost::program_options::options_description &desc,
+        bool show_all,
+        bool with_help
+    ) const;
+    /** @brief The text --help prints for the program @p usage_string names */
+    [[nodiscard]] std::string helpText_(std::string const &usage_string) const;
+    /** @brief Parses the command line against @p desc, records the options given, assigns the
+     *  values; throws GCommandLineError if it is malformed */
+    boost::program_options::variables_map parseAgainst_(
+        int argc,
+        char **argv,
+        boost::program_options::options_description const &desc,
+        std::string const &usage_string,
+        bool permissive
+    );
 
     /** @brief Shared implementation of parseConfigFile()/updateConfigFile(): reads @p config_file (creating
      *  it from defaults if absent), applies it to the registered options and, when @p do_rewrite is set and

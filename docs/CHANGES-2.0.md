@@ -121,8 +121,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The external-evaluation protocol was rewritten** (a breaking change for external
   evaluators; the bundled `evaluator.py` was rewritten to match).
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
-  materialize/refresh their config files with `--update-configs` (non-Go2 programs honor
-  it too).
+  materialize/refresh their config files with `--update-configs` (programs without Geneva's
+  launcher honor it too).
 - **A parameter entry of the wrong form is refused.** Each parameter is an object with a
   `"value"` -- a list for a vector or array parameter -- as in
   `"scan_randomly": { "value": false }`; a combined parameter is an object of such entries. A
@@ -139,16 +139,59 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `void`. They used to log the error and return `false`, which most callers ignored -- a direct
   `readConfigFile()` of an optimization algorithm among them -- so a configuration that could not be
   applied ran on its defaults. Code that tested the result drops the test.
+- **`GParserBuilder::parseCommandLine()` throws `Gem::Common::GCommandLineError`** for a
+  malformed command line (an unknown option, a value that does not read as its type, a missing
+  value). It used to print the error and the usage and end the process. The exception carries the
+  help text (`usage()`); a program that does not catch it ends through the fatal report with the
+  message and the exit code 1.
 - **A Geneva program ends on an error nobody handles with a message and the exit code 1**, not
-  with an abort and a core dump: Go2's constructor makes `Gem::Common::installFatalReport()`
-  (`common/GFatalReport.hpp`) the terminate handler of the process; a program without Go2 calls it
-  in the first line of `main()`. Nothing is unwound on the way, so under MPI no process finalizes
-  MPI while others wait for it, and the launcher ends the whole job. A program that wants its own
-  terminate handler sets it after constructing Go2. A `std::terminate()` with no exception in
+  with an abort and a core dump: the constructor of Geneva's description
+  (`GOptimizationDescription`, built by `runOptimization()`) makes
+  `Gem::Common::installFatalReport()` (`common/GFatalReport.hpp`) the terminate handler of the
+  process; a program without it calls it in the first line of `main()`. Nothing is unwound on the
+  way, so under MPI no process finalizes MPI while others wait for it, and `mpirun` ends the whole
+  job. A program that wants its own terminate handler sets it after constructing the description. A `std::terminate()` with no exception in
   flight, an internal fault, still aborts, for the core dump.
 
 ## 5. Parallelization and consumers
 
+- **A program's `main()`: Geneva on courtier's launcher.** The start of a program -- the command
+  line, the modules, the choice of consumer, the role of the process, a client's run -- moved
+  from `Go2` to courtier's launcher `Gem::Courtier::GLauncherT<GGenome>` (`courtier/GLauncherT.hpp`);
+  `Go2` is the optimization driver only. What 1.11 and the development snapshots wrote as
+  ```cpp
+  Go2 go(argc, argv, "./config/Go2.json", user_options);
+  if(go.clientMode()) { return go.clientRun(); }
+  /* ... */ go.optimize();
+  ```
+  is now, in the short form,
+  ```cpp
+  return Gem::Geneva::runOptimization(argc, argv, {
+      .userOptions = [&](Gem::Common::GParserBuilder &gpb) { /* gpb.registerCLParameter(...) */ },
+      .produce = [&](Go2 &go, const GOptimizationDescription &) { /* ... */ go.optimize(); return 0; }});
+  ```
+  and, in the long form for a program that sets something on the launcher (a consumer chosen in
+  code with `setConsumer()`, `addModulePath()`, `registerItemProcessor()` for a client), Geneva's
+  description and the launcher are built in `main()`:
+  `GOptimizationDescription geneva; GLauncherT<GGenome> launcher(argc, argv, "./config/Go2.json");
+  return launcher.run(geneva, {.produce = [&] { Go2 go(geneva); /* ... */ return 0; }});`
+  (examples 01 and 02 show the two forms, example 11 a choice made on the launcher). The
+  producing function runs on the submitter only; `prepare(role)` runs in every process (constant
+  problem data, an exit before anything runs). `run()` returns: `--help` gives 0, a malformed
+  command line prints the error and the help text and gives 1. With `--waitForClients N` the
+  submitter waits before producing until its consumer reports N connected clients, and ends with
+  an error after `--clientWaitLimit` seconds (600) with fewer. Removed from `Go2`: the constructor
+  `Go2(argc, argv, config_file, options)`, `clientMode()`, `clientRun()`, `setClientMode()`,
+  `registerConsumer()`, `consumer()`, `setConsumerName()`, `getConsumerName()`, `addModulePath()`,
+  `setModulePaths()`, `getModulePaths()`, `setMaxClientTime()`, `getMaxClientTime()`,
+  `updateConfigsMode()` (ask `Gem::Common::GParserBuilder::updateInPlace()`), `helpRequested()`
+  (the launcher's `helpRequested()`), `parseCommandLine()`, `parseConfigFile()`,
+  `addConfigurationOptions()` and `getNProducerThreads()`; `Go2()` and
+  `Go2(const GOptimizationDescription &)` remain. The keys of `Go2.json` are unchanged (`consumer`
+  and `module_paths` are the launcher's, the others Geneva's). A program's own options register into
+  the launcher's `GParserBuilder` (`userOptions`), not into a `boost::program_options` group; the
+  algorithms' options do the same (`GProviderT::addCLOptions(GParserBuilder &)`, hidden ones listed
+  by `--showAll`).
 - **One consumer per process.** A process uses a single consumer held in a process-global
   `GConsumerRegistry`; an algorithm submits to it and gets back a fully-evaluated
   population, transport-agnostic. The former per-algorithm broker/executor injection —
@@ -158,16 +201,20 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GMetaEvolutionaryAlgorithm` (example 10), which evaluates its umbrella individuals on
   its own orchestration pool while their sub-optimizations submit to the one process
   consumer — so the consumer is never re-entered.
-- **The MPI consumer is a module of its own.** `libgemfony-geneva-mpi` carries the `mpi`
-  consumer. The process's one MPI environment lives in courtier's MPI library
+- **Every consumer is a module of its own**, built for `GGenome` like a module of a third party
+  (one line on courtier's provider: `consumerManifest<GStdThreadConsumerProviderT<GGenome>>()`) and
+  installed next to `libgemfony-geneva` as `libgemfony-geneva-<consumer>.so` (`stc`, `beast`,
+  `mqtt`, `mpi`, `gpu`, as built); the launcher loads the chosen one (`Gem::Geneva::consumerModules()`
+  says where they lie), `stc` when none is named. Geneva's own consumer catalogue
+  (`geneva/GConsumerSetup.hpp`, `geneva/GConsumerPlugin.hpp`) is removed. `libgemfony-geneva-mpi`
+  carries the `mpi` consumer. The process's one MPI environment lives in courtier's MPI library
   `libgemfony-courtier-mpi`, which the module links:
   `Gem::Courtier::mpiEnvironment()`, `mpiEnvironmentOn()` and `mpiProcessRole()` in
   `courtier/mpi/GMPIEnvironmentAccess.hpp`, next to the environment class
   (`courtier/mpi/GMPIEnvironment.hpp`, formerly under `courtier/transport/`). No other Geneva
-  library links MPI, so Geneva programs start on machines without an MPI library. The module
-  is installed next to `libgemfony-geneva`, which loads it when the consumer catalogue is
-  first consulted; `--consumer mpi` exists when that load succeeds, and otherwise the error
-  names the reason. No program links the module: it is a module library, not an exported
+  library links MPI, so Geneva programs start on machines without an MPI library; asked for
+  `--consumer mpi` where the module cannot be loaded, the launcher names the module and the
+  reason. No program links the module: it is a module library, not an exported
   target (`Geneva::geneva-mpi` is gone). A program that names the environment's functions links
   `gemfony-courtier-mpi` (`Geneva::courtier-mpi`, which carries MPI; `find_package(Geneva)`
   finds MPI for it).
@@ -178,16 +225,19 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   1 + clients x group size processes. Porting: the sub-client job given to
   `registerSubClientJob()` becomes a `GMPIGroupMemberI` that `cascade.serve()` runs on every
   member; an individual that used `getCommunicator()` in `evaluate()` becomes MPI-free, and the
-  lead's item processor (`setItemProcessor()` of the client, built with
-  `buildClientFromCommandLine()` of `geneva/GConsumerSetup.hpp`) evaluates it in a round,
+  lead's item processor (`registerItemProcessor()` of the launcher, which hands it to the lead's
+  client) evaluates it in a round,
   `cascade.round()`; `sub_client_group_size` is the same key in `config/GMPICascade.json`
   (`GMPICascadeConfig::load()`). Example 16 shows it. `courtier/GMPIHelperFunctions.hpp`
   (`mpiScatterWhile()`, `mpiGatherWhile()`, `MPICompletionStatus`, ...) is removed with them; its
   replacement is `courtier/mpi/GMPIPolledCalls.hpp` (`mpiScatter()`, `mpiGather()`,
   `waitPolled()`, `probePolled()`).
-- **A program that builds its consumer without Go2 passes the configuration struct of the
-  consumer's family**: `buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1})`,
-  `buildConsumerClient(GWebsocketConsumerConfig{.ip = "server", .port = 10000})`. The struct names
+- **A program that builds its consumer without the launcher passes the configuration struct of
+  the consumer's family** to courtier's functions, with the location of the consumer modules:
+  `Gem::Courtier::buildConsumer<GGenome>(GStdThreadConsumerConfig{.nThreads = 1},
+  Gem::Geneva::consumerModules())`, `buildConsumerClient<GGenome>(GWebsocketConsumerConfig{.ip =
+  "server", .port = 10000}, Gem::Geneva::consumerModules())` (`courtier/GLauncherT.hpp`; also
+  `consumerProvider<T>()` for the role of a process, `ensureProcessConsumer<T>()`). The struct names
   the mnemonic (`MNEMONIC`), so struct and consumer cannot be mismatched, and a misspelt member does
   not compile. The structs are `GStdThreadConsumerConfig`, `GWebsocketConsumerConfig` and
   `MPIConsumerConfig` (`courtier/consumers/G*ConsumerConfig.hpp`; none includes a network or MPI
@@ -199,8 +249,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `Gem::Courtier::configOf<config_type>(spec)`, which names both types when they differ.
 - **The GPU consumer is a first-class mnemonic** (`--consumer gpu`, when built with
   `GEM_BUILD_WITH_GPU_CONSUMER`). A GPU problem contributes only its device marshaller
-  via `Gem::Geneva::registerGPUMarshaller<...>(...)`; Go2 builds/selects the consumer
-  like any other.
+  via `Gem::Geneva::registerGPUMarshaller<...>(...)`; the launcher builds the consumer like any
+  other, after checking that a marshaller is there.
 - **The networked protocol is two-layered: courtier frames, Geneva messages.** Courtier owns
   a closed frame vocabulary (`GFrameKind`: hello / pull / work / result) plus the per-slot
   `GProcessingOutcome` it reconciles on, and nothing else. The end of a run is said by the transport's close, not by a frame: the
@@ -248,7 +298,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   nothing; what a client held is put back by the lease). A send that is still under way when the
   work ends (a large item for a rank that has left, say) is waited for up to 2 s
   (`GMPIPEERDRAINGRACE`) and then given up. The consumer answers
-  `connectedClients()` (the clients that have asked for work), so the speed-up benchmarks'
+  `connectedClients()` (the clients that have asked for work), so the launcher's
   `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket. The submitter serves waiting requests oldest
   first and does not ask whether their client is evaluating. While items are pending no request
   waits, and one sent ahead takes an item nobody waits for; but when fewer items become available
@@ -428,7 +478,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Individuals, optimization algorithms and GPU marshallers can be shipped as
   runtime-loadable `.so` modules** (`GENEVA_DECLARE_INDIVIDUAL` /
   `GENEVA_ADD_INDIVIDUAL_MODULE`, `individualManifest<>` / `oaManifest<>` /
-  `marshallerManifest<>`, and `consumerManifest<>` for a consumer -- the MPI module is one),
+  `marshallerManifest<>`, and courtier's `consumerManifest<>` for a consumer -- Geneva's consumers
+  are such modules),
   loaded with `--module <path>.so` (repeatable) — or, for the one
   module that carries the optimization problem, with `--individual <path>.so`. Example 20's
   `README.md` is the reference author path for an algorithm module, example 18's for a problem.
@@ -436,12 +487,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   before any of a module's C++ is touched: the toolchain-compatibility fingerprint
   (`GemCompat` — compiler, standard library, Boost, build-mode ABI switches and Geneva version,
   matched axis by axis) and the **module-ABI stamp** `GEM_MODULE_ABI_VERSION`, which covers this
-  release's manifest layout, contribution-kind numbering and per-kind payload types. The stamp is
+  release's manifest layout, contribution-kind names and per-kind payload types. The stamp is
   what catches a module built against a different `common/GModuleManifest.hpp` within one Geneva
   version — something the version number alone cannot see. Beyond the gates, every other defect is
   a refusal naming the module and the fault rather than a silent partial load: a shared object with
   no manifest entry point, a manifest that advertises nothing, a contribution without its factory
-  entry point, a contribution of a kind this Geneva cannot serve (previously skipped in silence),
+  entry point, a contribution of a kind this program does not accept (previously skipped in
+  silence; the refusal names the kinds it does accept),
   a mnemonic or device target that is already taken, and a module named with `--individual` that
   carries no individual. Module authors never write the stamp by hand — the manifest helpers, and
   the `GEM_MODULE_ABI_STAMP` initializer prefix for a hand-written multi-contribution manifest,
@@ -455,6 +507,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   consumer), so a module refused for one of these registers nothing.
   The loader is `common/GModuleLoader.hpp`, which takes one handler per kind of contribution; Geneva
   uses it through `Gem::Geneva::loadModule()`.
+- **Contribution kinds are names with the prefix of their library**: `"geneva.individual"`,
+  `"geneva.oa"`, `"geneva.marshaller"`, `"courtier.consumer"` (the constants
+  `Gem::Geneva::INDIVIDUAL_CONTRIBUTION_KIND`, `OA_CONTRIBUTION_KIND`,
+  `MARSHALLER_CONTRIBUTION_KIND`, `Gem::Courtier::CONSUMER_CONTRIBUTION_KIND`). The numbers
+  `GEM_CONTRIBUTION_*` are gone: common's manifest lists no kind of the libraries above it, and a
+  program states at each load which kinds it accepts. A hand-written manifest names the constant
+  (example 21). Module ABI version 6.
 - **An optimization-algorithm factory is now itself the provider the algorithm store holds.**
   `GOAFactoryT` implements `Gem::Common::GProviderT` directly, so the wrapper `GOAFactoryProviderT`
   is gone, and a factory registers through one function,
@@ -496,8 +555,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   - the functions of the installed CMake package `GEM_STAMP_PROGRAM()` and
     `GEM_MATERIALIZE_CONFIGS()`;
   - in C++: `gem_exception`, the module manifest (`GemModuleManifest`, `GemContribution`,
-    `GemCompat`, `GEM_MODULE_ABI_STAMP`, `GEM_MODULE_ABI_VERSION`, `GEM_CONTRIBUTION_*`,
-    `GEM_BUILD_FINGERPRINT`), the exported entry point `gem_module_manifest()` (a module built
+    `GemCompat`, `GEM_MODULE_ABI_STAMP`, `GEM_MODULE_ABI_VERSION`, `GEM_BUILD_FINGERPRINT`), the exported entry point `gem_module_manifest()` (a module built
     before the rename is not found and is rebuilt), the version macros `GEM_VERSION`,
     `GEM_VERSION_MAJOR` / `_MINOR` / `_PATCH` / `_PRERELEASE` / `_STRING`, and
     `Gem::Common::gemCommit()` in `common/GGemCommit.hpp`.
@@ -672,7 +730,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **courtier/geneva: the client data template was removed** (`GBaseClientT`'s constructor
   taking `additionalDataTemplate`, `loadDataTemplate()`, and `loadConstantData()` /
   `loadConstantData_()` on `GProcessingContainerT` and `GGenome`); no transport applied it.
-  Constant problem data is loaded in every process, before `clientRun()` as before `optimize()`.
+  Constant problem data is loaded in every process (the `prepare()` of the launcher's program).
 - **geneva: `GExternalEvaluatorIndividual::setDataType()` / `getDataType()` and
   `GEEI_DEF_DATATYPE` were removed.** The two accessors were declared but never defined, so no
   program could have called them. The `dataType` field of the exchange file names the kind of

@@ -30,6 +30,7 @@
 #include "common/GParserBuilder.hpp"
 
 // Standard library headers used directly in this translation unit
+#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <exception>
@@ -44,6 +45,7 @@
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 // Other Geneva headers whose symbols are used directly
@@ -1037,66 +1039,245 @@ bool GParserBuilder::unknownKeyIsError() {
  * @param argv The argument vector
  * @param verbose If set to true, the function will emit information about the parsed parameters
  * @return A boolean indicating whether help was requested (true) or not (false)
+ * @throws GCommandLineError if the command line is malformed (an unknown option, a value that does
+ *         not read as its type, a missing value); it carries the help text
  */
 bool GParserBuilder::parseCommandLine(int argc, char **argv, bool verbose) {
+    // All options, the hidden ones included: what is parsed, and what --showAll lists
+    std::string const usage_string = std::string("Usage: ") + argv[0] + " [options]";
+    boost::program_options::options_description all(usage_string);
+    describeCLOptions_(all, true /* show_all */, true /* with_help */);
+    auto const vm = parseAgainst_(argc, argv, all, usage_string, false /* permissive */);
+
+    // Emit a help message, if necessary and let the caller of this function know
+    if(vm.contains("showAll")) {
+        std::cout << all << '\n';
+        return GCL_HELP_REQUESTED;
+    }
+    if(vm.contains("help")) {
+        std::cout << helpText_(usage_string) << '\n';
+        return GCL_HELP_REQUESTED;
+    }
+
+    if(verbose) {
+        std::cout << "GParserBuilder::parseCommandLine():" << '\n'
+                  << "Working with the following options:" << '\n';
+        for(auto const &p_ptr : cl_parameter_proxies_) {
+            std::cout << p_ptr->content() << '\n';
+        }
+        std::cout << '\n';
+    }
+
+    return GCL_NO_HELP_REQUESTED;
+}
+
+/******************************************************************************/
+/**
+ * Reads the command-line options registered so far and ignores all others (--help among them),
+ * without error: an early parse, for a program that learns from a few options (--module) which
+ * further options exist. parseCommandLine() later reads the same command line with all options. An
+ * abbreviated long name is matched against the options known so far only.
+ *
+ * @param argc The argument count
+ * @param argv The argument vector
+ * @throws GCommandLineError if a known option is malformed (a missing value, a value that does not
+ *         read as its type)
+ */
+void GParserBuilder::parseKnownOptions(int argc, char **argv) {
+    std::string const usage_string = std::string("Usage: ") + argv[0] + " [options]";
+    boost::program_options::options_description known(usage_string);
+    describeCLOptions_(known, true /* show_all */, false /* with_help */);
+    parseAgainst_(argc, argv, known, usage_string, true /* permissive */);
+}
+
+/******************************************************************************/
+/**
+ * Whether the last parse (parseCommandLine() or parseKnownOptions()) found an option on the command
+ * line, as opposed to assigning its default -- so that an option given explicitly can win over a
+ * choice made in code. An option given with the value of its default counts as given.
+ *
+ * @param option_name The option's name; a short form after a comma ("client,c") is ignored
+ * @return true if the option was given on the command line
+ * @throws gem_exception if no command-line option of that name is registered
+ */
+bool GParserBuilder::givenExplicitly(std::string const &option_name) const {
+    auto const long_name = [](std::string const &name) { return name.substr(0, name.find(',')); };
+    std::string const key = long_name(option_name);
+    if(std::ranges::none_of(cl_parameter_proxies_, [&](auto const &p_ptr) {
+           return long_name(p_ptr->optionName(0)) == key;
+       })) {
+        throw gem_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GParserBuilder::givenExplicitly(): no command-line option \"" << key
+            << "\" is registered" << '\n'
+        );
+    }
+    return given_explicitly_.contains(key);
+}
+
+/******************************************************************************/
+/**
+ * Starts a section of the help text: the command-line options registered after this call are listed
+ * under @p caption (those registered before any section directly under the usage line). --help and
+ * --showAll head the first section.
+ *
+ * @param caption The heading of the section's options under --help and --showAll
+ * @param hidden_caption The heading under which --showAll lists the section's hidden options, after
+ *        the section; if empty, they are listed in the section itself
+ */
+void GParserBuilder::beginCLSection(std::string const &caption, std::string const &hidden_caption) {
+    cl_sections_.push_back({.caption = caption, .hiddenCaption = hidden_caption});
+}
+
+/******************************************************************************/
+/**
+ * Registers a flag: an option without a value, such as --client. @p flag is set to true if the
+ * option is given and to false if not.
+ *
+ * @param option_name The name of the option
+ * @param flag The variable that is set to whether the option is given
+ * @param comment A comment to be shown in the command-line help
+ * @return A reference to the registered parameter proxy, to allow further configuration
+ */
+GCLParsableI &GParserBuilder::registerCLFlag(
+    std::string const &option_name,
+    bool &flag,
+    std::string const &comment
+) {
+#ifdef DEBUG
+    assertNotRegistered_(option_name, cl_parameter_proxies_, "registerCLFlag()");
+#endif /* DEBUG */
+    return addCLProxy_(std::make_shared<GCLSemanticParsableParameter>(
+        option_name,
+        comment,
+        [&flag] { return boost::program_options::bool_switch(&flag); },
+        [&flag] { return std::string(flag ? "true" : "false"); }
+    ));
+}
+
+/******************************************************************************/
+/**
+ * Stores a command-line proxy in the current section of the help text (the unnamed one under the
+ * usage line if no section was begun).
+ *
+ * @param proxy The proxy to store
+ * @return The stored proxy, to allow further configuration
+ */
+GCLParsableI &GParserBuilder::addCLProxy_(std::shared_ptr<GCLParsableI> proxy) {
+    if(cl_sections_.empty()) {
+        cl_sections_.emplace_back(); // The unnamed section, listed directly under the usage line
+    }
+    proxy->section_ = cl_sections_.size() - 1;
+    cl_parameter_proxies_.push_back(std::move(proxy));
+    return *cl_parameter_proxies_.back();
+}
+
+/******************************************************************************/
+/**
+ * Adds the command-line options to an options description, grouped by the sections of the help
+ * text in the order they were begun: an unnamed first section directly under the description's own
+ * caption (the usage line), every other section as a group under its caption, followed by a group
+ * of its hidden options if it names a caption for them. A group without options is left out.
+ *
+ * @param desc The options description to which the options are added
+ * @param show_all Whether the hidden options are added too (for the parse and for --showAll)
+ * @param with_help Whether --help and --showAll are added, at the head of the first section
+ */
+void GParserBuilder::describeCLOptions_(
+    boost::program_options::options_description &desc,
+    bool show_all,
+    bool with_help
+) const {
     namespace po = boost::program_options;
 
-    bool result = GCL_NO_HELP_REQUESTED;
+    std::size_t const n_sections = std::max<std::size_t>(cl_sections_.size(), 1);
+    for(std::size_t pos = 0; pos < n_sections; ++pos) {
+        CLSection const section = pos < cl_sections_.size() ? cl_sections_[pos] : CLSection{};
+        bool const under_usage = (0 == pos and section.caption.empty());
 
-    // The options description is needed both for parsing and for the usage message printed on a
-    // command-line error, so it is built outside the try block below.
-    std::string const usage_string = std::string("Usage: ") + argv[0] + " [options]";
-    po::options_description desc(usage_string);
+        po::options_description listed(section.caption);
+        po::options_description hidden(section.hiddenCaption);
+        po::options_description &target = under_usage ? desc : listed;
 
-    // We always want --help and -h to be available
-    desc.add_options()("help,h", "Emit help message");
-
-    // Add further options from the parameter objects
-    for(auto const &p_ptr : cl_parameter_proxies_) {
-        p_ptr->save_to(desc);
-    }
-
-    try {
-        // Do the actual parsing
-        po::variables_map vm;
-        po::store(po::parse_command_line(argc, (const char *const *)argv, desc), vm);
-        po::notify(vm);
-
-        // Emit a help message, if necessary and let the caller of this function know
-        if(vm.contains("help")) {
-            std::cout << desc << '\n';
-            result = GCL_HELP_REQUESTED;
+        if(0 == pos and with_help) {
+            target.add_options()("help,h", "Emit help message")("showAll", "Show all available options");
         }
-        else {
-            if(verbose) {
-                std::cout << "GParserBuilder::parseCommandLine():" << '\n'
-                          << "Working with the following options:" << '\n';
-                for(auto const &p_ptr : cl_parameter_proxies_) {
-                    std::cout << p_ptr->content() << '\n';
-                }
-                std::cout << '\n';
+        for(auto const &p_ptr : cl_parameter_proxies_) {
+            if(p_ptr->section_ != pos or (p_ptr->hidden_ and not show_all)) {
+                continue;
             }
+            p_ptr->save_to((p_ptr->hidden_ and not section.hiddenCaption.empty()) ? hidden : target);
         }
+
+        if(not under_usage and not listed.options().empty()) {
+            desc.add(listed);
+        }
+        if(not hidden.options().empty()) {
+            desc.add(hidden);
+        }
+    }
+}
+
+/******************************************************************************/
+/**
+ * Parses the command line against an options description, records which options were given (not
+ * defaulted; by their long names, the keys of the variables map) and assigns the values.
+ *
+ * @param argc The argument count
+ * @param argv The argument vector
+ * @param desc The options to read
+ * @param usage_string The usage line, for the help text of an error
+ * @param permissive Whether options @p desc does not know are ignored instead of refused
+ * @return The variables map of the parse
+ * @throws GCommandLineError if the command line is malformed; a malformed command line is the
+ *         user's error, so the caller decides what happens (uncaught: the fatal report, exit code 1)
+ */
+boost::program_options::variables_map GParserBuilder::parseAgainst_(
+    int argc,
+    char **argv,
+    boost::program_options::options_description const &desc,
+    std::string const &usage_string,
+    bool permissive
+) {
+    namespace po = boost::program_options;
+    given_explicitly_.clear();
+    po::variables_map vm;
+    try {
+        po::command_line_parser parser(argc, (const char *const *)argv);
+        parser.options(desc);
+        if(permissive) {
+            parser.allow_unregistered();
+        }
+        po::store(parser.run(), vm);
+        po::notify(vm);
     }
     catch(po::error const &e) {
-        // A malformed command line is a USER error, not an internal fault. Report it together with
-        // the usage and exit cleanly with a non-zero status via LOGEXIT -- rather than
-        // std::terminate()-ing via GTERMINATION (which would dump core on a mere CLI typo).
-        std::ostringstream usage; // NOLINT(cppcoreguidelines-init-variables)
-        usage << desc;
-        glogger << "Error on the command line: " << e.what() << '\n'
-                << '\n'
-                << usage.str() << LOGEXIT(EXIT_FAILURE);
+        throw GCommandLineError(
+            std::string("Malformed command line: ") + e.what() + " (--help lists the options)",
+            helpText_(usage_string)
+        );
     }
-    catch(...) {
-        // Anything other than a program_options error here is an unexpected INTERNAL fault, so the
-        // hard stop is kept.
-        glogger << "In GParserBuilder::parseCommandLine(int argc, char **argv):" << '\n'
-                << "Unknown error while parsing the command line" << '\n'
-                << GTERMINATION;
+    for(auto const &[key, value] : vm) {
+        if(not value.defaulted()) {
+            given_explicitly_.insert(key);
+        }
     }
+    return vm;
+}
 
-    return result;
+/******************************************************************************/
+/**
+ * The text --help prints: the usage line, then the options that are not hidden, by section.
+ *
+ * @param usage_string The usage line ("Usage: <program> [options]")
+ * @return The help text
+ */
+std::string GParserBuilder::helpText_(std::string const &usage_string) const {
+    boost::program_options::options_description listed(usage_string);
+    describeCLOptions_(listed, false /* show_all */, true /* with_help */);
+    std::ostringstream text; // NOLINT(cppcoreguidelines-init-variables)
+    text << listed;
+    return text.str();
 }
 
 /******************************************************************************/

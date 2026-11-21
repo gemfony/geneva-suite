@@ -68,9 +68,10 @@
 
 #include "common/GGlobalDefines.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "geneva/GConsumerSetup.hpp"
+#include "geneva/GOptimizationDescription.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaInitializer.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -487,7 +488,10 @@ int main() {
     GenevaInitializer const gi;
 
     // One consumer per process (Invariant 5); a single thread is plenty for these small runs.
-    buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1});
+    Gem::Courtier::buildConsumer<gen::GGenome>(
+        Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1},
+        consumerModules()
+    );
 
     bool all_searched = true;
     for(auto const &s : showcases()) {

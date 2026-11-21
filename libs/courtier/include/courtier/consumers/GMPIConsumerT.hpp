@@ -63,7 +63,7 @@ namespace Gem::Courtier {
  * The consumer is built on the process whose role is SUBMITTER (rank RANK_MASTER_NODE of the
  * communicator, which need not be rank 0 of MPI_COMM_WORLD); a process whose role is CLIENT builds
  * the client, a BYSTANDER (a process without a communicator) neither. A program asks for the role
- * first (the environment's role(), or Gem::Geneva::consumerRole() for a Geneva program). The
+ * first (the environment's role(), or its provider's role(), which the launcher asks). The
  * consumer holds the environment, so MPI stays initialized while it exists, and notes in it that
  * it was built (GMPIEnvironment::noteConsumer()): its end tells the clients (see "Silence" below),
  * so that a cascade on the submitter need not end the job for them (GMPICascade).
@@ -86,7 +86,7 @@ namespace Gem::Courtier {
  * that much longer than the stop grace. A client that leaves by its own limits during the run is
  * let go; what it held is handed out again.
  *
- * Lost clients: a rank that dies ends the job -- the launcher (mpirun) aborts every rank when one
+ * Lost clients: a rank that dies ends the job -- mpirun aborts every rank when one
  * exits abnormally; MPI's errors being fatal on courtier's communicator only ends a rank whose own
  * MPI call fails. A rank that hangs (stopped, or on a host that no longer answers) is noticed by
  * the signs of life of the transport (pingInterval, 15 s by default; GMPIPollCore): a client not

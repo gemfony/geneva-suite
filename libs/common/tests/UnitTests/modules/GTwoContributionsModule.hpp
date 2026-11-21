@@ -39,15 +39,14 @@
 #pragma once
 
 // Standard header files go here
-#include <cstdint>
 #include <memory>
 
 namespace Gem::Tests {
 
 /** @brief The kind of the module's first contribution */
-inline constexpr std::uint32_t TEST_KIND_FIRST = 1001u;
+inline constexpr const char *TEST_KIND_FIRST = "test.first";
 /** @brief The kind of the module's second contribution */
-inline constexpr std::uint32_t TEST_KIND_SECOND = 1002u;
+inline constexpr const char *TEST_KIND_SECOND = "test.second";
 
 /** @brief What the factory of either contribution allocates and hands over through its void * */
 using GTestPayloadPtr = std::shared_ptr<int>;

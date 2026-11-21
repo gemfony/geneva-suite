@@ -83,9 +83,10 @@ SET_TESTS_PROPERTIES(GQuickStartTitles PROPERTIES LABELS "geneva;example"
 GEM_TEST_SIZE(GQuickStartTitles S)
 
 # On a machine without the MPI library, the MPI module cannot be loaded and "mpi" is no consumer. Asked
-# for it, a Go2 program must say why -- the module is installed, but a library it needs is missing --
+# for it, a Geneva program must say why -- the module is installed, but a library it needs is missing --
 # not merely that the mnemonic is unknown. An empty libmpi.so.40 first on the library path stands in
-# for the missing library.
+# for the missing library. (The launcher's refusal names the module and the loader's reason; the
+# expression follows its wording since Geneva's consumers became modules loaded by the launcher.)
 IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	SET(_no_mpi_dir ${CMAKE_CURRENT_BINARY_DIR}/no-mpi)
 	FILE(MAKE_DIRECTORY ${_no_mpi_dir})
@@ -94,7 +95,7 @@ IF(GEM_BUILD_WITH_MPI_CONSUMER)
 		COMMAND ${CMAKE_COMMAND} -E env LD_LIBRARY_PATH=${_no_mpi_dir} $<TARGET_FILE:${EXECUTABLENAME}> --consumer mpi
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 	SET_TESTS_PROPERTIES(GenevaMpiModuleUnavailable PROPERTIES LABELS "geneva"
-		PASS_REGULAR_EXPRESSION "could not be loaded on this machine:.*libgemfony-geneva-mpi"
+		PASS_REGULAR_EXPRESSION "libgemfony-geneva-mpi[.]so of the consumer .mpi. could not be loaded"
 		RESOURCE_LOCK GQuickStart_workdir)
 	GEM_TEST_SIZE(GenevaMpiModuleUnavailable S)
 ENDIF()

@@ -34,14 +34,14 @@
  * rank 2 gets MPI_COMM_NULL. It hands that communicator to courtier's MPI library
  * (Gem::Courtier::mpiEnvironmentOn()) and keeps the environment, so rank 0 is the submitter, rank 1
  * a client and rank 2 a bystander, which takes no part in the consumer's protocol. Every rank
- * checks its role through consumerRole(), which Geneva's MPI module answers. The program links
- * courtier's MPI library but not the module, which Geneva loads at run time: the roles are right
- * only if the module finds the environment the program built, in the same object (an environment of
- * its own would be built on MPI_COMM_WORLD, where rank 2 is a client). Then every rank runs as a
- * Go2 program does: rank 2 must be in client mode, and its clientRun() must return 0 at once; ranks
- * 0 and 1 run one iteration. Rank 0 checks that the end of the run (the consumer's shutdown) takes
- * well below the shutdown grace. Each rank lets go of everything before it finalizes MPI. Run with
- * three ranks, each in a directory of its own.
+ * checks its role through the provider of Geneva's MPI module. The program links courtier's MPI
+ * library but not the module, which is loaded at run time: the roles are right only if the module
+ * finds the environment the program built, in the same object (an environment of its own would be
+ * built on MPI_COMM_WORLD, where rank 2 is a client). Then every rank runs as a Geneva program does,
+ * on courtier's launcher in the long form: rank 2 must have the role of a bystander and its run()
+ * must return 0 at once; ranks 0 and 1 run one iteration. Rank 0 checks that the end of the run
+ * (the consumer's shutdown) takes well below the shutdown grace. Each rank lets go of everything
+ * before it finalizes MPI. Run with three ranks, each in a directory of its own.
  */
 
 // Standard header files go here
@@ -56,8 +56,8 @@
 
 // Geneva header files go here
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"
-#include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
@@ -67,14 +67,14 @@ using Gem::Courtier::processRole;
 
 namespace {
 
-/** The longest a bystander's clientRun() may take. */
+/** The longest a bystander's run() may take. */
 constexpr std::chrono::seconds BYSTANDERLIMIT{1};
 
 /** The longest the end of the run may take on the submitter. */
 constexpr std::chrono::seconds SHUTDOWNLIMIT{5};
 
 /** @brief The submitter's part: one iteration of a small population.
- *  @param go The Go2 object */
+ *  @param go The Go2 of the run */
 void optimize(Go2 &go) {
     const auto factory =
         std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
@@ -89,53 +89,56 @@ void optimize(Go2 &go) {
     (void)go.optimize();
 }
 
-/** @brief Runs this rank as a Go2 program does, and checks what the test is about.
+/** @brief Runs this rank as a Geneva program does, and checks what the test is about.
  *  @param argc The number of command line arguments
  *  @param argv The command line arguments
  *  @param world_rank The rank in MPI_COMM_WORLD
  *  @return 0 if every check passed on this rank */
-int runAsGo2Program(int argc, char **argv, int world_rank) {
+int runAsGenevaProgram(int argc, char **argv, int world_rank) {
     int result = 0;
     std::chrono::steady_clock::time_point end_of_optimization{};
+    std::chrono::steady_clock::duration took{};
+    processRole role = processRole::SUBMITTER;
     {
-        Go2 go(argc, argv, "./config/Go2.json");
-        if(go.clientMode()) {
-            if(world_rank == 0) {
-                std::println("FAIL: rank 0, the submitter, is in client mode");
-                result = 1;
-            }
-            const auto start = std::chrono::steady_clock::now();
-            const int rc = go.clientRun();
-            const auto took = std::chrono::steady_clock::now() - start;
-            if(rc != 0) {
-                std::println("FAIL: rank {}: clientRun() returned {}", world_rank, rc);
-                result = 1;
-            }
-            if(world_rank == 2 && took > BYSTANDERLIMIT) {
-                std::println(
-                    "FAIL: rank 2, the bystander, took {} in clientRun()",
-                    std::chrono::duration_cast<std::chrono::milliseconds>(took)
-                );
-                result = 1;
-            }
-            return result;
+        GOptimizationDescription geneva;
+        Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+        const auto start = std::chrono::steady_clock::now();
+        const int rc = launcher.run(geneva, {.produce = [&] {
+                                        Go2 go(geneva);
+                                        optimize(go);
+                                        end_of_optimization = std::chrono::steady_clock::now();
+                                        return 0;
+                                    }});
+        // the consumer is released at the end of run(): it tells the client to stop and waits
+        // for it
+        took = std::chrono::steady_clock::now() - start;
+        role = launcher.role();
+        if(rc != 0) {
+            std::println("FAIL: rank {}: run() returned {}", world_rank, rc);
+            result = 1;
         }
+    }
 
-        if(world_rank != 0) {
-            std::println("FAIL: rank {} is not in client mode", world_rank);
-            return 1;
-        }
-        optimize(go);
-        end_of_optimization = std::chrono::steady_clock::now();
-    } // the consumer is released here: it tells the client to stop and waits for it
-
-    const auto took = std::chrono::steady_clock::now() - end_of_optimization;
-    if(took > SHUTDOWNLIMIT) {
+    if((role == processRole::SUBMITTER) != (world_rank == 0)) {
+        std::println("FAIL: rank {} has the role {}", world_rank, static_cast<int>(role));
+        return 1;
+    }
+    if(world_rank == 2 && took > BYSTANDERLIMIT) {
         std::println(
-            "FAIL: the end of the run took {} on the submitter",
+            "FAIL: rank 2, the bystander, took {} in run()",
             std::chrono::duration_cast<std::chrono::milliseconds>(took)
         );
         return 1;
+    }
+    if(world_rank == 0) {
+        const auto end = std::chrono::steady_clock::now() - end_of_optimization;
+        if(end > SHUTDOWNLIMIT) {
+            std::println(
+                "FAIL: the end of the run took {} on the submitter",
+                std::chrono::duration_cast<std::chrono::milliseconds>(end)
+            );
+            return 1;
+        }
     }
     return result;
 }
@@ -164,13 +167,15 @@ int runTest(int argc, char **argv) {
             processRole::CLIENT,
             processRole::BYSTANDER
         };
-        const processRole role = consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"});
+        const processRole role =
+            Gem::Courtier::consumerProvider<gen::GGenome>("mpi", consumerModules())
+                ->role(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"}, false);
         if(world_rank > 2 || role != EXPECTED.at(static_cast<std::size_t>(world_rank))) {
             std::println("FAIL: rank {} has the role {}", world_rank, static_cast<int>(role));
             result = 1;
         }
         else {
-            result = runAsGo2Program(argc, argv, world_rank);
+            result = runAsGenevaProgram(argc, argv, world_rank);
         }
     }
 

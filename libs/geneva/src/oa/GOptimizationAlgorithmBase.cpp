@@ -44,7 +44,7 @@
 #include "common/GSigHupHandler.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GSubmissionStatusT.hpp"
-#include "geneva/GConsumerSetup.hpp" // ensureProcessConsumer() -- the setup layer owns the consumer choice
+#include "geneva/GOptimizationDescription.hpp" // consumerModules() -- where the default consumer lies
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/oa/GPositionPersonalityTraits.hpp"
@@ -1626,15 +1626,17 @@ Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOnViaConsumer
  * @brief Returns the one process-wide consumer and enables its late-return buffer (sized to roughly one
  * generation).
  *
- * The algorithm is transport-agnostic: it neither builds nor selects a consumer. It asks the setup layer
- * for the process consumer -- which establishes the default one if the process was never given one -- and
- * then applies the only consumer setting that is genuinely the algorithm's, its late-return budget.
+ * The algorithm is transport-agnostic: it neither builds nor selects a consumer. It asks for the process
+ * consumer, which the launcher established; an algorithm run without one (a standalone algorithm, a
+ * test) gets the default consumer from Geneva's module (Gem::Courtier::ensureProcessConsumer()). Then it
+ * applies the only consumer setting that is genuinely the algorithm's, its late-return budget.
  *
  * @return The shared consumer this algorithm submits through
  */
 std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
 GOptimizationAlgorithmBase::consumerForSubmission_() {
-    auto consumer = Gem::Geneva::ensureProcessConsumer();
+    auto consumer =
+        Gem::Courtier::ensureProcessConsumer<gen::GGenome>(Gem::Geneva::consumerModules());
     // Enable the late-return buffer -- but ONLY for algorithms that actually reap late returns
     // (reapsLateReturns()); a non-reaping algorithm (gradient descent, parameter scan, ...) passes cap 0
     // so nothing is retained on its behalf. For a reaper the cap scales with the live population
@@ -1923,8 +1925,8 @@ void GOptimizationAlgorithmBase::resetStallCounter() {
  */
 void GOptimizationAlgorithmBase::init() {
     // Submission goes through the one process-wide consumer (GConsumerRegistry). No routing is
-    // configured here: the first submission asks the setup layer for that consumer, which establishes the
-    // default one if the process has none (see consumerForSubmission_), so a bare alg->optimize() works
+    // configured here: the first submission asks for that consumer, and the default one is built from
+    // Geneva's module if the process has none (see consumerForSubmission_), so a bare alg->optimize() works
     // standalone.
 
     // Create the shared thread pool used for parallel organizational work (adaption,

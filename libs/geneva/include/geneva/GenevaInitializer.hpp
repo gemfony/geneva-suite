@@ -82,7 +82,7 @@ public:
     /***************************************************************************/
     // Note: optimization-algorithm factories register themselves with the global factory store at
     // library-load time (see the self-registration helpers in each factory's .cpp). Consumers are no
-    // longer registered in a store -- they are built on demand by the courtier setup layer.
+    // longer registered in a store -- they come from consumer modules, which courtier's launcher loads.
     // GenevaInitializer therefore exposes no registration API; it only performs the runtime
     // init / finalize of the random factory (see ctor / dtor).
 

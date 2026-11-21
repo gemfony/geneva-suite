@@ -49,8 +49,6 @@
 #include <string>
 #include <vector>
 
-#include <boost/program_options.hpp>
-
 #include "GAlgorithmBenchmarkRunner.hpp"
 #include "GBenchmarkGPUMarshaller.hpp"
 #include "GBenchmarkResultWriter.hpp"
@@ -61,7 +59,6 @@
 #include "courtier/gpu/GGPUConsumer.hpp"
 #include "geneva/GenevaInitializer.hpp"
 
-namespace po = boost::program_options;
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Benchmarks;
 
@@ -160,19 +157,14 @@ int main(int argc, char **argv) {
         Gem::Common::finishConfigEmission();
     }
 
-    po::options_description desc("GCUDAOptBenchmark options");
-    desc.add_options()("help,h", "Show help message")(
+    Gem::Common::GParserBuilder options;
+    options.registerCLParameter<std::string>(
         "config,c",
-        po::value<std::string>(&configFile),
+        configFile,
+        configFile,
         "Path to GCUDAOptBenchmark.json (default: config/GCUDAOptBenchmark.json)"
     );
-
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
-
-    if(vm.count("help")) {
-        std::cout << desc << std::endl;
+    if(options.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
     }
 

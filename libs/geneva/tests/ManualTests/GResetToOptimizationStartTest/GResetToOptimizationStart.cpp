@@ -53,57 +53,55 @@ const std::size_t NRESETS = 3; // The number of resets performed for each algori
  * parsing ability to retrieve algorithms.
  */
 int main(int argc, char **argv) {
-    Go2 go(argc, argv, "./config/Go2.json");
+    return runOptimization(
+        argc,
+        argv,
+        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+            //---------------------------------------------------------------------------
+            // As we are dealing with a server, register a signal handler that allows us
+            // to interrupt execution "on the run"
+            signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
-    //---------------------------------------------------------------------------
-    // Client mode
-    if(go.clientMode()) {
-        return go.clientRun();
-    } // Execution will end here in client mode
+            //---------------------------------------------------------------------------
+            // Create a factory for GFunctionIndividual objects and perform
+            // any necessary initial work.
+            std::shared_ptr<gind::GFunctionIndividualFactory> const gfif_ptr(
+                new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+            );
 
-    //---------------------------------------------------------------------------
-    // As we are dealing with a server, register a signal handler that allows us
-    // to interrupt execution "on the run"
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
+            // Check that algorithms were indeed registered and fix, if this was not the case.
+            if(go.getNAlgorithms() == 0) {
+                glogger << "In GResetToOptimizationStart:" << '\n'
+                        << "No algorithms were registered." << '\n'
+                        << "We will add an Evolutionary Algorithm" << '\n'
+                        << GLOGGING;
 
-    //---------------------------------------------------------------------------
-    // Create a factory for GFunctionIndividual objects and perform
-    // any necessary initial work.
-    std::shared_ptr<gind::GFunctionIndividualFactory> const gfif_ptr(
-        new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-    );
-
-    // Check that algorithms were indeed registered and fix, if this was not the case.
-    if(go.getNAlgorithms() == 0) {
-        glogger << "In GResetToOptimizationStart:" << '\n'
-                << "No algorithms were registered." << '\n'
-                << "We will add an Evolutionary Algorithm" << '\n'
-                << GLOGGING;
-
-        go & "ea";
-    }
-
-    // Retrieve the registered algorithms
-    auto algorithms_cnt = go.getRegisteredAlgorithms();
-
-    std::cout << "Got algorithms_cnt of size " << algorithms_cnt.size() << '\n';
-
-    for(auto const &alg_ptr : algorithms_cnt) {
-        for(std::size_t resetCounter = 0; resetCounter < NRESETS; resetCounter++) {
-            auto ind = gfif_ptr->get_as<gind::GFunctionIndividual>();
-            alg_ptr->push_back(ind->clone());
-            // The genome carries only structure; the adaptor lives on an OA-owned config the factory
-            // authors. Hand it to the algorithm (a no-op for non-adapting algorithms; adopted by EA / SA).
-            alg_ptr->setAdaptionConfig(gfif_ptr->getAdaptionConfig(*ind));
-            alg_ptr->optimize();
-
-            if(resetCounter < NRESETS) {
-                alg_ptr->resetToOptimizationStart();
-                std::cout << "Algorithm was reset" << '\n';
+                go & "ea";
             }
-        }
-    }
 
-    std::cout << "Done ..." << '\n';
-    return (0);
+            // Retrieve the registered algorithms
+            auto algorithms_cnt = go.getRegisteredAlgorithms();
+
+            std::cout << "Got algorithms_cnt of size " << algorithms_cnt.size() << '\n';
+
+            for(auto const &alg_ptr : algorithms_cnt) {
+                for(std::size_t resetCounter = 0; resetCounter < NRESETS; resetCounter++) {
+                    auto ind = gfif_ptr->get_as<gind::GFunctionIndividual>();
+                    alg_ptr->push_back(ind->clone());
+                    // The genome carries only structure; the adaptor lives on an OA-owned config the factory
+                    // authors. Hand it to the algorithm (a no-op for non-adapting algorithms; adopted by EA / SA).
+                    alg_ptr->setAdaptionConfig(gfif_ptr->getAdaptionConfig(*ind));
+                    alg_ptr->optimize();
+
+                    if(resetCounter < NRESETS) {
+                        alg_ptr->resetToOptimizationStart();
+                        std::cout << "Algorithm was reset" << '\n';
+                    }
+                }
+            }
+
+            std::cout << "Done ..." << '\n';
+            return (0);
+        }}
+    );
 }

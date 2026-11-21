@@ -54,40 +54,39 @@
 using namespace Gem::Geneva;
 
 int main(int argc, char **argv) {
-    Go2 go(argc, argv, "./config/Go2.json");
+    return runOptimization(
+        argc,
+        argv,
+        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+            //---------------------------------------------------------------------------
+            // As this is a server, register a signal handler that allows interrupting execution "on the run".
+            signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
-    //---------------------------------------------------------------------------
-    // Client mode (for networked consumers)
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
+            //---------------------------------------------------------------------------
+            // Supply the (compiled-in) optimization individual: the standard benchmark-function individual.
+            std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
+                new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+            );
 
-    //---------------------------------------------------------------------------
-    // As this is a server, register a signal handler that allows interrupting execution "on the run".
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
+            // Let Go2 generate its own individuals from this factory as needed.
+            go.registerContentCreator(gfi_ptr);
 
-    //---------------------------------------------------------------------------
-    // Supply the (compiled-in) optimization individual: the standard benchmark-function individual.
-    std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-        new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+            // The adaptor lives on an OA-owned config the factory authors. Register it for the adapting algorithms
+            // (EA / SA) so this binary also works with a built-in --optimizationAlgorithms ea/sa. The loaded random
+            // search does not adapt, so it simply ignores this.
+            {
+                auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+                auto cfg = gfi_ptr->getAdaptionConfig(*sample);
+                go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+                go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            }
+
+            //---------------------------------------------------------------------------
+            // Run the optimization with the algorithm chosen on the command line (e.g. the loaded "rsearch").
+            auto const best = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+
+            std::cout << "Best result found:" << '\n' << best << '\n';
+            return 0;
+        }}
     );
-
-    // Let Go2 generate its own individuals from this factory as needed.
-    go.registerContentCreator(gfi_ptr);
-
-    // The adaptor lives on an OA-owned config the factory authors. Register it for the adapting algorithms
-    // (EA / SA) so this binary also works with a built-in --optimizationAlgorithms ea/sa. The loaded random
-    // search does not adapt, so it simply ignores this.
-    {
-        auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
-        auto cfg = gfi_ptr->getAdaptionConfig(*sample);
-        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-        go.registerAdaptionConfig("PERSONALITY_SA", cfg);
-    }
-
-    //---------------------------------------------------------------------------
-    // Run the optimization with the algorithm chosen on the command line (e.g. the loaded "rsearch").
-    auto const best = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
-
-    std::cout << "Best result found:" << '\n' << best << '\n';
 }

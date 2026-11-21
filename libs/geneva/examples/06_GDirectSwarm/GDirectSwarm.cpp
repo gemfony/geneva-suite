@@ -57,9 +57,10 @@
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "courtier/consumers/GWebsocketConsumerConfig.hpp"
-#include "geneva/GConsumerSetup.hpp"
+#include "geneva/GOptimizationDescription.hpp"
 #include "geneva/GenevaInitializer.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 
@@ -70,8 +71,6 @@ using namespace Gem::Geneva;
 using namespace Gem::Courtier;
 using namespace Gem::Hap;
 using namespace Gem::Common;
-
-namespace po = boost::program_options;
 
 /******************************************************************************/
 
@@ -333,14 +332,16 @@ int main(int argc, char **argv) {
     // If this is a client in networked mode, we can just start the listener and
     // return when it has finished
     if(clientMode && cType == consumerType::NETWORKED) {
-        // Build the networked client through the courtier setup layer. The configuration struct
-        // names the consumer and drives both this client and the server below.
-        auto client = buildConsumerClient(
+        // Build the networked client through courtier's function, from Geneva's consumer module.
+        // The configuration struct names the consumer and drives both this client and the server
+        // below.
+        auto client = buildConsumerClient<gen::GGenome>(
             GWebsocketConsumerConfig{
                 .ip = ip,
                 .port = port,
                 .serializationMode = serMode,
-            }
+            },
+            consumerModules()
         );
 
         // Start the actual processing loop
@@ -364,13 +365,14 @@ int main(int argc, char **argv) {
     switch(cType) {
     //---------------------------------------------------------------------------
     case consumerType::SERIAL: // Serial (single-threaded) execution
-        buildConsumer(GStdThreadConsumerConfig{.nThreads = 1});
+        buildConsumer<gen::GGenome>(GStdThreadConsumerConfig{.nThreads = 1}, consumerModules());
         break;
 
         //---------------------------------------------------------------------------
     case consumerType::MULTITHREADED: // Multi-threaded local execution
-        buildConsumer(
-            GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)}
+        buildConsumer<gen::GGenome>(
+            GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)},
+            consumerModules()
         );
         break;
 
@@ -378,7 +380,10 @@ int main(int argc, char **argv) {
     case consumerType::NETWORKED: // Networked execution (server-side)
         // Build a courtier websocket server via the shared factory; the clients started above
         // connect.
-        buildConsumer(GWebsocketConsumerConfig{.port = port, .serializationMode = serMode});
+        buildConsumer<gen::GGenome>(
+            GWebsocketConsumerConfig{.port = port, .serializationMode = serMode},
+            consumerModules()
+        );
         break;
 
         //----------------------------------------------------------------------------

@@ -54,29 +54,26 @@
 // Standard header files go here
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
 #include <vector>
 
-// Boost header files go here
-#include <boost/program_options.hpp>
-
 // MPI header files go here
 #include <mpi.h>
 
 // Geneva header files go here
-#include "common/GFatalReport.hpp"
-#include "courtier/GBaseClientT.hpp"
-#include "courtier/GConsumerSpec.hpp"
+#include "common/GParserBuilder.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPICascade.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp"
-#include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
 
 #include "GSleepGroup.hpp"
@@ -101,7 +98,7 @@ struct Role {
 
 /**
  * Reads the few options that decide what this process is: a process of a group constructs the
- * cascade before any Geneva object, and a sub-client constructs none of them. Go2 parses the same
+ * cascade before it runs the launcher, and a sub-client runs none. The launcher parses the same
  * command line again.
  *
  * @param argc The number of arguments
@@ -109,24 +106,13 @@ struct Role {
  * @return The role
  */
 Role readRole(int argc, char **argv) {
-    using boost::program_options::bool_switch;
-    using boost::program_options::value;
     Role role;
-    boost::program_options::options_description options;
-    auto add = options.add_options();
-    add("consumer,c", value<std::string>(&role.consumer));
-    add("client", bool_switch(&role.client));
-    add("update-configs", bool_switch(&role.updateConfigs));
-    add("group", value<unsigned int>(&role.group));
-    boost::program_options::variables_map vm;
-    boost::program_options::store(
-        boost::program_options::command_line_parser(argc, argv)
-            .options(options)
-            .allow_unregistered()
-            .run(),
-        vm
-    );
-    boost::program_options::notify(vm);
+    Gem::Common::GParserBuilder gpb;
+    gpb.registerCLParameter<std::string>("consumer,c", role.consumer, std::string());
+    gpb.registerCLFlag("client", role.client);
+    gpb.registerCLFlag("update-configs", role.updateConfigs);
+    gpb.registerCLParameter<unsigned int>("group", role.group, role.group);
+    gpb.parseKnownOptions(argc, argv);
     if(role.group == 0) {
         throw std::runtime_error("--group must be at least 1");
     }
@@ -134,43 +120,43 @@ Role readRole(int argc, char **argv) {
 }
 
 /******************************************************************************/
-/** What the options of the benchmark set (Go2's parse) */
+/** What the options of the benchmark set (the launcher's parse) */
 struct Settings {
     bool referenceRun = false;                       ///< --reference
     std::string referenceFile = "referenceLine.txt"; ///< --referenceFile
-    SpeedupMeasurement::ClientGate gate;             ///< --waitForClients, --clientWaitLimit
+    unsigned int group = Role{}.group; ///< --group (read by readRole(); here for the help text)
 };
 
 /**
- * The options of the benchmark, for Go2's parse.
+ * The options of the benchmark, in the launcher's parse.
  *
+ * @param gpb The launcher's parser
  * @param settings Where the values go
- * @return The option descriptions
  */
-boost::program_options::options_description benchmarkOptions(Settings &settings) {
-    boost::program_options::options_description options;
-    options.add_options()(
+void benchmarkOptions(Gem::Common::GParserBuilder &gpb, Settings &settings) {
+    gpb.registerCLParameter<bool>(
         "reference",
-        boost::program_options::value<bool>(&settings.referenceRun)
-            ->implicit_value(true)
-            ->default_value(false),
+        settings.referenceRun,
+        false,
         "Measure the serial reference (on one local worker, in a group of one) and store its line "
-        "in --referenceFile, instead of measuring the parallel times"
-    )(
+        "in --referenceFile, instead of measuring the parallel times",
+        Gem::Common::GCL_IMPLICIT_ALLOWED,
+        true
+    );
+    gpb.registerCLParameter<std::string>(
         "referenceFile",
-        boost::program_options::value<std::string>(&settings.referenceFile)
-            ->default_value(settings.referenceFile),
+        settings.referenceFile,
+        settings.referenceFile,
         "The file that holds the line of the serial reference"
-    )(
-        // Read by readRole() (Role::group); registered here for Go2's parse and help
+    );
+    gpb.registerCLParameter<unsigned int>(
         "group",
-        boost::program_options::value<unsigned int>()->default_value(Role{}.group),
+        settings.group,
+        settings.group,
         "The processes of a client's group, the client included (1: no sub-clients, no MPI "
         "cascade). With mpi the job has 1 + clients x group processes; a networked client is an "
         "MPI job of group processes"
     );
-    SpeedupMeasurement::addClientGateOptions(options, settings.gate);
-    return options;
 }
 
 /******************************************************************************/
@@ -188,8 +174,8 @@ int measure(Go2 &go, const Settings &settings) {
     const auto config_par =
         GSleepGroupIndividual::readConfig("./config/GSleepGroupIndividual.json");
     go.registerDefaultAlgorithm("ea");
-    if(go.updateConfigsMode()) {
-        go.optimize(); // refreshes Go2's owned configs, then exits
+    if(Gem::Common::GParserBuilder::updateInPlace()) {
+        go.optimize(); // refreshes Go2's owned configs, then ends the process
         return 0;
     }
     std::cout << "GSubClientOverhead: poll pauses " << config_par.poll_pause_min << " to "
@@ -214,8 +200,7 @@ int measure(Go2 &go, const Settings &settings) {
             return GSleepGroupIndividual::create(config, delay);
         },
         config_par.result_file,
-        config_par.short_result_file,
-        settings.gate
+        config_par.short_result_file
     );
     return 0;
 }
@@ -263,21 +248,51 @@ Gem::Courtier::GMPICascadeConfig cascadeConfig(unsigned int group, GMPICascadeLa
 
 /******************************************************************************/
 /**
+ * Runs the benchmark on courtier's launcher, with Geneva's description: the submitter measures,
+ * a client evaluates. A lead of a cascade gives the launcher its item processor before.
+ *
+ * @param launcher The launcher
+ * @param geneva Geneva's description
+ * @param settings Where the launcher's parse puts the benchmark's options
+ * @param prepare What every process does once its role is known (nothing if empty)
+ * @return The exit code
+ */
+int runOnLauncher(
+    Gem::Courtier::GLauncherT<gen::GGenome> &launcher,
+    GOptimizationDescription &geneva,
+    Settings &settings,
+    std::move_only_function<std::optional<int>(processRole)> prepare = {}
+) {
+    return launcher.run(
+        geneva,
+        {.userOptions =
+             [&settings](Gem::Common::GParserBuilder &gpb) { benchmarkOptions(gpb, settings); },
+         .prepare = std::move(prepare),
+         .produce =
+             [&geneva, &settings] {
+                 Go2 go(geneva);
+                 return measure(go, settings);
+             }}
+    );
+}
+
+/******************************************************************************/
+/**
  * A process of a job that is laid out in groups (GMPICascade): a member serves its lead; the
  * submitter (only with -c mpi) measures through Go2; a lead runs its client and evaluates every
  * item in a round of its group. With -c mpi the job is everything (the layout
  * SUBMITTER_AND_GROUPS); a networked client is a job of its own (GROUPS_ONLY).
  *
- * @param argc The number of arguments
- * @param argv The arguments
+ * @param launcher The launcher, not run yet
+ * @param geneva Geneva's description
  * @param role What readRole() found
- * @param settings Where Go2's parse puts the benchmark's options (the submitter)
+ * @param settings Where the launcher's parse puts the benchmark's options (the submitter)
  * @param layout The layout of the job
  * @return The exit code
  */
 int runGroupProcess(
-    int argc,
-    char **argv,
+    Gem::Courtier::GLauncherT<gen::GGenome> &launcher,
+    GOptimizationDescription &geneva,
     const Role &role,
     Settings &settings,
     GMPICascadeLayout layout
@@ -295,25 +310,13 @@ int runGroupProcess(
         member.setPauses(pause_min, pause_max);
         return cascade.serve(member);
     }
-    if(cascade.role() == processRole::SUBMITTER) {
-        // An error here (an option only Go2 knows, refused here alone; a missing serial
-        // reference) is caught by nobody: the fatal report prints it and ends this process, and
-        // with it the job, whose leads wait for this process's greeting.
-        cascade.requireRole(consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = role.consumer}));
-        Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
-        return measure(go, settings);
-    }
 
-    // A lead. The client is declared after the cascade: it goes before the cascade's communicators.
-    // It is built only here: on a member it would load the consumers, and a member runs no Geneva
-    // code.
-    const auto [consumer_role, client] = buildClientFromCommandLine(argc, argv);
-    cascade.requireRole(consumer_role);
-    lead_log.setPauses(pause_min, pause_max);
-    cascade.lead(lead_log);
-    // Every item is evaluated in a round of the group; process() keeps the item's lifecycle
-    // (status, timing, an exception flags the item).
-    client->setItemProcessor([&cascade, &lead_log, pause_min, pause_max](gen::GGenome &item) {
+    // The submitter and the leads. An error on the submitter (an option only it knows, refused
+    // there alone; a missing serial reference) is caught by nobody: the fatal report prints it and
+    // ends this process, and with it the job, whose leads wait for this process's greeting.
+    // A lead's client evaluates every item in a round of the group; process() keeps the item's
+    // lifecycle (status, timing, an exception flags the item).
+    launcher.registerItemProcessor([&cascade, &lead_log, pause_min, pause_max](gen::GGenome &item) {
         std::ignore = item.process([&](const gen::GGenome &candidate) -> std::vector<double> {
             const auto &individual = dynamic_cast<const GSleepGroupIndividual &>(candidate);
             std::vector<double> parameters;
@@ -332,9 +335,24 @@ int runGroupProcess(
             return {fitness};
         });
     });
-    client->run();
-    cascade.release(); // prints the lead's line (lead_log's tearDown())
-    return 0;
+    const int rc = runOnLauncher(launcher, geneva, settings, [&](processRole consumer_role) {
+        cascade.requireRole(consumer_role); // the consumer's role must be the cascade's
+        if(consumer_role == processRole::CLIENT) {
+            lead_log.setPauses(pause_min, pause_max);
+            cascade.lead(lead_log);
+        }
+        return std::optional<int>{};
+    });
+    if(cascade.role() == processRole::CLIENT) { // also if the launcher ended before its role
+        cascade.release();                      // prints the lead's line (lead_log's tearDown())
+    }
+    if(cascade.role() == processRole::SUBMITTER && rc != 0) {
+        // A submitter that fails must end the job (GMPICascade, "A submitter that fails"):
+        // returning would leave MPI_Finalize waiting for the leads. (Its leads fail alike, so a
+        // test cannot make the wait certain; GSubClientOverheadGroups runs the case.)
+        cascade.abortJob(rc, "the launcher ended with " + std::to_string(rc));
+    }
+    return rc;
 }
 
 } /* namespace */
@@ -342,29 +360,33 @@ int runGroupProcess(
 /******************************************************************************/
 
 int main(int argc, char **argv) {
-    // An error nobody handles ends the program with a message and the exit code 1
-    Gem::Common::installFatalReport();
     const Role role = readRole(argc, argv);
     Settings settings;
-    if(not role.updateConfigs and not Go2::helpRequested(argc, argv) and role.group > 1) {
+    // Built before a cascade, so that a request for the help text is answered before the cascade
+    // would start MPI
+    GOptimizationDescription geneva;
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    if(not role.updateConfigs and not launcher.helpRequested() and role.group > 1) {
         if(role.consumer == "mpi") {
             return runGroupProcess(
-                argc,
-                argv,
+                launcher,
+                geneva,
                 role,
                 settings,
                 GMPICascadeLayout::SUBMITTER_AND_GROUPS
             );
         }
         if(role.client) {
-            return runGroupProcess(argc, argv, role, settings, GMPICascadeLayout::GROUPS_ONLY);
+            return runGroupProcess(
+                launcher,
+                geneva,
+                role,
+                settings,
+                GMPICascadeLayout::GROUPS_ONLY
+            );
         }
     }
     // Everything without a cascade: the serial reference, a websocket server, a group of one,
-    // --update-configs, a help request (Go2 prints the text and ends the process)
-    Go2 go(argc, argv, "./config/Go2.json", benchmarkOptions(settings));
-    if(not role.updateConfigs and go.clientMode()) {
-        return go.clientRun();
-    }
-    return measure(go, settings);
+    // --update-configs, a help request
+    return runOnLauncher(launcher, geneva, settings);
 }

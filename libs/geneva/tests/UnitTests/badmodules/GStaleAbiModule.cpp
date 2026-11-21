@@ -48,7 +48,7 @@
 namespace {
 
 const GemContribution CONTRIBUTION{
-    .kind = GEM_CONTRIBUTION_INDIVIDUAL,
+    .kind = "geneva.individual",
     .name_or_mnemonic = "StaleAbi",
     .make_factory = []() -> void * { return nullptr; }
 };

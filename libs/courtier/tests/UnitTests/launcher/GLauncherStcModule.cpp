@@ -27,37 +27,24 @@
  *
  ********************************************************************************/
 
-#pragma once
-
-// NOTE: library-private header. It is only included by gemfony-geneva translation units
-// (GModuleLoader.cpp and GConsumerSetup.cpp) and is deliberately NOT installed -- no consumer ever
-// sees it.
-
-// Global checks, defines and includes needed for all of Geneva
-#include "common/GGlobalDefines.hpp"
-
-// Standard headers go here
-#include <filesystem>
-
-// Geneva headers go here
-#include "geneva/GModuleLoader.hpp" // LoadedModule
-
-namespace Gem::Geneva {
-
-/******************************************************************************/
 /**
- * @brief Loads a module with Geneva's handlers, without loading the optional consumer modules
- * first. For loadOptionalConsumerModules() only, which runs inside std::call_once and would
- * enter itself through loadModule().
+ * @file
+ * The consumer module "stc" of the launcher tests, for their item type GSimpleContainer.
  */
-LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_path);
 
-/**
- * @brief Loads Geneva's optional consumer modules, once per process (GConsumerSetup.cpp). Must
- * not be called from a contribution handler or from anything a module's factory runs.
- */
-void loadOptionalConsumerModules();
+// Boost header files go here
+#include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-/******************************************************************************/
+// Geneva header files go here
+#include "GDemoProcessingContainers.hpp"
+#include "courtier/GConsumerPlugin.hpp"
+#include "courtier/consumers/GStdThreadConsumerProviderT.hpp"
 
-} /* namespace Gem::Geneva */
+// The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
+// NOLINTNEXTLINE(readability-identifier-naming)
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+// NOLINTNEXTLINE(readability-identifier-naming)
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
+    return Gem::Courtier::consumerManifest<
+        Gem::Courtier::GStdThreadConsumerProviderT<Gem::Courtier::GSimpleContainer>>();
+}

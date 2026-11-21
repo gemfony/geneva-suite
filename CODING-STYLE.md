@@ -186,9 +186,9 @@ Each kind of identifier has a fixed case:
 | Type or template template parameter | `snake_case` ending in `_type` | `archive_type`, `derived_type` |
 | Type parameter without a specific role | a single capital letter, `s` for a pack | `T`, `U`, `F`, `Ts` |
 | Non-type template parameter | `UPPER_CASE` | `N`, `N_DIM`, `CAP` |
-| Function, method | `camelBack` | `setAdaptionsActive` |
-| Parameter, local variable | `snake_case` | `work_item` |
-| Private / protected member | `snake_case_` (trailing underscore) | `adaptions_active_` |
+| Function, method | `camelBack` | `setClientMode` |
+| Parameter, local variable | `snake_case` | `client_mode` |
+| Private / protected member | `snake_case_` (trailing underscore) | `client_mode_` |
 | Public member (rare, discouraged) | `camelBack` | `someValue` |
 | Enum constant | `UPPER_CASE` | `GEM_BINARY` |
 | Macro, global / static / class constant, `constexpr` variable | `UPPER_CASE` | `DO_LOG` |
@@ -226,12 +226,12 @@ discouraged — keep camel case.
 // From Go2 (excerpt): a camelBack method, a snake_case parameter, a snake_case_ member.
 class Go2 {
 public:
-    void setClientMode(bool client_mode);
-    bool clientMode() const;
+    void setCopyBestIndividualsOnly(bool copy_best_individuals_only);
+    bool onlyBestIndividualsAreCopied() const;
     // ...
 
 private:
-    bool client_mode_ = false;
+    bool copy_best_individuals_only_ = true;
     // ...
 };
 ```
@@ -393,10 +393,11 @@ void myComplicatedFunction(
 }
 ```
 
-In headers, function-parameter **names are omitted**, which keeps a later rename in the implementation from
-rippling into the declaration; the implementation then uses descriptive `snake_case` names. For a setter of a
-private member, the parameter name mirrors the member (without the trailing underscore), and the function name
-mirrors it too.
+Every parameter of a function with a body is named, and a declaration in a header uses the same name as the
+definition (`readability-inconsistent-declaration-parameter-name`, strict, checks that they agree). The source
+of a copy or move constructor or assignment is called `cp`. Defaulted and deleted special members keep their
+parameters unnamed, since they have no body. For a setter of a private member, the parameter name mirrors the
+member (without the trailing underscore), and the function name mirrors it too.
 
 Namespaces close with a naming comment — `} /* namespace Gem::Common */`. clang-format **preserves** this form
 but never generates it (`FixNamespaceComments: false`), so it is author-maintained; write it by hand and do
@@ -431,9 +432,11 @@ Inv 16). A number of older idioms have been retired, most of it enforced by the 
   the old `boost::uint32_t`. The intent — explicit, portable widths instead of a bare `int` — is unchanged.
 - **`noexcept` instead of `throw()`.** Exception specifications use `noexcept`; the obsolete dynamic `throw()`
   form is gone.
-- **No `using namespace`.** Names from `std` and other libraries are written with their explicit scope
-  (`std::vector`, not a bare `vector`). `using namespace` at file or namespace scope is rejected by
-  `google-build-using-namespace`.
+- **No `using namespace` in a header**, also not inside a function body: it would reach into every file that
+  includes the header. In the file that holds `main()` it is acceptable, and in tests it does not matter.
+  `using namespace std;` is not used; `std::vector` is written with its scope. The check
+  `google-build-using-namespace` is switched off, because it would also flag the allowed uses, so the rule is
+  kept in review.
 - **No `#define` for constants, and no function-like macros.** A named constant is an `inline constexpr`
   variable, which is typed and obeys scope; a would-be function macro is a template or an `inline` function.
   The handful of macros that genuinely must remain (visibility and build-guard macros, and a few that capture
@@ -473,7 +476,7 @@ responsibility of the author and the reviewer (they are also noted at the foot o
 
 - the presence and completeness of Doxygen comments on every file, class, function and member;
 - the exact license banner at the top of each file;
-- the omission of parameter names in header declarations;
+- no `using namespace` in a header (its check would also flag the uses that are allowed);
 - the preference for `typename` over `class` in template parameter lists;
 - the `G` prefix and the `T` / `I` suffixes, which are conventions rather than rules;
 - the file-naming and one-class-per-file rules, which live at the filesystem level;

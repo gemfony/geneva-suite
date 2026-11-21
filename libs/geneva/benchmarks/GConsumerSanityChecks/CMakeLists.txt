@@ -36,8 +36,6 @@ SET ( ${EXECUTABLENAME}_SRCS
 ADD_EXECUTABLE(${EXECUTABLENAME}
 	${${EXECUTABLENAME}_SRCS}
 )
-# The client gate (--waitForClients) comes from GSpeedupMeasurement.hpp of GParallelisationOverhead
-TARGET_INCLUDE_DIRECTORIES(${EXECUTABLENAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../GParallelisationOverhead)
 
 SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}

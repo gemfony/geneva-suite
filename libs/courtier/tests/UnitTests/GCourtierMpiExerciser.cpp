@@ -73,10 +73,11 @@
  *                     middle of the batch: the master finds it silent, puts back what it held and
  *                     finishes the batch with rank 2; the job is then ended (MPI_Finalize would
  *                     wait for the stopped rank), with a non-zero exit code.
- *   submitter-stops -- (three ranks, a keep-alive of 1 s) the master stops itself in the middle of
- *                     the batch: every client finds it silent and ends, and the job is ended.
+ *   submitter-stops -- (two ranks, a keep-alive of 1 s) the master stops itself in the middle of
+ *                     the batch: its client finds it silent and ends, and the job is ended.
  */
 
+#include "common/GFatalReport.hpp"
 #include "common/GGlobalDefines.hpp"
 
 #ifdef GEM_BUILD_WITH_MPI_CONSUMER
@@ -457,6 +458,7 @@ int runClient(
 } // namespace
 
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     constexpr std::size_t N = 120;
 
     std::string scenario;

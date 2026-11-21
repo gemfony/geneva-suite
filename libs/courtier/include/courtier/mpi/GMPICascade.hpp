@@ -196,8 +196,8 @@ public:
  *    it in the log catches the exception inside the cascade's scope, logs it and rethrows it;
  *  - or it catches the exception and calls abortJob() with an exit code and the reason: the
  *    reason is logged and the job ends at once with that code.
- * An exception that nobody catches unwinds nothing: std::terminate() ends the process, and the MPI
- * launcher ends the job with it. A submitter that catches the exception and returns without either
+ * An exception that nobody catches unwinds nothing: std::terminate() ends the process, and mpirun
+ * ends the job with it. A submitter that catches the exception and returns without either
  * leaves the leads waiting, and MPI_Finalize on the submitter waits for them: the job does not
  * end. The cascade cannot tell such a return from the normal end of a submitter without a
  * consumer, whose leads call round() themselves. Once a consumer was built, its end tells the

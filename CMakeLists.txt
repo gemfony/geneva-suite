@@ -485,9 +485,9 @@ IF (GEM_BUILD_WITH_MPI_CONSUMER)
 ENDIF ()
 
 # Set preprocessor define to use in source code if building with the GPU consumer.
-# This gates the "gpu" mnemonic in GConsumerSetup just as GEM_BUILD_WITH_MPI_CONSUMER
-# gates "mpi". The CUDA backend selection inside courtier uses the separate
-# GPUGEN_HAVE_CUDA feature macro (see libs/courtier/src/CMakeLists.txt).
+# Whether a consumer exists is decided by its module alone (libs/geneva/src/CMakeLists.txt); the
+# definition gates the tests that need the GPU consumer. The CUDA backend selection inside courtier
+# uses the separate GPUGEN_HAVE_CUDA feature macro (see libs/courtier/src/CMakeLists.txt).
 IF (GEM_GPU_CONSUMER_ENABLED)
 	ADD_COMPILE_DEFINITIONS(GEM_BUILD_WITH_GPU_CONSUMER)
 ENDIF ()

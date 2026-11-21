@@ -49,12 +49,11 @@ TARGET_LINK_LIBRARIES(${EXECUTABLENAME}
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES}
 		MPI::MPI_CXX)
-ADD_DEPENDENCIES(${EXECUTABLENAME} ${GENEVA_MPI_LIBNAME})
 
 # config/config-overrides.json: a small population, so that a run is short (Inv 22)
 GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 
-# Run under the detected launcher with 9 processes: the submitter and two groups of four (a lead and
+# Run under the detected mpirun with 9 processes: the submitter and two groups of four (a lead and
 # three members; sub_client_group_size is 4 in config/GMPICascade.json). One iteration of a small
 # population; every evaluation sleeps 50 ms per parameter, shared out over the group. Every member
 # must serve rounds (../../../courtier/tests/CheckJobEnds.cmake: exit code 0, the members' lines,
