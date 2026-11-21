@@ -100,7 +100,7 @@ void registerMarshallerContribution(
 ) {
     auto const provider = takeContribution<GMarshallerProviderPtr>(contribution, context, noun);
     const std::string device_target = provider->getMnemonic();
-    if(not marshallerProviderStore()->setOnce(device_target, provider)) {
+    if(not Gem::Courtier::GPU::marshallerProviderStore()->setOnce(device_target, provider)) {
         throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In Gem::Geneva::loadModule(): Error!" << '\n'

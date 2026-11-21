@@ -96,9 +96,11 @@ SET ( GPU_INCLUDES
     gpu/GGPUBackendFactory.hpp
     gpu/GGPUConsumer.hpp
     gpu/GGPUConsumerConfig.hpp
+    gpu/GGPUConsumerProviderT.hpp
     gpu/GGPUDeviceBackendI.hpp
     gpu/GGPUEvaluableI.hpp
     gpu/GGPUKernelSpec.hpp
+    gpu/GGPUMarshallerHandle.hpp
 )
 
 # MPI consumer/transport is optional, only build it when requested

@@ -408,8 +408,8 @@ public:
         // The problem contributes its GPU marshaller into marshallerProviderStore() (compiled-in: before
         // constructing Go2; a loaded individual module: at module load). Its absence means "--consumer gpu"
         // was selected for a problem that never registered a device marshaller.
-        std::shared_ptr<Gem::Common::GProviderT<GGPUMarshallerHandle>> base;
-        if(not marshallerProviderStore()->get("cuda", base) || not base) {
+        std::shared_ptr<Gem::Common::GProviderT<Gem::Courtier::GPU::GGPUMarshallerHandle>> base;
+        if(not Gem::Courtier::GPU::marshallerProviderStore()->get("cuda", base) || not base) {
             throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In GGPUConsumerProvider::setup(): Error!" << '\n'
@@ -424,16 +424,17 @@ public:
                 << '\n'
             );
         }
-        auto provider = std::static_pointer_cast<GGPUMarshallerProviderBase>(base);
+        auto provider =
+            std::static_pointer_cast<Gem::Courtier::GPU::GGPUMarshallerProviderBase>(base);
         auto handle = provider->provide();
         const std::string &cfg = provider->gpuConfigFile();
 
         std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> consumer;
         switch(handle->scalarKind()) {
-        case GPUScalarKind::Double:
+        case Gem::Courtier::GPU::GPUScalarKind::Double:
             consumer = buildGPUConsumer<double>(handle, cfg);
             break;
-        case GPUScalarKind::Float:
+        case Gem::Courtier::GPU::GPUScalarKind::Float:
             consumer = buildGPUConsumer<float>(handle, cfg);
             break;
         }
@@ -467,7 +468,7 @@ private:
      */
     template <typename scalar_type>
     static std::shared_ptr<c2::GBaseConsumerT<gen::GGenome>> buildGPUConsumer(
-        const std::shared_ptr<GGPUMarshallerHandle> &handle,
+        const std::shared_ptr<Gem::Courtier::GPU::GGPUMarshallerHandle> &handle,
         const std::string &configFile
     ) {
         auto marshaller = std::dynamic_pointer_cast<

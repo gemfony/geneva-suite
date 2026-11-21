@@ -150,6 +150,19 @@ SET_TARGET_PROPERTIES(gem_launcher_test_foreign PROPERTIES OUTPUT_NAME gem_launc
 TARGET_COMPILE_DEFINITIONS(GCourtierLauncherTests PRIVATE
 	GEM_LAUNCHER_TEST_MODULE_DIR="$<TARGET_FILE_DIR:gem_launcher_test_stc>"
 	GEM_LAUNCHER_TEST_FOREIGN_MODULE="$<TARGET_FILE:gem_launcher_test_foreign>")
+# The GPU consumer on the launcher: its need of a marshaller for the item type (no device is used)
+IF(GEM_GPU_CONSUMER_ENABLED)
+	gem_courtier_test(GCourtierLauncherGpuTests S GCourtierLauncherGpuTests.cpp)
+	SET_TARGET_PROPERTIES(GCourtierLauncherGpuTests PROPERTIES ENABLE_EXPORTS ON)
+	ADD_LIBRARY(gem_launcher_gpu MODULE launcher/GLauncherGpuModule.cpp)
+	SET_TARGET_PROPERTIES(gem_launcher_gpu PROPERTIES PREFIX "lib" OUTPUT_NAME gem_launcher_gpu_gpu)
+	TARGET_INCLUDE_DIRECTORIES(gem_launcher_gpu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+		$<TARGET_PROPERTY:courtier-test-support,INTERFACE_INCLUDE_DIRECTORIES>)
+	TARGET_COMPILE_OPTIONS(gem_launcher_gpu PRIVATE -UGEM_TESTING)
+	ADD_DEPENDENCIES(GCourtierLauncherGpuTests gem_launcher_gpu)
+	TARGET_COMPILE_DEFINITIONS(GCourtierLauncherGpuTests PRIVATE
+		GEM_LAUNCHER_TEST_MODULE_DIR="$<TARGET_FILE_DIR:gem_launcher_gpu>")
+ENDIF()
 # run() returns only once no evaluation of the client runs any more, also when it is asked to close
 # while one runs
 gem_courtier_test(GCourtierClientRunEndTests M  GCourtierClientRunEndTests.cpp GInProcessTestSupport.hpp)

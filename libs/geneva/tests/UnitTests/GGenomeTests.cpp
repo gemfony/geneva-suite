@@ -2690,12 +2690,12 @@ TEST_CASE(
     REQUIRE(provider);
     CHECK(provider->getMnemonic() == "cuda");
     CHECK(provider->gpuConfigFile() == "config/ProbeGPU.json");
-    CHECK(provider->provide()->scalarKind() == GPUScalarKind::Double);
+    CHECK(provider->provide()->scalarKind() == Gem::Courtier::GPU::GPUScalarKind::Double);
 
     // It registers into marshallerProviderStore() exactly like a compiled-in registerGPUMarshaller, and the
     // one-per-target rule (setOnce) rejects a second marshaller for the same device target -- one problem per
     // process, so a module cannot shadow an existing marshaller.
-    auto store = Gem::Geneva::marshallerProviderStore();
+    auto store = Gem::Courtier::GPU::marshallerProviderStore();
     store->remove("cuda"); // start from a clean slot (independent of any other test / registration)
     CHECK(store->setOnce("cuda", provider));
 

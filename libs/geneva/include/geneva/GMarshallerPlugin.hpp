@@ -55,7 +55,7 @@ inline constexpr const char *MARSHALLER_CONTRIBUTION_KIND = "geneva.marshaller";
  * exact provider type @c marshallerProviderStore() holds. The module builds it (where the concrete marshaller
  * type is known) and the loader registers it type-erased, so the loader stays free of the concrete marshaller.
  */
-using GMarshallerProviderPtr = std::shared_ptr<GGPUMarshallerProviderBase>;
+using GMarshallerProviderPtr = std::shared_ptr<Gem::Courtier::GPU::GGPUMarshallerProviderBase>;
 
 /******************************************************************************/
 /**
