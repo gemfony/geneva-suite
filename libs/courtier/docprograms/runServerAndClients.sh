@@ -43,6 +43,10 @@
 # forever. The clients are started once the server waits for them -- on that line of its output,
 # not after a fixed pause.
 # LAST_CLIENT_DELAY  (environment) seconds the last client is started after the others (default 0)
+# CLIENT_SIGNAL      (environment) a signal (USR1 or HUP) sent to the first client once the
+#                    server has all its clients, as a batch system warns a job before it ends it.
+#                    The client must go on serving: the run must still be going when the signal
+#                    arrives, and must end as without it.
 #
 # The server must end with 0 within 120 s, the clients within 30 s after it. The script starts
 # in, and its programs write into, the current directory (the server's output: server.log, shown
@@ -72,6 +76,19 @@ for ((i = 0; i < clients; i++)); do
     timeout 150 "$program" --consumer "$consumer" --client "${where[@]}" "$@" > "client$i.log" 2>&1 &
     client_pids+=($!)
 done
+signal_failed=0
+if [ -n "${CLIENT_SIGNAL:-}" ]; then
+    for ((t = 0; t < 300; t++)); do
+        grep -q '^Waiting for clients: [0-9]* of [0-9]* clients connected' server.log && break
+        sleep 0.02
+    done
+    # The client itself, not the timeout that runs it
+    if kill -"$CLIENT_SIGNAL" "$(pgrep -P "${client_pids[0]}")" && kill -0 "$server"; then
+        echo "SIG$CLIENT_SIGNAL sent to a client during the run"
+    else
+        signal_failed=1; echo "SIG$CLIENT_SIGNAL could not be sent to a client during the run"
+    fi
+fi
 
 wait "$server"; server_exit=$?
 cat server.log
@@ -83,4 +100,4 @@ for pid in "${client_pids[@]}"; do
     wait "$pid" || failed=1
 done
 echo "server exit $server_exit, clients $([ $failed = 0 ] && echo ok || echo failed)"
-[ "$server_exit" = 0 ] && [ "$failed" = 0 ]
+[ "$server_exit" = 0 ] && [ "$failed" = 0 ] && [ "$signal_failed" = 0 ]

@@ -48,7 +48,6 @@
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "common/GSigHupHandler.hpp"
 #include "geneva/GFaultInjector.hpp"
 #include "geneva/GOptimizationDescription.hpp"
 #include "geneva/GOptimizationEnums.hpp"

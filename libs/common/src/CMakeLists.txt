@@ -39,7 +39,7 @@ SET ( COMMONSOURCES
 	GModuleLoader.cpp
 	GParserBuilder.cpp
 	GProgramIdentity.cpp
-	GSigHupHandler.cpp
+	GStopRequest.cpp
 	concurrency/GThreadGroup.cpp
 	concurrency/GThreadPool.cpp
 	${GEM_COMMIT_SOURCE}

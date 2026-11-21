@@ -64,8 +64,8 @@ SET ( COMMONINCLUDES
 	GSelfTestable.hpp
 	GSerializableFunctionObjectT.hpp
 	GSerializationHelperFunctionsT.hpp
-	GSigHupHandler.hpp
 	GSingletonT.hpp
+	GStopRequest.hpp
 	GTupleIO.hpp
 	GTypeToStringT.hpp
 	GTypeTraitsT.hpp

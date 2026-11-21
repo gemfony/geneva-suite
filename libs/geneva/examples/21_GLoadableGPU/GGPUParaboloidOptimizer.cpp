@@ -43,7 +43,6 @@
  */
 
 // Standard headers
-#include <csignal>
 #include <iostream>
 #include <ranges>
 #include <vector>
@@ -73,8 +72,6 @@ int main(int argc, char **argv) {
                 gpu_cfg.load("./config/GGPUConsumer.json");
                 go.optimize();
             }
-
-            signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
             // Pull the loaded problem's OA-owned adaption config from its factory through the base interface (the
             // program never needs the concrete type) and hand it to the adapting algorithms (EA / SA). Skipping this

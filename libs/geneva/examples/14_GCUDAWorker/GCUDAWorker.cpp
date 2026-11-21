@@ -75,7 +75,6 @@
 // Standard headers
 #include <algorithm>
 #include <cmath>
-#include <csignal>
 #include <cstdlib>
 #include <format>
 #include <iostream>
@@ -364,9 +363,6 @@ int main(int argc, char **argv) {
              if(parityCheckN > 0) {
                  return runParityCheck(factory, parityCheckN, consumerConfig);
              }
-
-             // ---- as this is a server, allow interrupting the run "on the fly" -------------------------
-             signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
              // ---- register the image-emitting pluggable optimization monitor --------------------------
              if(logImages) {

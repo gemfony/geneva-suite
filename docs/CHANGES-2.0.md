@@ -602,9 +602,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `geneva/ind/` to `geneva/genome/`; the entity multi-constraint headers (`GMultiConstraintT`,
   `GIndividualMultiConstraint`) moved under `geneva/genome/`; the pluggable optimization
   monitors (`GPluggableOptimizationMonitors`) and the nested-EA refiner (`GPostProcessorT`)
-  moved under `geneva/oa/`; and the generic OS-signal handler `GSigHupHandler` moved from
-  `geneva/` to `common/` (namespace `Gem::Geneva` → `Gem::Common`, so register it as
-  `Gem::Common::sigHupHandler`).
+  moved under `geneva/oa/`.
 - **The vestigial "Flat" qualifier was dropped from the genome layer** (source-breaking;
   update any references to the old `*Flat*` names).
 - **The standalone gradient descent ("gd") is gone.** Plain gradient descent survives as
@@ -749,6 +747,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **A final checkpoint is written when a run halts** (file name tagged `final`) whenever
   checkpointing is enabled (`cp_interval != 0`); with checkpointing disabled a run
   performs no checkpoint I/O at all.
+- **SIGHUP and SIGUSR1 end a run cleanly** (Slurm: `--signal=USR1@<s>`): after the current
+  iteration, with its final checkpoint; SIGTERM still ends it at once. The launcher installs the
+  handlers in every process (`common/GStopRequest.hpp`); a program no longer registers one itself.
 - **The personality-traits archive layout changed within the 1.99 development series**:
   the position-only traits of CGD / Nelder-Mead / parameter scan / GSA / ACO / PSO2011 and
   the parent-child traits now serialize their population position through the shared

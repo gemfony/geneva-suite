@@ -58,11 +58,6 @@ using namespace Gem::Geneva;
  */
 int optimize(Go2 &go) {
     //---------------------------------------------------------------------------
-    // As we are dealing with a server, register a signal handler that allows us
-    // to interrupt execution "on the run"
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
-
-    //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
     std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(

@@ -43,7 +43,6 @@
  */
 
 // Standard headers
-#include <csignal>
 #include <iostream>
 #include <ranges>
 
@@ -62,8 +61,6 @@ int main(int argc, char **argv) {
         argc,
         argv,
         {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
-            signal(G_SIGHUP, Gem::Common::sigHupHandler);
-
             //---------------------------------------------------------------------------
             // The optimization problem came from the loaded plugin (or, if you compiled one in, from
             // registerContentCreator()). Pull its OA-owned adaption config from the factory through the base

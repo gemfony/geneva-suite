@@ -27,41 +27,38 @@
  *
  ********************************************************************************/
 
-#include "common/GSigHupHandler.hpp"
-#include "common/GCommonEnums.hpp"
-#include <csignal>
+#pragma once
+
+// Global checks, defines and includes needed for all of Geneva
+#include "common/GGlobalDefines.hpp"
 
 namespace Gem::Common {
 
 /******************************************************************************/
-// Needed to allow catching of a SIGHUP or CTRL_CLOSE_EVENT event.
-// Note that "volatile" is needed in order for the signal handler to work.
-namespace {
-volatile std::sig_atomic_t GemSigHupSent = 0;
-} // namespace
+/**
+ * @brief Installs the handlers of a stop request, SIGHUP and SIGUSR1 (on Windows the closing of
+ * the console window, CTRL_CLOSE_EVENT). They ask for a clean stop after the current iteration, as
+ * a batch system warns a job before it ends it (Slurm: --signal=USR1@<s>). A handler only notes the
+ * request; whoever can end the work cleanly asks stopRequested() -- in Geneva every optimization
+ * algorithm, after each iteration. A process that does not ask, such as a client, goes on serving.
+ *
+ * SIGTERM and SIGINT (Ctrl-C) are not caught: they end a process at once. Under a batch system the
+ * hard end reaches every task together, and a clean stop could not finish a distributed iteration
+ * whose clients end at the same moment.
+ *
+ * courtier's launcher calls it in every process; a program without the launcher calls it itself.
+ * Calling it again changes nothing.
+ *
+ * @throws gem_exception if a handler cannot be installed
+ */
+void installStopHandlers();
 
 /******************************************************************************/
 /**
- * @brief A handler for SIGHUP or CTRL_CLOSE_EVENT signals. This function works both
- * for Windows and Unix systems.
- *
- * @param signum The number of the signal that was raised; the internal flag is set only when it matches G_SIGHUP
+ * @brief Whether a stop was requested since installStopHandlers()
+ * @return true once one of its signals has arrived
  */
-void sigHupHandler(int signum) {
-    if(G_SIGHUP == signum) {
-        GemSigHupSent = 1;
-    }
-}
-
-/******************************************************************************/
-/**
- * @brief Checks whether a SIGHUP or CTRL_CLOSE_EVENT signal has been sent.
- *
- * @return true if a SIGHUP (or CTRL_CLOSE_EVENT) signal has been received since program start, false otherwise
- */
-bool G_SIGHUP_SENT() {
-    return (1 == GemSigHupSent);
-}
+[[nodiscard]] bool stopRequested();
 
 /******************************************************************************/
 

@@ -956,9 +956,9 @@ private:
     bool minIterationPassed() const;
 
     /**
-     * @brief This function returns true if a SIGHUP / CTRL_CLOSE_EVENT signal was sent.
+     * @brief This function returns true if a stop was requested (Gem::Common::stopRequested()).
      */
-    static bool sigHupHalt();
+    bool stopRequestHalt() const;
 
     /**
      * @brief Triggers termination of the optimization run when a user-defined file is modified.

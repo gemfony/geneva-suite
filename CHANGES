@@ -11,8 +11,8 @@ Why the redesign:
   per-algorithm broker layer, Boost.PropertyTree configuration, scattered per-individual state --
   is gone; and courtier now carries frames and opaque payloads, knowing nothing of optimization.
 - Capabilities the old code base could not offer: runtime-loadable problem, algorithm and GPU
-  modules, a first-class GPU consumer, strict-JSON configuration with a generated reference, and
-  one evaluation path for local, remote and GPU work.
+  modules, a first-class GPU consumer, strict-JSON configuration with a generated reference, one
+  evaluation path for local, remote and GPU work, and a clean stop on a batch system's signal.
 - Test coverage and build hygiene: Catch2 v3 suites across all five libraries, every test
   registered and sized by CTest label, a self-contained installed header set, and C++23
   throughout.

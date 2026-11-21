@@ -61,6 +61,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GModuleLoader.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GStopRequest.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerPlugin.hpp"
 #include "courtier/GConsumerProviderT.hpp"
@@ -274,7 +275,10 @@ public:
  * release of the consumer. The program says what it produces (Program); courtier and the command
  * line say where and how it is processed.
  *
- * run() goes through these steps, in every process:
+ * run() first installs the handlers of a stop request (Gem::Common::installStopHandlers()), in
+ * every process: a producer that asks for it ends its work cleanly (in Geneva, after the current
+ * iteration); a client or MPI worker goes on serving. Then it goes through these steps, in every
+ * process:
  *  1. --update-configs: configuration emission is begun, the consumer is the default one, the
  *     process is the submitter (no role is asked for);
  *  2. the configuration file (keys "consumer", "module_paths", the description's);
@@ -493,6 +497,7 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
         throw refusal_("run() was called a second time; a launcher runs once.");
     }
     ran_ = true;
+    Gem::Common::installStopHandlers();
 
     // Step 1
     refresh_ = Gem::Common::configEmissionRequested(argc_, argv_);
