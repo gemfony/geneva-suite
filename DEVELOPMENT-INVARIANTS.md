@@ -60,12 +60,14 @@ codec-agnostic, against `Gem::Common::archive_named` / `archive_named_base` (nev
 a polymorphic wire/checkpoint type is registered with `GEM_REGISTER_ARCHIVABLE`. Boost.Serialization has
 been removed — do not reintroduce `boost::serialization`, `boost::archive`, or `BOOST_CLASS_EXPORT`.
 
-## 5. One consumer per process
+## 5. One item type and one consumer per process
 
-A process uses exactly one consumer, held in `GConsumerRegistry`. Optimization algorithms are
-transport-agnostic: they submit to that single process consumer and **never** build, select, or inject
-one (the former per-algorithm broker / executor injection is gone). The transport is chosen externally
-(via `Go2` or the command line).
+A process distributes items of exactly one type, through exactly one consumer, held in
+`GConsumerRegistryT<T>` for that type. The consumer is established by courtier's launcher
+(`GLauncherT<T>`) from the command line, the launcher's configuration file or a choice made in
+`main()`; a launcher for a second item type in the same process is refused. Producers -- in Geneva
+the optimization algorithms -- are transport-agnostic: they submit to the one process consumer and
+never build, select or inject one. (Maintainer decision, 2026-11-21.)
 
 ## 6. The genome is pure data; mutation strategy lives on the optimization algorithm
 
