@@ -92,8 +92,20 @@ SET ( COMMONCONCURRENCYINCLUDES
 	concurrency/GThreadSafeSetT.hpp
 )
 
+# The recording framework (recorder, streams, sinks) is a sub-module of its own as well: the
+# common/record/ sub-directory + the Gem::Common::Record namespace.
+SET ( COMMONRECORDINCLUDES
+	record/GCsvSink.hpp
+	record/GFileSink.hpp
+	record/GJsonLinesSink.hpp
+	record/GRecorder.hpp
+	record/GRecordTypes.hpp
+	record/GSink.hpp
+	record/GStream.hpp
+)
+
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
-ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${COMMONINCLUDES} ${COMMONCONCURRENCYINCLUDES})
+ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${COMMONINCLUDES} ${COMMONCONCURRENCYINCLUDES} ${COMMONRECORDINCLUDES})
 
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
