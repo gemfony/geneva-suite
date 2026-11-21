@@ -55,64 +55,64 @@
 using namespace Gem::Geneva;
 
 int main(int argc, char **argv) {
-    // Go2 parses the config file + command line and, if --individual (or the config key) was given, loads
-    // the individual plugin right here -- before any population is built or, on a client, any work item is
-    // deserialized. No problem-specific code is compiled into this launcher.
-    Go2 go(argc, argv, "./config/Go2.json");
+    // courtier's launcher parses the config file + command line and, if --individual (or the config key)
+    // was given, loads the individual plugin in every process -- before any population is built or, on
+    // a client, any work item is deserialized. No problem-specific code is compiled into this program.
+    return runOptimization(
+        argc,
+        argv,
+        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+            signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
-    //---------------------------------------------------------------------------
-    // Client mode: just process work handed out by the server (the plugin is already loaded above, so the
-    // client can deserialize the incoming individuals).
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
-
-    //---------------------------------------------------------------------------
-    // The optimization problem came from the loaded plugin (or, if you compiled one in, from
-    // registerContentCreator()). Pull its OA-owned adaption config from the factory through the base
-    // interface -- the launcher never needs to know the concrete problem type -- and hand it to the
-    // adapting algorithms. Skipping this is a hard error for an adapting algorithm (EA / SA).
-    if(auto factory = go.getContentCreator()) {
-        auto oef = std::dynamic_pointer_cast<Genome::GGenomeFactory>(factory);
-        auto sample = (*factory)(); // a sample individual (also parses the factory's config)
-        const auto *flat = dynamic_cast<const Genome::GGenome *>(sample.get());
-        if(oef && (flat != nullptr)) {
-            if(auto cfg = oef->getAdaptionConfig(*flat)) {
-                go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-                go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            //---------------------------------------------------------------------------
+            // The optimization problem came from the loaded plugin (or, if you compiled one in, from
+            // registerContentCreator()). Pull its OA-owned adaption config from the factory through the base
+            // interface -- the program never needs to know the concrete problem type -- and hand it to the
+            // adapting algorithms. Skipping this is a hard error for an adapting algorithm (EA / SA).
+            if(auto factory = go.getContentCreator()) {
+                auto oef = std::dynamic_pointer_cast<Genome::GGenomeFactory>(factory);
+                auto sample =
+                    (*factory)(); // a sample individual (also parses the factory's config)
+                const auto *flat = dynamic_cast<const Genome::GGenome *>(sample.get());
+                if(oef && (flat != nullptr)) {
+                    if(auto cfg = oef->getAdaptionConfig(*flat)) {
+                        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+                        go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+                    }
+                }
             }
-        }
-    }
-    else {
-        std::cerr << "No optimization problem is available. Load one with --individual <path>.so"
-                  << " (or the individual_plugin_path config-file key)." << '\n';
-        return 1;
-    }
+            else {
+                std::cerr
+                    << "No optimization problem is available. Load one with --individual <path>.so"
+                    << " (or the individual_plugin_path config-file key)." << '\n';
+                return 1;
+            }
 
-    // "ea" is the default algorithm anyway; state it explicitly for clarity.
-    go.registerDefaultAlgorithm("ea");
+            // "ea" is the default algorithm anyway; state it explicitly for clarity.
+            go.registerDefaultAlgorithm("ea");
 
-    //---------------------------------------------------------------------------
-    // Optimize and report. The best individual is read back through the flat-genome base, so this launcher
-    // stays problem-agnostic.
-    auto best = go.optimize()->getBestGlobalIndividual<Genome::GGenome>();
-    const auto [raw, transformed] = best->getFitnessTuple();
+            //---------------------------------------------------------------------------
+            // Optimize and report. The best individual is read back through the flat-genome base, so this program
+            // stays problem-agnostic.
+            auto best = go.optimize()->getBestGlobalIndividual<Genome::GGenome>();
+            const auto [raw, transformed] = best->getFitnessTuple();
 
-    std::vector<double> v;
-    best->streamline<double>(v);
+            std::vector<double> v;
+            best->streamline<double>(v);
 
-    std::cout << "Best result found (raw fitness = " << raw << "):" << '\n';
-    // A multi-criterion problem stores one raw result per evaluation criterion; the single "raw fitness"
-    // above is only the main one. Surface every criterion so the multi-objective result is visible (for a
-    // Pareto-sorted run the reported individual is one member of the non-dominated front).
-    if(const std::size_t n_criteria = best->getNStoredResults(); n_criteria > 1) {
-        for(std::size_t c = 0; c < n_criteria; ++c) {
-            std::cout << "  raw fitness[" << c << "] = " << best->raw_fitness(c) << '\n';
-        }
-    }
-    for(auto const &[i, x] : std::views::enumerate(v)) {
-        std::cout << "  x[" << i << "] = " << x << '\n';
-    }
-    return 0;
+            std::cout << "Best result found (raw fitness = " << raw << "):" << '\n';
+            // A multi-criterion problem stores one raw result per evaluation criterion; the single "raw fitness"
+            // above is only the main one. Surface every criterion so the multi-objective result is visible (for a
+            // Pareto-sorted run the reported individual is one member of the non-dominated front).
+            if(const std::size_t n_criteria = best->getNStoredResults(); n_criteria > 1) {
+                for(std::size_t c = 0; c < n_criteria; ++c) {
+                    std::cout << "  raw fitness[" << c << "] = " << best->raw_fitness(c) << '\n';
+                }
+            }
+            for(auto const &[i, x] : std::views::enumerate(v)) {
+                std::cout << "  x[" << i << "] = " << x << '\n';
+            }
+            return 0;
+        }}
+    );
 }

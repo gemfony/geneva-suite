@@ -34,9 +34,8 @@
 // Standard header files go here
 #include <iostream>
 
-// Boost header files go here
-
 // Geneva header files go here
+#include "courtier/GLauncherT.hpp"
 #include "geneva/Go2.hpp"
 
 // The individual that should be optimized
@@ -44,32 +43,43 @@
 
 using namespace Gem::Geneva;
 
+// The long form of a main(): Geneva's description and courtier's launcher are built here, and the
+// producing function is handed to the launcher. A program takes this form when it sets something
+// on the launcher (a consumer chosen in code, a module path, an item processor); without that it
+// is the same as the short form of 01_GSimpleOptimizer (runOptimization()).
 int main(int argc, char **argv) {
-    Go2 go(argc, argv, "config/Go2.json");
+    // What Geneva says about itself: its configuration keys, its options, its modules
+    GOptimizationDescription geneva;
+    // courtier's launcher owns the command line, the consumer and the role of this process
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
 
-    //---------------------------------------------------------------------
-    // Initialize a client, if requested
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
+    // The producing function runs on the submitter only: a client or an MPI rank other than 0
+    // never runs it
+    return launcher.run(geneva, {.produce = [&geneva] {
+                            Go2 go(geneva);
 
-    //---------------------------------------------------------------------
-    // Add individuals and algorithms and perform the actual optimization cycle
+                            // Make an individual known to the optimizer
+                            std::shared_ptr<GParaboloidIndividual2D> const p(
+                                new GParaboloidIndividual2D()
+                            );
+                            go.push_back(p);
 
-    // Make an individual known to the optimizer
-    std::shared_ptr<GParaboloidIndividual2D> const p(new GParaboloidIndividual2D());
-    go.push_back(p);
+                            // The genome carries only structure; its Gauss adaptors live on an OA-owned config.
+                            // Register it for the evolutionary algorithm so Go2 hands it over before the EA runs.
+                            go.registerAdaptionConfig(
+                                "PERSONALITY_EA",
+                                GParaboloidIndividual2D::buildAdaptionConfig(*p)
+                            );
 
-    // The genome carries only structure; its Gauss adaptors live on an OA-owned config. Register it for
-    // the evolutionary algorithm so Go2 hands it over before the EA runs.
-    go.registerAdaptionConfig("PERSONALITY_EA", GParaboloidIndividual2D::buildAdaptionConfig(*p));
+                            // Add an evolutionary algorithm to the Go2 class.
+                            go & "ea";
 
-    // Add an evolutionary algorithm to the Go2 class.
-    go & "ea";
+                            // Perform the actual optimization
+                            auto const best_ptr =
+                                go.optimize()->getBestGlobalIndividual<GParaboloidIndividual2D>();
 
-    // Perform the actual optimization
-    auto const bestIndividual_ptr =
-        go.optimize()->getBestGlobalIndividual<GParaboloidIndividual2D>();
-
-    // Do something with the best result
+                            // Do something with the best result
+                            std::cout << "Best fitness found: " << best_ptr->raw_fitness(0) << '\n';
+                            return 0;
+                        }});
 }

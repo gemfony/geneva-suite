@@ -35,7 +35,6 @@
 #include <iostream>
 
 // Boost header files go here
-#include <boost/program_options.hpp>
 
 // Geneva header files go here
 #include "geneva/Go2.hpp"
@@ -49,39 +48,22 @@
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 
 using namespace Gem::Geneva;
-namespace po = boost::program_options;
 
-/******************************************************************************/
+/** The program's own options */
+struct ProgramOptions {
+    std::string monitorTimings = "empty"; ///< --monitorTimings
+    bool usePostProcessor = false;        ///< --usePostProcessor
+};
+
 /**
- * The main function
+ * The optimization, on the process that submits the work.
+ *
+ * @param go The Go2 of the run
+ * @param options The program's own options
+ * @return The exit code
  */
-// NOLINTNEXTLINE(readability-function-size) -- single example main: additional CLI options, Go2 setup, the optimization run and the post-processing step all belong to one driver
-int main(int argc, char **argv) {
-    //---------------------------------------------------------------------------
-    // We want to add additional command line options
-
-    std::string monitorTimings = "empty";
-    bool usePostProcessor = false;
-
-    // Assemble command line options
-    boost::program_options::options_description user_options;
-    user_options.add_options()(
-		"monitorTimings"
-		, po::value<std::string>(&monitorTimings)->implicit_value(std::string("timingsLog"))->default_value("empty")
-		, "Logs the times for all processing steps"
-	)(
-		"usePostProcessor"
-		, po::value<bool>(&usePostProcessor)->implicit_value(true)->default_value(false)
-		, "Whether or not to post-process individuals (using evolutionary algorithms in this example)"
-	);
-
-    Go2 go(argc, argv, "./config/Go2.json", user_options);
-
-    //---------------------------------------------------------------------------
-    // Client mode
-    if(go.clientMode()) {
-        return go.clientRun();
-    } // Execution will end here in client mode
+int optimize(Go2 &go, const ProgramOptions &options) {
+    const auto &[monitorTimings, usePostProcessor] = options;
 
     //---------------------------------------------------------------------------
     // --update-configs: the post-optimizer's configuration (GPostEvolutionaryAlgorithm.json) is a standard
@@ -89,7 +71,7 @@ int main(int argc, char **argv) {
     // owned config set and is built only when --usePostProcessor is given, so a config refresh would miss
     // it. Materialize it here from its factory defaults; Go2 refreshes the rest and exits when optimize()
     // runs below.
-    if(go.updateConfigsMode()) {
+    if(Gem::Common::GParserBuilder::updateInPlace()) {
         OptimizationAlgorithms::GOptimizationAlgorithmFactoryT<
             OptimizationAlgorithms::GEvolutionaryAlgorithm>(
             "./config/GPostEvolutionaryAlgorithm.json"
@@ -170,4 +152,43 @@ int main(int argc, char **argv) {
     // We simply print its content here, by means of an operator<< implemented
     // in the GFunctionIndividual code.
     std::cout << "Best result found:" << '\n' << p << '\n';
+    return 0;
+}
+
+/******************************************************************************/
+
+/******************************************************************************/
+/**
+ * The main function
+ */
+int main(int argc, char **argv) {
+    //---------------------------------------------------------------------------
+    // The program's own options, in the launcher's command line and help text
+    ProgramOptions options;
+    auto user_options = [&](Gem::Common::GParserBuilder &gpb) {
+        gpb.registerCLParameter<std::string>(
+            "monitorTimings",
+            options.monitorTimings,
+            std::string("empty"),
+            "Logs the times for all processing steps",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            std::string("timingsLog")
+        );
+        gpb.registerCLParameter<bool>(
+            "usePostProcessor",
+            options.usePostProcessor,
+            false,
+            "Whether or not to post-process individuals (using evolutionary algorithms in this "
+            "example)",
+            Gem::Common::GCL_IMPLICIT_ALLOWED,
+            true
+        );
+    };
+
+    return runOptimization(
+        argc,
+        argv,
+        {.userOptions = user_options,
+         .produce = [&](Go2 &go, const auto &) { return optimize(go, options); }}
+    );
 }

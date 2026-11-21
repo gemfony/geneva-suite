@@ -44,22 +44,13 @@
 
 using namespace Gem::Geneva;
 
-/********************************************************************************
- * This example demonstrates how to CHAIN several optimization algorithms in a
- * single run. Algorithms are appended to the Go2 object with the &-operator;
- * Go2 then runs them in sequence, handing the best individual(s) of one
- * algorithm to the next. A common pattern is a global explorer (evolutionary
- * algorithm) followed by a local refiner (gradient descent).
- ********************************************************************************/
-int main(int argc, char **argv) {
-    Go2 go(argc, argv, "./config/Go2.json");
-
-    //---------------------------------------------------------------------------
-    // Client mode (for networked/multi-threaded execution)
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
-
+/**
+ * The optimization, on the process that submits the work.
+ *
+ * @param go The Go2 of the run
+ * @return The exit code
+ */
+int optimize(Go2 &go) {
     //---------------------------------------------------------------------------
     // Register a content creator so Go2 can populate the algorithms with
     // GFunctionIndividual objects (no problem-specific individual or factory has
@@ -96,4 +87,20 @@ int main(int argc, char **argv) {
     //! [go2-chain#2]
 
     std::cout << "Best result found:" << '\n' << p << '\n';
+    return 0;
+}
+
+/******************************************************************************/
+
+/********************************************************************************
+ * This example demonstrates how to CHAIN several optimization algorithms in a
+ * single run. Algorithms are appended to the Go2 object with the &-operator;
+ * Go2 then runs them in sequence, handing the best individual(s) of one
+ * algorithm to the next. A common pattern is a global explorer (evolutionary
+ * algorithm) followed by a local refiner (gradient descent).
+ ********************************************************************************/
+int main(int argc, char **argv) {
+    return runOptimization(argc, argv, {.produce = [&](Go2 &go, const auto &) {
+                               return optimize(go);
+                           }});
 }

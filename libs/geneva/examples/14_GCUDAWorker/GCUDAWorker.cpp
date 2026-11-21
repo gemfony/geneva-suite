@@ -37,10 +37,10 @@
  * superimposition resembles a target image. The candidate fitness is the per-pixel/per-channel
  * deviation from the target through a rational saturation function.
  *
- * This is a THIN launcher: the optimization individual (GImageIndividual) AND its GPU marshaller
+ * This is a THIN program: the optimization individual (GImageIndividual) AND its GPU marshaller
  * (GMonaLisaGPUMarshaller) are contributed by ONE runtime-loaded shared object (libGImageIndividual.so),
  * exactly as in the GPU North Star (example 21). Nothing problem-specific about the genome or the device
- * marshaller is compiled into this launcher; it names only the flat-genome base (Genome::GGenome) and the
+ * marshaller is compiled into this program; it names only the flat-genome base (Genome::GGenome) and the
  * loaded factory. Load and run with:
  *
  *   ./GCUDAWorker --module ./libGImageIndividual.so --consumer gpu     (evaluate on the device)
@@ -52,7 +52,7 @@
  * the CPU (the individual's evaluate()), so a CPU run cross-checks the GPU. Switch the kernel in
  * config/GGPUConsumer.json -- no recompilation needed.
  *
- * The launcher keeps the two pieces a generic optimizer cannot provide: it loads the target image (which
+ * The program keeps the two pieces a generic optimizer cannot provide: it loads the target image (which
  * defines the canvas and the fitness reference), and it registers GImagePOM, which rasterises the current
  * best candidate at the end of each iteration and writes it to ./results/ as a PNG so the picture can be
  * watched converging. GImagePOM reads the best candidate through the flat-genome base, so it needs no
@@ -81,6 +81,7 @@
 #include <iostream>
 #include <memory>
 #include <numeric>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -256,7 +257,7 @@ int runParityCheck(
 
 } // anonymous namespace
 
-// NOLINTNEXTLINE(readability-function-size) -- example 14's main(): the launcher's linear setup script (config parsing, --update-configs, target-image load, client mode, parity-check dispatch, monitor + adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
+// NOLINTNEXTLINE(readability-function-size) -- example 14's main(): the program's linear setup script (config parsing, --update-configs, target-image load, client mode, parity-check dispatch, monitor + adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
 int main(int argc, char **argv) {
     // ---- example-specific settings, read from a Geneva config file ----------------------------
     // Ordinary config-file parameters parsed through the standard GParserBuilder (which also writes the file
@@ -308,91 +309,97 @@ int main(int argc, char **argv) {
     );
     gpb.parseConfigFile("./config/GImageGeneral.json");
 
-    // Go2 parses its own framework options from the command line / its own config file and, in its
-    // constructor, loads the --module: the module contributes BOTH the individual (claimed as the
-    // optimization problem) AND its GPU marshaller (registered under the "cuda" device target), so
-    // "--consumer gpu" can build the GPU consumer around it.
-    Go2 go(argc, argv, "./config/Go2.json");
+    // courtier's launcher reads the command line and Go2.json and loads the --module: the module
+    // contributes BOTH the individual (claimed as the optimization problem) AND its GPU marshaller
+    // (registered under the "cuda" device target), so "--consumer gpu" can build the GPU consumer
+    // around it. Every process then loads the target image; the submitter optimizes.
+    return runOptimization(
+        argc,
+        argv,
+        {.prepare = [&](Gem::Courtier::processRole) -> std::optional<int> {
+             // ---- load the target image (the canvas resolution and the fitness reference) -----
+             // The target is process-wide state shared (via the single RTLD_GLOBAL symbol
+             // namespace) by the loaded individual's evaluate() (CPU), the loaded marshaller (GPU),
+             // and the image POM below. Every process loads it, the client of a networked run as
+             // well as the submitter: it is constant problem data that travels with the job instead
+             // of over the wire. A configuration refresh needs no target (and has none when the
+             // configs are materialized).
+             if(not Gem::Common::GParserBuilder::updateInPlace()) {
+                 Gem::Geneva::MonaLisa::loadTarget(targetFile);
+                 const auto &tgt = Gem::Geneva::MonaLisa::target();
+                 glogger << "Example 14 (Mona-Lisa): target " << targetFile << " (" << tgt.width
+                         << "x" << tgt.height << ")" << '\n'
+                         << GLOGGING;
+             }
+             return std::nullopt;
+         },
+         .produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+             // ---- --update-configs: materialize the configs this example owns, then end -------
+             // The launcher runs a config refresh on the local thread-pool consumer, so the GPU
+             // consumer is not built and its config would be missed; materialize it directly here
+             // (the constructor only loads the config file; the backend/kernel are acquired lazily
+             // on the first dispatch, so no device is required). GImageGeneral.json was already
+             // refreshed by the parse above; go.optimize() then refreshes Go2's own configs and the
+             // loaded individual's config, and ends the process.
+             if(Gem::Common::GParserBuilder::updateInPlace()) {
+                 auto marshaller = std::make_shared<MonaLisa::GMonaLisaGPUMarshaller>();
+                 gpu::GGPUConsumerT<gen::GGenome, gimage_fp_t>(consumerConfig, marshaller);
+                 go.optimize();
+             }
 
-    // ---- --update-configs: materialize the configs this example owns, then exit ---------------
-    // Go2 forces the local thread-pool consumer for a config refresh, so the GPU consumer is not built and
-    // its config would be missed; materialize it directly here (the constructor only loads the config file;
-    // the backend/kernel are acquired lazily on the first dispatch, so no device is required). This runs
-    // BEFORE loadTarget() below, which needs the target image -- irrelevant to a config refresh and absent
-    // when configs are materialized. GImageGeneral.json was already refreshed by the parse above; go.optimize()
-    // then refreshes Go2's own configs and the loaded individual's config, and exits.
-    if(go.updateConfigsMode()) {
-        auto marshaller = std::make_shared<MonaLisa::GMonaLisaGPUMarshaller>();
-        gpu::GGPUConsumerT<gen::GGenome, gimage_fp_t>(consumerConfig, marshaller);
-        go.optimize();
-    }
+             // Pull the loaded problem's factory through the base interface (this program never names the concrete
+             // individual type). A hard error if no problem was loaded.
+             auto factory = go.getContentCreator();
+             if(not factory) {
+                 std::cerr
+                     << "No optimization problem is available. Load the Mona-Lisa problem with"
+                     << " --module ./libGImageIndividual.so" << '\n';
+                 return 1;
+             }
 
-    // ---- load the target image (defines the canvas resolution and the fitness reference) -----
-    // The target is process-wide state shared (via the single RTLD_GLOBAL symbol namespace) by the loaded
-    // individual's evaluate() (CPU), the loaded marshaller (GPU), and the image POM below.
-    // Every process loads it, the client of a networked run as well as the server: it is
-    // constant problem data that travels with the job instead of over the wire.
-    Gem::Geneva::MonaLisa::loadTarget(targetFile);
-    const auto &tgt = Gem::Geneva::MonaLisa::target();
-    glogger << "Example 14 (Mona-Lisa): target " << targetFile << " (" << tgt.width << "x"
-            << tgt.height << ")" << '\n'
-            << GLOGGING;
+             // ---- parity-check mode: cross-check the GPU kernel against the CPU evaluate(), then exit --
+             // Config key "parity_check_n" (0 == off). When positive, do NOT optimize: draw that many random
+             // individuals and compare each individual's CPU evaluate() against the device kernel on identical
+             // genomes, print the relative errors + a PASS/FAIL verdict, and return the verdict as the exit code.
+             if(parityCheckN > 0) {
+                 return runParityCheck(factory, parityCheckN, consumerConfig);
+             }
 
-    // Client mode (networked consumers): the module is already loaded, so a client can deserialize
-    // work, and the target is loaded, so it can evaluate it.
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
+             // ---- as this is a server, allow interrupting the run "on the fly" -------------------------
+             signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
-    // Pull the loaded problem's factory through the base interface (this launcher never names the concrete
-    // individual type). A hard error if no problem was loaded.
-    auto factory = go.getContentCreator();
-    if(not factory) {
-        std::cerr << "No optimization problem is available. Load the Mona-Lisa problem with"
-                  << " --module ./libGImageIndividual.so" << '\n';
-        return 1;
-    }
+             // ---- register the image-emitting pluggable optimization monitor --------------------------
+             if(logImages) {
+                 go.registerPluggableOM(std::make_shared<GImagePOM>("./results/", emitBestOnly));
+             }
 
-    // ---- parity-check mode: cross-check the GPU kernel against the CPU evaluate(), then exit --
-    // Config key "parity_check_n" (0 == off). When positive, do NOT optimize: draw that many random
-    // individuals and compare each individual's CPU evaluate() against the device kernel on identical
-    // genomes, print the relative errors + a PASS/FAIL verdict, and return the verdict as the exit code.
-    if(parityCheckN > 0) {
-        return runParityCheck(factory, parityCheckN, consumerConfig);
-    }
+             // The genome carries only structure; its main + location Gauss adaptors live on an OA-owned config the
+             // loaded factory authors. Reach it generically through GGenomeFactory::getAdaptionConfig(),
+             // so this program need not know the concrete type. Register it for the only adapting algorithm we may
+             // select: the dimension-aware evolutionary algorithm (ea). The from-scratch sep-CMA strategy (sepcma)
+             // manages its own search distribution and needs no adaption config.
+             auto oef = std::dynamic_pointer_cast<gen::GGenomeFactory>(factory);
+             auto sample = factory->get(); // a sample individual (also parses the factory's config)
+             const auto *flat = dynamic_cast<const gen::GGenome *>(sample.get());
+             if(oef && (flat != nullptr)) {
+                 if(auto cfg = oef->getAdaptionConfig(*flat)) {
+                     go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+                 }
+             }
 
-    // ---- as this is a server, allow interrupting the run "on the fly" -------------------------
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
+             // ---- run the optimization with the algorithm chosen by mnemonic --------------------------
+             // Default is "ea"; override on the command line to compare against the from-scratch sep-CMA strategy,
+             // e.g.  --optimizationAlgorithms "sepcma".
+             go.registerDefaultAlgorithm("ea");
 
-    // ---- register the image-emitting pluggable optimization monitor --------------------------
-    if(logImages) {
-        go.registerPluggableOM(std::make_shared<GImagePOM>("./results/", emitBestOnly));
-    }
+             // Perform the optimization. The per-iteration picture (the useful output) is written by GImagePOM. The
+             // best individual is read back through the flat-genome base, so this program stays problem-agnostic.
+             auto best = go.optimize()->getBestGlobalIndividual<gen::GGenome>();
 
-    // The genome carries only structure; its main + location Gauss adaptors live on an OA-owned config the
-    // loaded factory authors. Reach it generically through GGenomeFactory::getAdaptionConfig(),
-    // so this launcher need not know the concrete type. Register it for the only adapting algorithm we may
-    // select: the dimension-aware evolutionary algorithm (ea). The from-scratch sep-CMA strategy (sepcma)
-    // manages its own search distribution and needs no adaption config.
-    auto oef = std::dynamic_pointer_cast<gen::GGenomeFactory>(factory);
-    auto sample = factory->get(); // a sample individual (also parses the factory's config)
-    const auto *flat = dynamic_cast<const gen::GGenome *>(sample.get());
-    if(oef && (flat != nullptr)) {
-        if(auto cfg = oef->getAdaptionConfig(*flat)) {
-            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-        }
-    }
+             glogger << "Example 14 finished. Best fitness: " << best->raw_fitness(0) << '\n'
+                     << GLOGGING;
 
-    // ---- run the optimization with the algorithm chosen by mnemonic --------------------------
-    // Default is "ea"; override on the command line to compare against the from-scratch sep-CMA strategy,
-    // e.g.  --optimizationAlgorithms "sepcma".
-    go.registerDefaultAlgorithm("ea");
-
-    // Perform the optimization. The per-iteration picture (the useful output) is written by GImagePOM. The
-    // best individual is read back through the flat-genome base, so this launcher stays problem-agnostic.
-    auto best = go.optimize()->getBestGlobalIndividual<gen::GGenome>();
-
-    glogger << "Example 14 finished. Best fitness: " << best->raw_fitness(0) << '\n' << GLOGGING;
-
-    return 0;
+             return 0;
+         }}
+    );
 }

@@ -50,15 +50,13 @@
 
 using namespace Gem::Geneva;
 
-int main(int argc, char **argv) {
-    Go2 go(argc, argv, "./config/Go2.json");
-
-    //---------------------------------------------------------------------------
-    // Client mode
-    if(go.clientMode()) {
-        return go.clientRun();
-    } // Execution will end here in client mode
-
+/**
+ * The optimization, on the process that submits the work.
+ *
+ * @param go The Go2 of the run
+ * @return The exit code
+ */
+int optimize(Go2 &go) {
     //---------------------------------------------------------------------------
     // As we are dealing with a server, register a signal handler that allows us
     // to interrupt execution "on the run"
@@ -98,7 +96,7 @@ int main(int argc, char **argv) {
     // --update-configs: the meta-optimizer's sub-problem configs are read only when a sub-optimization
     // actually runs (not during a config refresh), so materialize them directly here -- the sub-problem
     // individual config and the (sub-)evolutionary-algorithm config the umbrella individuals run.
-    if(go.updateConfigsMode()) {
+    if(Gem::Common::GParserBuilder::updateInPlace()) {
         gfi_ptr->get();
         oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>(
             "./config/GSubEvolutionaryAlgorithm.json"
@@ -140,4 +138,13 @@ int main(int argc, char **argv) {
     std::cout << "Best Result was:" << '\n' << *bestIndividual_ptr << '\n';
 
     //---------------------------------------------------------------------------
+    return 0;
+}
+
+/******************************************************************************/
+
+int main(int argc, char **argv) {
+    return runOptimization(argc, argv, {.produce = [&](Go2 &go, const auto &) {
+                               return optimize(go);
+                           }});
 }

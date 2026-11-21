@@ -61,6 +61,7 @@
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
@@ -838,14 +839,25 @@ TEST_CASE(
         argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
     auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
     {
-        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
-        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
-        job2->setPopulationSizes(4, 2);
-        job2->setMaxIteration(6);
-        job2->setReportIteration(0);
-        job2->setCheckpointInterval(0);
-        go & job2;
-        REQUIRE_NOTHROW(go.optimize());
+        Gem::Geneva::GOptimizationDescription geneva;
+        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+            static_cast<int>(argv.size() - 1),
+            argv.data(),
+            base / "Go2.json"
+        );
+        const int code =
+            launcher.run(geneva, {.produce = [&] {
+                             Gem::Geneva::Go2 go(geneva);
+                             go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                             job2->setPopulationSizes(4, 2);
+                             job2->setMaxIteration(6);
+                             job2->setReportIteration(0);
+                             job2->setCheckpointInterval(0);
+                             go & job2;
+                             REQUIRE_NOTHROW(go.optimize());
+                             return 0;
+                         }});
+        REQUIRE(code == 0);
     }
     CHECK(job2->getStartIteration() == 3); // the iteration after the checkpoint's
     CHECK(job2->getIteration() == 6);      // ran on to job 2's own limit
@@ -937,15 +949,26 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
         argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
     auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
     {
-        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
-        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
-        go.registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
-        job2->setPopulationSizes(4, 2);
-        job2->setMaxIteration(6);
-        job2->setReportIteration(1);
-        job2->setCheckpointInterval(0);
-        go & job2;
-        REQUIRE_NOTHROW(go.optimize());
+        Gem::Geneva::GOptimizationDescription geneva;
+        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+            static_cast<int>(argv.size() - 1),
+            argv.data(),
+            base / "Go2.json"
+        );
+        const int code =
+            launcher.run(geneva, {.produce = [&] {
+                             Gem::Geneva::Go2 go(geneva);
+                             go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                             go.registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
+                             job2->setPopulationSizes(4, 2);
+                             job2->setMaxIteration(6);
+                             job2->setReportIteration(1);
+                             job2->setCheckpointInterval(0);
+                             go & job2;
+                             REQUIRE_NOTHROW(go.optimize());
+                             return 0;
+                         }});
+        REQUIRE(code == 0);
     }
     REQUIRE(job2->getStartIteration() == 3);
     REQUIRE(job2->getIteration() == 6);
@@ -1081,16 +1104,29 @@ TEST_CASE(
     std::vector<char *>
         argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
     {
-        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
-        go.push_back(proto.clone());
-        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
-        auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
-        job2->setPopulationSizes(4, 2);
-        job2->setMaxIteration(3); // job 2's own limit: one iteration after job 1's last
-        job2->setReportIteration(0);
-        go & job2;
-        REQUIRE_NOTHROW(go.optimize());
-        CHECK(go.getBestGlobalIndividual<gind::GLineFitIndividual>());
+        Gem::Geneva::GOptimizationDescription geneva;
+        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+            static_cast<int>(argv.size() - 1),
+            argv.data(),
+            base / "Go2.json"
+        );
+        const int code =
+            launcher.run(geneva, {.produce = [&] {
+                             Gem::Geneva::Go2 go(geneva);
+                             go.push_back(proto.clone());
+                             go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                             auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+                             job2->setPopulationSizes(4, 2);
+                             job2->setMaxIteration(
+                                 3
+                             ); // job 2's own limit: one iteration after job 1's last
+                             job2->setReportIteration(0);
+                             go & job2;
+                             REQUIRE_NOTHROW(go.optimize());
+                             CHECK(go.getBestGlobalIndividual<gind::GLineFitIndividual>());
+                             return 0;
+                         }});
+        REQUIRE(code == 0);
     }
 
     fs::remove_all(base);

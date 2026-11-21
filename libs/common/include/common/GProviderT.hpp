@@ -36,10 +36,9 @@
 #include <memory>
 #include <string>
 
-// Boost header files go here
-#include <boost/program_options.hpp>
-
 namespace Gem::Common {
+
+class GParserBuilder;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -87,14 +86,11 @@ public:
      */
     [[nodiscard]] virtual std::string getName() const = 0;
     /**
-     * @brief Adds the provided object's command-line options (produces no object)
-     * @param visible The options description collecting user-facing (documented) options
-     * @param hidden The options description collecting internal / undocumented options
+     * @brief Registers the provided object's command-line options (produces no object); an option
+     * that only --showAll lists is hidden (GCLParsableI::setHidden())
+     * @param gpb The parser of the program's command line
      */
-    virtual void addCLOptions(
-        boost::program_options::options_description &visible,
-        boost::program_options::options_description &hidden
-    ) = 0;
+    virtual void addCLOptions(GParserBuilder &gpb) = 0;
 };
 
 /******************************************************************************/

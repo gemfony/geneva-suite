@@ -39,7 +39,6 @@
 #include <utility>
 
 // Boost headers
-#include <boost/program_options/options_description.hpp>
 
 // Geneva headers
 #include "common/GProviderStoreT.hpp"
@@ -90,10 +89,7 @@ public:
     }
 
     /** @brief A marshaller has no command-line options of its own. */
-    void addCLOptions(
-        boost::program_options::options_description & /*visible*/,
-        boost::program_options::options_description & /*hidden*/
-    ) override {
+    void addCLOptions(Gem::Common::GParserBuilder & /*gpb*/) override {
     }
 
 private:

@@ -78,14 +78,7 @@ cd /path/to/geneva/benchmarks/geneva/GCUDAOptBenchmark
 ```
 
 `--config` / `-c` selects the top-level JSON config file.
-Default: `config/GCUDAOptBenchmark.json`.
-
-```
-GCUDAOptBenchmark options:
-  -h [ --help ]          Show help message
-  -c [ --config ] arg    Path to GCUDAOptBenchmark.json
-                         (default: config/GCUDAOptBenchmark.json)
-```
+Default: `config/GCUDAOptBenchmark.json`. `--help` lists the options.
 
 ---
 

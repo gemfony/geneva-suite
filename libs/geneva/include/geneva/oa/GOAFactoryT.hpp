@@ -48,6 +48,7 @@
 // Geneva headers go here
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
+#include "common/GParserBuilder.hpp"
 #include "common/GProviderT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -151,39 +152,41 @@ public:
 
     /***************************************************************************/
     /**
-	  * Adds local command line options to a boost::program_options::options_description object.
-	  * These are options common to all implemented algorithms. The command line parameter,
-	  * however, needs to be specific to a given algorithm, so we can select which algorithm
-	  * should receive which option. This happens with the help of the small mnemonic assigned
-	  * to each algorithm (e.g. "ea" for evolutionary algorithms). In order not to "clutter"
-	  * the output, some options are hidden and will only be shown upon explicit request by
-	  * the user
+	  * Registers local command line options with the program's parser. These are options
+	  * common to all implemented algorithms. The command line parameter, however, needs to be
+	  * specific to a given algorithm, so we can select which algorithm should receive which
+	  * option. This happens with the help of the small mnemonic assigned to each algorithm
+	  * (e.g. "ea" for evolutionary algorithms). In order not to "clutter" the output, the options
+	  * are hidden and listed only by --showAll.
 	  *
-	  * @param visible Command line options that should always be visible (currently unused here)
-	  * @param hidden Command line options that should only be visible upon request
+	  * @param gpb The parser of the program's command line
 	  */
-    void addCLOptions(
-        [[maybe_unused]] boost::program_options::options_description &visible,
-        boost::program_options::options_description &hidden
-    ) override {
-        namespace po = boost::program_options;
-
-        hidden.add_options()(
-			 (this->getMnemonic() + std::string("MaxIterations")).c_str()
-			 , po::value<std::int32_t>(&max_iteration_cl_)->default_value(CL_UNSET)
-			 , (std::string("\t[FactoryT / ") + this->getMnemonic() +
-				 "] The maximum allowed number of iterations or 0 to disable limit").c_str()
-		 )(
-			 (this->getMnemonic() + std::string("MaxStallIterations")).c_str()
-			 , po::value<std::int32_t>(&max_stall_iteration_cl_)->default_value(CL_UNSET)
-			 , (std::string("\t[FactoryT / ") + this->getMnemonic() +
-				 "] The maximum allowed number of stalled iterations or 0 to disable limit").c_str()
-		 )(
-			 (this->getMnemonic() + std::string("MaxSeconds")).c_str()
-			 , po::value<std::int32_t>(&max_seconds_cl_)->default_value(CL_UNSET)
-			 , (std::string("\t[FactoryT / ") + this->getMnemonic() +
-				 "] The maximum allowed duration in seconds or 0 to disable limit").c_str()
-		 );
+    void addCLOptions(Gem::Common::GParserBuilder &gpb) override {
+        const std::string mn = this->getMnemonic();
+        gpb.registerCLParameter<std::int32_t>(
+               mn + "MaxIterations",
+               max_iteration_cl_,
+               CL_UNSET,
+               "\t[FactoryT / " + mn +
+                   "] The maximum allowed number of iterations or 0 to disable limit"
+        )
+            .setHidden();
+        gpb.registerCLParameter<std::int32_t>(
+               mn + "MaxStallIterations",
+               max_stall_iteration_cl_,
+               CL_UNSET,
+               "\t[FactoryT / " + mn +
+                   "] The maximum allowed number of stalled iterations or 0 to disable limit"
+        )
+            .setHidden();
+        gpb.registerCLParameter<std::int32_t>(
+               mn + "MaxSeconds",
+               max_seconds_cl_,
+               CL_UNSET,
+               "\t[FactoryT / " + mn +
+                   "] The maximum allowed duration in seconds or 0 to disable limit"
+        )
+            .setHidden();
     }
 
     /***************************************************************************/
@@ -500,8 +503,8 @@ private:
 
     /***************************************************************************/
 
-    /// Sentinel for "not set on the command line". These are bound directly to a Boost.program_options
-    /// value (which needs a concrete arithmetic type, so std::optional cannot be used), hence a signed
+    /// Sentinel for "not set on the command line". These are bound directly to a command-line option
+    /// of the program's parser (which needs a concrete arithmetic type, so std::optional cannot be used), hence a signed
     /// type with a negative "unset" marker; the *CLSet() / get*() accessors present the optional-style
     /// "has value / get-or-throw" interface on top of it.
     static constexpr std::int32_t CL_UNSET = -1;

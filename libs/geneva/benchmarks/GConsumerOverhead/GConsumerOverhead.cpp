@@ -48,8 +48,9 @@
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
-#include "geneva/GConsumerSetup.hpp"
+#include "geneva/GOptimizationDescription.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -429,7 +430,7 @@ int main(int argc, char **argv) {
             config.nThreads = static_cast<unsigned int>(nEvaluationThreads);
             break;
         }
-        Gem::Geneva::buildConsumer(config); // registers the process consumer
+        Gem::Courtier::buildConsumer<gen::GGenome>(config, Gem::Geneva::consumerModules());
     }
 
     // Add individuals to the population

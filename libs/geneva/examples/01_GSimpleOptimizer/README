@@ -28,6 +28,11 @@ o In order to try out networked execution on the local host, start the server wi
 
 The executable will print the best parameters found when finished.
 
+Its main() has the short form of a Geneva program: runOptimization() hands Geneva's description
+to courtier's launcher, and the function it is given runs on the submitter only. The example
+02_GParaboloid2D shows the long form, in which description and launcher are built in main() --
+the form a program takes when it sets something on the launcher before it runs.
+
 In order to facilitate the starting of a server and clients on the local host, there is
 a script called "startLocalJobs.sh" in the scripts/ directory of the Geneva source tree.
 Start it like this for 4 local clients on port 10000: "startLocalJobs.sh ./GSimpleOptimizer

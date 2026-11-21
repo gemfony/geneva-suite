@@ -100,12 +100,9 @@ public:
     // spec (the variables to scan), so it stays a subclass and overrides addCLOptions()/postProcess_().
 
     /**
-     * @brief Adds local command line options to boost::program_options::options_description objects
+     * @brief Registers local command line options with the program's parser
      */
-    void addCLOptions(
-        boost::program_options::options_description &visible,
-        boost::program_options::options_description &hidden
-    ) override;
+    void addCLOptions(Gem::Common::GParserBuilder &gpb) override;
 
     /**
      * @brief Allows to specify the command line parameter manually for variables to be scanned

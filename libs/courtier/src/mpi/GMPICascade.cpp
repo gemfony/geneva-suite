@@ -485,7 +485,7 @@ void GMPICascade::requireRole(processRole consumer_role) {
 /**
  * @brief On the submitter: ends the MPI job explicitly. It logs @p reason as a warning, with the
  * base rank, and calls MPI_Abort on the base communicator with @p code, which ends every process of
- * the job; Open MPI's launcher then ends with @p code. This is the way for a submitter that has
+ * the job; Open MPI's mpirun then ends with @p code. This is the way for a submitter that has
  * caught a failure and does not rethrow it (see the class comment, "A submitter that fails"):
  * returning instead would leave the leads waiting for its consumer's greeting. Where MPI is not in
  * use (configuration emission) or was finalized already, the job is this process: the reason is

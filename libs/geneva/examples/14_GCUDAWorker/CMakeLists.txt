@@ -79,7 +79,7 @@ IF ( GIMAGE_USE_FLOAT )
 	TARGET_COMPILE_DEFINITIONS ( GImageIndividual PRIVATE GIMAGE_USE_FLOAT )
 ENDIF ()
 
-# (2) The thin launcher -> loads the problem module at runtime. It names only the flat-genome base and the
+# (2) The thin program -> loads the problem module at runtime. It names only the flat-genome base and the
 # loaded factory; the image I/O (target load + PNG output via GImageHelperFunctions.cpp) and the host-side
 # render math stay here (a generic optimizer cannot provide the image POM / target). ENABLE_EXPORTS so a
 # module loaded RTLD_GLOBAL resolves against one symbol namespace (single archive registry +

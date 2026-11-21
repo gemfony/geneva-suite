@@ -36,10 +36,11 @@
  * This example demonstrates how to use the MPI consumer with the geneva library
  * to solve an example optimization problem.
  *
- * Every rank runs this same program and first asks for its role (consumerRole()); with MPI
- * the role follows the rank. The submitter (rank 0) builds the GMPIConsumerT, the process
- * consumer the optimization algorithms submit to. A client (ranks 1-n) builds the MPI
- * client (buildConsumerClient()) and runs it, like a client of the socket consumers; it
+ * Every rank runs this same program and first asks the provider of the consumer "mpi" for its
+ * role; with MPI the role follows the rank. The submitter (rank 0) builds the GMPIConsumerT,
+ * the process consumer the optimization algorithms submit to. A client (ranks 1-n) builds the
+ * MPI client (Gem::Courtier::buildConsumerClient()) and runs it, like a client of the socket
+ * consumers; it
  * connects to the master on rank 0. A bystander -- a process that takes no part in the
  * consumer's protocol, which this example does not create -- just returns.
  * The master waits for clients to request work items. If a request arrives it hands a new
@@ -75,7 +76,8 @@
 #include "common/GParserBuilder.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp" // processRole
-#include "geneva/GConsumerSetup.hpp"
+#include "courtier/GLauncherT.hpp"
+#include "geneva/GOptimizationDescription.hpp"
 #include "geneva/GenevaInitializer.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 
@@ -86,7 +88,6 @@ using namespace Gem::Geneva;
 using namespace Gem::Courtier;
 using namespace Gem::Hap;
 using namespace Gem::Common;
-namespace po = boost::program_options;
 
 /******************************************************************************/
 // Default settings
@@ -255,20 +256,22 @@ int main(int argc, char **argv) {
     // Random numbers are our most valuable good. Set the number of threads
     randomFactory()->setNProducerThreads(nProducerThreads);
 
-    // Ask for the role of this process. A client serves work items until the master tells it to
-    // stop, then exits; a bystander takes no part. The submitter builds the MPI consumer through
-    // the shared courtier factory: the process consumer to submit through.
+    // Ask for the role of this process: the provider of the consumer comes from Geneva's module
+    // "mpi". A client serves work items until the master tells it to stop, then exits; a
+    // bystander takes no part. The submitter builds the MPI consumer through courtier's
+    // function: the process consumer to submit through.
     const Gem::Courtier::ConsumerSpec spec{.mnemonic = "mpi"};
-    switch(Gem::Geneva::consumerRole(spec)) {
+    switch(Gem::Courtier::consumerProvider<gen::GGenome>("mpi", consumerModules())
+               ->role(spec, false)) {
     case Gem::Courtier::processRole::SUBMITTER:
         break;
     case Gem::Courtier::processRole::CLIENT:
-        Gem::Geneva::buildConsumerClient(spec)->run();
+        Gem::Courtier::buildConsumerClient<gen::GGenome>(spec, consumerModules())->run();
         return 0;
     case Gem::Courtier::processRole::BYSTANDER:
         return 0;
     }
-    auto mpi_consumer = Gem::Geneva::buildConsumer(spec);
+    auto mpi_consumer = Gem::Courtier::buildConsumer<gen::GGenome>(spec, consumerModules());
 
     /****************************************************************************/
     // We can now start creating populations. We refer to them through the base class
@@ -305,7 +308,7 @@ int main(int argc, char **argv) {
     // config the factory authors. Hand it to the EA directly.
     pop_ptr->setAdaptionConfig(gfi.getAdaptionConfig(*parentIndividuals[0]));
 
-    // buildConsumer() already registered the MPI master consumer as the process consumer; the
+    // Gem::Courtier::buildConsumer() already registered the MPI master consumer as the process consumer; the
     // algorithm submits through it automatically.
 
     /****************************************************************************/

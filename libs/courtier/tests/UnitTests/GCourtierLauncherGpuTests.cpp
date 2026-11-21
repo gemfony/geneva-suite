@@ -96,10 +96,7 @@ public:
     [[nodiscard]] const std::string &gpuConfigFile() const override {
         return file_;
     }
-    void addCLOptions(
-        boost::program_options::options_description &,
-        boost::program_options::options_description &
-    ) override {
+    void addCLOptions(Gem::Common::GParserBuilder & /*gpb*/) override {
     }
 
 private:

@@ -27,37 +27,25 @@
  *
  ********************************************************************************/
 
-#pragma once
-
-// NOTE: library-private header. It is only included by gemfony-geneva translation units
-// (GModuleLoader.cpp and GConsumerSetup.cpp) and is deliberately NOT installed -- no consumer ever
-// sees it.
-
-// Global checks, defines and includes needed for all of Geneva
-#include "common/GGlobalDefines.hpp"
-
-// Standard headers go here
-#include <filesystem>
-
-// Geneva headers go here
-#include "geneva/GModuleLoader.hpp" // LoadedModule
-
-namespace Gem::Geneva {
-
-/******************************************************************************/
 /**
- * @brief Loads a module with Geneva's handlers, without loading the optional consumer modules
- * first. For loadOptionalConsumerModules() only, which runs inside std::call_once and would
- * enter itself through loadModule().
+ * @file
+ * Geneva's consumer module "stc": courtier's shipped provider, built for Geneva's item type GGenome
+ * and installed next to libgemfony-geneva, which the launcher loads it from when the consumer is
+ * chosen (Gem::Geneva::consumerModules()). It is the default consumer, used when
+ * no other is named.
  */
-LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_path);
 
-/**
- * @brief Loads Geneva's optional consumer modules, once per process (GConsumerSetup.cpp). Must
- * not be called from a contribution handler or from anything a module's factory runs.
- */
-void loadOptionalConsumerModules();
+#include <boost/config.hpp> // BOOST_SYMBOL_EXPORT
 
-/******************************************************************************/
+#include "courtier/GConsumerPlugin.hpp"
+#include "courtier/consumers/GStdThreadConsumerProviderT.hpp"
+#include "geneva/genome/GGenome.hpp"
 
-} /* namespace Gem::Geneva */
+// The entry point's name is fixed by the module scheme (common/GModuleManifest.hpp).
+// NOLINTNEXTLINE(readability-identifier-naming)
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest();
+// NOLINTNEXTLINE(readability-identifier-naming)
+extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
+    return Gem::Courtier::consumerManifest<
+        Gem::Courtier::GStdThreadConsumerProviderT<Gem::Geneva::Genome::GGenome>>();
+}

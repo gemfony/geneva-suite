@@ -30,10 +30,10 @@
 SET ( OPTIMIZATIONSOURCES
 	Interface/GRateableI.cpp
 	GenevaHelperFunctions.cpp
-	GConsumerSetup.cpp
 	GFaultInjector.cpp
 	GenevaInitializer.cpp
 	Go2.cpp
+	GOptimizationDescription.cpp
     oa/GBasePluggableOM.cpp
     oa/GPluggableOptimizationMonitors.cpp
     oa/GPostProcessorT.cpp
@@ -267,8 +267,8 @@ TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${COURTIER_LIBNAME} ${HAP_LIBNAME
 # geneva's pluggable monitors render through the dietrich plotting library.
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${DIETRICH_LIBNAME})
 
-# GConsumerSetup finds this library's own path with Boost.DLL (boost::dll::this_line_location()),
-# to load the optional consumer modules installed next to it. Boost.DLL needs the dynamic loading
+# consumerModules() finds this library's own path with Boost.DLL (boost::dll::this_line_location()):
+# Geneva's consumer modules lie next to it. Boost.DLL needs the dynamic loading
 # library (libdl) on platforms that provide it; it is otherwise header-only, so libdl is its only
 # link-time requirement here. (The module loader itself is common's.)
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
@@ -290,34 +290,54 @@ ENDIF ()
 INSTALL ( TARGETS ${GENEVA_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
 
 ################################################################################
-# The MPI module (libgemfony-geneva-mpi): everything in Geneva that needs MPI. MPI is the one
-# consumer that needs a library not every machine has, so it is not linked into libgemfony-geneva --
-# every Geneva program would otherwise need libmpi to start, even for a run on the thread-pool
-# consumer. The module carries the "mpi" consumer provider and is loaded at run time when it lies
-# next to libgemfony-geneva (GConsumerSetup.cpp, loadOptionalConsumerModules()). It is built into
-# the same directory as libgemfony-geneva, in the build tree as in the installation, which is where
-# the loader looks. Where libgemfony-courtier-mpi or the MPI library is missing, the module fails to
-# load, and the loader says so (a Geneva program that does not use MPI still starts).
-IF (GEM_BUILD_WITH_MPI_CONSUMER)
+# Geneva's consumers: one module per consumer, built for Geneva's item type GGenome exactly like a
+# module a third party would write (one line on courtier's provider each), and named
+# libgemfony-geneva-<consumer>.so. They lie in the same directory as libgemfony-geneva, in the build
+# tree as in the installation, which is where the launcher looks (consumerModules()); a consumer
+# exists exactly when its module does, and only the chosen one is loaded. stc is the default. The MPI
+# module needs MPI, a library not every machine has: where it is missing, the module cannot be
+# loaded and a run that asks for "mpi" is refused with the reason; every other run starts.
+SET ( _GENEVA_CONSUMERS stc beast )
+SET ( _GENEVA_CONSUMER_SOURCE_stc GStcConsumerModule.cpp )
+SET ( _GENEVA_CONSUMER_SOURCE_beast GBeastConsumerModule.cpp )
+IF ( GEM_MQTT_CONSUMER_ENABLED )
+	LIST ( APPEND _GENEVA_CONSUMERS mqtt )
+	SET ( _GENEVA_CONSUMER_SOURCE_mqtt GMqttConsumerModule.cpp )
+ENDIF ()
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
+	LIST ( APPEND _GENEVA_CONSUMERS mpi )
+	SET ( _GENEVA_CONSUMER_SOURCE_mpi GMPIConsumerModule.cpp )
+ENDIF ()
+IF ( GEM_GPU_CONSUMER_ENABLED )
+	LIST ( APPEND _GENEVA_CONSUMERS gpu )
+	SET ( _GENEVA_CONSUMER_SOURCE_gpu GGPUConsumerModule.cpp )
+ENDIF ()
+# Every program that links Geneva is built after the modules (an interface library's dependencies
+# are followed by whatever links it); in-tree only, an installation carries the modules.
+ADD_LIBRARY ( ${GENEVA_LIBNAME}-consumer-modules INTERFACE )
+TARGET_LINK_LIBRARIES ( ${GENEVA_LIBNAME} INTERFACE
+	$<BUILD_INTERFACE:${GENEVA_LIBNAME}-consumer-modules> )
+FOREACH ( _consumer ${_GENEVA_CONSUMERS} )
+	SET ( _module ${GENEVA_LIBNAME}-${_consumer} )
 	# A MODULE: loaded, never linked, so it is not part of the exported package. It keeps the "lib"
 	# prefix, which MODULE libraries drop by default.
-	ADD_LIBRARY ( ${GENEVA_MPI_LIBNAME} MODULE
-		GMPIConsumerModule.cpp )
-	SET_TARGET_PROPERTIES ( ${GENEVA_MPI_LIBNAME} PROPERTIES PREFIX "lib" )
+	ADD_LIBRARY ( ${_module} MODULE ${_GENEVA_CONSUMER_SOURCE_${_consumer}} )
+	SET_TARGET_PROPERTIES ( ${_module} PROPERTIES PREFIX "lib" )
 	# Like a loadable individual module, it links no Geneva library -- the process that loads it
-	# already carries libgemfony-geneva, and a testing build's Geneva would hand the
-	# static Catch2 on to a shared library that cannot take it. COMPILE_ONLY takes Geneva's include
-	# paths and compile settings without linking. The one exception is courtier's MPI library: the
-	# process's MPI environment is defined there, once, and the module needs it at load time (also
-	# when a program that does not link that library loads the module).
-	TARGET_LINK_LIBRARIES ( ${GENEVA_MPI_LIBNAME}
-		PRIVATE ${COURTIER_MPI_LIBNAME}
-		PRIVATE $<COMPILE_ONLY:${GENEVA_LIBNAME}> )
-	ADD_DEPENDENCIES ( ${GENEVA_MPI_LIBNAME} ${GENEVA_LIBNAME} )
-	INSTALL ( TARGETS ${GENEVA_MPI_LIBNAME} DESTINATION ${INSTALL_PREFIX_LIBS} )
-
-	# The loader in libgemfony-geneva needs the module's file name.
-	SET_PROPERTY ( SOURCE GConsumerSetup.cpp APPEND PROPERTY COMPILE_DEFINITIONS
-		"GENEVA_OPTIONAL_CONSUMER_MODULES=\"$<TARGET_FILE_NAME:${GENEVA_MPI_LIBNAME}>\"" )
+	# already carries libgemfony-geneva, and a testing build's Geneva would hand the static Catch2 on
+	# to a shared library that cannot take it. COMPILE_ONLY takes Geneva's include paths and compile
+	# settings without linking.
+	TARGET_LINK_LIBRARIES ( ${_module} PRIVATE $<COMPILE_ONLY:${GENEVA_LIBNAME}> )
+	ADD_DEPENDENCIES ( ${_module} ${GENEVA_LIBNAME} )
+	ADD_DEPENDENCIES ( ${GENEVA_LIBNAME}-consumer-modules ${_module} )
+	INSTALL ( TARGETS ${_module} DESTINATION ${INSTALL_PREFIX_LIBS} )
+ENDFOREACH ()
+# The one library a module links: courtier's MPI library, where the process's MPI environment is
+# defined, once; the MPI module needs it at load time (also when a program that does not link that
+# library loads the module).
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
+	TARGET_LINK_LIBRARIES ( ${GENEVA_MPI_LIBNAME} PRIVATE ${COURTIER_MPI_LIBNAME} )
 ENDIF ()
-
+# The modules' file names before the mnemonic
+SET_PROPERTY ( SOURCE GOptimizationDescription.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+	"GENEVA_CONSUMER_MODULE_PREFIX=\"lib${GENEVA_LIBNAME}-\"" )

@@ -148,7 +148,7 @@ public:
      * @brief Returns the OA-owned adaption configuration for a genome this factory produces.
      *
      * This lets an adapting algorithm be configured WITHOUT the caller knowing the concrete individual
-     * type -- essential when the individual is supplied at runtime through a plugin (a generic launcher
+     * type -- essential when the individual is supplied at runtime through a plugin (a generic optimizer program
      * pulls the config from the loaded factory through this base interface). The base returns a null
      * pointer (no adaption config); GIndividualFactory overrides it to delegate to the individual's
      * @c buildAdaptionConfig hook.

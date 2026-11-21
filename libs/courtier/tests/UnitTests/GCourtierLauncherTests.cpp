@@ -35,7 +35,7 @@
  * another item type, --client for a consumer without clients, a consumer that misses a
  * prerequisite, a second item type, a second run()), a choice in main() against options given
  * explicitly, prepare() and the release of the consumer; consumer and client built without a
- * launcher.
+ * launcher; the options of the shipped thread-pool and websocket providers.
  *
  * Every launcher here distributes GSimpleContainer, but for the one case that is refused because
  * of it: the item type is recorded once per process.
@@ -49,6 +49,8 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 // Catch2 header files go here
@@ -60,6 +62,9 @@
 #include "courtier/GLauncherT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
+#include "courtier/consumers/GStdThreadConsumerProviderT.hpp"
+#include "courtier/consumers/GWebsocketConsumerConfig.hpp"
+#include "courtier/consumers/GWebsocketConsumerProviderT.hpp"
 #include "launcher/GLauncherTestSupport.hpp"
 
 using Gem::Courtier::GConsumerModules;
@@ -181,6 +186,7 @@ TEST_CASE("Launcher: --help and --showAll return 0 and produce nothing", "[launc
         CommandLine cl({flag});
         launcher_type launcher(cl.argc(), cl.data());
         launcher.setConsumerModules(testModules());
+        CHECK(launcher.helpRequested()); // told before run(), without side effects
         int produced = 0;
         double tolerance = 0.;
         int code = -1;
@@ -220,6 +226,7 @@ TEST_CASE("Launcher: --help and --showAll return 0 and produce nothing", "[launc
 
 TEST_CASE("Launcher: a malformed command line returns 1 and produces nothing", "[launcher]") {
     CommandLine cl({"--nonsense"});
+    CHECK_FALSE(launcher_type(cl.argc(), cl.data()).helpRequested());
     launcher_type launcher(cl.argc(), cl.data());
     launcher.setConsumerModules(testModules());
     int produced = 0;
@@ -526,4 +533,126 @@ TEST_CASE("Launcher: --update-configs runs the program on the default consumer",
     CHECK_FALSE(lastNeedyConfig().has_value()); // the default consumer, not the one asked for
     CHECK(std::filesystem::exists("./config/GLauncher.json"));
     CHECK(std::filesystem::exists("./config/GNetworkedConsumer.json"));
+}
+
+/******************************************************************************/
+// The options of the shipped providers, parsed as the launcher parses them
+
+namespace {
+
+/** @brief Parses @p args (without the program's name) with the options of @p provider
+ *  @param provider The provider @param args The command line @param help Receives --showAll's text
+ *  @return The configuration the provider takes from the parse */
+template <typename config_type, typename provider_type>
+config_type
+parsedConfig(provider_type &provider, std::vector<std::string> args, std::string *help = nullptr) {
+    Gem::Common::GParserBuilder gpb;
+    provider.registerOptions(gpb);
+    CommandLine cl(std::move(args));
+    {
+        const CoutCapture capture;
+        (void)gpb.parseCommandLine(cl.argc(), cl.data());
+        if(help != nullptr) {
+            *help = capture.text.str();
+        }
+    }
+    return std::any_cast<config_type>(provider.configuration(gpb, std::any{}));
+}
+
+/** @brief The websocket provider of the tests' item type */
+using GWebsocketProvider = Gem::Courtier::GWebsocketConsumerProviderT<GSimpleContainer>;
+/** @brief The thread-pool provider of the tests' item type */
+using GStdThreadProvider = Gem::Courtier::GStdThreadConsumerProviderT<GSimpleContainer>;
+/** @brief Their configurations */
+using GWebsocketConfig = Gem::Courtier::GWebsocketConsumerConfig;
+using GStdThreadConfig = Gem::Courtier::GStdThreadConsumerConfig;
+
+} // namespace
+
+TEST_CASE("The io thread option of the websocket consumer takes effect", "[launcher][options]") {
+    GWebsocketProvider provider;
+    CHECK(
+        parsedConfig<GWebsocketConfig>(provider, {"--beast_nListenerThreads", "7"}).nThreads == 7
+    );
+    CHECK(
+        parsedConfig<GWebsocketConfig>(provider, {"--beast_nListenerThreads", "0"}).nThreads == 0
+    ); // hardware
+    // Without the option the documented default applies, not the number of hardware threads.
+    CHECK(
+        parsedConfig<GWebsocketConfig>(provider, {}).nThreads ==
+        Gem::Courtier::GCONSUMERLISTENERTHREADS
+    );
+}
+
+// The serialization option names the modes there are (its help text used to offer the removed
+// Boost archives TEXTMODE, XMLMODE and BINARYMODE), and the parser refuses a value that names none.
+TEST_CASE(
+    "The serialization option names the modes there are and refuses others",
+    "[launcher][options]"
+) {
+    GWebsocketProvider provider;
+    std::string help;
+    (void)parsedConfig<GWebsocketConfig>(provider, {"--showAll"}, &help);
+    // The help text wraps its lines: compare with every run of white space as one blank
+    const auto squeeze = [](std::string text) {
+        std::string out;
+        for(const char c : text) {
+            const bool blank = c == ' ' || c == '\n' || c == '\t';
+            if(not blank || out.empty() || out.back() != ' ') {
+                out.push_back(blank ? ' ' : c);
+            }
+        }
+        return out;
+    };
+    help = squeeze(help);
+    CHECK(mentions(help, "--beast_serializationMode"));
+    CHECK(mentions(help, squeeze(Gem::Common::serializationModeChoices())));
+    for(const std::string_view stale : {"TEXTMODE", "XMLMODE", "BINARYMODE (", "GEM_JSONMODE"}) {
+        INFO(stale);
+        CHECK_FALSE(mentions(help, std::string(stale)));
+    }
+    for(const auto mode : Gem::Common::SERIALIZATIONMODES) {
+        CHECK(
+            parsedConfig<GWebsocketConfig>(
+                provider,
+                {"--beast_serializationMode", std::to_string(std::to_underlying(mode))}
+            )
+                .serializationMode == mode
+        );
+    }
+    CHECK_THROWS(
+        parsedConfig<GWebsocketConfig>(provider, {"--beast_serializationMode", "0"})
+    ); // text archive
+    CHECK_THROWS(
+        parsedConfig<GWebsocketConfig>(provider, {"--beast_serializationMode", "2"})
+    ); // binary archive
+}
+
+// The defaults of the websocket consumer's options are those of its configuration struct: an
+// option left unset leaves the consumer as a default-constructed configuration describes it. The
+// port is the one exception: on the command line server and client are two processes and meet on
+// GCONSUMERDEFAULTPORT, while a configuration built in a program lets the server pick a free port.
+TEST_CASE("The websocket consumer's options default to its configuration", "[launcher][options]") {
+    GWebsocketProvider provider;
+    const auto beast = parsedConfig<GWebsocketConfig>(provider, {});
+    const Gem::Courtier::GWebsocketConsumerConfig defaults;
+    CHECK(beast.ip == defaults.ip);
+    CHECK(beast.port == Gem::Courtier::GCONSUMERDEFAULTPORT);
+    CHECK(beast.serializationMode == defaults.serializationMode);
+    CHECK(beast.nThreads == defaults.nThreads);
+    CHECK(beast.pingInterval == defaults.pingInterval);
+    CHECK(beast.verboseControlFrames == defaults.verboseControlFrames);
+    CHECK(beast.clientPrefetchDepth == defaults.clientPrefetchDepth);
+    CHECK(beast.clientParallelEvaluations == defaults.clientParallelEvaluations);
+    CHECK(beast.clientFirstContactLimit == defaults.clientFirstContactLimit);
+    CHECK(beast.clientReconnectLimit == defaults.clientReconnectLimit);
+}
+
+// The thread consumer once registered an option "stcCapableOfFullReturn" that nothing read. An
+// option that is offered must have an effect, so it is gone (the neighbouring stc option is there,
+// so the parse itself works).
+TEST_CASE("The thread consumer does not offer stcCapableOfFullReturn", "[launcher][options]") {
+    GStdThreadProvider provider;
+    CHECK(parsedConfig<GStdThreadConfig>(provider, {"--nWorkerThreads", "3"}).nThreads == 3);
+    CHECK_THROWS(parsedConfig<GStdThreadConfig>(provider, {"--stcCapableOfFullReturn", "1"}));
 }

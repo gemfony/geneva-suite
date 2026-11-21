@@ -31,7 +31,7 @@
  * @file
  * Example 21 -- a generic optimizer that runs a RUNTIME-LOADED GPU problem. The optimization individual AND
  * its device marshaller are contributed by ONE shared object loaded with --module; nothing problem-specific
- * is compiled into this launcher. Selecting the GPU consumer then evaluates the whole thing on the device:
+ * is compiled into this program. Selecting the GPU consumer then evaluates the whole thing on the device:
  *
  *   ./GGPUParaboloidOptimizer --module ./libGGPUParaboloid.so --consumer gpu
  *
@@ -60,58 +60,60 @@ int main(int argc, char **argv) {
     // Go2 parses config + command line and loads the --module here, in its constructor: the module
     // contributes BOTH the individual (claimed as the optimization problem) AND its GPU marshaller
     // (registered under the "cuda" device target), so `--consumer gpu` can build the GPU consumer around it.
-    Go2 go(argc, argv, "./config/Go2.json");
-
-    // --update-configs: Go2 forces the local thread-pool consumer for a config refresh, so the GPU consumer
-    // -- and hence GGPUConsumer.json -- would otherwise be skipped. Materialize it directly (created with
-    // defaults if absent; the example's config-overrides.json then sets the kernel path). No device is
-    // touched. go.optimize() below then refreshes Go2's own and the loaded individual's configs, and exits.
-    if(go.updateConfigsMode()) {
-        Gem::Courtier::GPU::GGPUConsumerConfig gpu_cfg;
-        gpu_cfg.load("./config/GGPUConsumer.json");
-        go.optimize();
-    }
-
-    // Client mode (networked consumers): the module is already loaded, so a client can deserialize work.
-    if(go.clientMode()) {
-        return go.clientRun();
-    }
-    signal(G_SIGHUP, Gem::Common::sigHupHandler);
-
-    // Pull the loaded problem's OA-owned adaption config from its factory through the base interface (the
-    // launcher never needs the concrete type) and hand it to the adapting algorithms (EA / SA). Skipping this
-    // is a hard error for an adapting algorithm.
-    if(auto factory = go.getContentCreator()) {
-        auto oef = std::dynamic_pointer_cast<Genome::GGenomeFactory>(factory);
-        auto sample = (*factory)(); // a sample individual (also parses the factory's config)
-        const auto *flat = dynamic_cast<const Genome::GGenome *>(sample.get());
-        if(oef && (flat != nullptr)) {
-            if(auto cfg = oef->getAdaptionConfig(*flat)) {
-                go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-                go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+    return runOptimization(
+        argc,
+        argv,
+        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+            // --update-configs: Go2 forces the local thread-pool consumer for a config refresh, so the GPU consumer
+            // -- and hence GGPUConsumer.json -- would otherwise be skipped. Materialize it directly (created with
+            // defaults if absent; the example's config-overrides.json then sets the kernel path). No device is
+            // touched. go.optimize() below then refreshes Go2's own and the loaded individual's configs, and exits.
+            if(Gem::Common::GParserBuilder::updateInPlace()) {
+                Gem::Courtier::GPU::GGPUConsumerConfig gpu_cfg;
+                gpu_cfg.load("./config/GGPUConsumer.json");
+                go.optimize();
             }
-        }
-    }
-    else {
-        std::cerr << "No optimization problem is available. Load one with --module <path>.so"
-                  << " (contributing an individual)." << '\n';
-        return 1;
-    }
 
-    // "ea" is the default anyway; state it explicitly for clarity.
-    go.registerDefaultAlgorithm("ea");
+            signal(G_SIGHUP, Gem::Common::sigHupHandler);
 
-    // Optimize and report. The best individual is read back through the flat-genome base, so this launcher
-    // stays problem-agnostic.
-    auto best = go.optimize()->getBestGlobalIndividual<Genome::GGenome>();
-    const auto [raw, transformed] = best->getFitnessTuple();
+            // Pull the loaded problem's OA-owned adaption config from its factory through the base interface (the
+            // program never needs the concrete type) and hand it to the adapting algorithms (EA / SA). Skipping this
+            // is a hard error for an adapting algorithm.
+            if(auto factory = go.getContentCreator()) {
+                auto oef = std::dynamic_pointer_cast<Genome::GGenomeFactory>(factory);
+                auto sample =
+                    (*factory)(); // a sample individual (also parses the factory's config)
+                const auto *flat = dynamic_cast<const Genome::GGenome *>(sample.get());
+                if(oef && (flat != nullptr)) {
+                    if(auto cfg = oef->getAdaptionConfig(*flat)) {
+                        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+                        go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+                    }
+                }
+            }
+            else {
+                std::cerr
+                    << "No optimization problem is available. Load one with --module <path>.so"
+                    << " (contributing an individual)." << '\n';
+                return 1;
+            }
 
-    std::vector<double> v;
-    best->streamline<double>(v);
+            // "ea" is the default anyway; state it explicitly for clarity.
+            go.registerDefaultAlgorithm("ea");
 
-    std::cout << "Best result found (raw fitness = " << raw << "):" << '\n';
-    for(auto const &[i, x] : std::views::enumerate(v)) {
-        std::cout << "  x[" << i << "] = " << x << '\n';
-    }
-    return 0;
+            // Optimize and report. The best individual is read back through the flat-genome base, so this program
+            // stays problem-agnostic.
+            auto best = go.optimize()->getBestGlobalIndividual<Genome::GGenome>();
+            const auto [raw, transformed] = best->getFitnessTuple();
+
+            std::vector<double> v;
+            best->streamline<double>(v);
+
+            std::cout << "Best result found (raw fitness = " << raw << "):" << '\n';
+            for(auto const &[i, x] : std::views::enumerate(v)) {
+                std::cout << "  x[" << i << "] = " << x << '\n';
+            }
+            return 0;
+        }}
+    );
 }

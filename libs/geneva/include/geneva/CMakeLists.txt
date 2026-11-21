@@ -1,11 +1,10 @@
 SET ( OPTIMIZATIONINCLUDES
-    GConsumerPlugin.hpp
-    GConsumerSetup.hpp
     GFaultInjector.hpp
     GMarshallerPlugin.hpp
     GMarshallerSetup.hpp
     GModuleLoader.hpp
     GNamespaceAliases.hpp
+    GOptimizationDescription.hpp
     GOptimizationEnums.hpp
     GPersonalityTraits.hpp
     GenevaHelperFunctions.hpp

@@ -56,14 +56,13 @@
 #include <tuple>
 #include <vector>
 
-// Boost header files go here
-#include <boost/program_options.hpp>
-
 // Geneva header files go here
 #include "common/GCommonMathHelperFunctionsT.hpp"
+#include "common/GParserBuilder.hpp"
+#include "courtier/GConsumerRegistry.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
@@ -112,56 +111,56 @@ inline constexpr std::chrono::milliseconds CLIENTGATEPOLL{100};
 /**
  * Adds the options of the gate to a benchmark's options: --waitForClients and --clientWaitLimit.
  *
- * @param options Where they are added
+ * @param gpb The launcher's parser
  * @param gate Where the values go
  */
-inline void
-addClientGateOptions(boost::program_options::options_description &options, ClientGate &gate) {
-    options.add_options()(
+inline void addClientGateOptions(Gem::Common::GParserBuilder &gpb, ClientGate &gate) {
+    gpb.registerCLParameter<std::size_t>(
         "waitForClients",
-        boost::program_options::value<std::size_t>(&gate.clients)->default_value(gate.clients),
+        gate.clients,
+        gate.clients,
         "The server waits, before the measurement starts, until its consumer reports this many "
         "connected clients (0: it does not wait). A client counts once it has asked for work on "
         "an open connection; one that has died without its connection ending counts until the "
         "transport notices the loss, and one that has connected again after such a loss counts "
-        "for its old connection too until then. A consumer that cannot tell how many clients it has "
+        "for its old connection too until then. A consumer that cannot tell how many clients it "
+        "has "
         "is not waited for; the log says so"
-    )(
+    );
+    gpb.registerCLParameter<std::size_t>(
         "clientWaitLimit",
-        boost::program_options::value<std::size_t>(&gate.limitSeconds)
-            ->default_value(gate.limitSeconds),
+        gate.limitSeconds,
+        gate.limitSeconds,
         "Seconds the server waits for the clients of --waitForClients; the program ends with an "
         "error if fewer have connected by then"
     );
 }
 
 /**
- * Waits until the consumer of @p go reports at least @p gate.clients connected clients, at most
+ * Waits until the process consumer reports at least @p gate.clients connected clients, at most
  * @p gate.limitSeconds, and says how long it waited. The clients need no signal: a connected client asks
  * for work at once and waits, parked by the server, until the first batch is submitted.
  *
- * @param go The optimization wrapper whose consumer is asked (and built, if it is not yet)
  * @param gate How many clients, and how long
  * @throws std::runtime_error if fewer clients have connected within the limit, naming how many
  */
-inline void waitForClients(Go2 &go, const ClientGate &gate) {
+inline void waitForClients(const ClientGate &gate) {
     if(gate.clients == 0) {
         return;
     }
-    // The consumer belongs to the run: it is locked for each question only (Go2::consumer())
-    const auto consumer = go.consumer();
+    // The consumer the launcher established; it outlives the producing function
+    const auto consumer = Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().consumer();
     const auto ask = [&consumer]() -> std::optional<std::size_t> {
-        const auto locked = consumer.lock();
-        if(not locked) {
+        if(not consumer) {
             throw std::runtime_error("waitForClients: this process has no consumer to ask");
         }
-        return locked->connectedClients();
+        return consumer->connectedClients();
     };
     const auto start = std::chrono::steady_clock::now();
     std::optional<std::size_t> connected = ask();
     if(not connected) {
-        std::cout << "Waiting for clients: the consumer " << go.getConsumerName()
-                  << " cannot tell how many clients are connected; the measurement starts without "
+        std::cout << "Waiting for clients: the consumer of this run cannot tell how many clients "
+                     "are connected; the measurement starts without "
                      "waiting for "
                   << gate.clients << " clients" << std::endl;
         return;
@@ -262,8 +261,10 @@ inline Line measureReference(const Schedule &schedule, const IndividualFactory &
 
     // The algorithm submits through the process-wide consumer. Make that the serial one, whatever
     // was asked for on the command line: the reference is the time one worker needs.
-    const auto serial_consumer =
-        Gem::Geneva::buildConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1});
+    const auto serial_consumer = Gem::Courtier::buildConsumer<gen::GGenome>(
+        Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1},
+        Gem::Geneva::consumerModules()
+    );
 
     std::size_t iter = 0;
     for(const auto &delay : schedule.delays) {
@@ -335,7 +336,7 @@ inline Timings measureParallel(
     const IndividualFactory &make_individual,
     const ClientGate &gate = {}
 ) {
-    waitForClients(go, gate);
+    waitForClients(gate);
     std::cout << "Starting parallel measurement" << std::endl;
 
     Timings parallel_times;

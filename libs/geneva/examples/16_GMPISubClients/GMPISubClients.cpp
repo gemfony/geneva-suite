@@ -32,10 +32,11 @@
  ********************************************************************************/
 
 // Parallelism inside one evaluation: the processes of an MPI job form courtier's MPI cascade
-// (courtier/mpi/GMPICascade.hpp). Rank 0 is the submitter and runs the optimization through Go2;
-// the other processes form groups of sub_client_group_size processes (config/GMPICascade.json).
-// The first process of a group is its lead, a client of the MPI consumer; the others are its
-// members, which run no Geneva code. A lead evaluates every item in a round of its group: the
+// (courtier/mpi/GMPICascade.hpp). Rank 0 is the submitter and runs the optimization through Go2
+// on courtier's launcher; the other processes form groups of sub_client_group_size processes
+// (config/GMPICascade.json). The first process of a group is its lead, a client of the MPI
+// consumer, whose items the launcher hands to an item processor; the others are its members,
+// which run no Geneva code. A lead evaluates every item in a round of its group: the
 // parameter values are shared out over the group, and every process computes its part
 // (GParaboloidGroup.hpp). Started as
 //   mpirun -np <1 + clients x group size> ./GMPISubClients --consumer mpi
@@ -43,6 +44,7 @@
 // Standard header files go here
 #include <chrono>
 #include <memory>
+#include <optional>
 #include <print>
 #include <string>
 #include <tuple>
@@ -53,13 +55,11 @@
 
 // Geneva header files go here
 #include "common/GConfigEmission.hpp"
-#include "common/GFatalReport.hpp"
-#include "courtier/GBaseClientT.hpp"
-#include "courtier/GConsumerSpec.hpp"
+#include "common/GParserBuilder.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPICascade.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp"
-#include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
 
 #include "GParaboloidGroup.hpp"
@@ -75,17 +75,10 @@ namespace {
 /**
  * The submitter: an evolutionary algorithm through Go2.
  *
- * @param argc The number of arguments
- * @param argv The arguments
- * @param cascade The cascade
+ * @param go The Go2 of the run
  * @return The exit code
  */
-int optimize(int argc, char **argv, GMPICascade &cascade) {
-    if(not Gem::Common::configEmissionRequested(argc, argv)) { // the cascade runs without MPI then
-        cascade.requireRole(consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"}));
-    }
-    Go2 go(argc, argv, "./config/Go2.json");
-
+int optimize(Go2 &go) {
     const auto individual = std::make_shared<GParaboloidGroupIndividual>();
     go.push_back(individual);
     go.registerAdaptionConfig(
@@ -106,53 +99,18 @@ int optimize(int argc, char **argv, GMPICascade &cascade) {
     return 0;
 }
 
-/******************************************************************************/
-/**
- * A lead: its client of the MPI consumer evaluates every item in a round of its group.
- *
- * @param argc The number of arguments
- * @param argv The arguments
- * @param cascade The cascade
- * @return The exit code
- */
-int lead(int argc, char **argv, GMPICascade &cascade) {
-    // Built here only: on a member it would load the consumers, and a member runs no Geneva code
-    const auto [role, client] = buildClientFromCommandLine(argc, argv);
-    cascade.requireRole(role);
-    const auto pause_min = cascade.config().pauseMin;
-    const auto pause_max = cascade.config().pauseMax;
-    // process() keeps the item's lifecycle (status, timing; an exception flags the item)
-    client->setItemProcessor([&cascade, pause_min, pause_max](gen::GGenome &item) {
-        std::ignore = item.process([&](const gen::GGenome &candidate) -> std::vector<double> {
-            std::vector<double> parameters;
-            candidate.streamline(parameters);
-            return {cascade.round([&](MPI_Comm group) {
-                return leadHalf(
-                    group,
-                    parameters,
-                    GParaboloidGroupIndividual::DELAYPERPARAMETER,
-                    pause_min,
-                    pause_max
-                );
-            })};
-        });
-    });
-    client->run();
-    cascade.release(); // the members leave serve()
-    return 0;
-}
-
 } /* namespace */
 
 /******************************************************************************/
 
 int main(int argc, char **argv) {
-    // An error nobody handles ends the program with a message and the exit code 1; the leads and
-    // the members construct no Go2, which would install this
-    Gem::Common::installFatalReport();
-    if(Go2::helpRequested(argc, argv)) {
-        // Go2 prints the help text and ends the process, before the cascade would start MPI
-        const Go2 go(argc, argv, "./config/Go2.json");
+    // Geneva's description and courtier's launcher, built before the cascade: a request for the
+    // help text is answered before the cascade would start MPI (the long form of a main(), as the
+    // launcher is given the leads' item processor below)
+    GOptimizationDescription geneva;
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    if(launcher.helpRequested()) {
+        return launcher.run(geneva, {});
     }
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         // --update-configs: the cascade makes no MPI call, its callable writes its file
@@ -170,14 +128,49 @@ int main(int argc, char **argv) {
         config.layout = Gem::Courtier::GMPICascadeLayout::SUBMITTER_AND_GROUPS;
         return config;
     });
-
-    switch(cascade.role()) {
-    case processRole::BYSTANDER: // a member
+    if(cascade.role() == processRole::BYSTANDER) { // a member, which runs no Geneva code
         member.setPauses(cascade.config().pauseMin, cascade.config().pauseMax);
         return cascade.serve(member);
-    case processRole::CLIENT: // a lead
-        return lead(argc, argv, cascade);
-    default: // the submitter
-        return optimize(argc, argv, cascade);
     }
+
+    // A lead: its client of the MPI consumer evaluates every item in a round of its group;
+    // process() keeps the item's lifecycle (status, timing; an exception flags the item)
+    const auto pause_min = cascade.config().pauseMin;
+    const auto pause_max = cascade.config().pauseMax;
+    launcher.registerItemProcessor([&cascade, pause_min, pause_max](gen::GGenome &item) {
+        std::ignore = item.process([&](const gen::GGenome &candidate) -> std::vector<double> {
+            std::vector<double> parameters;
+            candidate.streamline(parameters);
+            return {cascade.round([&](MPI_Comm group) {
+                return leadHalf(
+                    group,
+                    parameters,
+                    GParaboloidGroupIndividual::DELAYPERPARAMETER,
+                    pause_min,
+                    pause_max
+                );
+            })};
+        });
+    });
+
+    const int rc = launcher.run(
+        geneva,
+        {.prepare = [&cascade](processRole role) -> std::optional<int> {
+             // The consumer's role must be the cascade's (none under --update-configs, which
+             // runs without MPI)
+             if(not Gem::Common::GParserBuilder::updateInPlace()) {
+                 cascade.requireRole(role);
+             }
+             return std::nullopt;
+         },
+         .produce =
+             [&geneva] {
+                 Go2 go(geneva);
+                 return optimize(go);
+             }}
+    );
+    if(cascade.role() == processRole::CLIENT) { // also if the launcher ended before its role
+        cascade.release();                      // the members leave serve()
+    }
+    return rc;
 }

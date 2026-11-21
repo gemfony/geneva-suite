@@ -1082,7 +1082,8 @@ private:
 
     /**
      * @brief Submits the contiguous sub-range [start, end) of @p work_items through the one process-wide
-     * consumer (GConsumerRegistry), which the setup layer establishes if the process was never given one.
+     * consumer (GConsumerRegistry); the default one is built from Geneva's module if the process was
+     * never given one.
      */
     Gem::Courtier::submission_status_t workOnViaConsumer_(
         std::vector<std::unique_ptr<gen::GGenome>> &work_items,
@@ -1090,8 +1091,8 @@ private:
         std::size_t end
     );
 
-    /** @brief Returns the one process-wide consumer (established by the setup layer if the process was
-     *  never given one) with this algorithm's late-return budget applied. */
+    /** @brief Returns the one process-wide consumer (the default one, from Geneva's module, if the
+     *  process was never given one) with this algorithm's late-return budget applied. */
     std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumerForSubmission_();
 };
 

@@ -118,11 +118,28 @@ There are three ways to give an algorithm its adaption config:
   adapter.adapt(genome);                              // mutates in place
   ```
 
+The program's `main()` hands Geneva to courtier's launcher, which owns the command line, the
+consumer and the role of the process; the optimization runs on the submitter only, in a function
+the program gives it:
+```cpp
+int main(int argc, char **argv) {
+    return Gem::Geneva::runOptimization(argc, argv, {.produce = [](Go2 &go, const auto &) {
+        go.registerContentCreator(factory);
+        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+        auto best = go.optimize()->getBestGlobalIndividual<MyProblem>();
+        return 0;
+    }});
+}
+```
+A program that sets something on the launcher first (a consumer chosen in code, a module path, the
+item processor of a client) builds Geneva's description and the launcher itself, the long form of
+`libs/geneva/examples/02_GParaboloid2D`.
+
 An error the program does not handle -- a configuration file that cannot be applied, say -- ends
-the program with its message and the exit code 1, also under MPI, where the launcher then ends the
-whole job: Go2's constructor installs `Gem::Common::installFatalReport()`
-(`common/GFatalReport.hpp`) as the terminate handler. A program without Go2 calls it in the first
-line of `main()`.
+the program with its message and the exit code 1, also under MPI, where `mpirun` then ends the
+whole job: Geneva's description (`GOptimizationDescription`, built by `runOptimization()`) installs
+`Gem::Common::installFatalReport()` (`common/GFatalReport.hpp`) as the terminate handler. A
+program without it calls it in the first line of `main()`.
 
 ## 5. Adapting without a config is a hard error
 

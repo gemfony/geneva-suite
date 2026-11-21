@@ -226,12 +226,12 @@ discouraged — keep camel case.
 // From Go2 (excerpt): a camelBack method, a snake_case parameter, a snake_case_ member.
 class Go2 {
 public:
-    void setClientMode(bool client_mode);
-    bool clientMode() const;
+    void setCopyBestIndividualsOnly(bool copy_best_individuals_only);
+    bool onlyBestIndividualsAreCopied() const;
     // ...
 
 private:
-    bool client_mode_ = false;
+    bool copy_best_individuals_only_ = true;
     // ...
 };
 ```

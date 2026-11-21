@@ -33,8 +33,6 @@
 #include <string>
 #include <utility>
 
-#include <boost/program_options/options_description.hpp>
-
 #include "common/GProviderStoreT.hpp"
 
 using namespace Gem::Common;
@@ -58,10 +56,7 @@ public:
     [[nodiscard]] std::string getName() const override {
         return "IntProvider(" + mnemonic_ + ")";
     }
-    void addCLOptions(
-        boost::program_options::options_description & /*visible*/,
-        boost::program_options::options_description & /*hidden*/
-    ) override {                                      /* no options */
+    void addCLOptions(Gem::Common::GParserBuilder & /*gpb*/) override { /* no options */
     }
 
 private:

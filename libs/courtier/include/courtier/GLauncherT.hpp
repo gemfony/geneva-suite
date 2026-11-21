@@ -44,6 +44,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <typeinfo>
 #include <utility>
 #include <vector>
@@ -379,6 +380,22 @@ public:
     int run(Program program) {
         GProducerDescriptionI none;
         return run_(none, std::move(program));
+    }
+
+    /**
+     * @brief Whether the command line asks for the help text (--help, -h or --showAll), which run()
+     * prints before anything else happens; a scan without side effects, for a program that would
+     * otherwise start something first (an MPI cascade)
+     * @return Whether one of the three options is given
+     */
+    [[nodiscard]] bool helpRequested() const {
+        for(int i = 1; i < argc_; ++i) {
+            const std::string_view arg(argv_[i]);
+            if(arg == "--help" or arg == "-h" or arg == "--showAll") {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** @brief The role of this process, valid once run() has asked for it @return The role */
@@ -759,17 +776,16 @@ consumerProvider(const std::string &mnemonic, const std::optional<GConsumerModul
     if(not catalog->exists(mnemonic)) {
         if(not location) {
             throw detail::consumerError(
-                "No module provides the consumer \"" + mnemonic +
-                "\" (available: " + consumerListing<processable_type>(location) +
-                "). Name its module with --module."
+                "No module provides the consumer \"" + mnemonic + "\" (available: " +
+                consumerListing<processable_type>(location) + "). Name its module with --module."
             );
         }
         const std::filesystem::path module = location->moduleOf(mnemonic);
         if(not std::filesystem::exists(module)) {
             throw detail::consumerError(
                 "The consumer \"" + mnemonic + "\" is not available: its module " +
-                module.string() + " does not exist (available: " +
-                consumerListing<processable_type>(location) + ")."
+                module.string() +
+                " does not exist (available: " + consumerListing<processable_type>(location) + ")."
             );
         }
         try {

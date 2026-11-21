@@ -29,12 +29,12 @@ run cross-checks the GPU result (see the parity-check mode below).
 Because there is no network involved, this example doubles as a convenient stress-test harness for the
 courtier consumer framework and Hap.
 
-Structure: a loadable module + a thin launcher
+Structure: a loadable module + a thin program
 ----------------------------------------------
 The optimization individual (GImageIndividual) AND its GPU marshaller (GMonaLisaGPUMarshaller) are
 packaged into ONE runtime-loadable shared object, libGImageIndividual.so (built by
 GImageIndividualPlugin.cpp, a two-contribution manifest -- the same GPU-problem-as-a-module shape as
-example 21). GCUDAWorker is a thin launcher: it loads that module with `--module`, names only the
+example 21). GCUDAWorker is a thin program: it loads that module with `--module`, names only the
 flat-genome base and the loaded factory, and adds the two pieces a generic optimizer cannot -- it loads
 the target image (the fitness reference + canvas) and registers GImagePOM (the per-iteration PNG output).
 

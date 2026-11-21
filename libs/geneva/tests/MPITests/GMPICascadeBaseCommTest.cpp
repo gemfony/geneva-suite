@@ -35,16 +35,18 @@
  * submitter and groups of two (a lead and a member). Every rank checks that its role follows its
  * rank in the base communicator -- 0 is the submitter, an odd rank a lead (CLIENT), an even rank
  * above 0 a member (BYSTANDER) -- both the cascade's role and the role that Geneva's MPI module,
- * loaded at run time, reports through consumerRole(): the module must find the environment the
- * cascade built. A consumer that took the roles from MPI_COMM_WORLD would make a member the
- * submitter. Then one iteration of a small population is run: the submitter through Go2, every
- * lead evaluates each item in a round of its group, every member serves the rounds. MPI stays the
- * program's to finalize. Run with five ranks.
+ * loaded at run time, reports through its provider's role(): the module must find the environment
+ * the cascade built. A consumer that took the roles from MPI_COMM_WORLD would make a member the
+ * submitter. Then one iteration of a small population is run on courtier's launcher: the submitter
+ * through Go2, every lead's client evaluates each item in a round of its group (the launcher's item
+ * processor), every member serves the rounds. MPI stays the program's to finalize. Run with five
+ * ranks.
  */
 
 // Standard header files go here
 #include <exception>
 #include <memory>
+#include <optional>
 #include <print>
 #include <tuple>
 #include <vector>
@@ -53,11 +55,10 @@
 #include <mpi.h>
 
 // Geneva header files go here
-#include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp"
+#include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPICascade.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp"
-#include "geneva/GConsumerSetup.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
@@ -87,10 +88,8 @@ processRole expectedRole(int base_rank) {
 }
 
 /** @brief The submitter's part: one iteration of a small population.
- *  @param argc The number of command line arguments
- *  @param argv The command line arguments */
-void optimize(int argc, char **argv) {
-    Go2 go(argc, argv, "./config/Go2.json");
+ *  @param go The Go2 of the run */
+void optimize(Go2 &go) {
     const auto factory =
         std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
     go.registerContentCreator(factory);
@@ -104,15 +103,16 @@ void optimize(int argc, char **argv) {
     (void)go.optimize();
 }
 
-/** @brief A lead's part: its client evaluates every item in a round of its group.
+/** @brief The submitter and the leads, on courtier's launcher: a lead's client evaluates every
+ *  item in a round of its group.
  *  @param argc The number of command line arguments
  *  @param argv The command line arguments
  *  @param cascade The cascade
- *  @return 0 if the client had the lead's role */
-int lead(int argc, char **argv, Gem::Courtier::GMPICascade &cascade) {
-    const auto [role, client] = buildClientFromCommandLine(argc, argv);
-    cascade.requireRole(role);
-    client->setItemProcessor([&cascade](gen::GGenome &item) {
+ *  @return The launcher's exit code */
+int runOnLauncher(int argc, char **argv, Gem::Courtier::GMPICascade &cascade) {
+    GOptimizationDescription geneva;
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    launcher.registerItemProcessor([&cascade](gen::GGenome &item) {
         std::ignore = item.process([&cascade](const gen::GGenome &candidate) {
             std::vector<double> parameters;
             candidate.streamline(parameters);
@@ -126,9 +126,23 @@ int lead(int argc, char **argv, Gem::Courtier::GMPICascade &cascade) {
             })};
         });
     });
-    client->run();
-    cascade.release();
-    return 0;
+    const int rc = launcher.run(
+        geneva,
+        {.prepare = [&cascade](processRole role) -> std::optional<int> {
+             cascade.requireRole(role);
+             return std::nullopt;
+         },
+         .produce =
+             [&geneva] {
+                 Go2 go(geneva);
+                 optimize(go);
+                 return 0;
+             }}
+    );
+    if(cascade.role() == processRole::CLIENT) { // also if the launcher ended before its role
+        cascade.release();
+    }
+    return rc;
 }
 
 /** @brief The test itself; see the file comment.
@@ -166,7 +180,8 @@ int runTest(int argc, char **argv) {
         // reaches its end.
         const processRole expected = expectedRole(base_rank);
         const processRole consumer_role =
-            consumerRole(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"});
+            Gem::Courtier::consumerProvider<gen::GGenome>("mpi", consumerModules())
+                ->role(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"}, false);
         if(cascade.role() != expected || consumer_role != expected) {
             std::println(
                 "FAIL: world rank {} (base rank {}) has the role {} in the cascade and {} for the "
@@ -185,12 +200,8 @@ int runTest(int argc, char **argv) {
         case processRole::BYSTANDER:
             rc = cascade.serve(member);
             break;
-        case processRole::CLIENT:
-            rc = lead(argc, argv, cascade);
-            break;
-        default:
-            cascade.requireRole(consumer_role);
-            optimize(argc, argv);
+        default: // the submitter and the leads
+            rc = runOnLauncher(argc, argv, cascade);
             break;
         }
         if(rc != 0) {

@@ -40,13 +40,11 @@
 #include <boost/core/demangle.hpp>
 
 // Geneva headers go here
-#include "GModuleLoaderInternal.hpp" // loadModuleWithGenevaHandlers(), loadOptionalConsumerModules
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GModuleLoader.hpp"
 #include "common/GModuleManifest.hpp"
 #include "common/GProviderT.hpp"
-#include "geneva/GConsumerPlugin.hpp"   // GConsumerProviderPtr -- a consumer contribution's holder
 #include "geneva/GMarshallerPlugin.hpp" // GMarshallerProviderPtr -- a marshaller's holder
 #include "geneva/GMarshallerSetup.hpp"  // marshallerProviderStore() -- the marshallers' store
 #include "geneva/oa/GFactoryStore.hpp"  // oaFactoryStore() -- the algorithms' store
@@ -113,151 +111,68 @@ void registerMarshallerContribution(
     }
 }
 
-/** @brief Refuses a CONSUMER contribution whose provider is not for this program's item type.
- *  Runs before any factory of the module is called: the loader casts a factory's result without a
- *  check, so a provider for another item type must never be built.
- *  @param contribution The contribution to check
- *  @param context The module, for the messages */
-void checkConsumerContribution(
-    const GemContribution &contribution,
-    const GContributionContext &context
-) {
-    const char *expected = typeid(gen::GGenome).name();
-    if(contribution.subject != nullptr && std::string_view(contribution.subject) == expected) {
-        return;
-    }
-    const std::string found = contribution.subject == nullptr
-                                ? std::string("no item type (its subject is null)")
-                                : "the item type " + boost::core::demangle(contribution.subject);
-    throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In Gem::Geneva::loadModule(): Error!" << '\n'
-        << "The module " << context.description << " contributes a consumer '"
-        << (contribution.name_or_mnemonic != nullptr ? contribution.name_or_mnemonic : "")
-        << "' for " << found << "," << '\n'
-        << "but the consumers of this program distribute the item type "
-        << boost::core::demangle(expected) << "." << '\n'
-        << "A consumer module is built for one item type; consumerManifest<>() names it." << '\n'
-    );
-}
-
-/** @brief Registers one CONSUMER contribution's provider into consumerProviderStore() under the
- *  consumer's mnemonic. A provider whose mnemonic is not the one its manifest entry states, and a
- *  mnemonic already held (a built-in consumer or another module), are hard errors.
- *  @param contribution The contribution whose factory is called
- *  @param context The module, for the messages
- *  @param noun What the contribution is, for the messages */
-void registerConsumerContribution(
-    const GemContribution &contribution,
-    const GContributionContext &context,
-    std::string_view noun
-) {
-    auto const provider = takeContribution<GConsumerProviderPtr>(contribution, context, noun);
-    const std::string mnemonic = provider->getMnemonic();
-    const std::string_view stated =
-        contribution.name_or_mnemonic != nullptr ? contribution.name_or_mnemonic : "";
-    if(mnemonic != stated) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Geneva::loadModule(): Error!" << '\n'
-            << "The module " << context.description
-            << " contributes a consumer under the mnemonic '" << stated << "'," << '\n'
-            << "but its provider calls itself '" << mnemonic << "'. The two must be the same."
-            << '\n'
-        );
-    }
-    if(not consumerProviderStore()->setOnce(mnemonic, provider)) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Geneva::loadModule(): Error!" << '\n'
-            << "The module " << context.description << " contributes a consumer with mnemonic '"
-            << mnemonic << "'," << '\n'
-            << "but that mnemonic is already registered (a built-in consumer or another module"
-            << " owns it)." << '\n'
-        );
-    }
-}
-
 } // namespace
 
 /******************************************************************************/
 /**
- * Loads a module with Geneva's four handlers. The claim-once individual and the three counters are
- * captures of handlers that live for this one call.
- *
- * @param module_path The module
- * @return What it contributed
+ * The record of what was taken is a capture of the handlers, which live as long as their caller
+ * keeps them.
  */
-LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_path) {
-    LoadedModule result;
-    std::uint32_t n_individuals = 0;
-
-    const std::array<GContributionHandler, 4> handlers{{
+std::vector<GContributionHandler> genevaContributionHandlers(LoadedModule &taken) {
+    return {
         {.kind = INDIVIDUAL_CONTRIBUTION_KIND,
          .noun = "individual",
          .check =
-             [&n_individuals](
+             [&taken, seen = std::make_shared<std::filesystem::path>()](
                  const GemContribution & /*contribution*/,
                  const GContributionContext &context
              ) {
-                 if(++n_individuals > 1) {
+                 // a second individual: in another module, or twice in this one
+                 const bool twice = *seen == context.path;
+                 *seen = context.path;
+                 if(taken.individual or twice) {
                      throw gem_exception(
                          g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                          << "In Gem::Geneva::loadModule(): Error!" << '\n'
                          << "The module " << context.description
-                         << " contributes more than one individual;"
-                         << " a module may contribute at most one (one problem per process)."
-                         << '\n'
+                         << " contributes a second individual;"
+                         << " a program has one optimization problem." << '\n'
                      );
                  }
              },
          .take =
-             [&result](const GemContribution &contribution, const GContributionContext &context) {
-                 result.individual =
+             [&taken](const GemContribution &contribution, const GContributionContext &context) {
+                 taken.individual =
                      takeContribution<GIndividualFactoryPtr>(contribution, context, "individual");
+                 taken.individual_module = context.path;
              }},
         {.kind = OA_CONTRIBUTION_KIND,
          .noun = "optimization algorithm",
          .check = {},
          .take =
-             [&result](const GemContribution &contribution, const GContributionContext &context) {
+             [&taken](const GemContribution &contribution, const GContributionContext &context) {
                  registerOAContribution(contribution, context, "optimization algorithm");
-                 ++result.oa_count;
+                 ++taken.oa_count;
              }},
         {.kind = MARSHALLER_CONTRIBUTION_KIND,
          .noun = "GPU marshaller",
          .check = {},
          .take =
-             [&result](const GemContribution &contribution, const GContributionContext &context) {
+             [&taken](const GemContribution &contribution, const GContributionContext &context) {
                  registerMarshallerContribution(contribution, context, "GPU marshaller");
-                 ++result.marshaller_count;
+                 ++taken.marshaller_count;
              }},
-        {.kind = Gem::Courtier::CONSUMER_CONTRIBUTION_KIND,
-         .noun = "consumer",
-         .check = checkConsumerContribution,
-         .take =
-             [&result](const GemContribution &contribution, const GContributionContext &context) {
-                 registerConsumerContribution(contribution, context, "consumer");
-                 ++result.consumer_count;
-             }},
-    }};
-
-    Gem::Common::loadModule(module_path, handlers);
-    return result;
+    };
 }
 
 /******************************************************************************/
 /**
- * Loads a module into a Geneva program: the optional consumer modules first, then the module itself
- * with Geneva's handlers.
- *
- * @param module_path The module
- * @return What it contributed
+ * Loads a module into a Geneva program with Geneva's handlers.
  */
 LoadedModule loadModule(const std::filesystem::path &module_path) {
-    // Before the loader's lock is taken, and never from inside it: see GModuleLoaderInternal.hpp.
-    loadOptionalConsumerModules();
-    return loadModuleWithGenevaHandlers(module_path);
+    LoadedModule result;
+    Gem::Common::loadModule(module_path, genevaContributionHandlers(result));
+    return result;
 }
 
 /******************************************************************************/

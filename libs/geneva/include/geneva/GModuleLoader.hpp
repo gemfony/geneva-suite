@@ -35,6 +35,7 @@
 // Standard headers go here
 #include <cstdint>
 #include <filesystem>
+#include <vector>
 
 // Geneva headers go here
 #include "common/GModuleLoader.hpp" // Gem::Common::loadModule() -- the loader this one builds on
@@ -46,10 +47,10 @@ namespace Gem::Geneva {
 /**
  * @brief What a loaded module contributed to this process.
  *
- * A module may carry several typed contributions. The store-backed kinds (optimization algorithms,
- * GPU marshallers and consumers) are registered into their process-global stores by @c loadModule()
- * as a side effect; the claim-once individual (at most one per process) is handed back here for the
- * caller to claim.
+ * A module may carry several typed contributions. The store-backed kinds (optimization algorithms
+ * and GPU marshallers) are registered into their process-global stores by @c loadModule() as a side
+ * effect; the claim-once individual (at most one per process) is handed back here for the caller to
+ * claim. Consumers are courtier's: a consumer module is loaded by the launcher.
  */
 struct LoadedModule {
     /** @brief The module's individual content-creator factory, or null if it contributes no
@@ -59,27 +60,33 @@ struct LoadedModule {
     std::uint32_t oa_count = 0;
     /** @brief How many GPU marshallers the module registered into @c marshallerProviderStore(). */
     std::uint32_t marshaller_count = 0;
-    /** @brief How many consumers the module registered into @c consumerProviderStore(). */
-    std::uint32_t consumer_count = 0;
+    /** @brief The module the individual came from; empty if none contributed one. */
+    std::filesystem::path individual_module;
 };
 
 /**
- * @brief Loads a module into a Geneva program.
- *
- * Geneva's optional consumer modules (MPI) are loaded first, if they have not been: a module
- * given here cannot take the mnemonic of one. Then the module is loaded with
- * Gem::Common::loadModule() and Geneva's handlers for the four kinds it accepts:
- *  - an individual: at most one per module; its factory is returned in LoadedModule::individual
- *    for the caller to claim (the one content-creator slot is Go2's);
+ * @brief Geneva's handlers for the contributions of modules, for Gem::Common::loadModule() or the
+ * launcher (GOptimizationDescription::moduleHandlers()):
+ *  - an individual: its factory and module are recorded in @p taken for the caller to claim (the
+ *    one content-creator slot is Go2's); a second individual among the modules these handlers load
+ *    is refused (one problem per process);
  *  - an optimization algorithm: registered through registerOptimizationAlgorithm() under its
  *    mnemonic;
- *  - a GPU marshaller: registered in marshallerProviderStore() under its device target;
- *  - a consumer: registered in consumerProviderStore() under its mnemonic.
- * A mnemonic or device target that is taken already is a refusal that names the module. A
- * module with a kind Geneva does not accept, with a contribution without factory entry point,
- * or with two individuals is refused before anything of it is taken; see
- * Gem::Common::loadModule() for the other refusals and for the one case in which part of a
- * module stays registered.
+ *  - a GPU marshaller: registered in courtier's marshaller store under its device target.
+ * A mnemonic or device target that is taken already is a refusal that names the module.
+ * @param taken What the handlers took; it must outlive their use
+ * @return The three handlers
+ */
+std::vector<Gem::Common::GContributionHandler> genevaContributionHandlers(LoadedModule &taken);
+
+/**
+ * @brief Loads a module into a Geneva program, with genevaContributionHandlers(). A module with a
+ * kind Geneva does not accept (a consumer: the launcher loads those), with a contribution without
+ * factory entry point, or with two individuals is refused before anything of it is taken; see
+ * Gem::Common::loadModule() for the other refusals and for the one case in which part of a module
+ * stays registered.
+ * @param module_path The module
+ * @return What it contributed
  */
 LoadedModule loadModule(const std::filesystem::path &module_path);
 
