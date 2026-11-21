@@ -54,4 +54,68 @@ FOREACH ( _dp ${_COURTIER_DOCPROGRAMS} )
 		DESTINATION ${INSTALL_PREFIX_DATA}/docprograms/courtier )
 ENDFOREACH ()
 
+# grid_minimum: a program without Geneva on courtier's launcher, with a consumer module of its own
+# per consumer (grid_minimum_<consumer>.cpp), built for its item type and lying next to it as
+# libcourtier_grid_minimum_<consumer>.so. A module links nothing it can resolve in the program
+# (linked with exported symbols); the MPI module links courtier's MPI library, which holds the
+# process's MPI environment. Run on every consumer: stc alone; beast and mqtt as a server and two
+# clients, processes of their own (runServerAndClients.sh; mqtt on the tests' broker); mpi under
+# mpirun with three ranks.
+ADD_EXECUTABLE ( courtier_grid_minimum grid_minimum.cpp GGridSlice.hpp )
+TARGET_LINK_LIBRARIES ( courtier_grid_minimum ${COURTIER_LIBNAME} ${COMMON_LIBNAME} ${WEFT_LIBNAME}
+	${Boost_LIBRARIES} )
+SET_TARGET_PROPERTIES ( courtier_grid_minimum PROPERTIES ENABLE_EXPORTS ON )
+SET ( _GRID_MINIMUM_CONSUMERS stc beast )
+IF ( GEM_MQTT_CONSUMER_ENABLED )
+	LIST ( APPEND _GRID_MINIMUM_CONSUMERS mqtt )
+ENDIF ()
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
+	LIST ( APPEND _GRID_MINIMUM_CONSUMERS mpi )
+ENDIF ()
+FOREACH ( _consumer ${_GRID_MINIMUM_CONSUMERS} )
+	SET ( _module courtier_grid_minimum_${_consumer} )
+	ADD_LIBRARY ( ${_module} MODULE grid_minimum_${_consumer}.cpp )
+	SET_TARGET_PROPERTIES ( ${_module} PROPERTIES PREFIX "lib" )
+	TARGET_INCLUDE_DIRECTORIES ( ${_module} PRIVATE
+		$<TARGET_PROPERTY:${COURTIER_LIBNAME},INTERFACE_INCLUDE_DIRECTORIES> )
+	TARGET_COMPILE_OPTIONS ( ${_module} PRIVATE -UGEM_TESTING )
+	ADD_DEPENDENCIES ( courtier_grid_minimum ${_module} )
+	INSTALL ( TARGETS ${_module} DESTINATION ${INSTALL_PREFIX_DATA}/docprograms/courtier )
+ENDFOREACH ()
+IF ( GEM_BUILD_WITH_MPI_CONSUMER )
+	TARGET_LINK_LIBRARIES ( courtier_grid_minimum_mpi ${COURTIER_MPI_LIBNAME} )
+ENDIF ()
+INSTALL ( TARGETS courtier_grid_minimum DESTINATION ${INSTALL_PREFIX_DATA}/docprograms/courtier )
+
+ADD_TEST ( NAME courtier_grid_minimum COMMAND courtier_grid_minimum )
+ADD_TEST ( NAME courtier_grid_minimum_beast
+	COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh $<TARGET_FILE:courtier_grid_minimum>
+	beast 2 - )
+SET ( _GRID_MINIMUM_TESTS courtier_grid_minimum courtier_grid_minimum_beast )
+IF ( GEM_MQTT_CONSUMER_ENABLED AND GEM_MOSQUITTO_EXECUTABLE )
+	ADD_TEST ( NAME courtier_grid_minimum_mqtt
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh $<TARGET_FILE:courtier_grid_minimum>
+		mqtt 2 ${GEM_MQTT_TEST_BROKER_DIR} )
+	SET_TESTS_PROPERTIES ( courtier_grid_minimum_mqtt PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker )
+	LIST ( APPEND _GRID_MINIMUM_TESTS courtier_grid_minimum_mqtt )
+ENDIF ()
+FOREACH ( _test ${_GRID_MINIMUM_TESTS} )
+	SET_TESTS_PROPERTIES ( ${_test} PROPERTIES TIMEOUT 300 )
+ENDFOREACH ()
+SET_TESTS_PROPERTIES ( courtier_grid_minimum_beast PROPERTIES PROCESSORS 3 )
+IF ( TEST courtier_grid_minimum_mqtt )
+	SET_TESTS_PROPERTIES ( courtier_grid_minimum_mqtt PROPERTIES PROCESSORS 3 )
+ENDIF ()
+IF ( GEM_BUILD_WITH_MPI_CONSUMER AND MPIEXEC_EXECUTABLE )
+	GEM_ADD_MPI_TEST ( NAME courtier_grid_minimum_mpi TIMEOUT 120
+		COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
+		$<TARGET_FILE:courtier_grid_minimum> --consumer mpi ${MPIEXEC_POSTFLAGS} )
+	SET_TESTS_PROPERTIES ( courtier_grid_minimum_mpi PROPERTIES PROCESSORS 3 )
+	LIST ( APPEND _GRID_MINIMUM_TESTS courtier_grid_minimum_mpi )
+ENDIF ()
+FOREACH ( _test ${_GRID_MINIMUM_TESTS} )
+	SET_TESTS_PROPERTIES ( ${_test} PROPERTIES LABELS "courtier;docprogram" )
+	GEM_TEST_SIZE ( ${_test} S )
+ENDFOREACH ()
+
 GEM_AGGREGATE_TARGET( "docprograms-courtier" )

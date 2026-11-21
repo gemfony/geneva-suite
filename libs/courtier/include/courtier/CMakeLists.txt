@@ -54,6 +54,7 @@ SET ( COMMUNICATIONINCLUDES
 SET ( CONSUMER_INCLUDES
     consumers/GMPIConsumerConfig.hpp
     consumers/GMqttConsumerConfig.hpp
+    consumers/GMqttConsumerProviderT.hpp
     consumers/GMqttConsumerT.hpp
     consumers/GNetworkedConsumerT.hpp
     consumers/GNetworkedTimeoutConfig.hpp
@@ -62,6 +63,7 @@ SET ( CONSUMER_INCLUDES
     consumers/GStdThreadConsumerProviderT.hpp
     consumers/GStdThreadConsumerT.hpp
     consumers/GWebsocketConsumerConfig.hpp
+    consumers/GWebsocketConsumerProviderT.hpp
     consumers/GWebsocketConsumerT.hpp
 )
 
@@ -103,6 +105,7 @@ SET ( GPU_INCLUDES
 IF (GEM_BUILD_WITH_MPI_CONSUMER)
     SET( CONSUMER_INCLUDES
             ${CONSUMER_INCLUDES}
+            consumers/GMPIConsumerProviderT.hpp
             consumers/GMPIConsumerT.hpp)
     SET( TRANSPORT_INCLUDES
             ${TRANSPORT_INCLUDES}
