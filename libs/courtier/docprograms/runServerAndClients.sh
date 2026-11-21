@@ -47,6 +47,8 @@
 #                    server has all its clients, as a batch system warns a job before it ends it.
 #                    The client must go on serving: the run must still be going when the signal
 #                    arrives, and must end as without it.
+# SERVER_SIGNAL      (environment) a signal sent to the server while it waits for its clients,
+#                    none of which is started then: the server must end with 0 within 10 s.
 #
 # The server must end with 0 within 120 s, the clients within 30 s after it. The script starts
 # in, and its programs write into, the current directory (the server's output: server.log, shown
@@ -70,6 +72,16 @@ for ((t = 0; t < 300; t++)); do
     kill -0 "$server" 2> /dev/null || break
     sleep 0.1
 done
+if [ -n "${SERVER_SIGNAL:-}" ]; then
+    # The program, not the timeout that runs it; it is reaped by timeout, so kill -0 sees its end
+    program_pid=$(pgrep -P "$server")
+    kill -"$SERVER_SIGNAL" "$program_pid"
+    for ((t = 0; t < 100; t++)); do kill -0 "$program_pid" 2> /dev/null || break; sleep 0.1; done
+    kill -KILL "$program_pid" 2> /dev/null && echo "the server did not end within 10 s"
+    wait "$server"; server_exit=$?
+    cat server.log; echo "server exit $server_exit"
+    [ "$server_exit" = 0 ]; exit
+fi
 client_pids=()
 for ((i = 0; i < clients; i++)); do
     if ((i == clients - 1)); then sleep "${LAST_CLIENT_DELAY:-0}"; fi

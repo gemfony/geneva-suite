@@ -303,7 +303,8 @@ public:
  * cannot tell (std::nullopt) is not waited for, and the output says so. A connected client asks
  * for work at once and waits until the first batch is submitted, so no item is processed before
  * every client is there -- the condition of a measurement, and of a run whose clients must all
- * take part. Not under --update-configs.
+ * take part. Not under --update-configs. A stop request (installStopHandlers()) ends the wait:
+ * the submitter then produces nothing and run() returns 0.
  *
  * A choice made in main() (setConsumer(), setClientMode(), setMaxClientTime()) loses against an
  * option given explicitly on the command line, option by option, and wins against a default.
@@ -444,8 +445,9 @@ private:
         Program &program
     );
     /** @brief The client gate (see the class comment) @param consumer The process consumer
+     *  @return false if a stop was requested while it waited
      *  @throws gem_exception if fewer than --waitForClients clients connect within the limit */
-    void waitForClients_(const GBaseConsumerT<processable_type> &consumer) const;
+    bool waitForClients_(const GBaseConsumerT<processable_type> &consumer) const;
     /** @brief The available consumers, for the help text and the refusals @param description The
      *  producer @return "a, b, c" */
     [[nodiscard]] std::string listing_(const GProducerDescriptionI &description) const;
@@ -783,8 +785,10 @@ int GLauncherT<processable_type>::runSubmitter_(
         consumer_ptr consumer_;
     };
     const Release release(registry, consumer);
-    if(not refresh_) {
-        waitForClients_(*consumer);
+    // A stop at the gate ends the program: produce() would submit work the missing clients cannot
+    // take, and a run halts only after an iteration, so it would not end at once
+    if(not refresh_ && not waitForClients_(*consumer)) {
+        return 0;
     }
     return program.produce ? program.produce() : 0;
 }
@@ -792,12 +796,12 @@ int GLauncherT<processable_type>::runSubmitter_(
 /******************************************************************************/
 
 template <ProcessableItem processable_type>
-void GLauncherT<processable_type>::waitForClients_(
+bool GLauncherT<processable_type>::waitForClients_(
     const GBaseConsumerT<processable_type> &consumer
 ) const {
     const std::size_t wanted = cl_wait_for_clients_;
     if(wanted == 0) {
-        return;
+        return true;
     }
     const auto start = std::chrono::steady_clock::now();
     std::optional<std::size_t> connected = consumer.connectedClients();
@@ -806,11 +810,16 @@ void GLauncherT<processable_type>::waitForClients_(
                   << "\" cannot tell how many clients are connected; the program starts without "
                      "waiting for "
                   << wanted << " clients" << std::endl;
-        return;
+        return true;
     }
     std::cout << "Waiting for " << wanted << " clients (at most " << cl_client_wait_limit_ << " s)"
               << std::endl;
     while(*connected < wanted) {
+        if(Gem::Common::stopRequested()) {
+            std::cout << "Waiting for clients: a stop was requested with " << *connected << " of "
+                      << wanted << " clients connected; nothing is produced" << std::endl;
+            return false;
+        }
         if(std::chrono::steady_clock::now() - start >=
            std::chrono::seconds(cl_client_wait_limit_)) {
             throw refusal_(
@@ -827,6 +836,7 @@ void GLauncherT<processable_type>::waitForClients_(
     std::cout << "Waiting for clients: " << *connected << " of " << wanted
               << " clients connected after " << std::format("{:.1f}", waited.count()) << " s"
               << std::endl;
+    return true;
 }
 
 /******************************************************************************/
