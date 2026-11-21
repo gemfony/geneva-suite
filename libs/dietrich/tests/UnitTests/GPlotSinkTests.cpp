@@ -34,6 +34,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <regex>
 #include <sstream>
 #include <string>
 
@@ -147,11 +148,14 @@ TEST_CASE("the backend is chosen per sink and names the extension", "[dietrich][
 
 TEST_CASE("a histogram without bins gets one per distinct value; a derived sink completes the plot", "[dietrich][record]") {
     ScratchDirectory const dir("hist");
-    GDataLog layout("Adaptions", 2, 1);
+    GDataLog layout("Adaptions", 3, 1);
     auto const own = layout.declareSeries(curve("own", {"a", "b"}));
     GPlotSpec hist(plotKind::hist_2d);
     hist.columns = {"iteration", "n"};
     layout.declareSeries(hist);
+    GPlotSpec hist_1d(plotKind::hist_1d);
+    hist_1d.columns = {"n"};
+    layout.declareSeries(hist_1d);
     auto const sink = std::make_shared<GLookingSink>(layout);
     sink->own_series = own;
     {
@@ -166,7 +170,23 @@ TEST_CASE("a histogram without bins gets one per distinct value; a derived sink 
     }
     CHECK(sink->bins_x == 4);
     CHECK(sink->bins_y == 3);
-    CHECK(contentOf(dir / "adaptions.C").find("1234.5") != std::string::npos);
+    const std::string macro = contentOf(dir / "adaptions.C");
+    CHECK(macro.find("1234.5") != std::string::npos);
+
+    // Regression: the automatic range ended at the largest value, which ROOT's exclusive upper edge
+    // put into the overflow bin -- the last iteration and the largest count were not drawn. The
+    // range now holds every value: the upper edges lie above 3 (the last iteration) and 7.
+    std::smatch m;
+    const std::regex th2d(R"re(new TH2D\("[^"]*", "[^"]*",(\d+), ([^,]+), ([^,]+),(\d+), ([^,]+), ([^)]+)\))re");
+    REQUIRE(std::regex_search(macro, m, th2d));
+    CHECK(std::stod(m[2].str()) <= 0.);
+    CHECK(std::stod(m[3].str()) > 3.);
+    CHECK(std::stod(m[5].str()) <= 1.);
+    CHECK(std::stod(m[6].str()) > 7.);
+    const std::regex th1d(R"re(new TH1D\("[^"]*", "[^"]*",(\d+), ([^,]+), ([^)]+)\))re");
+    REQUIRE(std::regex_search(macro, m, th1d));
+    CHECK(std::stod(m[2].str()) <= 1.);
+    CHECK(std::stod(m[3].str()) > 7.);
 }
 
 TEST_CASE("a plot sink refuses text columns and series that are only partly the stream's", "[dietrich][record]") {

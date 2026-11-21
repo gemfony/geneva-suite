@@ -70,6 +70,28 @@ using namespace Gem::Common;
 // numeric to_string(...) for unqualified calls; merge common's overloads back in.
 using Gem::Common::to_string;
 
+namespace {
+
+/******************************************************************************/
+/**
+ * @brief The automatic range of a histogram axis: from the smallest value to one bin width above the
+ * largest, since ROOT's upper edge is exclusive -- a range that ended at the largest value would put
+ * every entry equal to it into the overflow bin, which is not drawn. One value alone gets the range
+ * [value - 0.5, value + 0.5].
+ * @param lo The smallest value
+ * @param hi The largest value
+ * @param n_bins The number of bins of the axis
+ * @return The lower and the upper edge
+ */
+std::tuple<double, double> rangeHolding(double lo, double hi, std::size_t n_bins) {
+    if(hi <= lo) {
+        return {lo - 0.5, hi + 0.5};
+    }
+    return {lo, hi + (hi - lo) / static_cast<double>(std::max<std::size_t>(n_bins, 1))};
+}
+
+} /* namespace */
+
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
@@ -138,10 +160,11 @@ std::string GHistogram1D::headerData_(
                     << '\n';
     }
     else { // automatic range detection
-        std::tuple<double, double> minmax = this->getMinMaxElements();
+        const auto [min_x, max_x] = this->getMinMaxElements();
+        const auto [lo_x, hi_x] = rangeHolding(min_x, max_x, n_bins_x_);
         header_data << indent << "TH1D *" << hist_name << " = new TH1D(\"" << hist_name << "\", \""
-                    << hist_name << "\"," << n_bins_x_ << ", " << std::get<0>(minmax) << ", "
-                    << std::get<1>(minmax) << ");" << comment << '\n'
+                    << hist_name << "\"," << n_bins_x_ << ", " << lo_x << ", " << hi_x << ");"
+                    << comment << '\n'
                     << '\n';
     }
 
@@ -663,12 +686,12 @@ std::string GHistogram2D::headerData_(
                     << '\n';
     }
     else { // // automatic range detection
-        std::tuple<double, double, double, double> minmax = this->getMinMaxElements();
-
+        const auto [min_x, max_x, min_y, max_y] = this->getMinMaxElements();
+        const auto [lo_x, hi_x] = rangeHolding(min_x, max_x, n_bins_x_);
+        const auto [lo_y, hi_y] = rangeHolding(min_y, max_y, n_bins_y_);
         header_data << indent << "TH2D *" << hist_name << " = new TH2D(\"" << hist_name << "\", \""
-                    << hist_name << "\"," << n_bins_x_ << ", " << std::get<0>(minmax) << ", "
-                    << std::get<1>(minmax) << "," << n_bins_y_ << ", " << std::get<2>(minmax)
-                    << ", " << std::get<3>(minmax) << ");" << comment << '\n'
+                    << hist_name << "\"," << n_bins_x_ << ", " << lo_x << ", " << hi_x << ","
+                    << n_bins_y_ << ", " << lo_y << ", " << hi_y << ");" << comment << '\n'
                     << '\n';
     }
 
