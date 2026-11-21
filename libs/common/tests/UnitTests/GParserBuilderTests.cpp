@@ -1371,3 +1371,163 @@ TEST_CASE(
     Argv no_value({"--count"});
     CHECK_THROWS_AS(gpb.parseCommandLine(no_value.argc(), no_value.argv()), GCommandLineError);
 }
+
+// ---------------------------------------------------------------------------
+// The command line: sections of the help text and options listed only by --showAll
+
+TEST_CASE(
+    "GParserBuilder: --help and --showAll print what Go2 prints for the same options",
+    "[common][parser-builder]"
+) {
+    namespace po = boost::program_options;
+
+    GParserBuilder gpb;
+    bool client = false;
+    int items = 0;
+    int port = 0;
+    int max_iterations = 0;
+    gpb.beginCLSection("Basic options");
+    gpb.registerCLFlag("client", client, "run as a client");
+    gpb.beginCLSection("User options");
+    gpb.registerCLParameter<int>("nItems,n", items, 5, "the number of items");
+    gpb.beginCLSection(
+        "Global algorithm- and consumer-options",
+        "Hidden algorithm- and consumer-options"
+    );
+    gpb.registerCLParameter<int>("eaMaxIterations", max_iterations, 0, "the iterations").setHidden();
+    gpb.registerCLParameter<int>("port", port, 10000, "the port");
+
+    // Go2's construction (Go2::parseCommandLine(), Go2::emitHelpIfRequested()), by hand
+    po::options_description general("Usage: prog [options]");
+    po::options_description basic("Basic options");
+    basic.add_options()("help,h", "Emit help message")("showAll", "Show all available options")(
+        "client",
+        "run as a client"
+    );
+    po::options_description user("User options");
+    user.add_options()("nItems,n", po::value<int>()->default_value(5), "the number of items");
+    po::options_description visible("Global algorithm- and consumer-options");
+    visible.add_options()("port", po::value<int>()->default_value(10000), "the port");
+    po::options_description hidden("Hidden algorithm- and consumer-options");
+    hidden.add_options()("eaMaxIterations", po::value<int>()->default_value(0), "the iterations");
+    general.add(basic).add(user).add(visible).add(hidden);
+    po::options_description selected("Usage: prog [options]");
+    selected.add(basic).add(user).add(visible);
+    std::ostringstream go2_all;
+    go2_all << general << '\n';
+    std::ostringstream go2_help;
+    go2_help << selected << '\n';
+
+    {
+        CoutCapture capture;
+        Argv help({"--help"});
+        CHECK(gpb.parseCommandLine(help.argc(), help.argv()) == GCL_HELP_REQUESTED);
+        CHECK(capture.text() == go2_help.str());
+        CHECK_THAT(capture.text(), !ContainsSubstring("eaMaxIterations"));
+    }
+    {
+        CoutCapture capture;
+        Argv show_all({"--showAll"});
+        CHECK(gpb.parseCommandLine(show_all.argc(), show_all.argv()) == GCL_HELP_REQUESTED);
+        CHECK(capture.text() == go2_all.str());
+    }
+
+    // A hidden option is read like any other
+    Argv given({"--eaMaxIterations=7", "-n", "3"});
+    CHECK(gpb.parseCommandLine(given.argc(), given.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK(max_iterations == 7);
+    CHECK(items == 3);
+}
+
+TEST_CASE(
+    "GParserBuilder: without sections the help text is listed under the usage line",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    int count = 0;
+    int secret = 0;
+    gpb.registerCLParameter<int>("count", count, 3, "how many");
+    gpb.registerCLParameter<int>("secret", secret, 1, "not for everybody").setHidden();
+    CHECK(gpb.numberOfCLOptions() == 2);
+
+    std::string help_text;
+    {
+        CoutCapture capture;
+        Argv help({"-h"});
+        CHECK(gpb.parseCommandLine(help.argc(), help.argv()) == GCL_HELP_REQUESTED);
+        help_text = capture.text();
+    }
+    CHECK_THAT(help_text, Catch::Matchers::StartsWith("Usage: prog [options]:\n  -h [ --help ]"));
+    CHECK_THAT(help_text, ContainsSubstring("--showAll"));
+    CHECK_THAT(help_text, ContainsSubstring("--count arg (=3)"));
+    CHECK_THAT(help_text, !ContainsSubstring("secret"));
+
+    std::string all_text;
+    {
+        CoutCapture capture;
+        Argv show_all({"--showAll"});
+        CHECK(gpb.parseCommandLine(show_all.argc(), show_all.argv()) == GCL_HELP_REQUESTED);
+        all_text = capture.text();
+    }
+    CHECK_THAT(all_text, ContainsSubstring("--secret arg (=1)"));
+    CHECK_THAT(all_text, ContainsSubstring("not for everybody"));
+
+    // The help text of an error leaves the hidden option out, as --help does
+    Argv unknown({"--nonsense"});
+    try {
+        gpb.parseCommandLine(unknown.argc(), unknown.argv());
+        FAIL("an unknown option was accepted");
+    }
+    catch(GCommandLineError const &e) {
+        CHECK(e.usage() + '\n' == help_text);
+    }
+}
+
+TEST_CASE(
+    "GParserBuilder::registerCLFlag: true if given and false if not; it takes no value",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    bool client = true; // not the default: a parse without the flag sets it to false
+    gpb.registerCLFlag("client,c", client, "run as a client");
+
+    Argv absent({});
+    CHECK(gpb.parseCommandLine(absent.argc(), absent.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK_FALSE(client);
+
+    Argv given({"--client"});
+    CHECK(gpb.parseCommandLine(given.argc(), given.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK(client);
+
+    Argv short_form({"-c"});
+    client = false;
+    CHECK(gpb.parseCommandLine(short_form.argc(), short_form.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK(client);
+
+    Argv with_value({"--client=true"});
+    CHECK_THROWS_AS(gpb.parseCommandLine(with_value.argc(), with_value.argv()), GCommandLineError);
+}
+
+TEST_CASE(
+    "GParserBuilder::registerCLRepeatableParameter: every value in the order given",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    std::vector<std::string> modules{"left over"};
+    std::vector<int> ranks;
+    gpb.registerCLRepeatableParameter("module,m", modules, "a module to load (repeatable)");
+    gpb.registerCLRepeatableParameter("rank", ranks, "a rank (repeatable)");
+
+    Argv given({"--module", "a.so", "-m", "b.so", "--rank=2", "--module=c.so", "--rank", "0"});
+    CHECK(gpb.parseCommandLine(given.argc(), given.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK(modules == std::vector<std::string>{"a.so", "b.so", "c.so"});
+    CHECK(ranks == std::vector<int>{2, 0});
+
+    Argv absent({});
+    CHECK(gpb.parseCommandLine(absent.argc(), absent.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK(modules.empty());
+    CHECK(ranks.empty());
+
+    Argv bad_value({"--rank=first"});
+    CHECK_THROWS_AS(gpb.parseCommandLine(bad_value.argc(), bad_value.argv()), GCommandLineError);
+}
