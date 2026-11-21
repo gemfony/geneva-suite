@@ -1043,36 +1043,20 @@ bool GParserBuilder::unknownKeyIsError() {
  *         not read as its type, a missing value); it carries the help text
  */
 bool GParserBuilder::parseCommandLine(int argc, char **argv, bool verbose) {
-    namespace po = boost::program_options;
-
     // All options, the hidden ones included: what is parsed, and what --showAll lists
     std::string const usage_string = std::string("Usage: ") + argv[0] + " [options]";
-    po::options_description all(usage_string);
+    boost::program_options::options_description all(usage_string);
     describeCLOptions_(all, true /* show_all */, true /* with_help */);
+    auto const vm = parseAgainst_(argc, argv, all, usage_string, false /* permissive */);
 
-    po::variables_map vm;
-    try {
-        po::store(po::parse_command_line(argc, (const char *const *)argv, all), vm);
-
-        // Emit a help message, if necessary and let the caller of this function know
-        if(vm.contains("showAll")) {
-            std::cout << all << '\n';
-            return GCL_HELP_REQUESTED;
-        }
-        if(vm.contains("help")) {
-            std::cout << helpText_(usage_string) << '\n';
-            return GCL_HELP_REQUESTED;
-        }
-
-        po::notify(vm);
+    // Emit a help message, if necessary and let the caller of this function know
+    if(vm.contains("showAll")) {
+        std::cout << all << '\n';
+        return GCL_HELP_REQUESTED;
     }
-    catch(po::error const &e) {
-        // A malformed command line is a USER error, not an internal fault: the caller decides what
-        // happens (an uncaught exception ends the program through the fatal report, exit code 1).
-        throw GCommandLineError(
-            std::string("Malformed command line: ") + e.what() + " (--help lists the options)",
-            helpText_(usage_string)
-        );
+    if(vm.contains("help")) {
+        std::cout << helpText_(usage_string) << '\n';
+        return GCL_HELP_REQUESTED;
     }
 
     if(verbose) {
@@ -1085,6 +1069,50 @@ bool GParserBuilder::parseCommandLine(int argc, char **argv, bool verbose) {
     }
 
     return GCL_NO_HELP_REQUESTED;
+}
+
+/******************************************************************************/
+/**
+ * Reads the command-line options registered so far and ignores all others (--help among them),
+ * without error: an early parse, for a program that learns from a few options (--module) which
+ * further options exist. parseCommandLine() later reads the same command line with all options. An
+ * abbreviated long name is matched against the options known so far only.
+ *
+ * @param argc The argument count
+ * @param argv The argument vector
+ * @throws GCommandLineError if a known option is malformed (a missing value, a value that does not
+ *         read as its type)
+ */
+void GParserBuilder::parseKnownOptions(int argc, char **argv) {
+    std::string const usage_string = std::string("Usage: ") + argv[0] + " [options]";
+    boost::program_options::options_description known(usage_string);
+    describeCLOptions_(known, true /* show_all */, false /* with_help */);
+    parseAgainst_(argc, argv, known, usage_string, true /* permissive */);
+}
+
+/******************************************************************************/
+/**
+ * Whether the last parse (parseCommandLine() or parseKnownOptions()) found an option on the command
+ * line, as opposed to assigning its default -- so that an option given explicitly can win over a
+ * choice made in code. An option given with the value of its default counts as given.
+ *
+ * @param option_name The option's name; a short form after a comma ("client,c") is ignored
+ * @return true if the option was given on the command line
+ * @throws gem_exception if no command-line option of that name is registered
+ */
+bool GParserBuilder::givenExplicitly(std::string const &option_name) const {
+    auto const long_name = [](std::string const &name) { return name.substr(0, name.find(',')); };
+    std::string const key = long_name(option_name);
+    if(std::ranges::none_of(cl_parameter_proxies_, [&](auto const &p_ptr) {
+           return long_name(p_ptr->optionName(0)) == key;
+       })) {
+        throw gem_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GParserBuilder::givenExplicitly(): no command-line option \"" << key
+            << "\" is registered" << '\n'
+        );
+    }
+    return given_explicitly_.contains(key);
 }
 
 /******************************************************************************/
@@ -1188,6 +1216,53 @@ void GParserBuilder::describeCLOptions_(
             desc.add(hidden);
         }
     }
+}
+
+/******************************************************************************/
+/**
+ * Parses the command line against an options description, records which options were given (not
+ * defaulted; by their long names, the keys of the variables map) and assigns the values.
+ *
+ * @param argc The argument count
+ * @param argv The argument vector
+ * @param desc The options to read
+ * @param usage_string The usage line, for the help text of an error
+ * @param permissive Whether options @p desc does not know are ignored instead of refused
+ * @return The variables map of the parse
+ * @throws GCommandLineError if the command line is malformed; a malformed command line is the
+ *         user's error, so the caller decides what happens (uncaught: the fatal report, exit code 1)
+ */
+boost::program_options::variables_map GParserBuilder::parseAgainst_(
+    int argc,
+    char **argv,
+    boost::program_options::options_description const &desc,
+    std::string const &usage_string,
+    bool permissive
+) {
+    namespace po = boost::program_options;
+    given_explicitly_.clear();
+    po::variables_map vm;
+    try {
+        po::command_line_parser parser(argc, (const char *const *)argv);
+        parser.options(desc);
+        if(permissive) {
+            parser.allow_unregistered();
+        }
+        po::store(parser.run(), vm);
+        po::notify(vm);
+    }
+    catch(po::error const &e) {
+        throw GCommandLineError(
+            std::string("Malformed command line: ") + e.what() + " (--help lists the options)",
+            helpText_(usage_string)
+        );
+    }
+    for(auto const &[key, value] : vm) {
+        if(not value.defaulted()) {
+            given_explicitly_.insert(key);
+        }
+    }
+    return vm;
 }
 
 /******************************************************************************/

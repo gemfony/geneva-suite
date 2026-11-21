@@ -1531,3 +1531,93 @@ TEST_CASE(
     Argv bad_value({"--rank=first"});
     CHECK_THROWS_AS(gpb.parseCommandLine(bad_value.argc(), bad_value.argv()), GCommandLineError);
 }
+
+// ---------------------------------------------------------------------------
+// The command line: which options were given explicitly, and the early parse
+
+TEST_CASE(
+    "GParserBuilder::givenExplicitly: given on the command line and not defaulted",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    int count = 0;
+    int port = 0;
+    bool client = false;
+    std::vector<std::string> modules;
+    gpb.registerCLParameter<int>("count,n", count, 3, "how many");
+    gpb.registerCLParameter<int>("port", port, 10000, "the port");
+    gpb.registerCLFlag("client", client, "run as a client");
+    gpb.registerCLRepeatableParameter("module", modules, "a module");
+
+    CHECK_FALSE(gpb.givenExplicitly("count")); // before any parse
+
+    // Given with the value of its default: given all the same
+    Argv given({"-n", "3", "--client"});
+    CHECK(gpb.parseCommandLine(given.argc(), given.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK(gpb.givenExplicitly("count"));
+    CHECK(gpb.givenExplicitly("count,n"));
+    CHECK(gpb.givenExplicitly("client"));
+    CHECK_FALSE(gpb.givenExplicitly("port"));
+    CHECK_FALSE(gpb.givenExplicitly("module"));
+    CHECK(port == 10000);
+
+    // Each parse replaces what the last one found
+    Argv other({"--port=1", "--module", "a.so"});
+    CHECK(gpb.parseCommandLine(other.argc(), other.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK_FALSE(gpb.givenExplicitly("count"));
+    CHECK_FALSE(gpb.givenExplicitly("client"));
+    CHECK(gpb.givenExplicitly("port"));
+    CHECK(gpb.givenExplicitly("module"));
+
+    CHECK_THROWS_AS(gpb.givenExplicitly("nonsense"), gem_exception);
+}
+
+TEST_CASE(
+    "GParserBuilder::parseKnownOptions: reads the options known so far and ignores the rest",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    std::vector<std::string> modules;
+    std::string individual;
+    gpb.registerCLRepeatableParameter("module,m", modules, "a module to load");
+    gpb.registerCLParameter<std::string>("individual,i", individual, "", "an individual module");
+
+    // Options registered later (--consumer with its value, --port), --help: ignored, no output
+    Argv args(
+        {"--consumer", "mpi", "-m", "a.so", "--port=3", "--individual", "x.so", "--help", "--module=b.so"}
+    );
+    {
+        CoutCapture capture;
+        REQUIRE_NOTHROW(gpb.parseKnownOptions(args.argc(), args.argv()));
+        CHECK(capture.text().empty());
+    }
+    CHECK(modules == std::vector<std::string>{"a.so", "b.so"});
+    CHECK(individual == "x.so");
+    CHECK(gpb.givenExplicitly("module"));
+    CHECK(gpb.givenExplicitly("individual"));
+
+    // The full parse later, on the same command line, with the options registered since
+    std::string consumer;
+    int port = 0;
+    gpb.registerCLParameter<std::string>("consumer", consumer, "stc", "the consumer");
+    gpb.registerCLParameter<int>("port", port, 10000, "the port");
+    {
+        CoutCapture capture;
+        CHECK(gpb.parseCommandLine(args.argc(), args.argv()) == GCL_HELP_REQUESTED);
+    }
+    Argv without_help({"--consumer", "mpi", "-m", "a.so", "--port=3", "--individual", "x.so"});
+    CHECK(gpb.parseCommandLine(without_help.argc(), without_help.argv()) == GCL_NO_HELP_REQUESTED);
+    CHECK(consumer == "mpi");
+    CHECK(port == 3);
+    CHECK(modules == std::vector<std::string>{"a.so"});
+
+    // An option nobody registered is an error only for the full parse
+    Argv stray({"--module=c.so", "--stray"});
+    REQUIRE_NOTHROW(gpb.parseKnownOptions(stray.argc(), stray.argv()));
+    CHECK(modules == std::vector<std::string>{"c.so"});
+    CHECK_THROWS_AS(gpb.parseCommandLine(stray.argc(), stray.argv()), GCommandLineError);
+
+    // A known option without its value is malformed for the early parse too
+    Argv no_value({"--consumer", "mpi", "--individual"});
+    CHECK_THROWS_AS(gpb.parseKnownOptions(no_value.argc(), no_value.argv()), GCommandLineError);
+}

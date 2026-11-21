@@ -44,6 +44,7 @@
 #include <map>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -1917,9 +1918,6 @@ private:
  * (GParserBuilder::registerCLRepeatableParameter()).
  */
 class GCLSemanticParsableParameter : public GCLParsableI {
-    // We want GParserBuilder to be able to call our private functions
-    friend class GParserBuilder;
-
 public:
     /** @brief Stores the option's name and comment, the function that makes its value semantic
      *  (a new object, which Boost.ProgramOptions owns) and the one that describes its value */
@@ -1959,6 +1957,10 @@ private:
  * variables. If not found, a default value will be used. Note that this
  * class assumes that the parameter_type can be streamed using operator<< or
  * operator>>
+ *
+ * Command-line options may be hidden (listed by --showAll, not by --help), grouped into sections of
+ * the help text, flags or repeatable; a malformed command line throws GCommandLineError; an early
+ * parse reads only the options known so far; givenExplicitly() tells a given option from a default.
  */
 class GParserBuilder {
 public:
@@ -2028,6 +2030,11 @@ public:
 
     /** @brief Parses the command line for options; throws GCommandLineError if it is malformed */
     bool parseCommandLine(int argc, char **argv, bool verbose = false);
+    /** @brief Reads the command-line options registered so far and ignores all others, without
+     *  error (an early parse, no help); throws GCommandLineError if a known option is malformed */
+    void parseKnownOptions(int argc, char **argv);
+    /** @brief Whether the last parse found the option on the command line, not its default */
+    [[nodiscard]] bool givenExplicitly(std::string const &option_name) const;
     /** @brief Starts a section of the help text: the command-line options registered from now on
      *  are listed under @p caption, the hidden ones (--showAll) under @p hidden_caption if given */
     void beginCLSection(std::string const &caption, std::string const &hidden_caption = "");
@@ -2661,6 +2668,8 @@ private:
     };
     std::vector<CLSection>
         cl_sections_; ///< The sections of the help text, in the order they were begun
+    std::set<std::string>
+        given_explicitly_; ///< The options the last parse found on the command line (long names)
 
     std::filesystem::path config_base_dir_;
 
@@ -2675,6 +2684,15 @@ private:
     ) const;
     /** @brief The text --help prints for the program @p usage_string names */
     [[nodiscard]] std::string helpText_(std::string const &usage_string) const;
+    /** @brief Parses the command line against @p desc, records the options given, assigns the
+     *  values; throws GCommandLineError if it is malformed */
+    boost::program_options::variables_map parseAgainst_(
+        int argc,
+        char **argv,
+        boost::program_options::options_description const &desc,
+        std::string const &usage_string,
+        bool permissive
+    );
 
     /** @brief Shared implementation of parseConfigFile()/updateConfigFile(): reads @p config_file (creating
      *  it from defaults if absent), applies it to the registered options and, when @p do_rewrite is set and
