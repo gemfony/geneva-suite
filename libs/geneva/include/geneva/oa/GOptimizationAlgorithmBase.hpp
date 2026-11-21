@@ -206,7 +206,10 @@ private:
      * with that state comes from that job's own configuration and command line: these halt
      * criteria, checkpoint settings, threads, report interval and termination messages (maintainer
      * decision, 2026-11-20). Kept from the checkpoint instead, a resumed run could not be given a
-     * higher iteration limit, nor write its checkpoints elsewhere.
+     * higher iteration limit, nor write its checkpoints elsewhere. The pluggable optimization
+     * monitors belong to the job as well (maintainer decision, 2026-11-21): those registered before
+     * the load stay, those of the checkpoint are dropped -- else Go2, which registers the job's
+     * monitors after the load, would run each monitor twice.
      *
      * @tparam self_type The (deduced) class type
      * @param self The algorithm
@@ -232,7 +235,8 @@ private:
             self.cp_serialization_mode_,
             self.n_threads_,
             self.report_iteration_,
-            self.emit_termination_reason_
+            self.emit_termination_reason_,
+            self.pluggable_monitors_cnt_
         );
     }
 
@@ -287,7 +291,7 @@ public:
 
     /**
      * @brief Loads the state of a run from a checkpoint file; the settings of this job
-     * (jobSettings_(): halt criteria, checkpoint settings, ...) stay as they are.
+     * (jobSettings_(): halt criteria, checkpoint settings, pluggable monitors, ...) stay as they are.
      */
     void loadCheckpoint(std::filesystem::path const &cp_file);
 
@@ -1072,7 +1076,8 @@ private:
     /// A collection of monitors. Shared, not owned: a monitor registered through Go2 is
     /// co-owned by Go2 and by every algorithm of a chain, so that it observes the whole run
     /// (see Go2::pluggable_monitors_cnt_). Deep-cloned only when one algorithm is loaded from
-    /// another, which is a different object and must not share the original's monitors.
+    /// another, which is a different object and must not share the original's monitors. Not
+    /// taken from a checkpoint: the monitors belong to the job (jobSettings_()).
     std::vector<std::shared_ptr<GBasePluggableOM>> pluggable_monitors_cnt_;
 
     /**

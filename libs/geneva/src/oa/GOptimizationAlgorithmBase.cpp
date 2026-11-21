@@ -163,8 +163,9 @@ void GOptimizationAlgorithmBase::checkpoint(bool is_better) const {
 /******************************************************************************/
 /**
  * @brief Loads the state of a run from a checkpoint file. The settings of the job that resumes it
- * (jobSettings_(): halt criteria, checkpoint settings, threads, report interval) are kept: they
- * come from this job's configuration and command line, not from the checkpoint.
+ * (jobSettings_(): halt criteria, checkpoint settings, threads, report interval, pluggable
+ * monitors) are kept: they come from this job's configuration, command line and registrations, not
+ * from the checkpoint.
  *
  * @param cp_file The path to the checkpoint file to be loaded
  */

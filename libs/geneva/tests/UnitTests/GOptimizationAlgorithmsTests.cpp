@@ -53,12 +53,14 @@
 #include <mutex>
 #include <set>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
@@ -68,6 +70,7 @@
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "geneva/oa/GBasePluggableOM.hpp"
 #include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
@@ -76,6 +79,7 @@
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (the counting monitor)
 
 namespace gen = Gem::Geneva::Genome;
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -848,6 +852,104 @@ TEST_CASE(
     CHECK(job2->getMaxIteration() == 6);
     CHECK(job2->getCheckpointInterval() == 0);
     CHECK(not fs::exists(base / "checkpoints")); // job 2 wrote no checkpoint
+
+    fs::remove_all(base);
+}
+
+/******************************************************************************/
+
+namespace {
+/** Calls of every GResumeCountingMonitor in the per-iteration phase, over all its objects. */
+std::size_t resume_monitor_calls = 0;
+
+/** A pluggable monitor that counts the iterations it is called for. */
+class GResumeCountingMonitor final
+  : public Gem::Common::GReflectiveInterfaceT<GResumeCountingMonitor, oa::GBasePluggableOM> {
+    friend struct Gem::Weft::access;
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
+
+public:
+    static constexpr std::string_view class_name = "GResumeCountingMonitor";
+
+private:
+    void informationFunction_(
+        Gem::Geneva::infoMode im,
+        oa::GOptimizationAlgorithmBase const *const /*goa*/
+    ) override {
+        if(im == Gem::Geneva::infoMode::INFOPROCESSING) {
+            ++resume_monitor_calls;
+        }
+    }
+};
+} // namespace
+
+GEM_REGISTER_ARCHIVABLE(GResumeCountingMonitor) // NOLINT
+
+TEST_CASE("a resumed run is watched by the monitors of the job that resumes it", "[oa][go2]") {
+    // Pluggable monitors belong to the job, not to the state of the run (maintainer decision,
+    // 2026-11-21). Regression: the checkpoint brought job 1's monitors back and Go2 registered job
+    // 2's beside them, so a monitor ran twice in every iteration of the resumed run.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+    const fs::path base = fs::temp_directory_path() / "geneva-monitors-resume-test";
+    fs::remove_all(base);
+
+    // Job 1: iterations 0 to 2 under a monitor; the final checkpoint holds iteration 2
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(3);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    job1->registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName(base.string(), "monitors.cp");
+    job1->optimize();
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(base)) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            final_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not final_checkpoint.empty());
+
+    // The algorithm keeps the monitors it held before the load and takes none from the checkpoint
+    oa::GEvolutionaryAlgorithm loaded;
+    loaded.loadCheckpoint(final_checkpoint);
+    CHECK(not loaded.hasPluggableOptimizationMonitors());
+
+    // Job 2 through Go2 with a monitor of its own, reporting every iteration: one call per iteration
+    resume_monitor_calls = 0;
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::string arg3 = "--cp_file";
+    std::string arg4 = final_checkpoint.string();
+    std::vector<char *>
+        argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
+    auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    {
+        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
+        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+        go.registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
+        job2->setPopulationSizes(4, 2);
+        job2->setMaxIteration(6);
+        job2->setReportIteration(1);
+        job2->setCheckpointInterval(0);
+        go & job2;
+        REQUIRE_NOTHROW(go.optimize());
+    }
+    REQUIRE(job2->getStartIteration() == 3);
+    REQUIRE(job2->getIteration() == 6);
+    CHECK(resume_monitor_calls == 3); // iterations 3, 4 and 5, once each
 
     fs::remove_all(base);
 }
