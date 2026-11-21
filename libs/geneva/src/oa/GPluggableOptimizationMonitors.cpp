@@ -35,23 +35,23 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
-#include "dietrich/GPlotDesigner.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/Interface/GOptimizerIT.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
+#include <algorithm>
+#include <array>
 #include <cstddef>
 #include <cstdint>
-#include <filesystem>
 #include <format>
-#include <fstream>
 #include <iomanip>
+#include <limits>
 #include <ios>
 #include <memory>
-#include <span>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 /******************************************************************************/
@@ -144,108 +144,51 @@ bool GStandardMonitor::modify_GUnitTests_() {
 }
 
 /******************************************************************************/
+/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 
 /**
- * @brief The copy constructor
+ * @brief The copy constructor; the copy has no stream of its own yet
  *
  * @param cp A constant reference to another GFitnessMonitor object to be copied
  */
 GFitnessMonitor::GFitnessMonitor(const GFitnessMonitor &cp)
   : Gem::Common::GReflectiveInterfaceT<GFitnessMonitor, oa::GBasePluggableOM>(cp)
-  , x_dim_(cp.x_dim_)
-  , y_dim_(cp.y_dim_)
   , n_monitor_inds_(cp.n_monitor_inds_)
-  , result_file_(cp.result_file_) {
-    // data_log_ and the series-id vectors are transient run state (rebuilt on the first
-    // processing call) and are intentionally not copied.
+  , stream_name_(cp.stream_name_) { /* nothing -- the stream is not copied */
 }
 
 /******************************************************************************/
 /**
- * @brief Allows to specify a different name for the result file
+ * @brief Sets the name of the stream, which also names its files
  *
- * @param result_file The desired name of the result file
+ * @param stream_name The name of the stream
  */
-void GFitnessMonitor::setResultFileName(const std::string &result_file) {
-    result_file_ = result_file;
+void GFitnessMonitor::setStreamName(std::string stream_name) {
+    stream_name_ = std::move(stream_name);
 }
 
 /******************************************************************************/
 /**
- * @brief Allows to retrieve the current value of the result file name
+ * @brief The name of the stream
  *
- * @return The current name of the result file
+ * @return The name of the stream
  */
-std::string GFitnessMonitor::getResultFileName() const {
-    return result_file_;
+std::string GFitnessMonitor::getStreamName() const {
+    return stream_name_;
 }
 
 /******************************************************************************/
 /**
- * @brief Allows to set the dimensions of the canvas
- *
- * @param x_dim The desired dimension of the canvas in x-direction
- * @param y_dim The desired dimension of the canvas in y-direction
- */
-void GFitnessMonitor::setDims(const std::uint32_t &x_dim, const std::uint32_t &y_dim) {
-    x_dim_ = x_dim;
-    y_dim_ = y_dim;
-}
-
-/******************************************************************************/
-/**
- * @brief Retrieve the dimensions as a tuple
- *
- * @return The dimensions of the canvas as a tuple (x-dimension, y-dimension)
- */
-std::tuple<std::uint32_t, std::uint32_t> GFitnessMonitor::getDims() const {
-    return std::tuple<std::uint32_t, std::uint32_t>{x_dim_, y_dim_};
-}
-
-/******************************************************************************/
-/**
- * @brief Retrieves the dimension of the canvas in x-direction
- *
- * @return The dimension of the canvas in x-direction
- */
-std::uint32_t GFitnessMonitor::getXDim() const {
-    return x_dim_;
-}
-
-/******************************************************************************/
-/**
- * @brief Retrieves the dimension of the canvas in y-direction
- *
- * @return The dimension of the canvas in y-direction
- */
-std::uint32_t GFitnessMonitor::getYDim() const {
-    return y_dim_;
-}
-
-/******************************************************************************/
-/**
- * Sets the number of individuals in the population that should be monitored.
- * If n_monitor_inds_ == 0, the default will be set to 1, as fitness graphs are plotted in a row,
- * and more than 3 will not give satisfactory graphical results. You may however
- * request more monitored individuals, but will likely have to postprocess the ROOT script.
- * If n_monitor_inds_ is set to a larger number than there are individuals in the population,
- * the value will be reset to that amount of individuals in informationFunction.
+ * Sets the number of individuals in the population that should be monitored. A request of 0
+ * selects the default (one). An algorithm with fewer bests records fewer.
  *
  * @brief Sets the number of individuals in the population that should be monitored
  * @param n_monitor_inds The number of individuals in the population that should be monitored (0 selects the built-in default)
  */
 void GFitnessMonitor::setNMonitorIndividuals(const std::size_t &n_monitor_inds) {
-    // A request of 0 means "use the built-in default"; any positive value is
-    // honoured as-is. (Clamping to the actual population size happens later,
-    // in informationFunction().)
-    if(n_monitor_inds == 0) {
-        n_monitor_inds_ = (DEFNMONITORINDS);
-    }
-    else {
-        n_monitor_inds_ = n_monitor_inds;
-    }
+    n_monitor_inds_ = n_monitor_inds == 0 ? DEFNMONITORINDS : n_monitor_inds;
 }
 
 /******************************************************************************/
@@ -260,135 +203,55 @@ std::size_t GFitnessMonitor::getNMonitorIndividuals() const {
 
 /******************************************************************************/
 /**
- * @brief Records and plots the fitness of the best individuals over the course of a run.
+ * @brief Records the fitness of the best individuals.
  *
- * On INFOINIT it sets a marker (so that chained algorithms accumulate one continuous plot);
- * on INFOPROCESSING it retrieves the globally- and iteration-best individuals, sets up the
- * fitness graphs on the first call and appends the current best fitness values; INFOEND does nothing.
+ * INFOINIT declares the stream, unless it is open (in a Go2 chain the first algorithm declares
+ * it); INFOPROCESSING appends one row per rank of the globally best and the iteration's best
+ * individuals, up to the monitored number; INFOEND does nothing (the stream ends with the run).
  *
  * @param im The stage of the information cycle (INFOINIT, INFOPROCESSING or INFOEND)
  * @param goa A pointer to the optimization algorithm calling this function; queried for best individuals and the iteration
  */
-// NOLINTNEXTLINE(readability-function-size) -- switch-driven dispatcher over infoMode (INFOINIT/INFOPROCESSING/INFOEND) for GFitnessMonitor; each case is a self-contained stage of the same plot lifecycle
 void GFitnessMonitor::informationFunction_(
     infoMode im,
     oa::GOptimizationAlgorithmBase const *const goa
 ) {
+    using Gem::Common::Record::columnType;
+
     switch(im) {
-    case Gem::Geneva::infoMode::INFOINIT: {
-        // We set a marker whenever a new INFOINIT call happens. This way we
-        // may "chain" algorithms and will get the entire progress information
-        // for all algorithms
-    } break;
+    case Gem::Geneva::infoMode::INFOINIT:
+        if(not stream_.isOpen()) {
+            auto columns = oa::GBasePluggableOM::iterationColumns();
+            columns.push_back({.name = "rank", .type = columnType::UNSIGNED});
+            columns.push_back({.name = "global_best", .type = columnType::FLOATING});
+            columns.push_back({.name = "iteration_best", .type = columnType::FLOATING});
+            stream_ = Gem::Common::Record::recorder().stream(
+                stream_name_,
+                std::move(columns),
+                Gem::Common::Record::withTime::none,
+                oa::GBasePluggableOM::streamOptions(*goa)
+            );
+        }
+        break;
 
     case Gem::Geneva::infoMode::INFOPROCESSING: {
-        // Retrieve the list of globally- and iteration bests individuals
-        auto global_bests = goa->Interface::GOptimizerIT<
+        auto const global_bests = goa->Interface::GOptimizerIT<
             oa::GOptimizationAlgorithmBase>::getBestGlobalIndividuals<gen::GGenome>();
-        auto iter_bests = goa->Interface::GOptimizerIT<
+        auto const iter_bests = goa->Interface::GOptimizerIT<
             oa::GOptimizationAlgorithmBase>::getBestIterationIndividuals<gen::GGenome>();
-
-        // Retrieve the current iteration in the population
-        std::uint32_t const iteration = goa->getIteration();
-
-        // We expect both sizes to be identical
-        if(global_bests.size() != iter_bests.size()) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFitnessMonitor::informationFunction_(): Error!" << '\n'
-                << "global_bests.size() = " << global_bests.size()
-                << " != iter_bests.size() = " << iter_bests.size() << '\n'
-            );
+        const std::size_t n =
+            std::min({n_monitor_inds_, global_bests.size(), iter_bests.size()});
+        for(std::size_t rank = 0; rank < n; ++rank) {
+            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            row.emplace_back(static_cast<std::uint64_t>(rank));
+            row.emplace_back(global_bests[rank]->raw_fitness(0));
+            row.emplace_back(iter_bests[rank]->raw_fitness(0));
+            stream_.append(std::move(row));
         }
-
-        //------------------------------------------------------------------------------
-        // Setup of local vectors
-
-        if(not data_log_.has_value()) {
-            // Reset the number of monitored individuals to a suitable value, if necessary.
-            if(n_monitor_inds_ > global_bests.size()) {
-                glogger << "In GFitnessMonitor::informationFunction_(): Warning!" << '\n'
-                        << "Requested number of individuals to be monitored in iteration "
-                        << iteration << " is larger" << '\n'
-                        << "than the number of best individuals " << n_monitor_inds_ << " / "
-                        << global_bests.size() << '\n'
-                        << GWARNING;
-
-                n_monitor_inds_ = global_bests.size();
-            }
-
-            // Set up the data log: one "global best" curve per monitored individual, each with an
-            // overlaid "iteration best" curve sharing its pad (the former secondary-plotter pairing).
-            data_log_.emplace("Fitness progress information", n_monitor_inds_, 1);
-            data_log_->setCanvasDimensions(x_dim_, y_dim_);
-            for(std::size_t ind = 0; ind < n_monitor_inds_; ind++) {
-                Gem::Dietrich::GPlotSpec global_spec(Gem::Dietrich::plotKind::graph_2d);
-                global_spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
-                global_spec.name = std::format("Individual {}", ind);
-                global_spec.x_label = "Iteration";
-                global_spec.y_label = "Best Fitness";
-                global_spec.columns = {"x", "y"};
-                const auto gid = data_log_->declareSeries(global_spec);
-                global_series_ids_.push_back(gid);
-
-                Gem::Dietrich::GPlotSpec iter_spec(Gem::Dietrich::plotKind::graph_2d);
-                iter_spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
-                iter_spec.name = std::format("Individual {}", ind);
-                iter_spec.x_label = "Iteration";
-                iter_spec.y_label = "Best Fitness";
-                iter_spec.columns = {"x", "y"};
-                iteration_series_ids_.push_back(data_log_->overlaySeries(gid, iter_spec));
-            }
-        }
-        else {
-            // We might have a situation where the number of best individuals changes in each
-            // iteration, e.g. when dealing with pareto optimization in EA. In this case we reduce the
-            // number of n_monitor_inds_ to 1, which is the only safe option. Recorded data of other
-            // individuals will then be lost -- the program will warn about this.
-            if(n_monitor_inds_ > global_bests.size()) {
-                glogger
-                    << "In GFitnessMonitor::informationFunction_(): Warning!" << '\n'
-                    << "Requested number of individuals to be monitored in iteration " << iteration
-                    << " is larger" << '\n'
-                    << "than the number of best individuals " << n_monitor_inds_ << " / "
-                    << global_bests.size() << '\n'
-                    << "This seems to be a result of a varying number of best individuals." << '\n'
-                    << "We will now reduce the number of monitored individuals to 1 for the" << '\n'
-                    << "rest of the optimization run. Recorded information for other individuals"
-                    << '\n'
-                    << "will be deleted" << '\n'
-                    << GWARNING;
-
-                n_monitor_inds_ = 1;
-                global_series_ids_.resize(1);
-                iteration_series_ids_.resize(1);
-            }
-        }
-
-        //------------------------------------------------------------------------------
-        // Fill in the data for the best individuals (the first n_monitor_inds_ bests)
-
-        for(std::size_t m_ind = 0; m_ind < global_series_ids_.size(); ++m_ind) {
-            data_log_->append(
-                global_series_ids_[m_ind],
-                Gem::Common::narrow<double>(iteration),
-                global_bests[m_ind]->raw_fitness(0)
-            );
-            data_log_->append(
-                iteration_series_ids_[m_ind],
-                Gem::Common::narrow<double>(iteration),
-                iter_bests[m_ind]->raw_fitness(0)
-            );
-        }
-
-        //------------------------------------------------------------------------------
-
     } break;
 
-    case Gem::Geneva::infoMode::INFOEND: {
-        // This monitor accumulates fitness curves but does not itself render them (no output
-        // file was ever written here); the behaviour is preserved unchanged by the migration.
-    } break;
+    case Gem::Geneva::infoMode::INFOEND:
+        break;
     }
 }
 
@@ -421,7 +284,6 @@ bool GFitnessMonitor::modify_GUnitTests_() {
 #endif                  /* GEM_TESTING */
 }
 
-/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 
@@ -520,62 +382,61 @@ bool GCollectiveMonitor::modify_GUnitTests_() {
 }
 
 /******************************************************************************/
+/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 
 /**
- * @brief Initialization with a file name. Note that some variables may be initialized in the class body.
+ * @brief Initialization with boundaries: only solutions better than they are recorded
  *
- * @param file_name The name of the file the solutions should be written to
+ * @param boundaries The value boundaries used to filter which solutions are recorded
  */
-GAllSolutionFileLogger::GAllSolutionFileLogger(const std::string &file_name)
-  : file_name_(file_name) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * @brief Initialization with a file name and boundaries.
- * Note that some variables may be initialized in the class body.
- *
- * @param file_name The name of the file the solutions should be written to
- * @param boundaries The fitness boundaries used to decide which solutions are good enough to be logged (activates boundary filtering)
- */
-GAllSolutionFileLogger::GAllSolutionFileLogger(
-    const std::string &file_name,
-    const std::vector<double> &boundaries
-)
-  : file_name_(file_name)
-  , boundaries_(boundaries)
+GAllSolutionFileLogger::GAllSolutionFileLogger(const std::vector<double> &boundaries)
+  : boundaries_(boundaries)
   , boundaries_active_(true) { /* nothing */
 }
 
-// name_() and compare_() for GAllSolutionFileLogger are generated by Gem::Common::GReflectiveInterfaceT.
-
 /******************************************************************************/
 /**
- * @brief Sets the file name
+ * @brief The copy constructor; the copy has no stream of its own yet
  *
- * @param file_name The name of the output file to be used
+ * @param cp A constant reference to another GAllSolutionFileLogger object to be copied
  */
-void GAllSolutionFileLogger::setFileName(const std::string &file_name) {
-    file_name_ = file_name;
+GAllSolutionFileLogger::GAllSolutionFileLogger(const GAllSolutionFileLogger &cp)
+  : Gem::Common::GReflectiveInterfaceT<GAllSolutionFileLogger, oa::GBasePluggableOM>(cp)
+  , stream_name_(cp.stream_name_)
+  , boundaries_(cp.boundaries_)
+  , boundaries_active_(cp.boundaries_active_)
+  , use_raw_fitness_(cp.use_raw_fitness_)
+  , show_validity_(cp.show_validity_)
+  , print_initial_(cp.print_initial_) { /* nothing -- the stream is not copied */
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current file name
+ * @brief Sets the name of the stream, which also names its files
  *
- * @return The name of the output file currently configured
+ * @param stream_name The name of the stream
  */
-std::string GAllSolutionFileLogger::getFileName() const {
-    return file_name_;
+void GAllSolutionFileLogger::setStreamName(std::string stream_name) {
+    stream_name_ = std::move(stream_name);
 }
 
 /******************************************************************************/
 /**
- * @brief Sets the boundaries and activates boundary filtering
+ * @brief The name of the stream
  *
- * @param boundaries The fitness boundaries a solution must satisfy in order to be logged
+ * @return The name of the stream
+ */
+std::string GAllSolutionFileLogger::getStreamName() const {
+    return stream_name_;
+}
+
+/******************************************************************************/
+/**
+ * @brief Sets the boundaries and activates them
+ *
+ * @param boundaries The value boundaries used to filter which solutions are recorded
  */
 void GAllSolutionFileLogger::setBoundaries(const std::vector<double> &boundaries) {
     boundaries_ = boundaries;
@@ -586,7 +447,7 @@ void GAllSolutionFileLogger::setBoundaries(const std::vector<double> &boundaries
 /**
  * @brief Allows to retrieve the boundaries
  *
- * @return The currently configured fitness boundaries
+ * @return The value boundaries used to filter which solutions are recorded
  */
 std::vector<double> GAllSolutionFileLogger::getBoundaries() const {
     return boundaries_;
@@ -596,7 +457,7 @@ std::vector<double> GAllSolutionFileLogger::getBoundaries() const {
 /**
  * @brief Allows to check whether boundaries are active
  *
- * @return true if boundary filtering is active, false otherwise
+ * @return true if boundaries have been set and are active, false otherwise
  */
 bool GAllSolutionFileLogger::boundariesActive() const {
     return boundaries_active_;
@@ -612,51 +473,9 @@ void GAllSolutionFileLogger::setBoundariesInactive() {
 
 /******************************************************************************/
 /**
- * @brief Allows to specify whether explanations should be printed for parameter-
- * and fitness values.
+ * @brief Allows to specify whether the true (instead of the transformed) fitness should be recorded
  *
- * @param with_name_and_type If true, a header explaining the name and type of each value is printed
- */
-void GAllSolutionFileLogger::setPrintWithNameAndType(bool with_name_and_type) {
-    with_name_and_type_ = with_name_and_type;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to check whether explanations should be printed for parameter-
- * and fitness values
- *
- * @return true if a name-and-type header is printed, false otherwise
- */
-bool GAllSolutionFileLogger::getPrintWithNameAndType() const {
-    return with_name_and_type_;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to specify whether commas should be printed in-between values
- *
- * @param with_commas If true, values are separated by commas, otherwise by spaces
- */
-void GAllSolutionFileLogger::setPrintWithCommas(bool with_commas) {
-    with_commas_ = with_commas;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to check whether commas should be printed in-between values
- *
- * @return true if values are separated by commas, false otherwise
- */
-bool GAllSolutionFileLogger::getPrintWithCommas() const {
-    return with_commas_;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to specify whether the true (instead of the transformed) fitness should be shown
- *
- * @param use_raw_fitness If true, the raw (untransformed) fitness is shown instead of the transformed fitness
+ * @param use_raw_fitness If true, the raw (true) fitness is recorded; otherwise the transformed fitness
  */
 void GAllSolutionFileLogger::setUseTrueFitness(bool use_raw_fitness) {
     use_raw_fitness_ = use_raw_fitness;
@@ -664,9 +483,9 @@ void GAllSolutionFileLogger::setUseTrueFitness(bool use_raw_fitness) {
 
 /******************************************************************************/
 /**
- * @brief Allows to retrieve whether the true (instead of the transformed) fitness should be shown
+ * @brief Allows to retrieve whether the true (instead of the transformed) fitness should be recorded
  *
- * @return true if the raw (untransformed) fitness is shown, false otherwise
+ * @return true if the raw (true) fitness is recorded, false if the transformed fitness is recorded
  */
 bool GAllSolutionFileLogger::getUseTrueFitness() const {
     return use_raw_fitness_;
@@ -674,9 +493,9 @@ bool GAllSolutionFileLogger::getUseTrueFitness() const {
 
 /******************************************************************************/
 /**
- * @brief Allows to specify whether the validity of a solution should be shown
+ * @brief Allows to specify whether the validity of a solution should be recorded
  *
- * @param show_validity If true, the validity of each solution is included in the output
+ * @param show_validity If true, the column "valid" is recorded
  */
 void GAllSolutionFileLogger::setShowValidity(bool show_validity) {
     show_validity_ = show_validity;
@@ -684,9 +503,9 @@ void GAllSolutionFileLogger::setShowValidity(bool show_validity) {
 
 /******************************************************************************/
 /**
- * @brief Allows to check whether the validity of a solution will be shown
+ * @brief Allows to check whether the validity of a solution will be recorded
  *
- * @return true if the validity of each solution is included in the output, false otherwise
+ * @return true if the validity of each solution is recorded, false otherwise
  */
 bool GAllSolutionFileLogger::getShowValidity() const {
     return show_validity_;
@@ -694,10 +513,9 @@ bool GAllSolutionFileLogger::getShowValidity() const {
 
 /******************************************************************************/
 /**
- * @brief Allows to specifiy whether the initial population (prior to any
- * optimization work) should be printed.
+ * @brief Allows to specify whether the initial population (before any optimization work) should be recorded
  *
- * @param print_initial If true, the initial population is printed before any optimization work begins
+ * @param print_initial If true, the initial population is recorded at INFOINIT
  */
 void GAllSolutionFileLogger::setPrintInitial(bool print_initial) {
     print_initial_ = print_initial;
@@ -705,10 +523,9 @@ void GAllSolutionFileLogger::setPrintInitial(bool print_initial) {
 
 /******************************************************************************/
 /**
- * @brief Allows to check whether the initial population (prior to any
- * optimization work) should be printed.
+ * @brief Allows to check whether the initial population should be recorded
  *
- * @return true if the initial population is printed before any optimization work begins, false otherwise
+ * @return true if the initial population is recorded, false otherwise
  */
 bool GAllSolutionFileLogger::getPrintInitial() const {
     return print_initial_;
@@ -716,119 +533,131 @@ bool GAllSolutionFileLogger::getPrintInitial() const {
 
 /******************************************************************************/
 /**
-* @brief Allows to specifiy whether a comment line should be inserted
-* between iterations
-*
-* @param show_iteration_boundaries If true, a comment line is inserted between the data of consecutive iterations
-*/
-void GAllSolutionFileLogger::setShowIterationBoundaries(bool show_iteration_boundaries) {
-    show_iteration_boundaries_ = show_iteration_boundaries;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to check whether a comment line should be inserted
- * between iterations
- *
- * @return true if a comment line is inserted between iterations, false otherwise
- */
-bool GAllSolutionFileLogger::getShowIterationBoundaries() const {
-    return show_iteration_boundaries_;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to emit information in different stages of the information cycle
- * (initialization, during each cycle and during finalization)
+ * @brief Declares the stream at the first INFOINIT (and records the initial population, if asked
+ * for) and records the population at INFOPROCESSING
  *
  * @param im The stage of the information cycle (INFOINIT, INFOPROCESSING or INFOEND)
- * @param goa A pointer to the optimization algorithm calling this function; queried for its individuals and the current iteration
+ * @param goa A pointer to the optimization algorithm calling this function
  */
 void GAllSolutionFileLogger::informationFunction_(
     infoMode im,
     oa::GOptimizationAlgorithmBase const *const goa
 ) {
     switch(im) {
-    case Gem::Geneva::infoMode::INFOINIT: {
-        // If the file pointed to by file_name_ already exists, make a back-up
-        Gem::Common::backupExistingFile(
-            file_name_,
-            "GAllSolutionFileLogger::informationFunction_(): Warning!"
-        );
-
-        if(print_initial_) {
-            this->printPopulation("Initial population", goa);
+    case Gem::Geneva::infoMode::INFOINIT:
+        if(not stream_.isOpen()) {
+            this->declareStream_(*goa);
         }
-    } break;
+        if(print_initial_) {
+            this->recordPopulation_(*goa);
+        }
+        break;
 
-    case Gem::Geneva::infoMode::INFOPROCESSING: {
-        this->printPopulation(
-            "At end of iteration " + Gem::Common::to_string(goa->getIteration()),
-            goa
-        );
-    } break;
+    case Gem::Geneva::infoMode::INFOPROCESSING:
+        this->recordPopulation_(*goa);
+        break;
 
     case Gem::Geneva::infoMode::INFOEND:
-        // nothing
         break;
     };
 }
 
-// load_() and clone_() for GAllSolutionFileLogger are generated by Gem::Common::GReflectiveInterfaceT.
+/******************************************************************************/
+/**
+ * @brief Declares the stream. The parameter columns are those of the first individual: "var<k>",
+ * numbered in the order double, float, int32, bool, typed as they are.
+ *
+ * @param goa The algorithm
+ */
+void GAllSolutionFileLogger::declareStream_(oa::GOptimizationAlgorithmBase const &goa) {
+    using Gem::Common::Record::columnType;
+    auto columns = oa::GBasePluggableOM::iterationColumns();
+    columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
+    auto const first = goa.individual_cast<gen::GGenome>(0);
+    std::size_t k = 0;
+    // The values are read as recordPopulation_() reads them, so the columns are theirs
+    auto const add = [&columns, &k, &first]<typename T>(std::type_identity<T>, columnType type) {
+        std::vector<T> values;
+        first->template streamline<T>(values);
+        for(std::size_t i = 0; i < values.size(); ++i, ++k) {
+            columns.push_back({.name = "var" + Gem::Common::to_string(k), .type = type});
+        }
+    };
+    add(std::type_identity<double>{}, columnType::FLOATING);
+    add(std::type_identity<float>{}, columnType::FLOATING);
+    add(std::type_identity<std::int32_t>{}, columnType::INTEGER);
+    add(std::type_identity<bool>{}, columnType::BOOLEAN);
+    for(std::size_t i = 0; i < first->getNStoredResults(); ++i) {
+        columns.push_back(
+            {.name = "fitness_" + Gem::Common::to_string(i), .type = columnType::FLOATING}
+        );
+    }
+    if(show_validity_) {
+        columns.push_back({.name = "valid", .type = columnType::BOOLEAN});
+    }
+    stream_ = Gem::Common::Record::recorder().stream(
+        stream_name_,
+        std::move(columns),
+        Gem::Common::Record::withTime::none,
+        oa::GBasePluggableOM::streamOptions(goa)
+    );
+}
 
 /******************************************************************************/
 /**
- * @brief Does the actual printing of the population to the output file
+ * @brief Records the individuals of the algorithm that pass the boundaries, if they are active:
+ * one row each, with its parameter values, its fitness (not a number if it was not evaluated) and
+ * its validity
  *
- * @param iteration_description A human-readable label for the current iteration, written as a comment when iteration boundaries are shown
- * @param goa A pointer to the optimization algorithm whose individuals are written to file
+ * @param goa The algorithm
  */
-void GAllSolutionFileLogger::printPopulation(
-    const std::string &iteration_description,
-    oa::GOptimizationAlgorithmBase const *const goa
-) {
-    // Open the external file
-    std::ofstream data(file_name_, std::ofstream::app); // NOLINT(cppcoreguidelines-init-variables)
+void GAllSolutionFileLogger::recordPopulation_(oa::GOptimizationAlgorithmBase const &goa) {
+    for(std::size_t pos = 0; pos < goa.size(); pos++) {
+        std::shared_ptr<gen::GGenome> const ind = goa.individual_cast<gen::GGenome>(pos);
 
-    if(show_iteration_boundaries_) {
-        data << "#" << '\n'
-             << "# -----------------------------------------------------------------------------"
-             << '\n'
-             << "# " << iteration_description << ":" << '\n'
-             << "#" << '\n';
-    }
-
-    // Loop over all individuals of the algorithm.
-    for(std::size_t pos = 0; pos < goa->size(); pos++) {
-        std::shared_ptr<gen::GGenome> const ind = goa->individual_cast<gen::GGenome>(pos);
-
-        // Note that isGoodEnough may throw if loop acts on a "dirty" individual
-        if(not boundaries_active_ || ind->isGoodEnough(boundaries_)) {
-            // Append the data to the external file
-            if(
-                0 == pos && goa->inFirstIteration()
-            ) { // Only output name and type in the very first line (if at all)
-                data << ind->toCSV(
-                    with_name_and_type_,
-                    with_commas_,
-                    use_raw_fitness_,
-                    show_validity_
-                );
-            }
-            else {
-                data << ind->toCSV(
-                    false /* with_name_and_type */,
-                    with_commas_,
-                    use_raw_fitness_,
-                    show_validity_
-                );
-            }
+        // Note that isGoodEnough may throw if it acts on an individual that was not evaluated
+        if(boundaries_active_ && not ind->isGoodEnough(boundaries_)) {
+            continue;
         }
-    }
 
-    // Close the external file
-    data.close();
+        Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(goa);
+        row.emplace_back(static_cast<std::uint64_t>(pos));
+        auto const add = [&row, &ind]<typename T>(std::type_identity<T>) {
+            std::vector<T> values;
+            ind->template streamline<T>(values);
+            for(T const value : values) {
+                if constexpr(std::is_same_v<T, bool>) {
+                    row.emplace_back(value);
+                }
+                else if constexpr(std::is_floating_point_v<T>) {
+                    row.emplace_back(static_cast<double>(value));
+                }
+                else {
+                    row.emplace_back(static_cast<std::int64_t>(value));
+                }
+            }
+        };
+        add(std::type_identity<double>{});
+        add(std::type_identity<float>{});
+        add(std::type_identity<std::int32_t>{});
+        add(std::type_identity<bool>{});
+        const bool processed = ind->is_processed();
+        for(std::size_t i = 0; i < ind->getNStoredResults(); ++i) {
+            row.emplace_back(
+                not processed       ? std::numeric_limits<double>::quiet_NaN()
+                : use_raw_fitness_ ? ind->raw_fitness(i)
+                                   : ind->transformed_fitness(i)
+            );
+        }
+        if(show_validity_) {
+            row.emplace_back(processed && ind->isValid());
+        }
+        stream_.append(std::move(row));
+    }
 }
+
+// load_(), compare_(), name_() and clone_() for GAllSolutionFileLogger are generated by
+// Gem::Common::GReflectiveInterfaceT.
 
 /******************************************************************************/
 /**
@@ -861,62 +690,41 @@ bool GAllSolutionFileLogger::modify_GUnitTests_() {
 /******************************************************************************/
 
 /**
- * @brief Initialization with a file name. Note that some variables may be initialized
- * in the class body.
+ * @brief The copy constructor; the copy has no stream of its own yet
  *
- * @param file_name The name of the file the per-iteration results should be written to
+ * @param cp A constant reference to another GIterationResultsFileLogger object to be copied
  */
-GIterationResultsFileLogger::GIterationResultsFileLogger(const std::string &file_name)
-  : file_name_(file_name) { /* nothing */
-}
-
-// name_() and compare_() for GIterationResultsFileLogger are generated by Gem::Common::GReflectiveInterfaceT.
-
-/******************************************************************************/
-/**
- * @brief Sets the file name
- *
- * @param file_name The name of the output file to be used
- */
-void GIterationResultsFileLogger::setFileName(const std::string &file_name) {
-    file_name_ = file_name;
+GIterationResultsFileLogger::GIterationResultsFileLogger(const GIterationResultsFileLogger &cp)
+  : Gem::Common::GReflectiveInterfaceT<GIterationResultsFileLogger, oa::GBasePluggableOM>(cp)
+  , stream_name_(cp.stream_name_)
+  , use_raw_fitness_(cp.use_raw_fitness_) { /* nothing -- the stream is not copied */
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current file name
+ * @brief Sets the name of the stream, which also names its files
  *
- * @return The name of the output file currently configured
+ * @param stream_name The name of the stream
  */
-std::string GIterationResultsFileLogger::getFileName() const {
-    return file_name_;
+void GIterationResultsFileLogger::setStreamName(std::string stream_name) {
+    stream_name_ = std::move(stream_name);
 }
 
 /******************************************************************************/
 /**
- * @brief Allows to specify whether commas should be printed in-between values
+ * @brief The name of the stream
  *
- * @param with_commas If true, values are separated by commas, otherwise by spaces
+ * @return The name of the stream
  */
-void GIterationResultsFileLogger::setPrintWithCommas(bool with_commas) {
-    with_commas_ = with_commas;
+std::string GIterationResultsFileLogger::getStreamName() const {
+    return stream_name_;
 }
 
 /******************************************************************************/
 /**
- * @brief Allows to check whether commas should be printed in-between values
+ * @brief Allows to specify whether the true (instead of the transformed) fitness should be recorded
  *
- * @return true if values are separated by commas, false otherwise
- */
-bool GIterationResultsFileLogger::getPrintWithCommas() const {
-    return with_commas_;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to specify whether the true (instead of the transformed) fitness should be shown
- *
- * @param use_raw_fitness If true, the raw (untransformed) fitness is shown instead of the transformed fitness
+ * @param use_raw_fitness If true, the raw (true) fitness is recorded; otherwise the transformed fitness
  */
 void GIterationResultsFileLogger::setUseTrueFitness(bool use_raw_fitness) {
     use_raw_fitness_ = use_raw_fitness;
@@ -924,9 +732,9 @@ void GIterationResultsFileLogger::setUseTrueFitness(bool use_raw_fitness) {
 
 /******************************************************************************/
 /**
- * @brief Allows to retrieve whether the true (instead of the transformed) fitness should be shown
+ * @brief Allows to retrieve whether the true (instead of the transformed) fitness should be recorded
  *
- * @return true if the raw (untransformed) fitness is shown, false otherwise
+ * @return true if the raw (true) fitness is recorded, false if the transformed fitness is recorded
  */
 bool GIterationResultsFileLogger::getUseTrueFitness() const {
     return use_raw_fitness_;
@@ -934,60 +742,55 @@ bool GIterationResultsFileLogger::getUseTrueFitness() const {
 
 /******************************************************************************/
 /**
- * @brief Allows to emit information in different stages of the information cycle
- * (initialization, during each cycle and during finalization)
+ * @brief Declares the stream at the first INFOINIT (one fitness column per criterion of the first
+ * individual) and records every individual's fitness values at INFOPROCESSING
  *
  * @param im The stage of the information cycle (INFOINIT, INFOPROCESSING or INFOEND)
- * @param goa A pointer to the optimization algorithm calling this function; queried for its individuals and the current iteration
+ * @param goa A pointer to the optimization algorithm calling this function
  */
 void GIterationResultsFileLogger::informationFunction_(
     infoMode im,
     oa::GOptimizationAlgorithmBase const *const goa
 ) {
     switch(im) {
-    case Gem::Geneva::infoMode::INFOINIT: {
-        // If the file pointed to by file_name_ already exists, make a back-up
-        Gem::Common::backupExistingFile(
-            file_name_,
-            "GIterationResultsFileLogger::informationFunction_(): Warning!"
-        );
-    } break;
-
-    case Gem::Geneva::infoMode::INFOPROCESSING: {
-        // Open the external file
-        std::ofstream data(
-            file_name_.c_str(),
-            std::ofstream::app
-        ); // NOLINT(cppcoreguidelines-init-variables)
-        std::vector<double> fitness_cnt;
-
-        // Write a flat line of every individual's fitness values, a comma (or space) after each value
-        // except the LAST, via an explicit emitted-vs-total counter. The previous PRODUCT test
-        // (n_fitness_criteria*n_individuals > (i+1)*(pos+1)) was obscure and fragile: it happened to be
-        // correct only because the product reaches the total exactly at the final cell.
-        const std::size_t n_individuals = goa->size();
-        const std::size_t n_fitness_criteria = goa->at(0)->getNStoredResults();
-        const std::size_t total = n_fitness_criteria * n_individuals;
-        std::size_t emitted = 0;
-        for(std::size_t pos = 0; pos < n_individuals; pos++) {
-            fitness_cnt = goa->at(pos)->raw_fitness_vec();
-            for(std::size_t i = 0; i < n_fitness_criteria; i++) {
-                data << fitness_cnt.at(i) << ((with_commas_ && (++emitted < total)) ? ", " : " ");
+    case Gem::Geneva::infoMode::INFOINIT:
+        if(not stream_.isOpen()) {
+            using Gem::Common::Record::columnType;
+            auto columns = oa::GBasePluggableOM::iterationColumns();
+            columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
+            for(std::size_t i = 0; i < goa->at(0)->getNStoredResults(); ++i) {
+                columns.push_back(
+                    {.name = "fitness_" + Gem::Common::to_string(i), .type = columnType::FLOATING}
+                );
             }
+            stream_ = Gem::Common::Record::recorder().stream(
+                stream_name_,
+                std::move(columns),
+                Gem::Common::Record::withTime::none,
+                oa::GBasePluggableOM::streamOptions(*goa)
+            );
         }
-        data << '\n';
+        break;
 
-        // Close the external file
-        data.close();
-    } break;
+    case Gem::Geneva::infoMode::INFOPROCESSING:
+        for(std::size_t pos = 0; pos < goa->size(); pos++) {
+            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            row.emplace_back(static_cast<std::uint64_t>(pos));
+            for(double const f : use_raw_fitness_ ? goa->at(pos)->raw_fitness_vec()
+                                                  : goa->at(pos)->transformed_fitness_vec()) {
+                row.emplace_back(f);
+            }
+            stream_.append(std::move(row));
+        }
+        break;
 
     case Gem::Geneva::infoMode::INFOEND:
-        // nothing
         break;
     };
 }
 
-// load_() and clone_() for GIterationResultsFileLogger are generated by Gem::Common::GReflectiveInterfaceT.
+// load_(), compare_(), name_() and clone_() for GIterationResultsFileLogger are generated by
+// Gem::Common::GReflectiveInterfaceT.
 
 /******************************************************************************/
 /**
@@ -1018,62 +821,45 @@ bool GIterationResultsFileLogger::modify_GUnitTests_() {
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-/**
- * @brief Initialization with a file name. Note that some variables may be
- * initialized in the class body.
- *
- * @param file_name The name of the file the adaption statistics should be written to
- */
-GNAdpationsLogger::GNAdpationsLogger(const std::string &file_name)
-  : file_name_(file_name)
-  , canvas_dimensions_(std::tuple<std::uint32_t, std::uint32_t>(1200, 1600)) { /* nothing */
-}
 
-/******************************************************************************/
 /**
- * @brief The copy constructor
+ * @brief The copy constructor; the copy has no stream of its own yet
  *
  * @param cp A constant reference to another GNAdpationsLogger object to be copied
  */
 GNAdpationsLogger::GNAdpationsLogger(const GNAdpationsLogger &cp)
   : Gem::Common::GReflectiveInterfaceT<GNAdpationsLogger, oa::GBasePluggableOM>(cp)
-  , file_name_(cp.file_name_)
+  , stream_name_(cp.stream_name_)
   , canvas_dimensions_(cp.canvas_dimensions_)
   , monitor_best_only_(cp.monitor_best_only_)
-  , add_print_command_(cp.add_print_command_)
-  , max_iteration_(cp.max_iteration_)
-  , n_iterations_recorded_(cp.n_iterations_recorded_)
-  , n_adaptions_store_(cp.n_adaptions_store_)
-  , fitness_store_(cp.fitness_store_) { /* nothing -- the plotters are no longer state */
+  , add_print_command_(cp.add_print_command_) { /* nothing -- the stream is not copied */
 }
-
-// compare_() for GNAdpationsLogger is generated by Gem::Common::GReflectiveInterfaceT.
 
 /******************************************************************************/
 /**
- * @brief Sets the file name
+ * @brief Sets the name of the stream, which also names its files
  *
- * @param file_name The name of the output file to be used
+ * @param stream_name The name of the stream
  */
-void GNAdpationsLogger::setFileName(const std::string &file_name) {
-    file_name_ = file_name;
+void GNAdpationsLogger::setStreamName(std::string stream_name) {
+    stream_name_ = std::move(stream_name);
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current file name
+ * @brief The name of the stream
  *
- * @return The name of the output file currently configured
+ * @return The name of the stream
  */
-std::string GNAdpationsLogger::getFileName() const {
-    return file_name_;
+std::string GNAdpationsLogger::getStreamName() const {
+    return stream_name_;
 }
 
 /******************************************************************************/
 /**
- * @brief Allows to specify whether only the best individuals should be monitored.
+ * @brief Allows to specify whether only the best individuals should be monitored
  *
- * @param monitor_best_only If true, only the globally best individual is monitored; otherwise all individuals are
+ * @param monitor_best_only If true, only the best individual is monitored; otherwise all individuals
  */
 void GNAdpationsLogger::setMonitorBestOnly(bool monitor_best_only) {
     monitor_best_only_ = monitor_best_only;
@@ -1081,7 +867,7 @@ void GNAdpationsLogger::setMonitorBestOnly(bool monitor_best_only) {
 
 /******************************************************************************/
 /**
- * @brief Allows to check whether only the best individuals should be monitored.
+ * @brief Allows to check whether only the best individuals should be monitored
  *
  * @return true if only the best individual is monitored, false otherwise
  */
@@ -1093,11 +879,9 @@ bool GNAdpationsLogger::getMonitorBestOnly() const {
 /**
  * @brief Allows to set the canvas dimensions
  *
- * @param canvas_dimensions The desired canvas dimensions as a tuple (x-dimension, y-dimension)
+ * @param canvas_dimensions A tuple holding the canvas dimensions in x- and y-direction
  */
-void GNAdpationsLogger::setCanvasDimensions(
-    std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions
-) {
+void GNAdpationsLogger::setCanvasDimensions(std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions) {
     canvas_dimensions_ = canvas_dimensions;
 }
 
@@ -1105,8 +889,8 @@ void GNAdpationsLogger::setCanvasDimensions(
 /**
  * @brief Allows to set the canvas dimensions using separate x and y values
  *
- * @param x The desired canvas dimension in x-direction
- * @param y The desired canvas dimension in y-direction
+ * @param x The canvas dimension in x-direction
+ * @param y The canvas dimension in y-direction
  */
 void GNAdpationsLogger::setCanvasDimensions(std::uint32_t x, std::uint32_t y) {
     canvas_dimensions_ = std::tuple<std::uint32_t, std::uint32_t>(x, y);
@@ -1116,7 +900,7 @@ void GNAdpationsLogger::setCanvasDimensions(std::uint32_t x, std::uint32_t y) {
 /**
  * @brief Gives access to the canvas dimensions
  *
- * @return The current canvas dimensions as a tuple (x-dimension, y-dimension)
+ * @return A tuple holding the canvas dimensions in x- and y-direction
  */
 std::tuple<std::uint32_t, std::uint32_t> GNAdpationsLogger::getCanvasDimensions() const {
     return canvas_dimensions_;
@@ -1126,7 +910,7 @@ std::tuple<std::uint32_t, std::uint32_t> GNAdpationsLogger::getCanvasDimensions(
 /**
  * @brief Allows to add a "Print" command to the end of the script so that picture files are created
  *
- * @param add_print_command If true, a print command is appended to the generated ROOT script
+ * @param add_print_command If true, a print command is appended so that picture files are created
  */
 void GNAdpationsLogger::setAddPrintCommand(bool add_print_command) {
     add_print_command_ = add_print_command;
@@ -1136,7 +920,7 @@ void GNAdpationsLogger::setAddPrintCommand(bool add_print_command) {
 /**
  * @brief Allows to retrieve the current value of the add_print_command_ variable
  *
- * @return true if a print command is appended to the generated ROOT script, false otherwise
+ * @return true if a print command will be appended to the script, false otherwise
  */
 bool GNAdpationsLogger::getAddPrintCommand() const {
     return add_print_command_;
@@ -1144,130 +928,93 @@ bool GNAdpationsLogger::getAddPrintCommand() const {
 
 /******************************************************************************/
 /**
- * @brief Allows to emit information in different stages of the information cycle
- * (initialization, during each cycle and during finalization)
+ * @brief Declares the stream and its plot at the first INFOINIT (a curve of the best
+ * individual's adaptions, or a 2-d histogram of all individuals' adaptions, over the iterations,
+ * beside the best fitness) and records the numbers of adaptions at INFOPROCESSING
  *
  * @param im The stage of the information cycle (INFOINIT, INFOPROCESSING or INFOEND)
- * @param goa A pointer to the optimization algorithm calling this function; queried for its individuals and the current iteration
+ * @param goa A pointer to the optimization algorithm calling this function
  */
-// NOLINTNEXTLINE(readability-function-size) -- switch-driven dispatcher over infoMode (INFOINIT/INFOPROCESSING/INFOEND) for GNAdpationsLogger; each case is a self-contained stage of the same log lifecycle
 void GNAdpationsLogger::informationFunction_(
     infoMode im,
     oa::GOptimizationAlgorithmBase const *const goa
 ) {
-    using namespace Gem::Common;
-    using namespace Gem::Dietrich; // GDataLog / GPlotSpec / plotKind / graphPlotMode
+    using Gem::Common::Record::columnType;
+    using Gem::Dietrich::GPlotSpec;
+    using Gem::Dietrich::plotKind;
 
     switch(im) {
-    case Gem::Geneva::infoMode::INFOINIT: {
-        // If the file pointed to by file_name_ already exists, make a back-up
-        Gem::Common::backupExistingFile(
-            file_name_,
-            "GNAdpationsLogger::informationFunction_(): Error!"
-        );
+    case Gem::Geneva::infoMode::INFOINIT:
+        if(not stream_.isOpen()) {
+            auto columns = oa::GBasePluggableOM::iterationColumns();
+            columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
+            columns.push_back({.name = "n_adaptions", .type = columnType::UNSIGNED});
+            columns.push_back({.name = "best_fitness", .type = columnType::FLOATING});
 
-        // The fitness curve is recorded per-run, so start it fresh (the n-adaptions store
-        // deliberately accumulates across chained algorithms and is not cleared here).
-        fitness_store_.clear();
-    } break;
+            Gem::Dietrich::GDataLog layout("Number of adaptions per iteration", 1, 2);
+            layout.setCanvasDimensions(
+                std::get<0>(canvas_dimensions_),
+                std::get<1>(canvas_dimensions_)
+            );
+            layout.setAddPrintCommand(add_print_command_);
+            GPlotSpec spec(monitor_best_only_ ? plotKind::graph_2d : plotKind::hist_2d);
+            spec.x_label = "Iteration";
+            spec.y_label = "Number of parameter adaptions";
+            spec.columns = {"iteration", "n_adaptions"};
+            if(monitor_best_only_) {
+                spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
+            }
+            else { // one bin per recorded iteration and per number of adaptions (GPlotSink)
+                spec.drawing_args = "BOX";
+            }
+            layout.declareSeries(spec);
+            GPlotSpec fitness_spec(plotKind::graph_2d);
+            fitness_spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
+            fitness_spec.x_label = "Iteration";
+            fitness_spec.y_label = "Fitness";
+            fitness_spec.columns = {"iteration", "best_fitness"};
+            layout.declareSeries(fitness_spec);
 
-    case Gem::Geneva::infoMode::INFOPROCESSING: {
-        std::uint32_t const iteration = goa->getIteration();
-
-        // Record the current fitness
-        auto const p = goa->Interface::GOptimizerIT<
-            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
-        fitness_store_.emplace_back(static_cast<double>(iteration), p->raw_fitness(0));
-
-        // Update the largest known iteration and the number of recorded iterations
-        max_iteration_ = iteration;
-        n_iterations_recorded_++;
-
-        // Do the actual logging
-        if(monitor_best_only_) {
-            auto const best = goa->Interface::GOptimizerIT<
-                oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
-            n_adaptions_store_.emplace_back(
-                static_cast<double>(iteration),
-                static_cast<double>(best->getNAdaptions())
+            stream_ = Gem::Common::Record::recorder().stream(
+                stream_name_,
+                std::move(columns),
+                Gem::Common::Record::withTime::none,
+                oa::GBasePluggableOM::streamOptions(
+                    *goa,
+                    {std::make_shared<Gem::Common::Record::GCsvSink>(),
+                     std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
+                )
             );
         }
-        else { // Monitor all individuals
-            // Loop over all individuals of the algorithm.
-            for(std::size_t pos = 0; pos < goa->size(); pos++) {
-                std::shared_ptr<gen::GGenome> const ind = goa->individual_cast<gen::GGenome>(pos);
-                n_adaptions_store_.emplace_back(
-                    static_cast<double>(iteration),
-                    static_cast<double>(ind->getNAdaptions())
-                );
-            }
-        }
-    } break;
+        break;
 
-    case Gem::Geneva::infoMode::INFOEND: {
-        // Materialize the accumulated data into a fresh data log (no plotter objects are kept as
-        // state). The n-adaptions plot is declared first and the fitness plot second, matching the
-        // former pad order on the 1x2 canvas.
-        GDataLog log("Number of adaptions per iteration", 1, 2);
-        log.setCanvasDimensions(std::get<0>(canvas_dimensions_), std::get<1>(canvas_dimensions_));
-
+    case Gem::Geneva::infoMode::INFOPROCESSING: {
+        auto const best = goa->Interface::GOptimizerIT<
+            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+        auto const record = [&](std::size_t individual, gen::GGenome const &ind) {
+            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            row.emplace_back(static_cast<std::uint64_t>(individual));
+            row.emplace_back(static_cast<std::uint64_t>(ind.getNAdaptions()));
+            row.emplace_back(best->raw_fitness(0));
+            stream_.append(std::move(row));
+        };
         if(monitor_best_only_) {
-            // A simple (iteration, n-adaptions) curve for the best individual.
-            GPlotSpec spec(plotKind::graph_2d);
-            spec.plot_mode = graphPlotMode::CURVE;
-            spec.x_label = "Iteration";
-            spec.y_label = "Number of parameter adaptions";
-            spec.columns = {"x", "y"};
-            const auto id = log.declareSeries(spec);
-            for(const auto &n_adaptions : n_adaptions_store_) {
-                log.append(id, std::get<0>(n_adaptions), std::get<1>(n_adaptions));
+            record(0, *best);
+        }
+        else {
+            for(std::size_t pos = 0; pos < goa->size(); pos++) {
+                record(pos, *goa->individual_cast<gen::GGenome>(pos));
             }
         }
-        else { // All individuals are monitored
-            // Within n_adaptions_store_, find the largest number of adaptions performed
-            std::size_t max_n_adaptions = 0;
-            for(const auto &n_adaptions : n_adaptions_store_) {
-                if(std::get<1>(n_adaptions) > max_n_adaptions) {
-                    max_n_adaptions = Gem::Common::narrow<std::size_t>(std::get<1>(n_adaptions));
-                }
-            }
-
-            // A fixed-range 2-d histogram (iteration vs. n-adaptions). The explicit ranges make
-            // makePlotter() rebuild exactly the GHistogram2D the legacy path constructed.
-            GPlotSpec spec(plotKind::hist_2d);
-            spec.x_label = "Iteration";
-            spec.y_label = "Number of parameter adaptions";
-            spec.drawing_args = "BOX";
-            spec.columns = {"x", "y"};
-            spec.n_bins_x = n_iterations_recorded_;
-            spec.n_bins_y = max_n_adaptions + 1;
-            spec.range_x = std::make_tuple(0., static_cast<double>(max_iteration_));
-            spec.range_y = std::make_tuple(0., static_cast<double>(max_n_adaptions));
-            const auto id = log.declareSeries(spec);
-            for(const auto &n_adaptions : n_adaptions_store_) {
-                log.append(id, std::get<0>(n_adaptions), std::get<1>(n_adaptions));
-            }
-        }
-
-        // The best-fitness curve.
-        GPlotSpec fitness_spec(plotKind::graph_2d);
-        fitness_spec.plot_mode = graphPlotMode::CURVE;
-        fitness_spec.x_label = "Iteration";
-        fitness_spec.y_label = "Fitness";
-        fitness_spec.columns = {"x", "y"};
-        const auto fitness_id = log.declareSeries(fitness_spec);
-        for(const auto &fitness : fitness_store_) {
-            log.append(fitness_id, std::get<0>(fitness), std::get<1>(fitness));
-        }
-
-        // Inform the plot designer whether it should print png files, then write the result.
-        log.setAddPrintCommand(add_print_command_);
-        log.writeToFile(file_name_);
     } break;
+
+    case Gem::Geneva::infoMode::INFOEND:
+        break;
     };
 }
 
-// load_() and clone_() for GNAdpationsLogger are generated by Gem::Common::GReflectiveInterfaceT.
+// load_(), compare_(), name_() and clone_() for GNAdpationsLogger are generated by
+// Gem::Common::GReflectiveInterfaceT.
 
 /******************************************************************************/
 /**
@@ -1300,189 +1047,95 @@ bool GNAdpationsLogger::modify_GUnitTests_() {
 /******************************************************************************/
 
 /**
- * @brief The default constructor. Note that some variables may be initialized in the class body.
- */
-GProcessingTimesLogger::GProcessingTimesLogger() = default;
-
-/******************************************************************************/
-/**
- * @brief Initialization with file names and histogram bin counts. Note that some variables may be initialized in the class body.
+ * @brief Initialization with histogram bin counts. Note that some variables may be initialized in
+ * the class body.
  *
- * @param file_name_pth The file name for the 1D processing-times histograms (ROOT format)
- * @param file_name_pth2 The file name for the 2D processing-times-versus-iteration histograms (ROOT format)
- * @param file_name_txt The name of the file for the plain-text processing-times output
  * @param n_bins_x The number of histogram bins in x-direction
  * @param n_bins_y The number of histogram bins in y-direction (used for the 2D histograms)
  */
-GProcessingTimesLogger::GProcessingTimesLogger(
-    const std::string &file_name_pth,
-    const std::string &file_name_pth2,
-    const std::string &file_name_txt,
-    std::size_t n_bins_x,
-    std::size_t n_bins_y
-)
-  : file_name_pth_(file_name_pth)
-  , canvas_dimensions_pth_(std::tuple<std::uint32_t, std::uint32_t>(1600, 1200))
-  , file_name_pth2_(file_name_pth2)
-  , canvas_dimensions_pth2_(std::tuple<std::uint32_t, std::uint32_t>(1600, 1200))
-  , file_name_txt_(file_name_txt)
-  , n_bins_x_(n_bins_x)
+GProcessingTimesLogger::GProcessingTimesLogger(std::size_t n_bins_x, std::size_t n_bins_y)
+  : n_bins_x_(n_bins_x)
   , n_bins_y_(n_bins_y) { /* nothing */
 }
 
-// name_() and compare_() for GProcessingTimesLogger are generated by Gem::Common::GReflectiveInterfaceT.
-
 /******************************************************************************/
 /**
- * @brief Sets the file name for the processing times histogram
+ * @brief The copy constructor; the copy has no stream of its own yet
  *
- * @param file_name The name of the file for the 1D processing-times histograms
+ * @param cp A constant reference to another GProcessingTimesLogger object to be copied
  */
-void GProcessingTimesLogger::setFileName_pth(const std::string &file_name) {
-    file_name_pth_ = file_name;
+GProcessingTimesLogger::GProcessingTimesLogger(const GProcessingTimesLogger &cp)
+  : Gem::Common::GReflectiveInterfaceT<GProcessingTimesLogger, oa::GBasePluggableOM>(cp)
+  , stream_name_(cp.stream_name_)
+  , canvas_dimensions_(cp.canvas_dimensions_)
+  , n_bins_x_(cp.n_bins_x_)
+  , n_bins_y_(cp.n_bins_y_) { /* nothing -- the stream is not copied */
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current file name for the processing times histogram
+ * @brief Sets the name of the stream, which also names its files
  *
- * @return The name of the file for the 1D processing-times histograms
+ * @param stream_name The name of the stream
  */
-std::string GProcessingTimesLogger::getFileName_pth() const {
-    return file_name_pth_;
+void GProcessingTimesLogger::setStreamName(std::string stream_name) {
+    stream_name_ = std::move(stream_name);
 }
 
 /******************************************************************************/
 /**
- * @brief Sets the file name for the processing times histograms (2D)
+ * @brief The name of the stream
  *
- * @param file_name The name of the file for the 2D processing-times histograms (timing vs. iteration)
+ * @return The name of the stream
  */
-void GProcessingTimesLogger::setFileName_pth2(const std::string &file_name) {
-    file_name_pth2_ = file_name;
+std::string GProcessingTimesLogger::getStreamName() const {
+    return stream_name_;
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current file name for the processing times histograms (2D)
+ * @brief Allows to set the canvas dimensions
  *
- * @return The name of the file for the 2D processing-times histograms (timing vs. iteration)
+ * @param canvas_dimensions A tuple holding the canvas dimensions in x- and y-direction
  */
-std::string GProcessingTimesLogger::getFileName_pth2() const {
-    return file_name_pth2_;
+void GProcessingTimesLogger::setCanvasDimensions(std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions) {
+    canvas_dimensions_ = canvas_dimensions;
 }
 
 /******************************************************************************/
 /**
- * @brief Sets the file name for the text output
+ * @brief Allows to set the canvas dimensions using separate x and y values
  *
- * @param file_name The name of the file for the plain-text processing-times output
+ * @param x The canvas dimension in x-direction
+ * @param y The canvas dimension in y-direction
  */
-void GProcessingTimesLogger::setFileName_txt(const std::string &file_name) {
-    file_name_txt_ = file_name;
+void GProcessingTimesLogger::setCanvasDimensions(std::uint32_t x, std::uint32_t y) {
+    canvas_dimensions_ = std::tuple<std::uint32_t, std::uint32_t>(x, y);
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current file name for the text output
+ * @brief Gives access to the canvas dimensions
  *
- * @return The name of the file for the plain-text processing-times output
+ * @return A tuple holding the canvas dimensions in x- and y-direction
  */
-std::string GProcessingTimesLogger::getFileName_txt() const {
-    return file_name_txt_;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to set the canvas dimensions for the processing times histograms
- *
- * @param canvas_dimensions The desired canvas dimensions as a tuple (x-dimension, y-dimension)
- */
-void GProcessingTimesLogger::setCanvasDimensions_pth(
-    std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions
-) {
-    canvas_dimensions_pth_ = canvas_dimensions;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to set the canvas dimensions using separate x and y values for the
- * processing times histograms
- *
- * @param x The desired canvas dimension in x-direction
- * @param y The desired canvas dimension in y-direction
- */
-void GProcessingTimesLogger::setCanvasDimensions_pth(std::uint32_t x, std::uint32_t y) {
-    canvas_dimensions_pth_ = std::tuple<std::uint32_t, std::uint32_t>(x, y);
-}
-
-/******************************************************************************/
-/**
- * @brief Gives access to the canvas dimensions of the processing times histograms
- *
- * @return The current canvas dimensions as a tuple (x-dimension, y-dimension)
- */
-std::tuple<std::uint32_t, std::uint32_t> GProcessingTimesLogger::getCanvasDimensions_pth() const {
-    return canvas_dimensions_pth_;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to set the canvas dimensions for the processing times histograms (2D)
- *
- * @param canvas_dimensions The desired canvas dimensions as a tuple (x-dimension, y-dimension)
- */
-void GProcessingTimesLogger::setCanvasDimensions_pth2(
-    std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions
-) {
-    canvas_dimensions_pth2_ = canvas_dimensions;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to set the canvas dimensions using separate x and y values for the
- * processing times histograms (2D)
- *
- * @param x The desired canvas dimension in x-direction
- * @param y The desired canvas dimension in y-direction
- */
-void GProcessingTimesLogger::setCanvasDimensions_pth2(std::uint32_t x, std::uint32_t y) {
-    canvas_dimensions_pth2_ = std::tuple<std::uint32_t, std::uint32_t>(x, y);
-}
-
-/******************************************************************************/
-/**
- * @brief Gives access to the canvas dimensions of the processing times histograms (2D)
- *
- * @return The current canvas dimensions as a tuple (x-dimension, y-dimension)
- */
-std::tuple<std::uint32_t, std::uint32_t> GProcessingTimesLogger::getCanvasDimensions_pth2() const {
-    return canvas_dimensions_pth2_;
+std::tuple<std::uint32_t, std::uint32_t> GProcessingTimesLogger::getCanvasDimensions() const {
+    return canvas_dimensions_;
 }
 
 /******************************************************************************/
 /**
  * @brief Sets the number of bins for the processing times histograms in x-direction
  *
- * @param n_bins_x The number of histogram bins in x-direction; must be greater than 0 (a value of 0 triggers an exception)
+ * @param n_bins_x The number of histogram bins in x-direction
  */
 void GProcessingTimesLogger::setNBinsX(std::size_t n_bins_x) {
-    if(n_bins_x > 0) {
-        n_bins_x_ = n_bins_x;
-    }
-    else {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GProcessingTimesLogger::setNBinsX(): Error!" << '\n'
-            << "n_bins_x is set to 0" << '\n'
-        );
-    }
+    n_bins_x_ = n_bins_x;
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current number of bins for the processing times
- * histograms in x-direction
+ * @brief Retrieves the current number of bins for the processing times histograms in x-direction
  *
  * @return The number of histogram bins in x-direction
  */
@@ -1494,25 +1147,15 @@ std::size_t GProcessingTimesLogger::getNBinsX() const {
 /**
  * @brief Sets the number of bins for the processing times histograms in y-direction
  *
- * @param n_bins_y The number of histogram bins in y-direction; must be greater than 0 (a value of 0 triggers an exception)
+ * @param n_bins_y The number of histogram bins in y-direction
  */
 void GProcessingTimesLogger::setNBinsY(std::size_t n_bins_y) {
-    if(n_bins_y > 0) {
-        n_bins_y_ = n_bins_y;
-    }
-    else {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GProcessingTimesLogger::setNBinsY(): Error!" << '\n'
-            << "n_bins_y is set to 0" << '\n'
-        );
-    }
+    n_bins_y_ = n_bins_y;
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current number of bins for the processing times
- * histograms in y-direction
+ * @brief Retrieves the current number of bins for the processing times histograms in y-direction
  *
  * @return The number of histogram bins in y-direction
  */
@@ -1522,183 +1165,101 @@ std::size_t GProcessingTimesLogger::getNBinsY() const {
 
 /******************************************************************************/
 /**
- * @brief Allows to emit information in different stages of the information cycle
- * (initialization, during each cycle and during finalization)
+ * @brief Declares the stream and its plot at the first INFOINIT (the histograms of the four
+ * times, then each time over the iterations) and records every individual's times at
+ * INFOPROCESSING
  *
  * @param im The stage of the information cycle (INFOINIT, INFOPROCESSING or INFOEND)
- * @param goa A pointer to the optimization algorithm calling this function; queried for its individuals and the current iteration
+ * @param goa A pointer to the optimization algorithm calling this function
  */
-// NOLINTNEXTLINE(readability-function-size) -- switch-driven dispatcher over infoMode (INFOINIT/INFOPROCESSING/INFOEND) for GProcessingTimesLogger; each case is a self-contained stage of the same log lifecycle
 void GProcessingTimesLogger::informationFunction_(
     infoMode im,
     oa::GOptimizationAlgorithmBase const *const goa
 ) {
+    using Gem::Common::Record::columnType;
+    using Gem::Dietrich::GPlotSpec;
+    using Gem::Dietrich::plotKind;
+
     switch(im) {
-    case Gem::Geneva::infoMode::INFOINIT: {
-        //---------------------------------------------------------------
-        // Histograms
-
-        // If the file pointed to by file_name_pth_ already exists, make a back-up
-        Gem::Common::backupExistingFile(
-            file_name_pth_,
-            "GProcessingTimesLogger::informationFunction_(): Warning!"
-        );
-
-        // Build the 1-d timing-histogram log and declare its four auto-ranged histograms in the
-        // fixed { pre, main, post, all } order, so they land on the same 2x2 pads as before.
-        {
-            using Gem::Dietrich::GPlotSpec;
-            using Gem::Dietrich::plotKind;
-            log_pth_.emplace("Timings for the processing steps of individuals", 2, 2);
-            log_pth_->setCanvasDimensions(
-                std::get<0>(canvas_dimensions_pth_),
-                std::get<1>(canvas_dimensions_pth_)
-            );
-            pth_ids_.clear();
-            const char *const x_labels_1d[] = {
-                "Pre-processing time [s]",
-                "Main processing time [s]",
-                "Post-processing time [s]",
-                "Overall processing time for all steps [s]"
+    case Gem::Geneva::infoMode::INFOINIT:
+        if(not stream_.isOpen()) {
+            struct Time {
+                const char *column;
+                const char *label;
             };
-            for(const char *x_label : x_labels_1d) {
+            static constexpr std::array<Time, 4> TIMES{
+                {{"pre", "Pre-processing time [s]"},
+                 {"main", "Main processing time [s]"},
+                 {"post", "Post-processing time [s]"},
+                 {"total", "Overall processing time [s]"}}
+            };
+            auto columns = oa::GBasePluggableOM::iterationColumns();
+            columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
+            for(auto const &time : TIMES) {
+                columns.push_back({.name = time.column, .type = columnType::FLOATING});
+            }
+
+            // The four histograms in the top row, each time over the iterations in the bottom row
+            Gem::Dietrich::GDataLog layout("Timings for the processing steps of individuals", 4, 2);
+            layout.setCanvasDimensions(
+                std::get<0>(canvas_dimensions_),
+                std::get<1>(canvas_dimensions_)
+            );
+            for(auto const &time : TIMES) {
                 GPlotSpec spec(plotKind::hist_1d);
-                spec.x_label = x_label;
+                spec.x_label = time.label;
                 spec.y_label = "Number of Entries";
                 spec.drawing_args = "hist";
-                spec.columns = {"value"};
+                spec.columns = {time.column};
                 spec.n_bins_x = n_bins_x_;
-                pth_ids_.push_back(log_pth_->declareSeries(spec));
+                layout.declareSeries(spec);
             }
-        }
-
-        //---------------------------------------------------------------
-        // 2D Histograms
-
-        // If the file pointed to by file_name_pth2_ already exists, make a back-up
-        Gem::Common::backupExistingFile(
-            file_name_pth2_,
-            "GProcessingTimesLogger::informationFunction_(): Warning!"
-        );
-
-        // Build the 2-d timing-vs-iteration log and declare its four auto-ranged histograms in the
-        // same fixed { pre, main, post, all } order.
-        {
-            using Gem::Dietrich::GPlotSpec;
-            using Gem::Dietrich::plotKind;
-            log_pth2_
-                .emplace("Timings for the processing steps of individuals vs. iteration", 2, 2);
-            log_pth2_->setCanvasDimensions(
-                std::get<0>(canvas_dimensions_pth2_),
-                std::get<1>(canvas_dimensions_pth2_)
-            );
-            pth2_ids_.clear();
-            const char *const y_labels_2d[] = {
-                "Pre-processing time [s]",
-                "Main processing time [s]",
-                "Post-processing time [s]",
-                "Overall processing time [s]"
-            };
-            for(const char *y_label : y_labels_2d) {
+            for(auto const &time : TIMES) {
                 GPlotSpec spec(plotKind::hist_2d);
                 spec.x_label = "Iteration";
-                spec.y_label = y_label;
+                spec.y_label = time.label;
                 spec.z_label = "Number of Entries";
                 spec.drawing_args = "box";
-                spec.columns = {"x", "y"};
+                spec.columns = {"iteration", time.column};
                 spec.n_bins_x = n_bins_x_;
                 spec.n_bins_y = n_bins_y_;
-                pth2_ids_.push_back(log_pth2_->declareSeries(spec));
+                layout.declareSeries(spec);
             }
+
+            stream_ = Gem::Common::Record::recorder().stream(
+                stream_name_,
+                std::move(columns),
+                Gem::Common::Record::withTime::none,
+                oa::GBasePluggableOM::streamOptions(
+                    *goa,
+                    {std::make_shared<Gem::Common::Record::GCsvSink>(),
+                     std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
+                )
+            );
         }
+        break;
 
-        //---------------------------------------------------------------
-        // Make sure the output file is empty (rename, if it exists)
-
-        // If the file pointed to by file_name_txt_ already exists, make a back-up
-        Gem::Common::backupExistingFile(
-            file_name_txt_,
-            "GProcessingTimesLogger::informationFunction_(): Warning!"
-        );
-
-        //---------------------------------------------------------------
-
-    } break;
-
-    case Gem::Geneva::infoMode::INFOPROCESSING: {
-        // Open the external text-file
-        std::ofstream data_txt(
-            file_name_txt_,
-            std::ofstream::app
-        ); // NOLINT(cppcoreguidelines-init-variables)
-
-        // Retrieve the current iteration in the population
-        auto iteration = Gem::Common::narrow<double>(goa->getIteration());
-
-        // Loop over all individuals of the algorithm.
+    case Gem::Geneva::infoMode::INFOPROCESSING:
         for(std::size_t pos = 0; pos < goa->size(); pos++) {
-            // Get access to each individual in sequence
-            std::shared_ptr<gen::GGenome> const ind = goa->individual_cast<gen::GGenome>(pos);
-
-            // Retrieve the processing timings
-            std::tuple<double, double, double> processing_times = ind->getProcessingTimes();
-
-            double const pre_processing_time = std::get<0>(processing_times);
-            double const main_processing_time = std::get<1>(processing_times);
-            double const post_processing_time = std::get<2>(processing_times);
-            double const all_processing_time =
-                pre_processing_time + main_processing_time + post_processing_time;
-
-            // Fill the timings into the 1-d histograms (one value per series), in the fixed
-            // { pre, main, post, all } order matching the declared series.
-            const double times_1d[] = {
-                pre_processing_time,
-                main_processing_time,
-                post_processing_time,
-                all_processing_time
-            };
-            // Both logs are created in INFOINIT, which precedes every per-iteration call.
-            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            auto &log_pth = *log_pth_;
-            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            auto &log_pth2 = *log_pth2_;
-            for(std::size_t s = 0; s < pth_ids_.size(); ++s) {
-                log_pth.append(pth_ids_[s], std::span<const double>(&times_1d[s], 1));
-            }
-
-            // Fill the timings into the 2-d (iteration, time) histograms, same order.
-            for(std::size_t s = 0; s < pth2_ids_.size(); ++s) {
-                log_pth2.append(pth2_ids_[s], iteration, times_1d[s]);
-            }
-
-            data_txt << Gem::Common::narrow<std::uint32_t>(iteration) << ", " << std::showpoint
-                     << pre_processing_time << ", " << main_processing_time << ", "
-                     << post_processing_time << '\n';
+            auto const [pre, main, post] =
+                goa->individual_cast<gen::GGenome>(pos)->getProcessingTimes();
+            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            row.emplace_back(static_cast<std::uint64_t>(pos));
+            row.emplace_back(pre);
+            row.emplace_back(main);
+            row.emplace_back(post);
+            row.emplace_back(pre + main + post);
+            stream_.append(std::move(row));
         }
+        break;
 
-        // Close the external text-file
-        data_txt.close();
-    } break;
-
-    case Gem::Geneva::infoMode::INFOEND: {
-        // Write out the results, then drop the transient run state.
-        if(log_pth_.has_value()) {
-            log_pth_->writeToFile(file_name_pth_);
-        }
-        if(log_pth2_.has_value()) {
-            log_pth2_->writeToFile(file_name_pth2_);
-        }
-
-        log_pth_.reset();
-        log_pth2_.reset();
-        pth_ids_.clear();
-        pth2_ids_.clear();
-    } break;
+    case Gem::Geneva::infoMode::INFOEND:
+        break;
     };
 }
 
-// load_() and clone_() for GProcessingTimesLogger are generated by Gem::Common::GReflectiveInterfaceT
-// from localMembers_() (the generated load_ also loads n_bins_y_, preserving the earlier fix).
+// load_(), compare_(), name_() and clone_() for GProcessingTimesLogger are generated by
+// Gem::Common::GReflectiveInterfaceT from localMembers_().
 
 /******************************************************************************/
 /**
@@ -1726,7 +1287,6 @@ bool GProcessingTimesLogger::modify_GUnitTests_() {
 #endif                  /* GEM_TESTING */
 }
 
-/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 

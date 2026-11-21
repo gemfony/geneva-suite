@@ -50,16 +50,12 @@ using namespace Gem::Geneva;
 int main(int argc, char **argv) {
     // Geneva on courtier's launcher: the lambda runs on the process that submits work
     return runOptimization(argc, argv, {.produce = [](Go2 &go, const auto &) {
-        // Add a "pluggable optimization monitor" to Go2. This particular monitor will
-        // log solutions that were found into the file allLog.txt.
+        // Add a "pluggable optimization monitor" to Go2. This particular monitor records the
+        // solutions it sees into its stream, the file records/all_solutions.csv.
         //! [monitors:register-simple]
-        std::shared_ptr<GAllSolutionFileLogger> allSolutionLogger_ptr(
-            new GAllSolutionFileLogger("allLog.txt")
-        );
-        // Also log the initial population, prior to optimization
+        auto allSolutionLogger_ptr = std::make_shared<GAllSolutionFileLogger>();
+        // Also record the initial population, prior to optimization
         allSolutionLogger_ptr->setPrintInitial();
-        // Makes the log easier to read
-        allSolutionLogger_ptr->setShowIterationBoundaries();
 
         go.registerPluggableOM(allSolutionLogger_ptr);
         //! [monitors:register-simple]

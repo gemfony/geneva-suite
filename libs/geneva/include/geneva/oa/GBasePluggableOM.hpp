@@ -33,13 +33,16 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
+#include <memory>
 #include <tuple>
+#include <vector>
 
 // Geneva headers go here
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "common/record/GRecorder.hpp"
 #include "geneva/GOptimizationEnums.hpp" // infoMode
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -135,6 +138,29 @@ protected:
      * @brief Applies modifications to this object. This is needed for testing purposes.
      */
     bool modify_GUnitTests_();
+
+    /***************************************************************************/
+    // What the shipped monitors share when they record into a stream of the recorder
+    // (Gem::Common::Record); a monitor of a program's own may use them as well.
+
+    /**
+     * @brief The two columns every row of a shipped monitor begins with: "algorithm" (text) and
+     * "iteration" (unsigned)
+     */
+    [[nodiscard]] static std::vector<Gem::Common::Record::GColumn> iterationColumns();
+    /**
+     * @brief The values of iterationColumns() for the algorithm's current iteration
+     */
+    [[nodiscard]] static Gem::Common::Record::GRow
+    iterationValues(GOptimizationAlgorithmBase const &goa);
+    /**
+     * @brief The options of a monitor's stream: its sinks, and resuming if the algorithm's run was
+     * resumed from a checkpoint
+     */
+    [[nodiscard]] static Gem::Common::Record::GStreamOptions streamOptions(
+        GOptimizationAlgorithmBase const &goa,
+        std::vector<std::shared_ptr<Gem::Common::Record::GSink>> sinks = {}
+    );
     /***************************************************************************/
     // Data
 

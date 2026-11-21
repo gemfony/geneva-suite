@@ -158,22 +158,6 @@ constexpr std::size_t DEFAULTEANPARENTS = 2;
 constexpr double DEFAULTAMALGAMATIONLIKELIHOOD = 0.;
 
 /******************************************************************************/
-/**
- * The default name of the output file of the optimization monitor base class
- * for output in ROOT format
- */
-const std::string DEFAULTROOTRESULTFILEOM = "./result.C";
-
-/**
- * The default dimension of the canvas in x-direction
- */
-constexpr std::uint16_t DEFAULTXDIMOM = 1024;
-
-/**
- * The default dimension of the canvas in y-direction
- */
-constexpr std::uint16_t DEFAULTYDIMOM = 768;
-
 /******************************************************************************/
 /**
  * The two const variables MAXIMIZE and MINIMIZE determine, whether the library

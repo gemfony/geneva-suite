@@ -96,19 +96,6 @@ inline std::shared_ptr<gind::GLineFitIndividual> TFactory_GUnitTests<gind::GLine
     return p;
 }
 
-// gind::GOptOptMonitorT<gind::GFunctionIndividual> — public ctor takes a file name.
-template <>
-inline std::shared_ptr<gind::GOptOptMonitorT<gind::GFunctionIndividual>>
-TFactory_GUnitTests<gind::GOptOptMonitorT<gind::GFunctionIndividual>>() {
-    std::shared_ptr<gind::GOptOptMonitorT<gind::GFunctionIndividual>> p;
-    CHECK_NOTHROW(
-        p = std::make_shared<gind::GOptOptMonitorT<gind::GFunctionIndividual>>(
-            std::string("optOptMonitorResult.C")
-        )
-    );
-    return p;
-}
-
 // ============================================================================
 // Standard tests — no failure expected
 // ============================================================================

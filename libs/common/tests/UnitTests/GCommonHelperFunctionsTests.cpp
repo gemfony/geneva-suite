@@ -244,11 +244,11 @@ TEST_CASE("condnotset: raises gem_exception", "[common][helper-nonT][condnotset]
 // ---------------------------------------------------------------------------
 // backupExistingFile
 //
-// Regression guard. The six output sites in GPluggableOptimizationMonitors used to carry a
-// hand-copied version of this block, and one copy had drifted: it tested and renamed
-// file_name_txt_ while its warning named file_name_pth2_, i.e. it reported a file it had not
-// touched. Routing every site through a single function that takes the name once makes that
-// class of defect unrepresentable; these cases pin the function's contract.
+// Regression guard. The output sites of the optimization monitors once carried hand-copied
+// versions of this block, and one copy had drifted: it renamed one file while its warning named
+// another. Routing every site through a single function that takes the name once made that class
+// of defect unrepresentable; today the recorder's file and plot sinks (Gem::Common::Record) are
+// those sites. These cases pin the function's contract.
 
 namespace {
 

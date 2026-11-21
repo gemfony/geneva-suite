@@ -32,7 +32,10 @@ result through any backend:
 
 - **`GDataLog`** (the modern, plotter-object-free API): declare each plot as a
   `GPlotSpec` value (`declareSeries` / `overlaySeries`), append data rows
-  (`append`), then `writeToFile`. This is what all of Geneva's monitors use.
+  (`append`), then `writeToFile`. Geneva's monitors describe their plots this way and
+  hand the log, without data, to a **`GPlotSink`**: the sink of common's recorder
+  (`Gem::Common::Record`) that fills the series from the columns of a stream and writes
+  the plot when the stream ends.
 - **The plotter objects** (`GGraph2D`, `GHistogram2D`, `GPlotDesigner`, …): the
   lower-level building blocks `GDataLog` is realized on. Application/example code may
   still use these directly.

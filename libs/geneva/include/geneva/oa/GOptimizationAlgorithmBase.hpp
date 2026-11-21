@@ -824,6 +824,7 @@ protected:
     /** @brief Lets individuals know about the current iteration of the optimization cycle. */
     void markIteration();
 
+public:
     /**
      * @brief Whether this optimization run was just resumed from a checkpoint. Set by loadCheckpoint()
      * (after the population -- with its OA-owned scratch -- has been deserialised) and cleared once the
@@ -832,12 +833,17 @@ protected:
      * instead of re-seeding it, so a resumed algorithm keeps its evolved state. It is deliberately NOT
      * serialized (it is a transient resume marker, and loadCheckpoint sets it AFTER fromFile anyway).
      *
+     * A pluggable monitor reads it at INFOINIT, which comes before it is cleared: a resumed run
+     * appends to the streams of its monitors (GBasePluggableOM::streamOptions()).
+     *
      * @return true if this run was resumed from a checkpoint and its scratch must be preserved
      */
-    bool resumedFromCheckpoint() const {
+    [[nodiscard]] bool resumedFromCheckpoint() const {
         return resumed_from_checkpoint_;
     }
-    bool resumed_from_checkpoint_ = false;
+
+protected:
+    bool resumed_from_checkpoint_ = false; ///< See resumedFromCheckpoint()
 
 private:
     /***************************************************************************/

@@ -73,11 +73,7 @@ int optimize(Go2 &go) {
 
     // Add a pluggable optimization monitor (targeted at evolutionary algorithms) and register
     // it with Go2.
-    go.registerPluggableOM(
-        std::shared_ptr<gind::GOptOptMonitorT<gind::GFunctionIndividual>>(
-            new gind::GOptOptMonitorT<gind::GFunctionIndividual>("./optProgress.C")
-        )
-    );
+    go.registerPluggableOM(std::make_shared<gind::GOptOptMonitorT<gind::GFunctionIndividual>>());
 
     //! [meta.example-main#1]
     // Register the GFunctionIndividualFactory with the meta-optimizer,
