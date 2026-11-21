@@ -63,46 +63,44 @@ int main(int argc, char **argv) {
     Gem::Common::installFatalReport(); // an error nobody handles: its message, exit code 1
 
     //! [courtier-launcher-program]
-    // One launcher for the program's one item type; the consumer modules lie beside it
+    // One launcher for the program's one item type; its consumer modules lie beside it
     Gem::Courtier::GLauncherT<GGridSlice> launcher(argc, argv);
     launcher.setConsumerModules(
         Gem::Courtier::GConsumerModules::besideProgram("libcourtier_grid_minimum_")
     );
 
+    // The program's own options, in the same command line and help text
     std::size_t n_slices = 40;
     std::size_t n_points = 2'500;
-    return launcher.run({
-        // The program's own options, in the same command line and help text
-        .userOptions =
-            [&](Gem::Common::GParserBuilder &gpb) {
-                gpb.registerCLParameter<std::size_t>("slices", n_slices, 40, "Slices of the grid");
-                gpb.registerCLParameter<std::size_t>("points", n_points, 2'500, "Points per slice");
-            },
-        // The submitter only: a client or an MPI rank other than 0 never gets here
-        .produce =
-            [&] {
-                std::vector<std::unique_ptr<GGridSlice>> batch;
-                const double width = 10. / static_cast<double>(n_slices); // [-5, 5]
-                for(std::size_t s = 0; s < n_slices; ++s) {
-                    const double lo = -5. + width * static_cast<double>(s);
-                    batch.push_back(std::make_unique<GGridSlice>(lo, lo + width, n_points));
-                }
-                auto consumer =
-                    Gem::Courtier::GConsumerRegistryT<GGridSlice>::instance().consumer();
-                consumer->processBatch(
-                    std::span(batch),
-                    Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
-                );
-                const GGridSlice *best = batch.front().get();
-                for(const auto &slice : batch) {
-                    if(slice->fMin() < best->fMin()) {
-                        best = slice.get();
-                    }
-                }
-                std::cout << "grid_minimum: smallest value " << best->fMin()
-                          << " at x = " << best->xMin() << '\n';
-                return std::abs(best->xMin() - 1.25) < 1e-2 ? 0 : 1;
-            },
-    });
+    auto own_options = [&](Gem::Common::GParserBuilder &gpb) {
+        gpb.registerCLParameter<std::size_t>("slices", n_slices, 40, "Slices");
+        gpb.registerCLParameter<std::size_t>("points", n_points, 2'500, "Points");
+    };
+
+    // The submitter only: a client, or an MPI rank other than 0, never runs it
+    auto produce = [&] {
+        std::vector<std::unique_ptr<GGridSlice>> batch;
+        const double width = 10. / static_cast<double>(n_slices); // [-5, 5]
+        for(std::size_t s = 0; s < n_slices; ++s) {
+            const double lo = -5. + width * static_cast<double>(s);
+            batch.push_back(std::make_unique<GGridSlice>(lo, lo + width, n_points));
+        }
+        auto &registry = Gem::Courtier::GConsumerRegistryT<GGridSlice>::instance();
+        registry.consumer()->processBatch(
+            std::span(batch),
+            Gem::Courtier::GSubmissionPolicy::full_success_or_fatal()
+        );
+        const GGridSlice *best = batch.front().get();
+        for(const auto &slice : batch) {
+            if(slice->fMin() < best->fMin()) {
+                best = slice.get();
+            }
+        }
+        std::cout << "grid_minimum: smallest value " << best->fMin();
+        std::cout << " at x = " << best->xMin() << '\n';
+        return std::abs(best->xMin() - 1.25) < 1e-2 ? 0 : 1;
+    };
+
+    return launcher.run({.userOptions = own_options, .produce = produce});
     //! [courtier-launcher-program]
 }
