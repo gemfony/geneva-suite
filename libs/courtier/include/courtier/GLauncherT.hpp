@@ -103,6 +103,115 @@ struct GConsumerModules {
 };
 
 /******************************************************************************/
+namespace detail {
+
+/** @brief A networked consumer reads its time limits from ./config/GNetworkedConsumer.json
+ *  (written with the defaults if absent); any other consumer is left alone
+ *  @param consumer The consumer just built */
+template <ProcessableItem processable_type>
+void applyNetworkedTimeouts(GBaseConsumerT<processable_type> &consumer) {
+    if(auto *networked = dynamic_cast<GNetworkedConsumerT<processable_type> *>(&consumer)) {
+        GNetworkedTimeoutConfig timeout_config;
+        timeout_config.load("./config/GNetworkedConsumer.json");
+        networked->applyTimeoutConfig(timeout_config);
+    }
+}
+
+/** @brief An error of the free functions @param what Why @return The exception to throw */
+inline gem_exception consumerError(const std::string &what) {
+    return gem_exception(
+        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        << "In Gem::Courtier's consumer functions: Error!" << '\n'
+        << what << '\n'
+    );
+}
+
+} // namespace detail
+
+/******************************************************************************/
+/**
+ * @brief The consumers of an item type a program can choose: those of its catalogue and those
+ * whose modules lie at @p location
+ * @param location Where the consumer modules lie, if anywhere
+ * @return "a, b, c", or "none"
+ */
+template <ProcessableItem processable_type>
+[[nodiscard]] std::string consumerListing(const std::optional<GConsumerModules> &location);
+
+/**
+ * @brief The provider of a consumer: from the catalogue of the item type or, if no module loaded
+ * so far provides it, from its module at @p location, which is loaded then. The launcher finds
+ * its consumer this way; so does a program that builds its consumer or client without one.
+ * @param mnemonic The consumer
+ * @param location Where the consumer modules lie, if anywhere
+ * @return The provider (never null)
+ * @throws gem_exception if no module provides the consumer or its module cannot be loaded
+ */
+template <ProcessableItem processable_type>
+[[nodiscard]] GConsumerProviderPtrT<processable_type>
+consumerProvider(const std::string &mnemonic, const std::optional<GConsumerModules> &location);
+
+/**
+ * @brief Builds the consumer of a submitter without a launcher and registers it as the process
+ * consumer (GConsumerRegistryT); a networked consumer reads its time limits from
+ * ./config/GNetworkedConsumer.json, as under the launcher
+ * @param spec The consumer and its configuration
+ * @param location Where the consumer modules lie, if anywhere
+ * @return The consumer
+ * @throws gem_exception as consumerProvider(), or if the provider builds none
+ */
+template <ProcessableItem processable_type>
+std::shared_ptr<GBaseConsumerT<processable_type>>
+buildConsumer(const ConsumerSpec &spec, const std::optional<GConsumerModules> &location);
+
+/** @brief As buildConsumer(const ConsumerSpec &, ...), from the configuration struct of the
+ *  consumer's family, which names the consumer @param config The configuration
+ *  @param location Where the consumer modules lie, if anywhere @return The consumer */
+template <ProcessableItem processable_type, ConsumerConfig config_type>
+std::shared_ptr<GBaseConsumerT<processable_type>>
+buildConsumer(const config_type &config, const std::optional<GConsumerModules> &location) {
+    return buildConsumer<processable_type>(
+        ConsumerSpec{.mnemonic = std::string(config_type::MNEMONIC), .config = config},
+        location
+    );
+}
+
+/**
+ * @brief Builds the client of a consumer without a launcher (the caller runs it)
+ * @param spec The consumer and its configuration
+ * @param location Where the consumer modules lie, if anywhere
+ * @return The client
+ * @throws gem_exception as consumerProvider(), or for a consumer without clients
+ */
+template <ProcessableItem processable_type>
+std::shared_ptr<GBaseClientT<processable_type>>
+buildConsumerClient(const ConsumerSpec &spec, const std::optional<GConsumerModules> &location);
+
+/** @brief As buildConsumerClient(const ConsumerSpec &, ...), from the configuration struct of the
+ *  consumer's family @param config The configuration
+ *  @param location Where the consumer modules lie, if anywhere @return The client */
+template <ProcessableItem processable_type, ConsumerConfig config_type>
+std::shared_ptr<GBaseClientT<processable_type>>
+buildConsumerClient(const config_type &config, const std::optional<GConsumerModules> &location) {
+    return buildConsumerClient<processable_type>(
+        ConsumerSpec{.mnemonic = std::string(config_type::MNEMONIC), .config = config},
+        location
+    );
+}
+
+/**
+ * @brief The process consumer; if the process has none, the default consumer
+ * (GDEFAULTCONSUMERMNEMONIC) is built from its module and registered. For a producer that runs
+ * without a launcher and was given no consumer.
+ * @param location Where the consumer modules lie, if anywhere
+ * @return The process consumer (never null)
+ * @throws gem_exception as consumerProvider()
+ */
+template <ProcessableItem processable_type>
+std::shared_ptr<GBaseConsumerT<processable_type>>
+ensureProcessConsumer(const std::optional<GConsumerModules> &location);
+
+/******************************************************************************/
 /**
  * @brief What a library that produces work (Geneva, for example) says about itself to the
  * launcher. Every function is called in every process, in the order of the launcher's steps
@@ -531,45 +640,10 @@ GLauncherT<processable_type>::chosenProvider_(const GProducerDescriptionI &descr
         mnemonic_ = file_consumer_;
     }
 
-    auto catalog = consumerCatalog<processable_type>();
-    if(not catalog->exists(mnemonic_)) {
-        const std::optional<GConsumerModules> location =
-            consumer_modules_ ? consumer_modules_ : description.consumerModules();
-        if(not location) {
-            throw refusal_(
-                "No module provides the consumer \"" + mnemonic_ +
-                "\" (available: " + listing_(description) + "). Name its module with --module."
-            );
-        }
-        const std::filesystem::path module = location->moduleOf(mnemonic_);
-        if(not std::filesystem::exists(module)) {
-            throw refusal_(
-                "The consumer \"" + mnemonic_ + "\" is not available: its module " +
-                module.string() + " does not exist (available: " + listing_(description) + ")."
-            );
-        }
-        try {
-            Gem::Common::loadModule(
-                module,
-                std::array{consumerContributionHandler<processable_type>()}
-            );
-        }
-        catch(const std::exception &e) {
-            throw refusal_(
-                "The module " + module.string() + " of the consumer \"" + mnemonic_ +
-                "\" could not be loaded:\n" + e.what()
-            );
-        }
-        if(not catalog->exists(mnemonic_)) {
-            throw refusal_(
-                "The module " + module.string() + " does not provide the consumer \"" + mnemonic_ +
-                "\"."
-            );
-        }
-    }
-    GConsumerProviderPtrT<processable_type> provider;
-    catalog->get(mnemonic_, provider);
-    return provider;
+    return consumerProvider<processable_type>(
+        mnemonic_,
+        consumer_modules_ ? consumer_modules_ : description.consumerModules()
+    );
 }
 
 /******************************************************************************/
@@ -616,11 +690,7 @@ int GLauncherT<processable_type>::runSubmitter_(
     if(not consumer) {
         throw refusal_("No consumer was built for \"" + mnemonic_ + "\".");
     }
-    if(auto *networked = dynamic_cast<GNetworkedConsumerT<processable_type> *>(consumer.get())) {
-        GNetworkedTimeoutConfig timeout_config;
-        timeout_config.load("./config/GNetworkedConsumer.json");
-        networked->applyTimeoutConfig(timeout_config);
-    }
+    detail::applyNetworkedTimeouts(*consumer);
 
     auto &registry = GConsumerRegistryT<processable_type>::instance();
     registry.setConsumer(consumer);
@@ -653,12 +723,20 @@ int GLauncherT<processable_type>::runSubmitter_(
 
 template <ProcessableItem processable_type>
 std::string GLauncherT<processable_type>::listing_(const GProducerDescriptionI &description) const {
+    return consumerListing<processable_type>(
+        consumer_modules_ ? consumer_modules_ : description.consumerModules()
+    );
+}
+
+/******************************************************************************/
+// The free functions
+
+template <ProcessableItem processable_type>
+std::string consumerListing(const std::optional<GConsumerModules> &location) {
     std::vector<std::string> names;
     for(const auto &p : consumerCatalog<processable_type>()->getContentSnapshot()) {
         names.push_back(p->getMnemonic());
     }
-    const std::optional<GConsumerModules> location =
-        consumer_modules_ ? consumer_modules_ : description.consumerModules();
     if(location) {
         for(auto &name : location->available()) {
             names.push_back(std::move(name));
@@ -672,6 +750,91 @@ std::string GLauncherT<processable_type>::listing_(const GProducerDescriptionI &
         result += (result.empty() ? "" : ", ") + name;
     }
     return result.empty() ? "none" : result;
+}
+
+template <ProcessableItem processable_type>
+GConsumerProviderPtrT<processable_type>
+consumerProvider(const std::string &mnemonic, const std::optional<GConsumerModules> &location) {
+    auto catalog = consumerCatalog<processable_type>();
+    if(not catalog->exists(mnemonic)) {
+        if(not location) {
+            throw detail::consumerError(
+                "No module provides the consumer \"" + mnemonic +
+                "\" (available: " + consumerListing<processable_type>(location) +
+                "). Name its module with --module."
+            );
+        }
+        const std::filesystem::path module = location->moduleOf(mnemonic);
+        if(not std::filesystem::exists(module)) {
+            throw detail::consumerError(
+                "The consumer \"" + mnemonic + "\" is not available: its module " +
+                module.string() + " does not exist (available: " +
+                consumerListing<processable_type>(location) + ")."
+            );
+        }
+        try {
+            Gem::Common::loadModule(
+                module,
+                std::array{consumerContributionHandler<processable_type>()}
+            );
+        }
+        catch(const std::exception &e) {
+            throw detail::consumerError(
+                "The module " + module.string() + " of the consumer \"" + mnemonic +
+                "\" could not be loaded:\n" + e.what()
+            );
+        }
+        if(not catalog->exists(mnemonic)) {
+            throw detail::consumerError(
+                "The module " + module.string() + " does not provide the consumer \"" + mnemonic +
+                "\"."
+            );
+        }
+    }
+    GConsumerProviderPtrT<processable_type> provider;
+    catalog->get(mnemonic, provider);
+    return provider;
+}
+
+template <ProcessableItem processable_type>
+std::shared_ptr<GBaseConsumerT<processable_type>>
+buildConsumer(const ConsumerSpec &spec, const std::optional<GConsumerModules> &location) {
+    std::shared_ptr<GBaseConsumerT<processable_type>> consumer =
+        consumerProvider<processable_type>(spec.mnemonic, location)->setup(spec);
+    if(not consumer) {
+        throw detail::consumerError("No consumer was built for \"" + spec.mnemonic + "\".");
+    }
+    detail::applyNetworkedTimeouts(*consumer);
+    GConsumerRegistryT<processable_type>::instance().setConsumer(consumer);
+    return consumer;
+}
+
+template <ProcessableItem processable_type>
+std::shared_ptr<GBaseClientT<processable_type>>
+buildConsumerClient(const ConsumerSpec &spec, const std::optional<GConsumerModules> &location) {
+    std::shared_ptr<GBaseClientT<processable_type>> client =
+        consumerProvider<processable_type>(spec.mnemonic, location)->buildClient(spec);
+    if(not client) {
+        throw detail::consumerError(
+            "The consumer \"" + spec.mnemonic + "\" does not provide a client."
+        );
+    }
+    return client;
+}
+
+template <ProcessableItem processable_type>
+std::shared_ptr<GBaseConsumerT<processable_type>>
+ensureProcessConsumer(const std::optional<GConsumerModules> &location) {
+    return GConsumerRegistryT<processable_type>::instance().ensureConsumer([&location] {
+        const std::string mnemonic(GDEFAULTCONSUMERMNEMONIC);
+        std::shared_ptr<GBaseConsumerT<processable_type>> consumer =
+            consumerProvider<processable_type>(mnemonic, location)
+                ->setup(ConsumerSpec{.mnemonic = mnemonic});
+        if(not consumer) {
+            throw detail::consumerError("No consumer was built for \"" + mnemonic + "\".");
+        }
+        return consumer;
+    });
 }
 
 /******************************************************************************/

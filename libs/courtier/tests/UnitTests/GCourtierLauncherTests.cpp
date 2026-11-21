@@ -34,7 +34,8 @@
  * command line, the refusals (an unknown consumer, a module that cannot be loaded, a module for
  * another item type, --client for a consumer without clients, a consumer that misses a
  * prerequisite, a second item type, a second run()), a choice in main() against options given
- * explicitly, prepare() and the release of the consumer.
+ * explicitly, prepare() and the release of the consumer; consumer and client built without a
+ * launcher.
  *
  * Every launcher here distributes GSimpleContainer, but for the one case that is refused because
  * of it: the item type is recorded once per process.
@@ -376,6 +377,52 @@ TEST_CASE("Launcher: the program's own consumer is built on the submitter", "[la
     });
     CHECK(launcher.run({.produce = [] { return submitEight() == 8 ? 0 : 1; }}) == 0);
     CHECK(made == 1);
+}
+
+TEST_CASE("Without a launcher: consumer and client from the modules", "[launcher]") {
+    auto &registry = Gem::Courtier::GConsumerRegistryT<GSimpleContainer>::instance();
+    registry.clear();
+
+    SECTION("a consumer from its configuration struct, registered as the process consumer") {
+        auto consumer = Gem::Courtier::buildConsumer<GSimpleContainer>(
+            Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 2},
+            testModules()
+        );
+        CHECK(consumer != nullptr);
+        CHECK(registry.consumer() == consumer);
+        CHECK(submitEight() == 8);
+    }
+    SECTION("the default consumer, built once if the process has none") {
+        auto first = Gem::Courtier::ensureProcessConsumer<GSimpleContainer>(testModules());
+        CHECK(first != nullptr);
+        CHECK(registry.consumer() == first);
+        CHECK(Gem::Courtier::ensureProcessConsumer<GSimpleContainer>(testModules()) == first);
+    }
+    SECTION("refusals") {
+        CHECK(mentions(
+            refusalOf([] {
+                (void)Gem::Courtier::buildConsumerClient<GSimpleContainer>(
+                    Gem::Courtier::ConsumerSpec{.mnemonic = "stc"},
+                    testModules()
+                );
+            }),
+            "The consumer \"stc\" does not provide a client"
+        ));
+        CHECK(mentions(
+            refusalOf([] {
+                (void)Gem::Courtier::consumerProvider<GSimpleContainer>("nosuch", testModules());
+            }),
+            "libgem_launcher_test_nosuch.so does not exist"
+        ));
+        CHECK(mentions(
+            refusalOf([] {
+                (void)Gem::Courtier::consumerProvider<GSimpleContainer>("nosuch", std::nullopt);
+            }),
+            "No module provides the consumer \"nosuch\""
+        ));
+        CHECK(registry.consumer() == nullptr);
+    }
+    registry.clear();
 }
 
 TEST_CASE("Launcher: run() runs once", "[launcher]") {
