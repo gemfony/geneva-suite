@@ -55,31 +55,29 @@ int main(int argc, char **argv) {
 
     // The producing function runs on the submitter only: a client or an MPI rank other than 0
     // never runs it
-    return launcher.run(geneva, {.produce = [&geneva] {
-                            Go2 go(geneva);
+    auto produce = [&geneva] {
+        Go2 go(geneva);
 
-                            // Make an individual known to the optimizer
-                            std::shared_ptr<GParaboloidIndividual2D> const p(
-                                new GParaboloidIndividual2D()
-                            );
-                            go.push_back(p);
+        // Make an individual known to the optimizer
+        std::shared_ptr<GParaboloidIndividual2D> const p(new GParaboloidIndividual2D());
+        go.push_back(p);
 
-                            // The genome carries only structure; its Gauss adaptors live on an OA-owned config.
-                            // Register it for the evolutionary algorithm so Go2 hands it over before the EA runs.
-                            go.registerAdaptionConfig(
-                                "PERSONALITY_EA",
-                                GParaboloidIndividual2D::buildAdaptionConfig(*p)
-                            );
+        // The genome carries only structure; its Gauss adaptors live on an OA-owned config.
+        // Register it for the evolutionary algorithm so Go2 hands it over before the EA runs.
+        go.registerAdaptionConfig(
+            "PERSONALITY_EA",
+            GParaboloidIndividual2D::buildAdaptionConfig(*p)
+        );
 
-                            // Add an evolutionary algorithm to the Go2 class.
-                            go & "ea";
+        // Add an evolutionary algorithm to the Go2 class.
+        go & "ea";
 
-                            // Perform the actual optimization
-                            auto const best_ptr =
-                                go.optimize()->getBestGlobalIndividual<GParaboloidIndividual2D>();
+        // Perform the actual optimization
+        auto const best_ptr = go.optimize()->getBestGlobalIndividual<GParaboloidIndividual2D>();
 
-                            // Do something with the best result
-                            std::cout << "Best fitness found: " << best_ptr->raw_fitness(0) << '\n';
-                            return 0;
-                        }});
+        // Do something with the best result
+        std::cout << "Best fitness found: " << best_ptr->raw_fitness(0) << '\n';
+        return 0;
+    };
+    return launcher.run(geneva, {.produce = produce});
 }

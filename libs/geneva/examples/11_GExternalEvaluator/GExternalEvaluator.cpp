@@ -57,56 +57,53 @@ int main(int argc, char **argv) {
     // line, option by option: --nWorkerThreads sets the threads, --consumer another consumer.
     launcher.setConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 4});
 
-    return launcher.run(
-        geneva,
-        {.produce = [&geneva] {
-            Go2 go(geneva);
+    auto produce = [&geneva] {
+        Go2 go(geneva);
 
-            // Create a factory for GExternalEvaluatorIndividual objects and perform
-            // any necessary initial work.
-            std::shared_ptr<gind::GExternalEvaluatorIndividualFactory> const geei_ptr(
-                new gind::GExternalEvaluatorIndividualFactory(
-                    "./config/GExternalEvaluatorIndividual.json"
-                )
-            );
+        // Create a factory for GExternalEvaluatorIndividual objects and perform
+        // any necessary initial work.
+        std::shared_ptr<gind::GExternalEvaluatorIndividualFactory> const geei_ptr(
+            new gind::GExternalEvaluatorIndividualFactory(
+                "./config/GExternalEvaluatorIndividual.json"
+            )
+        );
 
-            // Add a content creator so Go2 can generate its own individuals, if necessary^
-            go.registerContentCreator(geei_ptr);
+        // Add a content creator so Go2 can generate its own individuals, if necessary^
+        go.registerContentCreator(geei_ptr);
 
-            // The genome carries only structure; the configured Gauss / bi-Gauss adaptor for the active variables
-            // lives on an OA-owned config the factory authors (fixed variables stay un-adapted). Register it for
-            // the adapting algorithms (EA / SA) so Go2 hands it over before they run.
-            //
-            // Skipped in --update-configs mode: building the sample constructs an individual whose genome is
-            // defined by the external evaluator program (queried at construction), which is irrelevant to a
-            // configuration refresh and absent when the configs are materialized. Go2 still refreshes the
-            // individual's config via the content creator registered above.
-            if(not Gem::Common::GParserBuilder::updateInPlace()) {
-                auto sample = geei_ptr->get_as<gind::GExternalEvaluatorIndividual>();
-                auto cfg = geei_ptr->getAdaptionConfig(*sample);
-                go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-                go.registerAdaptionConfig("PERSONALITY_SA", cfg);
-            }
+        // The genome carries only structure; the configured Gauss / bi-Gauss adaptor for the active variables
+        // lives on an OA-owned config the factory authors (fixed variables stay un-adapted). Register it for
+        // the adapting algorithms (EA / SA) so Go2 hands it over before they run.
+        //
+        // Skipped in --update-configs mode: building the sample constructs an individual whose genome is
+        // defined by the external evaluator program (queried at construction), which is irrelevant to a
+        // configuration refresh and absent when the configs are materialized. Go2 still refreshes the
+        // individual's config via the content creator registered above.
+        if(not Gem::Common::GParserBuilder::updateInPlace()) {
+            auto sample = geei_ptr->get_as<gind::GExternalEvaluatorIndividual>();
+            auto cfg = geei_ptr->getAdaptionConfig(*sample);
+            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+            go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+        }
 
-            // Add a default optimization algorithm to the Go2 object
-            go.registerDefaultAlgorithm("ea");
+        // Add a default optimization algorithm to the Go2 object
+        go.registerDefaultAlgorithm("ea");
 
-            // Perform the actual optimization
-            auto const p =
-                go.optimize()->getBestGlobalIndividual<gind::GExternalEvaluatorIndividual>();
+        // Perform the actual optimization
+        auto const p = go.optimize()->getBestGlobalIndividual<gind::GExternalEvaluatorIndividual>();
 
-            // Extract the best individuals found
-            auto const bestInds = go.getBestGlobalIndividuals<gind::GExternalEvaluatorIndividual>();
+        // Extract the best individuals found
+        auto const bestInds = go.getBestGlobalIndividuals<gind::GExternalEvaluatorIndividual>();
 
-            // Note that the "archive" call is specific to the GExternalEvaluatorIndividual (it is now a static
-            // helper on the individual, reading the program/run-id off the archived individuals themselves)
-            gind::GExternalEvaluatorIndividual::archive(bestInds);
+        // Note that the "archive" call is specific to the GExternalEvaluatorIndividual (it is now a static
+        // helper on the individual, reading the program/run-id off the archived individuals themselves)
+        gind::GExternalEvaluatorIndividual::archive(bestInds);
 
-            // The factory will, upon its deletion at the end of this function, call the external evaluator with
-            // the --finalize switch (via GExternalEvaluatorIndividual::finalize, the factory's teardown hook)
+        // The factory will, upon its deletion at the end of this function, call the external evaluator with
+        // the --finalize switch (via GExternalEvaluatorIndividual::finalize, the factory's teardown hook)
 
-            //---------------------------------------------------------------------------
-            return 0;
-        }}
-    );
+        //---------------------------------------------------------------------------
+        return 0;
+    };
+    return launcher.run(geneva, {.produce = produce});
 }
