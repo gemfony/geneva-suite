@@ -778,8 +778,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   program without the launcher calls `recorder().closeAll()` itself.
 - **The shipped monitors record streams instead of writing files of their own.** Each declares
   its stream at the first INFOINIT and appends at INFOPROCESSING; every row begins with
-  `algorithm` and `iteration`. In a Go2 chain one stream (and one plot) holds every algorithm of
-  the chain. The default stream names: `GFitnessMonitor` "best_fitness" (it now writes its
+  `algorithm`, `iteration` (the algorithm's own) and `chain_iteration` (`GMonitorStream`). In a
+  Go2 chain one stream (and one plot) holds every algorithm of the chain; the plots run over
+  `chain_iteration`, which counts on through the chain, so they do not jump back when the next
+  algorithm starts at 0. A copy of a monitor has no stream of its own. The default stream names: `GFitnessMonitor` "best_fitness" (it now writes its
   data), `GProgressPlotterT` "progress", `GAllSolutionFileLogger` "all_solutions",
   `GIterationResultsFileLogger` "iteration_results", `GNAdpationsLogger` "n_adaptions",
   `GAdaptorPropertyLoggerT` "adaptor_properties", `GProcessingTimesLogger` "processing_times",

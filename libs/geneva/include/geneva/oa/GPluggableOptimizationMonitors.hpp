@@ -63,6 +63,7 @@
 #include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "geneva/oa/GMonitorStream.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 namespace Gem::Geneva {
@@ -141,9 +142,9 @@ private:
  * This monitor records the fitness of the best individuals: in every reported iteration, for each
  * of the first n globally best individuals (setNMonitorIndividuals()), its raw primary fitness and
  * that of the individual of the same rank among the iteration's bests. Its stream (default
- * "best_fitness", setStreamName()) has the columns algorithm, iteration, rank, global_best and
- * iteration_best, one row per rank; there are fewer rows when an algorithm has fewer bests (as a
- * Pareto run may, from iteration to iteration).
+ * "best_fitness", setStreamName()) has the columns algorithm, iteration, chain_iteration
+ * (GMonitorStream), rank, global_best and iteration_best, one row per rank; there are fewer rows
+ * when an algorithm has fewer bests (as a Pareto run may, from iteration to iteration).
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
@@ -180,10 +181,8 @@ public:
 
     /** @brief The default constructor */
     GFitnessMonitor() = default;
-    /**
-     * @brief The copy constructor; the copy has no stream of its own yet
-     */
-    GFitnessMonitor(const GFitnessMonitor &cp);
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GFitnessMonitor(const GFitnessMonitor &cp) = default;
     /** @brief The destructor */
     ~GFitnessMonitor() override = default;
 
@@ -226,7 +225,7 @@ private:
         DEFNMONITORINDS; ///< The number of individuals that should be monitored
     std::string stream_name_ = "best_fitness"; ///< The name of the stream
 
-    Gem::Common::Record::GStream stream_; ///< The stream; transient, not copied
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/
@@ -368,13 +367,13 @@ private:
 /******************************************************************************/
 /**
  * This monitor records the values of chosen variables (setProfileSpec(), floating-point variables
- * of one type) of the best individual or of all individuals of each reported iteration, with
- * their primary fitness, and draws them: fitness over one variable, over two (optionally above a
- * heat map of the objective function, setLandscapeResolution()) or colour-coded over three. Its
- * stream (default "progress", setStreamName()) has the columns algorithm, iteration, one column
- * per profiled variable (its name from setVariableNames(), else "var<index>") and fitness, one row
- * per recorded individual, written as CSV; for one to three variables a GPlotSink draws the plot
- * at the end of the stream (a ROOT macro "<stream>.C").
+ * of one type) of the best individual or of all individuals of each reported iteration, with their
+ * primary fitness, and draws them: fitness over one variable, over two (optionally above a heat
+ * map of the objective function, setLandscapeResolution()) or colour-coded over three. Its stream
+ * (default "progress", setStreamName()) has the columns algorithm, iteration, chain_iteration
+ * (GMonitorStream), one column per profiled variable (its name from setVariableNames(), else
+ * "var<index>") and fitness, one row per recorded individual, written as CSV; for one to three
+ * variables a GPlotSink draws the plot at the end of the stream (a ROOT macro "<stream>.C").
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
@@ -447,7 +446,8 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief The copy constructor; the copy has no stream of its own yet
+	  * @brief The copy constructor; the copy has no stream (GMonitorStream) and no landscape sink of
+	  * its own
 	  *
 	  * @param cp A constant reference to another GProgressPlotterT object whose data is deep-copied
 	  */
@@ -797,7 +797,7 @@ private:
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT:
-            if(not stream_.isOpen()) {
+            if(stream_.beginAlgorithm(*goa)) {
                 this->declareStream_(*goa);
             }
             break;
@@ -853,7 +853,7 @@ private:
         using Gem::Dietrich::GPlotSpec;
         using Gem::Dietrich::plotKind;
 
-        std::vector<GColumn> columns = oa::GBasePluggableOM::iterationColumns();
+        std::vector<GColumn> columns;
         std::vector<std::string> names;
         for(std::size_t i = 0; i < this->nProfileVars(); ++i) {
             names.push_back(this->variableColumn_(i));
@@ -942,12 +942,7 @@ private:
         if(plot) {
             sinks.push_back(std::move(plot));
         }
-        stream_ = Gem::Common::Record::recorder().stream(
-            stream_name_,
-            std::move(columns),
-            Gem::Common::Record::withTime::none,
-            oa::GBasePluggableOM::streamOptions(goa, std::move(sinks))
-        );
+        stream_.declare(stream_name_, std::move(columns), goa, std::move(sinks));
     }
 
     /************************************************************************/
@@ -1023,7 +1018,7 @@ private:
 
         // Read the profiled values; with the boundary filter on, an individual outside any
         // observed window is not recorded at all.
-        Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(goa);
+        Gem::Common::Record::GRow row = stream_.row(goa);
         for(auto const &spec : fp_prof_var_vec_) {
             const auto v = ind.GGenome::template getVarVal<fp_type>(spec.index);
             if(observe_boundaries_ && (v < spec.lowerBoundary || v > spec.upperBoundary)) {
@@ -1063,7 +1058,7 @@ private:
 
     // Transient, not copied: the stream, declared at the first INFOINIT, and the plot sink that
     // draws the landscape, if one is asked for
-    Gem::Common::Record::GStream stream_;
+    oa::GMonitorStream stream_;
     std::shared_ptr<detail::GLandscapePlotSink> landscape_sink_;
 };
 
@@ -1073,13 +1068,14 @@ private:
 /**
  * This monitor records every candidate solution of every reported iteration, with its parameter
  * values -- NOTE that the stream may become very large. Its stream (default "all_solutions",
- * setStreamName()) has the columns algorithm, iteration, individual (the position in the
- * population), one column per parameter ("var<k>", in the order double, float, int32, bool, as
- * GGenome::toCSV() numbers them; typed as they are), one per fitness criterion ("fitness_<i>": the
- * raw or the transformed fitness, setUseTrueFitness(); not a number for an individual that was not
- * evaluated) and, unless switched off, "valid". The results can be filtered: only solutions better
- * than given boundaries are recorded (setBoundaries()); what is better depends on whether the
- * criteria are maximized or minimized, as the individual says.
+ * setStreamName()) has the columns algorithm, iteration, chain_iteration (GMonitorStream),
+ * individual (the position in the population), one column per parameter ("var<k>", in the order
+ * double, float, int32, bool, as GGenome::toCSV() numbers them; typed as they are), one per
+ * fitness criterion ("fitness_<i>": the raw or the transformed fitness, setUseTrueFitness(); not a
+ * number for an individual that was not evaluated) and, unless switched off, "valid". The results
+ * can be filtered: only solutions better than given boundaries are recorded (setBoundaries());
+ * what is better depends on whether the criteria are maximized or minimized, as the individual
+ * says.
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
@@ -1124,8 +1120,8 @@ public:
      * @brief Initialization with boundaries
      */
     explicit GAllSolutionFileLogger(const std::vector<double> &boundaries);
-    /** @brief The copy constructor; the copy has no stream of its own yet */
-    GAllSolutionFileLogger(const GAllSolutionFileLogger &cp);
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GAllSolutionFileLogger(const GAllSolutionFileLogger &cp) = default;
     /** @brief The destructor */
     ~GAllSolutionFileLogger() override = default;
 
@@ -1223,7 +1219,7 @@ private:
     bool show_validity_ = true; ///< Indicates whether the validity of a solution should be recorded
     bool print_initial_ = false; ///< Indicates whether the initial population should be recorded
 
-    Gem::Common::Record::GStream stream_; ///< The stream; transient, not copied
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/
@@ -1231,9 +1227,10 @@ private:
 /******************************************************************************/
 /**
  * This monitor records all evaluations of each reported iteration. Its stream (default
- * "iteration_results", setStreamName()) has the columns algorithm, iteration, individual (the
- * position in the population) and one column per fitness criterion ("fitness_<i>": the raw or
- * the transformed fitness, setUseTrueFitness()), one row per individual.
+ * "iteration_results", setStreamName()) has the columns algorithm, iteration, chain_iteration
+ * (GMonitorStream), individual (the position in the population) and one column per fitness
+ * criterion ("fitness_<i>": the raw or the transformed fitness, setUseTrueFitness()), one row per
+ * individual.
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
@@ -1270,8 +1267,8 @@ public:
 
     /** @brief The default constructor */
     GIterationResultsFileLogger() = default;
-    /** @brief The copy constructor; the copy has no stream of its own yet */
-    GIterationResultsFileLogger(const GIterationResultsFileLogger &cp);
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GIterationResultsFileLogger(const GIterationResultsFileLogger &cp) = default;
     /** @brief The destructor */
     ~GIterationResultsFileLogger() override = default;
 
@@ -1314,22 +1311,22 @@ private:
     bool use_raw_fitness_ =
         false; ///< Indicates whether true- or transformed fitness should be recorded
 
-    Gem::Common::Record::GStream stream_; ///< The stream; transient, not copied
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * This monitor records the number of adaptions made in each individual, mostly for debugging
- * and profiling: the number of adaptions is a good measure of the adaption probability. Its
- * stream (default "n_adaptions", setStreamName()) has the columns algorithm, iteration,
- * individual (the position in the population; 0 for the best individual), n_adaptions and
- * best_fitness (the raw primary fitness of the best individual so far), one row per recorded
- * individual -- the best one only, or all (setMonitorBestOnly()). A GPlotSink draws, at the end of
- * the stream, the number of adaptions over the iterations (a curve for the best individual, a 2-d
- * histogram for all, one bin per recorded iteration and per number of adaptions) beside the best
- * fitness.
+ * This monitor records the number of adaptions made in each individual, mostly for debugging and
+ * profiling: the number of adaptions is a good measure of the adaption probability. Its stream
+ * (default "n_adaptions", setStreamName()) has the columns algorithm, iteration, chain_iteration
+ * (GMonitorStream), individual (the position in the population; 0 for the best individual),
+ * n_adaptions and best_fitness (the raw primary fitness of the best individual so far), one row
+ * per recorded individual -- the best one only, or all (setMonitorBestOnly()). A GPlotSink draws,
+ * at the end of the stream, the number of adaptions over the iterations (a curve for the best
+ * individual, a 2-d histogram for all, one bin per recorded iteration and per number of adaptions)
+ * beside the best fitness.
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
@@ -1368,10 +1365,8 @@ public:
 
     /** @brief The default constructor */
     GNAdpationsLogger() = default;
-    /**
-     * @brief The copy constructor; the copy has no stream of its own yet
-     */
-    GNAdpationsLogger(const GNAdpationsLogger &cp);
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GNAdpationsLogger(const GNAdpationsLogger &cp) = default;
     /** @brief The destructor */
     ~GNAdpationsLogger() override = default;
 
@@ -1446,7 +1441,7 @@ private:
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
 
-    Gem::Common::Record::GStream stream_; ///< The stream; transient, not copied
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/
@@ -1455,11 +1450,11 @@ private:
 /**
  * This monitor records a chosen property of the adaptors -- the flat genome exposes "sigma" -- of
  * the best individual or of all individuals of each reported iteration. Its stream (default
- * "adaptor_properties", setStreamName()) has the columns algorithm, iteration, the property (a
- * column named after it, e.g. "sigma", one row per value) and best_fitness (the raw primary
- * fitness of the best individual so far). A GPlotSink draws, at the end of the stream, a 2-d
- * histogram of the property over the iterations (one bin per recorded iteration, 100 for the
- * property) beside the best fitness.
+ * "adaptor_properties", setStreamName()) has the columns algorithm, iteration, chain_iteration
+ * (GMonitorStream), the property (a column named after it, e.g. "sigma", one row per value) and
+ * best_fitness (the raw primary fitness of the best individual so far). A GPlotSink draws, at the
+ * end of the stream, a 2-d histogram of the property over the iterations (one bin per recorded
+ * iteration, 100 for the property) beside the best fitness.
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
@@ -1523,22 +1518,8 @@ public:
     }
 
     /***************************************************************************/
-    /**
-	  * @brief The copy constructor; the copy has no stream of its own yet
-	  *
-	  * @param cp A constant reference to another GAdaptorPropertyLoggerT object whose data is deep-copied
-	  */
-    GAdaptorPropertyLoggerT(const GAdaptorPropertyLoggerT<num_type> &cp)
-      : Gem::Common::GReflectiveInterfaceT<GAdaptorPropertyLoggerT<num_type>, oa::GBasePluggableOM>(
-            cp
-        )
-      , stream_name_(cp.stream_name_)
-      , adaptor_name_(cp.adaptor_name_)
-      , property_(cp.property_)
-      , canvas_dimensions_(cp.canvas_dimensions_)
-      , monitor_best_only_(cp.monitor_best_only_)
-      , add_print_command_(cp.add_print_command_) { /* nothing -- the stream is not copied */
-    }
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GAdaptorPropertyLoggerT(const GAdaptorPropertyLoggerT<num_type> &cp) = default;
 
     /***************************************************************************/
     /**
@@ -1723,7 +1704,7 @@ private:
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT:
-            if(not stream_.isOpen()) {
+            if(stream_.beginAlgorithm(*goa)) {
                 this->declareStream_(*goa);
             }
             break;
@@ -1749,7 +1730,7 @@ private:
         using Gem::Dietrich::GPlotSpec;
         using Gem::Dietrich::plotKind;
 
-        auto columns = oa::GBasePluggableOM::iterationColumns();
+        std::vector<Gem::Common::Record::GColumn> columns;
         columns.push_back({.name = property_, .type = columnType::FLOATING});
         columns.push_back({.name = "best_fitness", .type = columnType::FLOATING});
 
@@ -1760,25 +1741,22 @@ private:
         spec.x_label = "Iteration";
         spec.y_label = std::format("Adaptor-Name: {}, Property: {}", adaptor_name_, property_);
         spec.drawing_args = "BOX";
-        spec.columns = {"iteration", property_};
+        spec.columns = {"chain_iteration", property_};
         spec.n_bins_y = 100; // the x axis: one bin per recorded iteration (GPlotSink)
         layout.declareSeries(spec);
         GPlotSpec fitness_spec(plotKind::graph_2d);
         fitness_spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
         fitness_spec.x_label = "Iteration";
         fitness_spec.y_label = "Fitness";
-        fitness_spec.columns = {"iteration", "best_fitness"};
+        fitness_spec.columns = {"chain_iteration", "best_fitness"};
         layout.declareSeries(fitness_spec);
 
-        stream_ = Gem::Common::Record::recorder().stream(
+        stream_.declare(
             stream_name_,
             std::move(columns),
-            Gem::Common::Record::withTime::none,
-            oa::GBasePluggableOM::streamOptions(
-                goa,
-                {std::make_shared<Gem::Common::Record::GCsvSink>(),
-                 std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
-            )
+            goa,
+            {std::make_shared<Gem::Common::Record::GCsvSink>(),
+             std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
         );
     }
 
@@ -1805,7 +1783,7 @@ private:
             return;
         }
         auto const record = [&](double value) {
-            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(goa);
+            Gem::Common::Record::GRow row = stream_.row(goa);
             row.emplace_back(value);
             row.emplace_back(best_fitness);
             stream_.append(std::move(row));
@@ -1843,19 +1821,20 @@ private:
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
 
-    Gem::Common::Record::GStream stream_; ///< The stream; transient, not copied
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * This monitor records the processing times of each individual of each reported iteration --
- * pre-, main and post-processing, as courtier's GProcessable measures them where the item is
- * processed. Its stream (default "processing_times", setStreamName()) has the columns algorithm,
- * iteration, individual (the position in the population), pre, main, post and total, in seconds.
- * A GPlotSink draws, at the end of the stream, the histograms of the four times (top row) and of
- * each time over the iterations (bottom row), with the bins of setNBinsX() and setNBinsY().
+ * This monitor records the processing times of each individual of each reported iteration -- pre-,
+ * main and post-processing, as courtier's GProcessable measures them where the item is processed.
+ * Its stream (default "processing_times", setStreamName()) has the columns algorithm, iteration,
+ * chain_iteration (GMonitorStream), individual (the position in the population), pre, main, post
+ * and total, in seconds. A GPlotSink draws, at the end of the stream, the histograms of the four
+ * times (top row) and of each time over the iterations (bottom row), with the bins of setNBinsX()
+ * and setNBinsY().
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
@@ -1899,8 +1878,8 @@ public:
      * @brief Initialization with histogram bin counts
      */
     GProcessingTimesLogger(std::size_t n_bins_x, std::size_t n_bins_y);
-    /** @brief The copy constructor; the copy has no stream of its own yet */
-    GProcessingTimesLogger(const GProcessingTimesLogger &cp);
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GProcessingTimesLogger(const GProcessingTimesLogger &cp) = default;
     /** @brief  The destructor */
     ~GProcessingTimesLogger() override = default;
 
@@ -1976,7 +1955,7 @@ private:
     std::size_t n_bins_y_ =
         Gem::Common::DEFAULTNBINSGPD; ///< The number of bins in the histograms in y-direction
 
-    Gem::Common::Record::GStream stream_; ///< The stream; transient, not copied
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/

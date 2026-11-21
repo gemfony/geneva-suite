@@ -33,7 +33,6 @@
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
-#include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
 /******************************************************************************/
 
@@ -104,49 +103,6 @@ bool GBasePluggableOM::modify_GUnitTests_() {
     Gem::Common::condnotset("GBasePluggableOM", "GEM_TESTING");
     return false;
 #endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief The two columns every row of a shipped monitor begins with. The algorithm's name tells
- * the rows of the algorithms of a Go2 chain apart, which record into one stream.
- *
- * @return "algorithm" (text) and "iteration" (unsigned)
- */
-std::vector<Gem::Common::Record::GColumn> GBasePluggableOM::iterationColumns() {
-    using Gem::Common::Record::columnType;
-    return {
-        {.name = "algorithm", .type = columnType::TEXT},
-        {.name = "iteration", .type = columnType::UNSIGNED}
-    };
-}
-
-/******************************************************************************/
-/**
- * @brief The values of iterationColumns() for the algorithm's current iteration
- *
- * @param goa The algorithm
- * @return Its name and its iteration, the start of a row
- */
-Gem::Common::Record::GRow GBasePluggableOM::iterationValues(GOptimizationAlgorithmBase const &goa) {
-    return {goa.getAlgorithmName(), static_cast<std::uint64_t>(goa.getIteration())};
-}
-
-/******************************************************************************/
-/**
- * @brief The options of a monitor's stream. Called at the INFOINIT that declares it: a run that
- * was resumed from a checkpoint appends to the files of its streams (when their columns are the
- * same), since the algorithm keeps its resume state until after INFOINIT.
- *
- * @param goa The algorithm
- * @param sinks The sinks of the stream (none: one CSV file)
- * @return The options
- */
-Gem::Common::Record::GStreamOptions GBasePluggableOM::streamOptions(
-    GOptimizationAlgorithmBase const &goa,
-    std::vector<std::shared_ptr<Gem::Common::Record::GSink>> sinks
-) {
-    return {.sinks = std::move(sinks), .resume = goa.resumedFromCheckpoint()};
 }
 
 /******************************************************************************/

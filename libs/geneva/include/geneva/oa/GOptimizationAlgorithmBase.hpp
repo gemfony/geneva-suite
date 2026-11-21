@@ -834,7 +834,7 @@ public:
      * serialized (it is a transient resume marker, and loadCheckpoint sets it AFTER fromFile anyway).
      *
      * A pluggable monitor reads it at INFOINIT, which comes before it is cleared: a resumed run
-     * appends to the streams of its monitors (GBasePluggableOM::streamOptions()).
+     * appends to the streams of its monitors (GMonitorStream::declare()).
      *
      * @return true if this run was resumed from a checkpoint and its scratch must be preserved
      */

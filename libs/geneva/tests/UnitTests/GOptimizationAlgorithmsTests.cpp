@@ -46,11 +46,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
@@ -1000,7 +1002,8 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
     REQUIRE(rows.size() == 1 + 6);
     for(std::size_t iteration = 0; iteration < 6; ++iteration) {
         CHECK(rows[1 + iteration].starts_with(
-            "Evolutionary Algorithm," + std::to_string(iteration) + ",0,"
+            "Evolutionary Algorithm," + std::to_string(iteration) + "," + std::to_string(iteration) +
+            ",0,"
         ));
     }
     std::size_t backups = 0;
@@ -1066,16 +1069,42 @@ TEST_CASE("a monitor's stream holds every algorithm of a Go2 chain", "[oa][go2]"
         REQUIRE(code == 0);
     }
 
-    // The launcher closed the stream at the end of its run: the file holds both algorithms
+    // The launcher closed the stream at the end of its run: the file holds both algorithms. Each
+    // row keeps its algorithm's own iteration (SA starts again at 0), while chain_iteration counts
+    // on through the chain, so a plot over it does not jump back (regression: the plots of a chain
+    // ran from the last iteration of the first algorithm back to 0).
     std::ifstream in(base / "records" / "progress.csv");
+    std::string header;
+    std::getline(in, header);
+    CHECK(header == "algorithm,iteration,chain_iteration,var0,fitness");
     std::size_t ea_rows = 0;
     std::size_t sa_rows = 0;
+    std::uint64_t ea_last_chain = 0;
+    std::uint64_t sa_first_chain = std::numeric_limits<std::uint64_t>::max();
+    std::uint64_t sa_first_iteration = std::numeric_limits<std::uint64_t>::max();
     for(std::string line; std::getline(in, line);) {
-        ea_rows += line.starts_with("Evolutionary Algorithm,") ? 1 : 0;
-        sa_rows += line.starts_with("Simulated Annealing,") ? 1 : 0;
+        std::vector<std::string> fields;
+        for(auto const part : line | std::views::split(',')) {
+            fields.emplace_back(part.begin(), part.end());
+        }
+        REQUIRE(fields.size() == 5);
+        const std::uint64_t iteration = std::stoull(fields[1]);
+        const std::uint64_t chain = std::stoull(fields[2]);
+        if(fields[0] == "Evolutionary Algorithm") {
+            ++ea_rows;
+            CHECK(chain == iteration);
+            ea_last_chain = std::max(ea_last_chain, chain);
+        }
+        else if(fields[0] == "Simulated Annealing") {
+            ++sa_rows;
+            sa_first_chain = std::min(sa_first_chain, chain);
+            sa_first_iteration = std::min(sa_first_iteration, iteration);
+        }
     }
     CHECK(ea_rows > 0);
     CHECK(sa_rows > 0);
+    CHECK(sa_first_iteration == 0);
+    CHECK(sa_first_chain == ea_last_chain + 1);
     CHECK(fs::exists(base / "records" / "progress.C"));
 
     recorder.setDirectory(previous_directory);

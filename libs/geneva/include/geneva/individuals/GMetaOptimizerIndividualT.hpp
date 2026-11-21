@@ -63,6 +63,7 @@
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GMonitorStream.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/oa/GTunableManifest.hpp"
@@ -1598,9 +1599,10 @@ constexpr std::size_t P_YDIM = 1400;
  * This monitor follows a meta-optimization with an Evolutionary Algorithm: in each reported
  * iteration it records the best meta-individual's result and the settings it stands for. Its
  * stream (default "meta_optimization", setStreamName()) has the columns algorithm, iteration,
- * best_fitness, n_parents, n_children, adaption_probability, min_sigma, max_sigma, sigma_range and
- * sigma_sigma, written as CSV; a GPlotSink draws each of them over the iterations at the end of
- * the stream (a ROOT macro "<stream>.C"). It is targeted at one type of individual.
+ * chain_iteration (GMonitorStream), best_fitness, n_parents, n_children, adaption_probability,
+ * min_sigma, max_sigma, sigma_range and sigma_sigma, written as CSV; a GPlotSink draws each of
+ * them over the iterations at the end of the stream (a ROOT macro "<stream>.C"). It is targeted at
+ * one type of individual.
  *
  * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
  * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
@@ -1678,15 +1680,8 @@ public:
     GOptOptMonitorT() = default;
 
     /***************************************************************************/
-    /**
-     * The copy constructor; the copy has no stream of its own yet
-     *
-     * @param cp A copy of another GOptOptMonitorT object
-     */
-    GOptOptMonitorT(const GOptOptMonitorT<ind_type> &cp)
-      : oa::GBasePluggableOM(cp)
-      , stream_name_(cp.stream_name_) { /* nothing -- the stream is not copied */
-    }
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GOptOptMonitorT(const GOptOptMonitorT<ind_type> &cp) = default;
 
     /***************************************************************************/
     /**
@@ -1843,7 +1838,7 @@ private:
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT:
-            if(not stream_.isOpen()) {
+            if(stream_.beginAlgorithm(*goa)) {
                 this->declareStream_(*goa);
             }
             break;
@@ -1858,7 +1853,7 @@ private:
             const double min_sigma = p->getMinSigma();
             const double sigma_range = p->getSigmaRange();
 
-            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            Gem::Common::Record::GRow row = stream_.row(*goa);
             for(double const value :
                 {p->raw_fitness(0),
                  static_cast<double>(p->getNParents()),
@@ -1888,7 +1883,7 @@ private:
         using Gem::Dietrich::GPlotSpec;
         using Gem::Dietrich::plotKind;
 
-        auto columns = oa::GBasePluggableOM::iterationColumns();
+        std::vector<Gem::Common::Record::GColumn> columns;
         Gem::Dietrich::GDataLog layout("Progress information", 2, 4);
         layout.setCanvasDimensions(P_XDIM, P_YDIM);
         for(auto const &curve : CURVES) {
@@ -1900,18 +1895,15 @@ private:
             spec.name = curve.plot_label;
             spec.x_label = "Iteration";
             spec.y_label = curve.y_label;
-            spec.columns = {"iteration", curve.column};
+            spec.columns = {"chain_iteration", curve.column};
             layout.declareSeries(spec);
         }
-        stream_ = Gem::Common::Record::recorder().stream(
+        stream_.declare(
             stream_name_,
             std::move(columns),
-            Gem::Common::Record::withTime::none,
-            oa::GBasePluggableOM::streamOptions(
-                goa,
-                {std::make_shared<Gem::Common::Record::GCsvSink>(),
-                 std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
-            )
+            goa,
+            {std::make_shared<Gem::Common::Record::GCsvSink>(),
+             std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
         );
     }
 
@@ -1919,7 +1911,7 @@ private:
 
     std::string stream_name_ = "meta_optimization"; ///< The name of the stream
 
-    Gem::Common::Record::GStream stream_; ///< The stream; transient, not copied
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/

@@ -35,6 +35,7 @@ SET ( OPTIMIZATIONSOURCES
 	Go2.cpp
 	GOptimizationDescription.cpp
     oa/GBasePluggableOM.cpp
+    oa/GMonitorStream.cpp
     oa/GPluggableOptimizationMonitors.cpp
     oa/GPostProcessorT.cpp
     oa/GOptimizationAlgorithmBase.cpp

@@ -149,18 +149,6 @@ bool GStandardMonitor::modify_GUnitTests_() {
 /******************************************************************************/
 
 /**
- * @brief The copy constructor; the copy has no stream of its own yet
- *
- * @param cp A constant reference to another GFitnessMonitor object to be copied
- */
-GFitnessMonitor::GFitnessMonitor(const GFitnessMonitor &cp)
-  : Gem::Common::GReflectiveInterfaceT<GFitnessMonitor, oa::GBasePluggableOM>(cp)
-  , n_monitor_inds_(cp.n_monitor_inds_)
-  , stream_name_(cp.stream_name_) { /* nothing -- the stream is not copied */
-}
-
-/******************************************************************************/
-/**
  * @brief Sets the name of the stream, which also names its files
  *
  * @param stream_name The name of the stream
@@ -220,17 +208,12 @@ void GFitnessMonitor::informationFunction_(
 
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(not stream_.isOpen()) {
-            auto columns = oa::GBasePluggableOM::iterationColumns();
+        if(stream_.beginAlgorithm(*goa)) {
+            std::vector<Gem::Common::Record::GColumn> columns;
             columns.push_back({.name = "rank", .type = columnType::UNSIGNED});
             columns.push_back({.name = "global_best", .type = columnType::FLOATING});
             columns.push_back({.name = "iteration_best", .type = columnType::FLOATING});
-            stream_ = Gem::Common::Record::recorder().stream(
-                stream_name_,
-                std::move(columns),
-                Gem::Common::Record::withTime::none,
-                oa::GBasePluggableOM::streamOptions(*goa)
-            );
+            stream_.declare(stream_name_, std::move(columns), *goa);
         }
         break;
 
@@ -242,7 +225,7 @@ void GFitnessMonitor::informationFunction_(
         const std::size_t n =
             std::min({n_monitor_inds_, global_bests.size(), iter_bests.size()});
         for(std::size_t rank = 0; rank < n; ++rank) {
-            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            Gem::Common::Record::GRow row = stream_.row(*goa);
             row.emplace_back(static_cast<std::uint64_t>(rank));
             row.emplace_back(global_bests[rank]->raw_fitness(0));
             row.emplace_back(iter_bests[rank]->raw_fitness(0));
@@ -398,22 +381,6 @@ GAllSolutionFileLogger::GAllSolutionFileLogger(const std::vector<double> &bounda
 
 /******************************************************************************/
 /**
- * @brief The copy constructor; the copy has no stream of its own yet
- *
- * @param cp A constant reference to another GAllSolutionFileLogger object to be copied
- */
-GAllSolutionFileLogger::GAllSolutionFileLogger(const GAllSolutionFileLogger &cp)
-  : Gem::Common::GReflectiveInterfaceT<GAllSolutionFileLogger, oa::GBasePluggableOM>(cp)
-  , stream_name_(cp.stream_name_)
-  , boundaries_(cp.boundaries_)
-  , boundaries_active_(cp.boundaries_active_)
-  , use_raw_fitness_(cp.use_raw_fitness_)
-  , show_validity_(cp.show_validity_)
-  , print_initial_(cp.print_initial_) { /* nothing -- the stream is not copied */
-}
-
-/******************************************************************************/
-/**
  * @brief Sets the name of the stream, which also names its files
  *
  * @param stream_name The name of the stream
@@ -545,7 +512,7 @@ void GAllSolutionFileLogger::informationFunction_(
 ) {
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(not stream_.isOpen()) {
+        if(stream_.beginAlgorithm(*goa)) {
             this->declareStream_(*goa);
         }
         if(print_initial_) {
@@ -571,7 +538,7 @@ void GAllSolutionFileLogger::informationFunction_(
  */
 void GAllSolutionFileLogger::declareStream_(oa::GOptimizationAlgorithmBase const &goa) {
     using Gem::Common::Record::columnType;
-    auto columns = oa::GBasePluggableOM::iterationColumns();
+    std::vector<Gem::Common::Record::GColumn> columns;
     columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
     auto const first = goa.individual_cast<gen::GGenome>(0);
     std::size_t k = 0;
@@ -595,12 +562,7 @@ void GAllSolutionFileLogger::declareStream_(oa::GOptimizationAlgorithmBase const
     if(show_validity_) {
         columns.push_back({.name = "valid", .type = columnType::BOOLEAN});
     }
-    stream_ = Gem::Common::Record::recorder().stream(
-        stream_name_,
-        std::move(columns),
-        Gem::Common::Record::withTime::none,
-        oa::GBasePluggableOM::streamOptions(goa)
-    );
+    stream_.declare(stream_name_, std::move(columns), goa);
 }
 
 /******************************************************************************/
@@ -620,7 +582,7 @@ void GAllSolutionFileLogger::recordPopulation_(oa::GOptimizationAlgorithmBase co
             continue;
         }
 
-        Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(goa);
+        Gem::Common::Record::GRow row = stream_.row(goa);
         row.emplace_back(static_cast<std::uint64_t>(pos));
         auto const add = [&row, &ind]<typename T>(std::type_identity<T>) {
             std::vector<T> values;
@@ -690,18 +652,6 @@ bool GAllSolutionFileLogger::modify_GUnitTests_() {
 /******************************************************************************/
 
 /**
- * @brief The copy constructor; the copy has no stream of its own yet
- *
- * @param cp A constant reference to another GIterationResultsFileLogger object to be copied
- */
-GIterationResultsFileLogger::GIterationResultsFileLogger(const GIterationResultsFileLogger &cp)
-  : Gem::Common::GReflectiveInterfaceT<GIterationResultsFileLogger, oa::GBasePluggableOM>(cp)
-  , stream_name_(cp.stream_name_)
-  , use_raw_fitness_(cp.use_raw_fitness_) { /* nothing -- the stream is not copied */
-}
-
-/******************************************************************************/
-/**
  * @brief Sets the name of the stream, which also names its files
  *
  * @param stream_name The name of the stream
@@ -754,27 +704,22 @@ void GIterationResultsFileLogger::informationFunction_(
 ) {
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(not stream_.isOpen()) {
+        if(stream_.beginAlgorithm(*goa)) {
             using Gem::Common::Record::columnType;
-            auto columns = oa::GBasePluggableOM::iterationColumns();
+            std::vector<Gem::Common::Record::GColumn> columns;
             columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
             for(std::size_t i = 0; i < goa->at(0)->getNStoredResults(); ++i) {
                 columns.push_back(
                     {.name = "fitness_" + Gem::Common::to_string(i), .type = columnType::FLOATING}
                 );
             }
-            stream_ = Gem::Common::Record::recorder().stream(
-                stream_name_,
-                std::move(columns),
-                Gem::Common::Record::withTime::none,
-                oa::GBasePluggableOM::streamOptions(*goa)
-            );
+            stream_.declare(stream_name_, std::move(columns), *goa);
         }
         break;
 
     case Gem::Geneva::infoMode::INFOPROCESSING:
         for(std::size_t pos = 0; pos < goa->size(); pos++) {
-            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            Gem::Common::Record::GRow row = stream_.row(*goa);
             row.emplace_back(static_cast<std::uint64_t>(pos));
             for(double const f : use_raw_fitness_ ? goa->at(pos)->raw_fitness_vec()
                                                   : goa->at(pos)->transformed_fitness_vec()) {
@@ -822,20 +767,6 @@ bool GIterationResultsFileLogger::modify_GUnitTests_() {
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 
-/**
- * @brief The copy constructor; the copy has no stream of its own yet
- *
- * @param cp A constant reference to another GNAdpationsLogger object to be copied
- */
-GNAdpationsLogger::GNAdpationsLogger(const GNAdpationsLogger &cp)
-  : Gem::Common::GReflectiveInterfaceT<GNAdpationsLogger, oa::GBasePluggableOM>(cp)
-  , stream_name_(cp.stream_name_)
-  , canvas_dimensions_(cp.canvas_dimensions_)
-  , monitor_best_only_(cp.monitor_best_only_)
-  , add_print_command_(cp.add_print_command_) { /* nothing -- the stream is not copied */
-}
-
-/******************************************************************************/
 /**
  * @brief Sets the name of the stream, which also names its files
  *
@@ -945,8 +876,8 @@ void GNAdpationsLogger::informationFunction_(
 
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(not stream_.isOpen()) {
-            auto columns = oa::GBasePluggableOM::iterationColumns();
+        if(stream_.beginAlgorithm(*goa)) {
+            std::vector<Gem::Common::Record::GColumn> columns;
             columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
             columns.push_back({.name = "n_adaptions", .type = columnType::UNSIGNED});
             columns.push_back({.name = "best_fitness", .type = columnType::FLOATING});
@@ -960,7 +891,7 @@ void GNAdpationsLogger::informationFunction_(
             GPlotSpec spec(monitor_best_only_ ? plotKind::graph_2d : plotKind::hist_2d);
             spec.x_label = "Iteration";
             spec.y_label = "Number of parameter adaptions";
-            spec.columns = {"iteration", "n_adaptions"};
+            spec.columns = {"chain_iteration", "n_adaptions"};
             if(monitor_best_only_) {
                 spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
             }
@@ -972,18 +903,15 @@ void GNAdpationsLogger::informationFunction_(
             fitness_spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
             fitness_spec.x_label = "Iteration";
             fitness_spec.y_label = "Fitness";
-            fitness_spec.columns = {"iteration", "best_fitness"};
+            fitness_spec.columns = {"chain_iteration", "best_fitness"};
             layout.declareSeries(fitness_spec);
 
-            stream_ = Gem::Common::Record::recorder().stream(
+            stream_.declare(
                 stream_name_,
                 std::move(columns),
-                Gem::Common::Record::withTime::none,
-                oa::GBasePluggableOM::streamOptions(
-                    *goa,
-                    {std::make_shared<Gem::Common::Record::GCsvSink>(),
-                     std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
-                )
+                *goa,
+                {std::make_shared<Gem::Common::Record::GCsvSink>(),
+                 std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
             );
         }
         break;
@@ -992,7 +920,7 @@ void GNAdpationsLogger::informationFunction_(
         auto const best = goa->Interface::GOptimizerIT<
             oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
         auto const record = [&](std::size_t individual, gen::GGenome const &ind) {
-            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            Gem::Common::Record::GRow row = stream_.row(*goa);
             row.emplace_back(static_cast<std::uint64_t>(individual));
             row.emplace_back(static_cast<std::uint64_t>(ind.getNAdaptions()));
             row.emplace_back(best->raw_fitness(0));
@@ -1056,20 +984,6 @@ bool GNAdpationsLogger::modify_GUnitTests_() {
 GProcessingTimesLogger::GProcessingTimesLogger(std::size_t n_bins_x, std::size_t n_bins_y)
   : n_bins_x_(n_bins_x)
   , n_bins_y_(n_bins_y) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * @brief The copy constructor; the copy has no stream of its own yet
- *
- * @param cp A constant reference to another GProcessingTimesLogger object to be copied
- */
-GProcessingTimesLogger::GProcessingTimesLogger(const GProcessingTimesLogger &cp)
-  : Gem::Common::GReflectiveInterfaceT<GProcessingTimesLogger, oa::GBasePluggableOM>(cp)
-  , stream_name_(cp.stream_name_)
-  , canvas_dimensions_(cp.canvas_dimensions_)
-  , n_bins_x_(cp.n_bins_x_)
-  , n_bins_y_(cp.n_bins_y_) { /* nothing -- the stream is not copied */
 }
 
 /******************************************************************************/
@@ -1182,7 +1096,7 @@ void GProcessingTimesLogger::informationFunction_(
 
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(not stream_.isOpen()) {
+        if(stream_.beginAlgorithm(*goa)) {
             struct Time {
                 const char *column;
                 const char *label;
@@ -1193,7 +1107,7 @@ void GProcessingTimesLogger::informationFunction_(
                  {"post", "Post-processing time [s]"},
                  {"total", "Overall processing time [s]"}}
             };
-            auto columns = oa::GBasePluggableOM::iterationColumns();
+            std::vector<Gem::Common::Record::GColumn> columns;
             columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
             for(auto const &time : TIMES) {
                 columns.push_back({.name = time.column, .type = columnType::FLOATING});
@@ -1220,21 +1134,18 @@ void GProcessingTimesLogger::informationFunction_(
                 spec.y_label = time.label;
                 spec.z_label = "Number of Entries";
                 spec.drawing_args = "box";
-                spec.columns = {"iteration", time.column};
+                spec.columns = {"chain_iteration", time.column};
                 spec.n_bins_x = n_bins_x_;
                 spec.n_bins_y = n_bins_y_;
                 layout.declareSeries(spec);
             }
 
-            stream_ = Gem::Common::Record::recorder().stream(
+            stream_.declare(
                 stream_name_,
                 std::move(columns),
-                Gem::Common::Record::withTime::none,
-                oa::GBasePluggableOM::streamOptions(
-                    *goa,
-                    {std::make_shared<Gem::Common::Record::GCsvSink>(),
-                     std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
-                )
+                *goa,
+                {std::make_shared<Gem::Common::Record::GCsvSink>(),
+                 std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
             );
         }
         break;
@@ -1243,7 +1154,7 @@ void GProcessingTimesLogger::informationFunction_(
         for(std::size_t pos = 0; pos < goa->size(); pos++) {
             auto const [pre, main, post] =
                 goa->individual_cast<gen::GGenome>(pos)->getProcessingTimes();
-            Gem::Common::Record::GRow row = oa::GBasePluggableOM::iterationValues(*goa);
+            Gem::Common::Record::GRow row = stream_.row(*goa);
             row.emplace_back(static_cast<std::uint64_t>(pos));
             row.emplace_back(pre);
             row.emplace_back(main);

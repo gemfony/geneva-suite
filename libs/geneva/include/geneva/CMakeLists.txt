@@ -69,6 +69,7 @@ SET ( OA_INCLUDES
     oa/GInitializerT.hpp
     oa/GLineSearch.hpp
     oa/GMetaEvolutionaryAlgorithm.hpp
+    oa/GMonitorStream.hpp
     oa/GNelderMead.hpp
     oa/GNelderMead_PersonalityTraits.hpp
     oa/GOAFactoryT.hpp

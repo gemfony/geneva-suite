@@ -53,6 +53,7 @@
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
+#include "geneva/oa/GMonitorStream.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
 namespace gen = Gem::Geneva::Genome;
@@ -178,8 +179,8 @@ TEST_CASE("GProgressPlotterT records its stream and draws a valid ROOT macro", "
 
     const auto rows = linesOf(dir / "progress.csv");
     REQUIRE(rows.size() > 1);
-    CHECK(rows[0] == "algorithm,iteration,var0,fitness");
-    CHECK(rows[1].starts_with("Evolutionary Algorithm,0,"));
+    CHECK(rows[0] == "algorithm,iteration,chain_iteration,var0,fitness");
+    CHECK(rows[1].starts_with("Evolutionary Algorithm,0,0,"));
 
     const std::string content = readFile(dir / "progress.C");
     // The 1-variable case sets this plot title, and the curve is emitted as a ROOT TGraph.
@@ -208,7 +209,7 @@ TEST_CASE(
     runUnder(monitor);
 
     // The columns are named after the variables; the landscape is part of the plot only.
-    CHECK(linesOf(dir / "progress.csv").at(0) == "algorithm,iteration,x,y,fitness");
+    CHECK(linesOf(dir / "progress.csv").at(0) == "algorithm,iteration,chain_iteration,x,y,fitness");
     const std::string content = readFile(dir / "progress.C");
     // The axes carry the given names instead of "variable id N" ...
     CHECK(content.contains("SetTitle(\"x\")"));
@@ -261,7 +262,7 @@ TEST_CASE(
 
     const auto rows = linesOf(dir / "progress.csv");
     REQUIRE(rows.size() > 1);
-    CHECK(rows[0] == "algorithm,iteration,fitness");
+    CHECK(rows[0] == "algorithm,iteration,chain_iteration,fitness");
     CHECK_FALSE(std::filesystem::exists(dir / "progress.C"));
 }
 
@@ -274,7 +275,7 @@ TEST_CASE("GFitnessMonitor records the best fitness per rank", "[monitor][oa]") 
     runUnder(monitor);
 
     const auto rows = linesOf(dir / "best_fitness.csv");
-    CHECK(rows.at(0) == "algorithm,iteration,rank,global_best,iteration_best");
+    CHECK(rows.at(0) == "algorithm,iteration,chain_iteration,rank,global_best,iteration_best");
     // Iterations 0 to 3, two ranks each
     CHECK(rows.size() == 1 + 4 * 2);
 }
@@ -311,7 +312,7 @@ TEST_CASE(
     runUnder(monitor);
 
     const auto rows = linesOf(dir / "n_adaptions.csv");
-    CHECK(rows.at(0) == "algorithm,iteration,individual,n_adaptions,best_fitness");
+    CHECK(rows.at(0) == "algorithm,iteration,chain_iteration,individual,n_adaptions,best_fitness");
     CHECK(rows.size() == 1 + 4 * 12);
     const std::string content = readFile(dir / "n_adaptions.C");
     CHECK(content.contains("Number of parameter adaptions"));
@@ -353,7 +354,7 @@ TEST_CASE(
     runUnder(monitor);
 
     const auto rows = linesOf(dir / "adaptor_properties.csv");
-    CHECK(rows.at(0) == "algorithm,iteration,sigma,best_fitness");
+    CHECK(rows.at(0) == "algorithm,iteration,chain_iteration,sigma,best_fitness");
     CHECK(rows.size() > 1);
     const std::string content = readFile(dir / "adaptor_properties.C");
     CHECK(content.contains("Property: sigma")); // the dynamic y-axis label
@@ -374,7 +375,7 @@ TEST_CASE(
     runUnder(monitor);
 
     const auto rows = linesOf(dir / "processing_times.csv");
-    CHECK(rows.at(0) == "algorithm,iteration,individual,pre,main,post,total");
+    CHECK(rows.at(0) == "algorithm,iteration,chain_iteration,individual,pre,main,post,total");
     CHECK(rows.size() == 1 + 4 * 12);
     const std::string content = readFile(dir / "processing_times.C");
     CHECK(content.contains("TH1D"));
@@ -392,7 +393,7 @@ TEST_CASE("GAllSolutionFileLogger records every candidate with its parameters", 
     runUnder(monitor);
 
     const auto rows = linesOf(dir / "all_solutions.csv");
-    CHECK(rows.at(0) == "algorithm,iteration,individual,var0,var1,var2,fitness_0,valid");
+    CHECK(rows.at(0) == "algorithm,iteration,chain_iteration,individual,var0,var1,var2,fitness_0,valid");
     // The initial population (unevaluated: fitness nan, not valid) and four iterations of twelve
     CHECK(rows.size() == 1 + 12 + 4 * 12);
     CHECK(rows.at(1).ends_with(",nan,false"));
@@ -428,7 +429,7 @@ TEST_CASE("GIterationResultsFileLogger records the raw or the transformed fitnes
 
     const auto raw_rows = linesOf(dir / "raw.csv");
     const auto transformed_rows = linesOf(dir / "transformed.csv");
-    CHECK(raw_rows.at(0) == "algorithm,iteration,individual,fitness_0");
+    CHECK(raw_rows.at(0) == "algorithm,iteration,chain_iteration,individual,fitness_0");
     REQUIRE(raw_rows.size() == 1 + 2 * 8);
     REQUIRE(transformed_rows.size() == raw_rows.size());
     CHECK(raw_rows[1] != transformed_rows[1]);
@@ -454,4 +455,23 @@ TEST_CASE("Two monitors of one class need different stream names", "[monitor][oa
     catch(const gem_exception &e) {
         CHECK(std::string(e.what()).contains("two objects of one class"));
     }
+}
+
+/******************************************************************************/
+
+TEST_CASE("A copy of a monitor's stream holder is empty", "[monitor][oa]") {
+    // The holder lets every monitor keep a defaulted copy constructor: copying a monitor copies its
+    // configuration, never its stream, so a clone declares a stream of its own.
+    RecordDirectory const dir("copy");
+    oa::GEvolutionaryAlgorithm const ea;
+    oa::GMonitorStream original;
+    REQUIRE(original.beginAlgorithm(ea));
+    original.declare("copied", {{.name = "n", .type = Gem::Common::Record::columnType::UNSIGNED}}, ea);
+    REQUIRE(original.isOpen());
+    oa::GMonitorStream copy(original);
+    CHECK_FALSE(copy.isOpen());
+    CHECK(original.isOpen());
+    copy = original;
+    CHECK_FALSE(copy.isOpen());
+    CHECK(original.isOpen());
 }
