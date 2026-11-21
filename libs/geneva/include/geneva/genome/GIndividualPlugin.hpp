@@ -48,6 +48,11 @@
 namespace Gem::Geneva {
 
 /******************************************************************************/
+/** @brief The kind of a module contribution that carries an individual: a name with
+ *  the prefix of the library that handles it (common/GModuleManifest.hpp). */
+inline constexpr const char *INDIVIDUAL_CONTRIBUTION_KIND = "geneva.individual";
+
+/******************************************************************************/
 /** @brief The factory type a plugin hands back: the same content-creator type Go2::registerContentCreator
  *  accepts, so a loaded problem is indistinguishable from a compiled-in one downstream. */
 using GIndividualFactoryPtr = std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>>;
@@ -93,7 +98,7 @@ const GemModuleManifest *individualManifest() {
         return new GIndividualFactoryPtr(std::make_shared<factory_type>(CONFIG.c_str()));
     };
     static const GemContribution contribution{
-        GEM_CONTRIBUTION_INDIVIDUAL,
+        INDIVIDUAL_CONTRIBUTION_KIND,
         NAME.c_str(),
         factory_thunk
     };

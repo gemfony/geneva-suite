@@ -48,6 +48,11 @@
 namespace Gem::Geneva {
 
 /******************************************************************************/
+/** @brief The kind of a module contribution that carries an optimization algorithm: a name with
+ *  the prefix of the library that handles it (common/GModuleManifest.hpp). */
+inline constexpr const char *OA_CONTRIBUTION_KIND = "geneva.oa";
+
+/******************************************************************************/
 /**
  * @brief Builds the module manifest for a runtime-loadable optimization algorithm, entirely in C++ (no macro).
  *
@@ -91,7 +96,7 @@ const GemModuleManifest *oaManifest() {
     // on the heap; the loader moves-from and deletes the holder, then registers the factory.
     static constexpr auto factory_thunk =
         +[]() -> void * { return new GOAProviderPtr(std::make_shared<factory_type>()); };
-    static const GemContribution contribution{GEM_CONTRIBUTION_OA, NAME.c_str(), factory_thunk};
+    static const GemContribution contribution{OA_CONTRIBUTION_KIND, NAME.c_str(), factory_thunk};
     static const GemModuleManifest
         manifest{GEM_MODULE_ABI_STAMP, NAME.c_str(), GEM_VERSION_STRING, &contribution, 1u};
     return &manifest;

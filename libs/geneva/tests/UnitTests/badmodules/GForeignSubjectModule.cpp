@@ -65,7 +65,7 @@ void *abortingFactory() {
 }
 
 const GemContribution CONTRIBUTION{
-    .kind = GEM_CONTRIBUTION_CONSUMER,
+    .kind = "courtier.consumer",
     .name_or_mnemonic = "foreign",
     .make_factory = abortingFactory,
     .subject = typeid(Gem::Tests::GForeignItem).name()

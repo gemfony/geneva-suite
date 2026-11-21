@@ -33,21 +33,28 @@
  * @file
  * @brief The one manifest a runtime-loadable Geneva module exports.
  *
- * A module (an individual, an optimization algorithm, a monitor or a consumer) exports a single C entry
+ * A module (an individual, an optimization algorithm, a consumer, ...) exports a single C entry
  * point, @c gem_module_manifest(), returning a @c GemModuleManifest. The manifest carries the
  * toolchain-compatibility fingerprint (`GemCompat`, validated FIRST -- see GBuildFingerprint.hpp), the
- * module-ABI stamp (validated SECOND, see below) and a list of typed contributions. It is the ONLY module
+ * module-ABI stamp (validated SECOND, see below) and a list of contributions. It is the ONLY module
  * convention the loader accepts (the earlier two-symbol individual convention has been retired).
  *
  * Everything crossing the module boundary here is **plain C** (fixed-width integers, `const char*`, and a
  * `void*(*)()` factory thunk): the loader must read @c compat before it can trust any C++ type, so the
  * manifest itself cannot depend on C++ layout. Each contribution's @c make_factory returns a `void*` that
- * the loader reinterprets per @c kind.
+ * the handler of its @c kind reinterprets.
+ *
+ * @par Contribution kinds are names
+ * A kind is a string with the prefix of the library that defines it and handles it:
+ * "courtier.consumer", "geneva.individual", "geneva.oa", "geneva.marshaller". This header lists no
+ * kind: each library states its own next to the helper that writes such a contribution, and a program
+ * states at each load which kinds it accepts (Gem::Common::loadModule()); a kind it does not accept is
+ * refused with the kinds it does.
  *
  * @par The two things a module and its host must agree on
  * 1. **The toolchain** -- `GemCompat`, matched exactly on every axis including @c GEM_VERSION.
  * 2. **This file's own contract** -- the layout of @c GemModuleManifest / @c GemContribution, the
- *    meaning of the @c GEM_CONTRIBUTION_* numbers, and, per kind, the C++ type the @c make_factory
+ *    names of the contribution kinds, and, per kind, the C++ type the @c make_factory
  *    thunk's @c void* actually points at. `GemCompat` does NOT cover any of that: a Geneva version is
  *    not bumped per commit, so during development a module and a host can carry the same
  *    @c GEM_VERSION and still disagree about this header. @c GEM_MODULE_ABI_VERSION closes that gap
@@ -56,14 +63,15 @@
  *
  * @par When to bump GEM_MODULE_ABI_VERSION
  * Whenever an already-built module could misunderstand a manifest this header produces, i.e. on any
- * change to the layout of the two structs; to the numeric value or meaning of a contribution kind;
+ * change to the layout of the two structs; to the name or meaning of a contribution kind;
  * or to the C++ type a kind's @c void* payload denotes or any class reachable from it (e.g.
  * redefining @c GOAProviderPtr, or changing the interface of the consumer provider a
  * @c GConsumerProviderPtr points at, or a type its functions take, such as @c ConsumerSpec). Also when
  * state that a module and its host must share moves from the module into a library of the
  * collection: an older module would keep its own copy next to the library's (version 5: the MPI
- * module's environment moved into libgemfony-courtier-mpi). Adding a NEW kind number does not
- * require a bump -- an older loader already rejects a kind it does not know. Before 2.0 bumping is
+ * module's environment moved into libgemfony-courtier-mpi; version 6: kinds became names). Adding a
+ * NEW kind does not require a bump -- an older program already refuses a kind it does not accept.
+ * Before 2.0 bumping is
  * free (every module is rebuilt anyway); afterwards a bump is a major-release event, so the counter
  * is expected to move rarely and only alongside a deliberate module-ABI decision.
  */
@@ -80,24 +88,13 @@
 
 /******************************************************************************/
 /*
- * Contribution kinds. A module may contribute several things (e.g. an OA plus its personality traits plus a
- * bundled monitor, or an individual plus its GPU marshaller). INDIVIDUAL, OA, MARSHALLER and CONSUMER are wired
- * by the loader today; MONITOR is reserved and added when that category is modularised.
- */
-#define GEM_CONTRIBUTION_INDIVIDUAL 1u
-#define GEM_CONTRIBUTION_OA         2u
-#define GEM_CONTRIBUTION_MONITOR    3u
-#define GEM_CONTRIBUTION_CONSUMER   4u
-#define GEM_CONTRIBUTION_MARSHALLER 5u
-
-/*
- * The module-ABI version: this header's own contract (struct layouts, kind numbers, per-kind payload
+ * The module-ABI version: this header's own contract (struct layouts, kind names, per-kind payload
  * types), stamped into every manifest and matched EXACTLY by the loader. See the file comment for the
  * bump rule. A plain counter -- it is not derived from GEM_VERSION and does not follow it.
  */
-// A macro, not an enum: it is part of the plain-C contract of this header, like the kinds above.
+// A macro, not an enum: it is part of the plain-C contract of this header.
 // NOLINTNEXTLINE(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum)
-#define GEM_MODULE_ABI_VERSION 5u
+#define GEM_MODULE_ABI_VERSION 6u
 
 /* Two-level stringization, and the Geneva version as a "MAJOR.MINOR.PATCH[-PRERELEASE]" string literal
  * (a module's own version string when it is a Geneva-shipped module). GEM_VERSION_PRERELEASE
@@ -123,7 +120,7 @@ extern "C" {
  * another item type before it calls the factory. Every other kind leaves @c subject null.
  */
 typedef struct GemContribution {
-    std::uint32_t kind;           /* GEM_CONTRIBUTION_*                                         */
+    const char *kind;             /* NUL-terminated; "<library>.<kind>", e.g. "geneva.oa"       */
     const char *name_or_mnemonic; /* NUL-terminated; the mnemonic/name the host resolves by     */
     void *(*make_factory)(void);  /* returns the base factory ptr for `kind` (loader casts it)  */
     const char *subject;          /* consumer: typeid(item type).name(); NULL for other kinds   */

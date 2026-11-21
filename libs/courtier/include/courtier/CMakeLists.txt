@@ -31,6 +31,7 @@ SET ( COMMUNICATIONINCLUDES
     GBaseClientT.hpp
     GBaseConsumerT.hpp
     GCommandContainerT.hpp
+    GConsumerPlugin.hpp
     GConsumerRegistry.hpp
     GConsumerSpec.hpp
     GCourtierEnums.hpp

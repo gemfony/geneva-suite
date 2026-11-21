@@ -42,6 +42,7 @@
 
 // Geneva headers go here
 #include "common/GModuleManifest.hpp" // the unified module manifest (GemCompat + contributions)
+#include "courtier/GConsumerPlugin.hpp" // CONSUMER_CONTRIBUTION_KIND
 #include "geneva/GConsumerSetup.hpp"  // GConsumerProviderT / consumerProviderStore()
 
 namespace Gem::Geneva {
@@ -88,7 +89,7 @@ const GemModuleManifest *consumerManifest() {
         +[]() -> void * { return new GConsumerProviderPtr(std::make_shared<provider_type>()); };
     // NOLINTNEXTLINE(readability-identifier-naming) -- named as in the other manifest helpers
     static const GemContribution contribution{
-        GEM_CONTRIBUTION_CONSUMER,
+        Gem::Courtier::CONSUMER_CONTRIBUTION_KIND,
         MNEMONIC.c_str(),
         factory_thunk,
         typeid(gen::GGenome).name()

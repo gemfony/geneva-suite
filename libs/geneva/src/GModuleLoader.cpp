@@ -193,7 +193,7 @@ LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_pa
     std::uint32_t n_individuals = 0;
 
     const std::array<GContributionHandler, 4> handlers{{
-        {.kind = GEM_CONTRIBUTION_INDIVIDUAL,
+        {.kind = INDIVIDUAL_CONTRIBUTION_KIND,
          .noun = "individual",
          .check =
              [&n_individuals](
@@ -216,7 +216,7 @@ LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_pa
                  result.individual =
                      takeContribution<GIndividualFactoryPtr>(contribution, context, "individual");
              }},
-        {.kind = GEM_CONTRIBUTION_OA,
+        {.kind = OA_CONTRIBUTION_KIND,
          .noun = "optimization algorithm",
          .check = {},
          .take =
@@ -224,7 +224,7 @@ LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_pa
                  registerOAContribution(contribution, context, "optimization algorithm");
                  ++result.oa_count;
              }},
-        {.kind = GEM_CONTRIBUTION_MARSHALLER,
+        {.kind = MARSHALLER_CONTRIBUTION_KIND,
          .noun = "GPU marshaller",
          .check = {},
          .take =
@@ -232,7 +232,7 @@ LoadedModule loadModuleWithGenevaHandlers(const std::filesystem::path &module_pa
                  registerMarshallerContribution(contribution, context, "GPU marshaller");
                  ++result.marshaller_count;
              }},
-        {.kind = GEM_CONTRIBUTION_CONSUMER,
+        {.kind = Gem::Courtier::CONSUMER_CONTRIBUTION_KIND,
          .noun = "consumer",
          .check = checkConsumerContribution,
          .take =

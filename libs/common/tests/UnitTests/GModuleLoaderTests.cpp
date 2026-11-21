@@ -172,11 +172,11 @@ TEST_CASE(
 
     const std::string msg = rejectionMessage(GEM_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
     REQUIRE_FALSE(msg.empty());
-    CHECK(mentions(msg, "kind 1002"));
+    CHECK(mentions(msg, "the kind \"test.second\""));
     CHECK(mentions(msg, "second"));
     CHECK(mentions(msg, "GTwoContributionsModule"));
     CHECK(mentions(msg, "Supported kinds"));
-    CHECK(mentions(msg, "1001 (first thing)"));
+    CHECK(mentions(msg, "\"test.first\" (first thing)"));
 
     // The module was refused as a whole: the good first contribution was not taken either
     CHECK(recorder.taken.size() == 0); // NOLINT(readability-container-size-empty): shows the count
@@ -213,13 +213,13 @@ TEST_CASE(
 TEST_CASE("Module loader: the kinds in the message are the handlers'", "[common][moduleloader]") {
     Recorder recorder;
     const std::array<GContributionHandler, 2> handlers{{
-        {.kind = 2001u, .noun = "apple", .check = {}, .take = recordingTake(recorder)},
-        {.kind = 2002u, .noun = "pear", .check = {}, .take = recordingTake(recorder)},
+        {.kind = "test.apple", .noun = "apple", .check = {}, .take = recordingTake(recorder)},
+        {.kind = "test.pear", .noun = "pear", .check = {}, .take = recordingTake(recorder)},
     }};
 
     const std::string msg = rejectionMessage(GEM_TEST_MODULE_TWO_CONTRIBUTIONS, handlers);
     REQUIRE_FALSE(msg.empty());
-    CHECK(mentions(msg, "Supported kinds: 2001 (apple), 2002 (pear)"));
+    CHECK(mentions(msg, "Supported kinds: \"test.apple\" (apple), \"test.pear\" (pear)"));
     CHECK(recorder.taken.empty());
 }
 
@@ -245,7 +245,16 @@ TEST_CASE(
              .take = {}},
         }};
         const std::string msg = rejectionMessage(noSuchModule(), handlers);
-        CHECK(mentions(msg, "The handler for kind 1001 (first thing) has no take function."));
+        CHECK(mentions(msg, "The handler for kind \"test.first\" (first thing) has no take function."));
+        CHECK_FALSE(mentions(msg, "Could not load the module"));
+    }
+
+    SECTION("a kind without the prefix of its library") {
+        const std::array<GContributionHandler, 1> handlers{{
+            {.kind = "first", .noun = "first thing", .check = {}, .take = recordingTake(recorder)},
+        }};
+        const std::string msg = rejectionMessage(noSuchModule(), handlers);
+        CHECK(mentions(msg, "does not name it with the prefix of its library"));
         CHECK_FALSE(mentions(msg, "Could not load the module"));
     }
 
@@ -261,7 +270,7 @@ TEST_CASE(
              .take = recordingTake(recorder)},
         }};
         const std::string msg = rejectionMessage(noSuchModule(), handlers);
-        CHECK(mentions(msg, "More than one handler was given for kind 1001."));
+        CHECK(mentions(msg, "More than one handler was given for kind \"test.first\"."));
         CHECK_FALSE(mentions(msg, "Could not load the module"));
     }
 

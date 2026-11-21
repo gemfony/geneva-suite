@@ -2521,18 +2521,18 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         CHECK(mentions(msg, GENEVA_TEST_MODULE_CONTRIBUTION_SIZE));
     }
 
-    SECTION("a contribution of a kind this Geneva cannot load") {
+    SECTION("a contribution of a kind this program does not accept") {
         const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_UNKNOWN_KIND);
         REQUIRE_FALSE(msg.empty());
-        CHECK(mentions(msg, "kind 99"));            // names the offending kind
+        CHECK(mentions(msg, "\"nowhere.something\"")); // names the offending kind
         CHECK(mentions(msg, "GUnknownKindModule")); // ... and the module, by its own name
         CHECK(mentions(msg, "SomethingElse"));      // ... and the contribution
-        CHECK(mentions(msg, "Supported kinds"));    // ... and what this Geneva does serve
+        CHECK(mentions(msg, "Supported kinds")); // ... and what this program does accept
         // ... namely all four of Geneva's kinds, each with its noun
-        CHECK(mentions(msg, "1 (individual)"));
-        CHECK(mentions(msg, "2 (optimization algorithm)"));
-        CHECK(mentions(msg, "5 (GPU marshaller)"));
-        CHECK(mentions(msg, "4 (consumer)"));
+        CHECK(mentions(msg, "\"geneva.individual\" (individual)"));
+        CHECK(mentions(msg, "\"geneva.oa\" (optimization algorithm)"));
+        CHECK(mentions(msg, "\"geneva.marshaller\" (GPU marshaller)"));
+        CHECK(mentions(msg, "\"courtier.consumer\" (consumer)"));
     }
 
     SECTION("a manifest that advertises nothing") {
@@ -2659,7 +2659,7 @@ namespace {
 class ProbeGPUMarshaller final : public GBaseGPUMarshallerT<double> {};
 } // anonymous namespace
 
-// A runtime module may contribute a GPU marshaller (manifest kind GEM_CONTRIBUTION_MARSHALLER): the device
+// A runtime module may contribute a GPU marshaller (manifest kind "geneva.marshaller"): the device
 // adapter that makes --consumer gpu work for a loaded problem. This pins the author helper (marshallerManifest)
 // and the registration mechanics the loader uses -- the whole marshaller (device target, GPU-config path and,
 // via the produced handle, the scalar kind) travels inside the provider with no manifest ABI change.
@@ -2675,7 +2675,7 @@ TEST_CASE(
     CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
     const GemContribution &contribution = manifest->contributions[0];
-    CHECK(contribution.kind == GEM_CONTRIBUTION_MARSHALLER);
+    CHECK(std::string_view(contribution.kind) == MARSHALLER_CONTRIBUTION_KIND);
     CHECK(std::string(contribution.name_or_mnemonic) == "cuda");
 
     // The contribution thunk yields the marshaller provider across the plain-C void* boundary (the same
@@ -2740,7 +2740,7 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
     REQUIRE(manifest != nullptr);
     CHECK(Gem::Common::moduleCompatMismatch(manifest->compat).empty());
     REQUIRE(manifest->contributions_count == 1);
-    CHECK(manifest->contributions[0].kind == GEM_CONTRIBUTION_OA);
+    CHECK(std::string_view(manifest->contributions[0].kind) == Gem::Geneva::OA_CONTRIBUTION_KIND);
     REQUIRE(manifest->contributions[0].make_factory != nullptr);
 
     void *raw = manifest->contributions[0].make_factory();

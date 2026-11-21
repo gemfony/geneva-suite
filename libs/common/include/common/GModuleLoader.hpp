@@ -101,7 +101,7 @@ struct GContributionHandler {
     using function_type =
         std::function<void(const GemContribution &, const GContributionContext &)>;
 
-    std::uint32_t kind = 0; ///< The kind this handler serves (GEM_CONTRIBUTION_*)
+    std::string kind; ///< The kind this handler serves: a name with its library's prefix ("geneva.oa")
     std::string noun;       ///< What a contribution of the kind is, for messages ("consumer")
     function_type check;    ///< Refuses a contribution without calling into the module
     function_type take;     ///< Calls the contribution's factory and takes the result over
@@ -113,8 +113,9 @@ struct GContributionHandler {
  *
  * The caller states at the call which kinds it accepts. The module is opened and gated as by
  * openModule(). Then, in the order of the manifest:
- *   1. every contribution is checked: it has a factory entry point, a handler for its kind was
- *      given, and that handler's check() accepts it. Nothing of the module is called;
+ *   1. every contribution is checked: it names a kind and has a factory entry point, a handler
+ *      for its kind was given (else it is refused with the kinds the caller accepts), and that
+ *      handler's check() accepts it. Nothing of the module is called;
  *   2. take() of its handler is called for every contribution.
  * A module with a contribution that fails a check of 1. is refused as a whole: nothing of it was
  * taken. A take() that throws ends the load; what earlier contributions of the same module
@@ -126,7 +127,7 @@ struct GContributionHandler {
  *
  * @param module_path The module (a shared object)
  * @param handlers One handler per kind the caller accepts; at least one, no kind twice, each
- *        with a take function. A std::array or std::vector of handlers converts to the span.
+ *        kind a name with a library prefix ("<library>.<kind>"), each with a take function. A std::array or std::vector of handlers converts to the span.
  * @throws gem_exception for unusable handlers (before the module is opened), for a module
  *         that cannot be opened or does not pass a gate, for a manifest without contributions,
  *         and for a contribution that is refused; whatever a handler throws passes through

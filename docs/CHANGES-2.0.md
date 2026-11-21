@@ -441,12 +441,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   before any of a module's C++ is touched: the toolchain-compatibility fingerprint
   (`GemCompat` — compiler, standard library, Boost, build-mode ABI switches and Geneva version,
   matched axis by axis) and the **module-ABI stamp** `GEM_MODULE_ABI_VERSION`, which covers this
-  release's manifest layout, contribution-kind numbering and per-kind payload types. The stamp is
+  release's manifest layout, contribution-kind names and per-kind payload types. The stamp is
   what catches a module built against a different `common/GModuleManifest.hpp` within one Geneva
   version — something the version number alone cannot see. Beyond the gates, every other defect is
   a refusal naming the module and the fault rather than a silent partial load: a shared object with
   no manifest entry point, a manifest that advertises nothing, a contribution without its factory
-  entry point, a contribution of a kind this Geneva cannot serve (previously skipped in silence),
+  entry point, a contribution of a kind this program does not accept (previously skipped in
+  silence; the refusal names the kinds it does accept),
   a mnemonic or device target that is already taken, and a module named with `--individual` that
   carries no individual. Module authors never write the stamp by hand — the manifest helpers, and
   the `GEM_MODULE_ABI_STAMP` initializer prefix for a hand-written multi-contribution manifest,
@@ -460,6 +461,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   consumer), so a module refused for one of these registers nothing.
   The loader is `common/GModuleLoader.hpp`, which takes one handler per kind of contribution; Geneva
   uses it through `Gem::Geneva::loadModule()`.
+- **Contribution kinds are names with the prefix of their library**: `"geneva.individual"`,
+  `"geneva.oa"`, `"geneva.marshaller"`, `"courtier.consumer"` (the constants
+  `Gem::Geneva::INDIVIDUAL_CONTRIBUTION_KIND`, `OA_CONTRIBUTION_KIND`,
+  `MARSHALLER_CONTRIBUTION_KIND`, `Gem::Courtier::CONSUMER_CONTRIBUTION_KIND`). The numbers
+  `GEM_CONTRIBUTION_*` are gone: common's manifest lists no kind of the libraries above it, and a
+  program states at each load which kinds it accepts. A hand-written manifest names the constant
+  (example 21). Module ABI version 6.
 - **An optimization-algorithm factory is now itself the provider the algorithm store holds.**
   `GOAFactoryT` implements `Gem::Common::GProviderT` directly, so the wrapper `GOAFactoryProviderT`
   is gone, and a factory registers through one function,
@@ -501,8 +509,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   - the functions of the installed CMake package `GEM_STAMP_PROGRAM()` and
     `GEM_MATERIALIZE_CONFIGS()`;
   - in C++: `gem_exception`, the module manifest (`GemModuleManifest`, `GemContribution`,
-    `GemCompat`, `GEM_MODULE_ABI_STAMP`, `GEM_MODULE_ABI_VERSION`, `GEM_CONTRIBUTION_*`,
-    `GEM_BUILD_FINGERPRINT`), the exported entry point `gem_module_manifest()` (a module built
+    `GemCompat`, `GEM_MODULE_ABI_STAMP`, `GEM_MODULE_ABI_VERSION`, `GEM_BUILD_FINGERPRINT`), the exported entry point `gem_module_manifest()` (a module built
     before the rename is not found and is rebuilt), the version macros `GEM_VERSION`,
     `GEM_VERSION_MAJOR` / `_MINOR` / `_PATCH` / `_PRERELEASE` / `_STRING`, and
     `Gem::Common::gemCommit()` in `common/GGemCommit.hpp`.

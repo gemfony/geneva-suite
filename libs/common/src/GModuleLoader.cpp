@@ -326,10 +326,11 @@ const GemModuleManifest *openModuleLocked(const std::string &path_str, std::stri
     return manifest;
 }
 
-/** @brief The kinds a caller accepts, as the messages list them: "<kind> (<noun>)", joined with
- *  ", ", in the order the handlers were given.
+/** @brief The kinds a caller accepts, as the messages list them: "\"<kind>\" (<noun>)", joined
+ *  with ", ", in the order the handlers were given.
  *  @param handlers The caller's handlers
- *  @return The list, e.g. "1 (individual), 2 (optimization algorithm)" */
+ *  @return The list, e.g. "\"geneva.individual\" (individual), \"geneva.oa\" (optimization
+ *  algorithm)" */
 std::string describeKinds(std::span<const GContributionHandler> handlers) {
     std::ostringstream os;
     bool first = true;
@@ -337,15 +338,23 @@ std::string describeKinds(std::span<const GContributionHandler> handlers) {
         if(not first) {
             os << ", ";
         }
-        os << handler.kind << " (" << handler.noun << ")";
+        os << '"' << handler.kind << "\" (" << handler.noun << ")";
         first = false;
     }
     return os.str();
 }
 
-/** @brief Refuses a list of handlers the loader cannot work with: none at all, one without a take
- *  function, or two for the same kind. Runs before the module is opened, because an opened module
- *  stays in the process.
+/** @brief Whether @p kind has the form "<library>.<kind>": a prefix, a dot and a name.
+ *  @param kind A kind
+ *  @return true if it has that form */
+bool isPrefixedKind(std::string_view kind) {
+    const std::size_t dot = kind.find('.');
+    return dot != std::string_view::npos && dot != 0 && dot + 1 < kind.size();
+}
+
+/** @brief Refuses a list of handlers the loader cannot work with: none at all, one whose kind has
+ *  no library prefix, one without a take function, or two for the same kind. Runs before the
+ *  module is opened, because an opened module stays in the process.
  *  @param handlers The caller's handlers */
 void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
     if(handlers.empty()) {
@@ -356,13 +365,22 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
             << " contribution it accepts." << '\n'
         );
     }
-    std::set<std::uint32_t> kinds;
+    std::set<std::string> kinds;
     for(const GContributionHandler &handler : handlers) {
+        if(not isPrefixedKind(handler.kind)) {
+            throw gem_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In Gem::Common::loadModule(): Error!" << '\n'
+                << "The handler for the kind \"" << handler.kind << "\" (" << handler.noun
+                << ") does not name it with the prefix of its library (\"<library>.<kind>\")."
+                << '\n'
+            );
+        }
         if(not handler.take) {
             throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
-                << "The handler for kind " << handler.kind << " (" << handler.noun
+                << "The handler for kind \"" << handler.kind << "\" (" << handler.noun
                 << ") has no take function." << '\n'
             );
         }
@@ -370,7 +388,7 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
             throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
-                << "More than one handler was given for kind " << handler.kind << "." << '\n'
+                << "More than one handler was given for kind \"" << handler.kind << "\"." << '\n'
             );
         }
     }
@@ -378,10 +396,10 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
 
 /** @brief The handler a caller gave for @p kind, or nullptr if it gave none.
  *  @param handlers The caller's handlers
- *  @param kind The kind of a contribution
+ *  @param kind The kind of a contribution (not null)
  *  @return The handler, or nullptr */
 const GContributionHandler *
-handlerFor(std::span<const GContributionHandler> handlers, std::uint32_t kind) {
+handlerFor(std::span<const GContributionHandler> handlers, std::string_view kind) {
     for(const GContributionHandler &handler : handlers) {
         if(handler.kind == kind) {
             return &handler;
@@ -464,6 +482,17 @@ void loadModule(
     for(std::size_t i = 0; i < contributions.size(); ++i) {
         const GemContribution &contribution = contributions[i];
 
+        // A contribution without a kind cannot be given to anyone
+        if(contribution.kind == nullptr) {
+            throw gem_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In Gem::Common::loadModule(): Error!" << '\n'
+                << "Contribution " << i << " of the module " << described << " (name '"
+                << contributionName(contribution) << "') names no kind." << '\n'
+                << "This program accepts: " << describeKinds(handlers) << "." << '\n'
+            );
+        }
+
         // A contribution without its factory thunk is a broken module, not something to skip
         // silently: the thing the manifest advertises would simply never appear, and the user would
         // hunt for a missing mnemonic with nothing to go on.
@@ -471,26 +500,24 @@ void loadModule(
             throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
-                << "Contribution " << i << " of the module " << described << " (kind "
-                << contribution.kind << ", name '" << contributionName(contribution)
+                << "Contribution " << i << " of the module " << described << " (kind \""
+                << contribution.kind << "\", name '" << contributionName(contribution)
                 << "') has no factory entry point." << '\n'
                 << "Its manifest entry left make_factory null; the typed author helpers always"
                 << " set it." << '\n'
             );
         }
 
-        // A kind the caller gave no handler for is refused rather than skipped. The ABI stamp
-        // already guarantees that the module and this program agree on what the numbers MEAN, so a
-        // kind arriving here is one this program cannot serve, and dropping it would leave the
-        // contribution missing without a word.
+        // A kind the caller gave no handler for is refused rather than skipped: dropping it would
+        // leave the contribution missing without a word.
         const GContributionHandler *handler = handlerFor(handlers, contribution.kind);
         if(handler == nullptr) {
             throw gem_exception(
                 g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
                 << "In Gem::Common::loadModule(): Error!" << '\n'
-                << "Contribution " << i << " of the module " << described << " has kind "
-                << contribution.kind << " (name '" << contributionName(contribution)
-                << "'), which this program cannot load." << '\n'
+                << "Contribution " << i << " of the module " << described << " has the kind \""
+                << contribution.kind << "\" (name '" << contributionName(contribution)
+                << "'), which this program does not accept." << '\n'
                 << "Supported kinds: " << describeKinds(handlers) << "." << '\n'
             );
         }

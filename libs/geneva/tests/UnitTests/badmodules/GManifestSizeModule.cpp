@@ -58,7 +58,7 @@ void *abortingFactory() {
 }
 
 const GemContribution CONTRIBUTION{
-    .kind = GEM_CONTRIBUTION_INDIVIDUAL,
+    .kind = "geneva.individual",
     .name_or_mnemonic = "WrongManifestSize",
     .make_factory = abortingFactory
 };
