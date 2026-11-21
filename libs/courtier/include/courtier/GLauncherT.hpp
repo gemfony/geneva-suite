@@ -297,8 +297,9 @@ public:
  *  8. a bystander returns 0; a client builds its client and runs it; the submitter builds the
  *     consumer (or the program's, setConsumer(make)), registers it as the process consumer,
  *     waits for the clients of --waitForClients (the client gate), calls produce() and releases
- *     the consumer again -- also if produce() or the gate throws; at its release the consumer
- *     records its end-of-run report (GBaseConsumerT::recordEndOfRun(), the stream "courtier").
+ *     the consumer again -- also if produce() or the gate throws; at its release a consumer that
+ *     counts something records its end-of-run report (GBaseConsumerT::recordEndOfRun(), the
+ *     stream "courtier"; a local consumer has none).
  *
  * However run() ends -- normally, by an exception or after a stop request -- it closes the streams
  * of the recorder (Gem::Common::Record::GRecorder::closeAll()), so their files are complete;
@@ -571,7 +572,7 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
         cl_record_dir_,
         Gem::Common::Record::recorder().directory().string(),
         "The directory into which the streams of the recorder write their files (Gem::Common::Record), "
-        "created when needed; in it, courtier's end-of-run report courtier.csv"
+        "created when needed; in it, a networked consumer's end-of-run report courtier.csv"
     );
     std::vector<GConsumerProviderPtrT<processable_type>> providers =
         consumerCatalog<processable_type>()->getContentSnapshot();

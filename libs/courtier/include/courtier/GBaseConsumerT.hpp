@@ -121,28 +121,29 @@ public:
     using figures_type = std::vector<std::pair<std::string, std::uint64_t>>;
 
     /** @brief The counters this consumer keeps, for the end-of-run report (recordEndOfRun()). The
-     *  default reports the connected clients (connectedClients()), unless the consumer cannot
-     *  tell; a consumer that counts more adds its counters. Read, not reset.
+     *  default has none: a local consumer counts nothing worth a report. A consumer that counts
+     *  overrides it (the networked ones: GNetworkedConsumerT). Read, not reset.
      *  @return The figures, by name */
     [[nodiscard]] virtual figures_type endOfRunFigures() const {
-        figures_type figures;
-        if(const std::optional<std::size_t> clients = this->connectedClients()) {
-            figures.emplace_back("clients_connected", *clients);
-        }
-        return figures;
+        return {};
     }
 
     /** @brief The end-of-run report: appends one row of endOfRunFigures(), after the name of the
      *  consumer, to the stream "courtier" of the recorder (Gem::Common::Record), and closes the
-     *  stream, so the file is complete at once. courtier's launcher calls it when it releases its
-     *  consumer, also after an exception or a stop request.
+     *  stream, so the file is complete at once. A consumer without figures records nothing (and so
+     *  creates no file). courtier's launcher calls it when it releases its consumer, also after an
+     *  exception or a stop request.
      *  @param consumer The name of the consumer (its mnemonic) */
     void recordEndOfRun(std::string const &consumer) const {
+        figures_type figures = this->endOfRunFigures();
+        if(figures.empty()) {
+            return;
+        }
         std::vector<Gem::Common::Record::GColumn> columns{
             {.name = "consumer", .type = Gem::Common::Record::columnType::TEXT}
         };
         Gem::Common::Record::GRow row{consumer};
-        for(auto &[name, value] : this->endOfRunFigures()) {
+        for(auto &[name, value] : figures) {
             columns.push_back({.name = std::move(name), .type = Gem::Common::Record::columnType::UNSIGNED});
             row.emplace_back(value);
         }

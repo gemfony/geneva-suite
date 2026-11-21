@@ -479,8 +479,7 @@ TEST_CASE("Launcher: the client gate of --waitForClients and --clientWaitLimit",
                   return std::optional<std::size_t>(asked++ / 3);
               }).empty());
         CHECK(asked_before_produce == std::optional<std::size_t>(7));
-        // Once more after produce(): the consumer's end-of-run report names the connected clients
-        CHECK(asked == 8);
+        CHECK(asked == 7);
         CHECK(mentions(out, "Waiting for 2 clients (at most 600 s)"));
         CHECK(mentions(out, "Waiting for clients: 2 of 2 clients connected after"));
         CHECK(std::cout.precision() == precision);
@@ -825,6 +824,23 @@ private:
     std::filesystem::path previous_ = Gem::Common::Record::recorder().directory();
 };
 
+/** @brief A consumer that evaluates in place and counts something: its end-of-run report */
+class GCountingConsumer final : public Gem::Courtier::GBaseConsumerT<GSimpleContainer> {
+public:
+    [[nodiscard]] figures_type endOfRunFigures() const override {
+        return {{"counted", 3}};
+    }
+
+private:
+    void dispatch_(std::span<item_ptr> items) override {
+        for(auto &item : items) {
+            if(item && item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS) {
+                item->process();
+            }
+        }
+    }
+};
+
 /** @brief The lines of a file */
 std::vector<std::string> linesOf(const std::filesystem::path &file) {
     std::ifstream in(file);
@@ -852,11 +868,25 @@ TEST_CASE("Launcher: --recordDir and the end-of-run report; the streams are clos
     // closeAll() at the end of run()
     CHECK(not stream.isOpen());
     CHECK(linesOf(dir.path() / "launcher_records.csv") == std::vector<std::string>{"n", "1"});
-    // The end-of-run report of the consumer
-    const auto report = linesOf(dir.path() / "courtier.csv");
-    REQUIRE(report.size() == 2);
-    CHECK(report[0] == "consumer,clients_connected");
-    CHECK(report[1].starts_with(std::string(Gem::Courtier::GDEFAULTCONSUMERMNEMONIC) + ","));
+    // Regression: a local consumer counts nothing, and wrote a report all the same ("stc,0"), in
+    // every run, backing the previous one up with a warning. It writes none.
+    CHECK_FALSE(std::filesystem::exists(dir.path() / "courtier.csv"));
+}
+
+TEST_CASE("Launcher: a consumer that counts records its end-of-run report", "[launcher][record]") {
+    const RecordDirectory dir("report");
+    CommandLine cl({"--recordDir", dir.path().string()});
+    launcher_type launcher(cl.argc(), cl.data());
+    launcher.setConsumerModules(testModules());
+    launcher.setConsumer([] { return std::make_shared<GCountingConsumer>(); });
+    CHECK(launcher.run({.produce = [] { return submitEight() == 8 ? 0 : 1; }}) == 0);
+    CHECK(
+        linesOf(dir.path() / "courtier.csv") ==
+        std::vector<std::string>{
+            "consumer,counted",
+            std::string(Gem::Courtier::GDEFAULTCONSUMERMNEMONIC) + ",3"
+        }
+    );
 }
 
 TEST_CASE("Launcher: the streams are closed and the report recorded when produce() throws", "[launcher][record]") {
@@ -864,6 +894,7 @@ TEST_CASE("Launcher: the streams are closed and the report recorded when produce
     CommandLine cl({"--recordDir", dir.path().string()});
     launcher_type launcher(cl.argc(), cl.data());
     launcher.setConsumerModules(testModules());
+    launcher.setConsumer([] { return std::make_shared<GCountingConsumer>(); });
     Gem::Common::Record::GStreamT<int> stream;
     const std::string msg = refusalOf([&] {
         (void)launcher.run({.produce = [&]() -> int {

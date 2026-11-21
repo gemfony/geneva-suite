@@ -800,10 +800,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Corrected on the way.** `GIterationResultsFileLogger` recorded the raw fitness whatever
   `setUseTrueFitness()` said; the progress plotter of a Go2 chain kept only the last algorithm's
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
-- **courtier's end-of-run report.** When the launcher releases its consumer, the consumer
-  appends one row of its counters to the stream `courtier` (`GBaseConsumerT::recordEndOfRun()`,
-  `endOfRunFigures()`): the connected clients, and for a networked consumer the requeued items
-  and the dropped, foreign and dropped late returns.
+- **courtier's end-of-run report.** When the launcher releases a consumer that counts something,
+  the consumer appends one row of its counters to the stream `courtier`
+  (`GBaseConsumerT::recordEndOfRun()`, `endOfRunFigures()`): a networked consumer its connected
+  clients, if it can tell, and its requeued items, dropped, foreign and dropped late returns and
+  empty checkouts. A local consumer counts nothing and writes no report.
 
 ---
 

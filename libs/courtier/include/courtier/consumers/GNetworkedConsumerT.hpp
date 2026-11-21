@@ -274,12 +274,15 @@ public:
         return n_empty_checkouts_;
     }
     /** @brief The end-of-run figures (GBaseConsumerT::recordEndOfRun()): the connected clients, if
-     *  known, and the counters above -- requeued items, dropped, foreign and dropped late returns,
-     *  empty checkouts
+     *  the consumer can tell (connectedClients()), and the counters above -- requeued items,
+     *  dropped, foreign and dropped late returns, empty checkouts
      *  @return The figures, by name */
     [[nodiscard]] typename GBaseConsumerT<processable_type>::figures_type
     endOfRunFigures() const override {
-        auto figures = GBaseConsumerT<processable_type>::endOfRunFigures();
+        typename GBaseConsumerT<processable_type>::figures_type figures;
+        if(const std::optional<std::size_t> clients = this->connectedClients()) {
+            figures.emplace_back("clients_connected", *clients);
+        }
         std::scoped_lock const lk(mtx_);
         figures.emplace_back("requeued", n_requeued_);
         figures.emplace_back("dropped_returns", n_dropped_returns_);
