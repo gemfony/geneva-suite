@@ -59,7 +59,10 @@ struct GStreamOptions {
     /** The sinks the rows go to; none: one GCsvSink */
     std::vector<std::shared_ptr<GSink>> sinks;
     /** The stream continues a run that was resumed from a checkpoint: a file sink appends to an
-     *  existing file whose columns are the stream's, and backs it up and begins a new one otherwise */
+     *  existing file whose columns are the stream's, and backs it up and begins a new one otherwise.
+     *  The file is not cut back to the checkpoint: the rows the earlier run wrote after it -- after
+     *  a crash, those since the last checkpoint -- stay, so their iterations appear twice, and the
+     *  later rows are the resumed run's */
     bool resume = false;
     /** The rows are handed to the sinks every this many rows, and when the stream closes; 1 (the
      *  default) loses at most the row being written when a run crashes */
