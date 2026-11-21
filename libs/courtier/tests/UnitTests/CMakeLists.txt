@@ -402,25 +402,28 @@ IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	# the job must say, a bound of 30 s): a client rank that stops itself (SIGSTOP) in the middle of
 	# a run is found silent, the submitter finishes the run with the other client, and the job is
 	# ended where MPI would be finalized (MPI_Finalize would wait for the stopped rank); a submitter
-	# that stops itself is found silent by its clients, which end the job the same way.
+	# that stops itself is found silent by its client, which ends the job the same way. That job has
+	# one client, so that one rank calls MPI_Abort: Open MPI's launcher (PRRTE 4.1.1rc2, PMIx
+	# 6.1.1rc2) can deadlock in its teardown when two ranks abort at once.
 	SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/silent-end)
 	FILE(MAKE_DIRECTORY ${_dir})
 	FOREACH(_scenario client-stops submitter-stops)
 		IF(_scenario STREQUAL "client-stops")
 			SET(_expect "OK: 120/120 items processed")
+			SET(_ranks 3)
 		ELSE()
-			# The first client that ends the job may end the other before it says so
 			SET(_expect "found its submitter silent")
+			SET(_ranks 2)
 		ENDIF()
 		GEM_ADD_MPI_TEST(NAME GCourtierMpiSilent_${_scenario} TIMEOUT 60
 				COMMAND ${CMAKE_COMMAND}
-					"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};3;${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiExerciser>;--scenario=${_scenario};${MPIEXEC_POSTFLAGS}"
+					"-DCOMMAND=${MPIEXEC_EXECUTABLE};${MPIEXEC_NUMPROC_FLAG};${_ranks};${MPIEXEC_PREFLAGS};$<TARGET_FILE:GCourtierMpiExerciser>;--scenario=${_scenario};${MPIEXEC_POSTFLAGS}"
 					-DEXPECT_EXIT=nonzero
 					"-DEXPECT=${_expect};MPI_Finalize would wait for them: the job is ended"
 					-DLIMIT=30
 					-P ${CMAKE_CURRENT_SOURCE_DIR}/../CheckJobEnds.cmake
 				WORKING_DIRECTORY ${_dir})
-		SET_TESTS_PROPERTIES(GCourtierMpiSilent_${_scenario} PROPERTIES LABELS "courtier" PROCESSORS 3)
+		SET_TESTS_PROPERTIES(GCourtierMpiSilent_${_scenario} PROPERTIES LABELS "courtier" PROCESSORS ${_ranks})
 		GEM_TEST_SIZE(GCourtierMpiSilent_${_scenario} M)
 	ENDFOREACH()
 
@@ -475,7 +478,9 @@ IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	# Each entry runs in a directory of its own below the build directory. Every entry refuses
 	# "FAIL:" (the driver's rule) and the texts of REFUSE, and expects those of EXPECT; one that must
 	# end with 0 under mpirun also expects the watch's verdict "OK: rank <r>:" of every rank. NO_LAUNCHER
-	# starts the program directly, as one process.
+	# starts the program directly, as one process. A job that is ended has one rank that calls
+	# MPI_Abort: Open MPI's launcher (PRRTE 4.1.1rc2, PMIx 6.1.1rc2) can deadlock in its teardown when
+	# two ranks abort at once. Where every member would end the job, the group has one member.
 	FUNCTION(gem_courtier_mpi_cascade_test entry ranks size expect_exit scenario)
 		CMAKE_PARSE_ARGUMENTS(PARSE_ARGV 5 arg "NO_LAUNCHER" "" "ARGS;EXPECT;REFUSE")
 		SET(_dir ${CMAKE_CURRENT_BINARY_DIR}/cascade/${entry})
@@ -555,13 +560,14 @@ IF(GEM_BUILD_WITH_MPI_CONSUMER)
 	# A lead that never confirms its role and never uses the cascade ends the job in the destructor
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeNeverUsed 3 M nonzero never-used
 		EXPECT "requireRole()" "The job is ended (MPI_Abort)")
-	# An exception out of a member's half, the lead's half or a lifecycle function ends the job
-	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeServeRoundThrows 3 M nonzero serve-round-throws
+	# An exception out of a member's half, the lead's half or a lifecycle function ends the job (one
+	# member where the member throws: one rank aborts, see the helper)
+	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeServeRoundThrows 2 M nonzero serve-round-throws
 		EXPECT "an exception left serveRound(): injected exception in serveRound()" "The job is ended (MPI_Abort)")
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeLeadHalfThrows 3 M nonzero lead-half-throws
 		EXPECT "an exception left the lead's half of a round: injected exception in the lead's half"
 		"The job is ended (MPI_Abort)")
-	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeSetUpThrows 3 M nonzero set-up-throws
+	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeSetUpThrows 2 M nonzero set-up-throws
 		EXPECT "an exception left setUp(): injected exception in setUp()" "The job is ended (MPI_Abort)")
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeTearDownThrows 3 M nonzero tear-down-throws
 		EXPECT "an exception left tearDown(): injected exception in tearDown()" "The job is ended (MPI_Abort)")
@@ -578,8 +584,9 @@ IF(GEM_BUILD_WITH_MPI_CONSUMER)
 		EXPECT "release() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideRound 3 M nonzero round-inside-round
 		EXPECT "round() was called from inside the lead's half of a round" "The job is ended (MPI_Abort)")
-	# A rank with an MPI environment of its own refuses; the others end the job instead of waiting
-	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeEnvironmentExists 3 M nonzero environment-exists
+	# A rank with an MPI environment of its own refuses; the other ends the job instead of waiting
+	# (two ranks: one rank aborts, see the helper)
+	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeEnvironmentExists 2 M nonzero environment-exists
 		EXPECT "could not take part in the cascade" "The job is ended (MPI_Abort)")
 	# A submitter that never confirms its role ends the job in its destructor
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeSubmitterNeverConfirms 4 M nonzero submitter-never-confirms
@@ -610,12 +617,13 @@ IF(GEM_BUILD_WITH_MPI_CONSUMER)
 		NO_LAUNCHER ARGS --update-configs
 		EXPECT "abortJob(): the submitter failed without MPI"
 			"the process is ended with the exit code 42")
-	# ... and from inside setUp(), tearDown() or a member's serveRound()
+	# ... and from inside setUp(), tearDown() or a member's serveRound() (one member there: one rank
+	# aborts, see the helper)
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeRoundInsideSetUp 3 M nonzero round-inside-set-up
 		EXPECT "round() was called from inside setUp()" "The job is ended (MPI_Abort)")
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeReleaseInsideTearDown 3 M nonzero release-inside-tear-down
 		EXPECT "release() was called from inside tearDown()" "The job is ended (MPI_Abort)")
-	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeServeInsideServeRound 3 M nonzero serve-inside-serve-round
+	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeServeInsideServeRound 2 M nonzero serve-inside-serve-round
 		EXPECT "serve() was called from inside serveRound()" "The job is ended (MPI_Abort)")
 	# A configuration callable that asks for the MPI role is refused on every rank, not a deadlock
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeCallableAsksRole 3 M zero callable-asks-role)

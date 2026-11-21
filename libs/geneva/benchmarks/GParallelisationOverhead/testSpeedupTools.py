@@ -64,7 +64,7 @@ Usage:
   testSpeedupTools.py groups <GSubClientOverhead> <workdir>
       a job that does not form whole groups is refused, in both layouts, with a message that
       names its size and the group; a job of -c mpi whose submitter fails (an option only it
-      refuses, no serial reference) ends at once, with the submitter's message
+      is given, no serial reference) ends at once, with the submitter's message
   testSpeedupTools.py bounded
       a command that runs into its limit is ended, and the check's failure names what still ran
       and the end of its output
@@ -839,19 +839,28 @@ def check_groups(program, workdir):
     if os.path.exists('referenceLine.txt'):
         os.remove('referenceLine.txt')
     launcher = mpi_launcher()
-    for ranks, args, expected in (
+    # rest: the ranks and arguments of a second part of the job (MPMD), if any
+    for ranks, args, expected, rest in (
             ('6', ['-c', 'mpi', '--group', '3'], 'the MPI job has 6 processes, but with -c mpi '
-             'and --group 3 it needs 1 + clients x 3'),
+             'and --group 3 it needs 1 + clients x 3', []),
             ('2', ['-c', 'beast', '--client', '--group', '3'], 'the MPI job has 2 processes, '
-             'but a client with --group 3 is one job of 3'),
-            # An option only the submitter's Go2 refuses (the leads parse leniently)
-            ('4', ['-c', 'mpi', '--group', '3', '--no-such-option', '1'], 'no-such-option'),
-            ('4', ['-c', 'mpi', '--group', '3'], 'no serial reference in "referenceLine.txt"')):
-        status, out = run_bounded(launcher + [ranks, program] + args, 60)
+             'but a client with --group 3 is one job of 3', []),
+            # An option only the submitter is given, while its leads wait for it. Every process
+            # refuses a bad option, and a job in which two ranks call MPI_Abort at once can hang
+            # Open MPI's launcher (PRRTE 4.1.1rc2, PMIx 6.1.1rc2): one rank aborts here.
+            ('1', ['-c', 'mpi', '--group', '3', '--no-such-option', '1'], 'no-such-option',
+             ['3', '-c', 'mpi', '--group', '3']),
+            ('4', ['-c', 'mpi', '--group', '3'], 'no serial reference in "referenceLine.txt"',
+             [])):
+        command = launcher + [ranks, program] + args
+        if rest:
+            command += [':', launcher[-1], rest[0], program] + rest[1:]
+        status, out = run_bounded(command, 60)
+        job = f'{ranks} processes with {" ".join(args)}' + (
+            f' : {rest[0]} with {" ".join(rest[1:])}' if rest else '')
         if status == 0 or expected not in out:
-            fail(f'{ranks} processes with {args} were not refused (exit {status}) '
-                 f'with "{expected}": {out[-1000:]}')
-        print(f'{ranks} processes with {" ".join(args)}: refused')
+            fail(f'{job} was not refused (exit {status}) with "{expected}": {out[-1000:]}')
+        print(f'{job}: refused')
 
 
 def check_bounded():
