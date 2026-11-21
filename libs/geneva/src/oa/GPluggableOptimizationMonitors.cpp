@@ -978,12 +978,13 @@ bool GNAdpationsLogger::modify_GUnitTests_() {
  * @brief Initialization with histogram bin counts. Note that some variables may be initialized in
  * the class body.
  *
- * @param n_bins_x The number of histogram bins in x-direction
- * @param n_bins_y The number of histogram bins in y-direction (used for the 2D histograms)
+ * @param n_bins_x The number of histogram bins in x-direction; 0 is refused (setNBinsX())
+ * @param n_bins_y The number of histogram bins in y-direction (used for the 2D histograms); 0 is
+ *        refused (setNBinsY())
  */
-GProcessingTimesLogger::GProcessingTimesLogger(std::size_t n_bins_x, std::size_t n_bins_y)
-  : n_bins_x_(n_bins_x)
-  , n_bins_y_(n_bins_y) { /* nothing */
+GProcessingTimesLogger::GProcessingTimesLogger(std::size_t n_bins_x, std::size_t n_bins_y) {
+    this->setNBinsX(n_bins_x);
+    this->setNBinsY(n_bins_y);
 }
 
 /******************************************************************************/
@@ -1041,9 +1042,16 @@ std::tuple<std::uint32_t, std::uint32_t> GProcessingTimesLogger::getCanvasDimens
 /**
  * @brief Sets the number of bins for the processing times histograms in x-direction
  *
- * @param n_bins_x The number of histogram bins in x-direction
+ * @param n_bins_x The number of histogram bins in x-direction; 0 is refused (a gem_exception)
  */
 void GProcessingTimesLogger::setNBinsX(std::size_t n_bins_x) {
+    if(n_bins_x == 0) {
+        throw gem_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GProcessingTimesLogger::setNBinsX(): Error!" << '\n'
+            << "n_bins_x is set to 0" << '\n'
+        );
+    }
     n_bins_x_ = n_bins_x;
 }
 
@@ -1061,9 +1069,16 @@ std::size_t GProcessingTimesLogger::getNBinsX() const {
 /**
  * @brief Sets the number of bins for the processing times histograms in y-direction
  *
- * @param n_bins_y The number of histogram bins in y-direction
+ * @param n_bins_y The number of histogram bins in y-direction; 0 is refused (a gem_exception)
  */
 void GProcessingTimesLogger::setNBinsY(std::size_t n_bins_y) {
+    if(n_bins_y == 0) {
+        throw gem_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GProcessingTimesLogger::setNBinsY(): Error!" << '\n'
+            << "n_bins_y is set to 0" << '\n'
+        );
+    }
     n_bins_y_ = n_bins_y;
 }
 
