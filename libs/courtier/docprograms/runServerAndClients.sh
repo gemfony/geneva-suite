@@ -37,8 +37,16 @@
 #             clients meet on the broker whose port <broker-dir>/port names (the tests' broker,
 #             tests/mqttTestBroker.sh), under a topic prefix of this run's own
 # options     go to the server and to every client
+#
+# The server waits for its clients before it submits anything (the launcher's --waitForClients
+# <clients>, at most 60 s): a client that came after the server had finished would wait for it
+# forever. The clients are started once the server waits for them -- on that line of its output,
+# not after a fixed pause.
+# LAST_CLIENT_DELAY  (environment) seconds the last client is started after the others (default 0)
+#
 # The server must end with 0 within 120 s, the clients within 30 s after it. The script starts
-# in, and its programs write into, the current directory.
+# in, and its programs write into, the current directory (the server's output: server.log, shown
+# at the end; client i's: client<i>.log).
 
 set -u
 program=$1; consumer=$2; clients=$3; broker_dir=$4; shift 4
@@ -50,16 +58,23 @@ case $consumer in
     *)     echo "runServerAndClients.sh: no networked consumer: $consumer"; exit 2 ;;
 esac
 
-timeout 120 "$program" --consumer "$consumer" "${where[@]}" "$@" &
+timeout 120 "$program" --consumer "$consumer" "${where[@]}" --waitForClients "$clients" \
+    --clientWaitLimit 60 "$@" > server.log 2>&1 &
 server=$!
-sleep 1
+for ((t = 0; t < 300; t++)); do
+    grep -q '^Waiting for [0-9]* clients' server.log 2> /dev/null && break
+    kill -0 "$server" 2> /dev/null || break
+    sleep 0.1
+done
 client_pids=()
 for ((i = 0; i < clients; i++)); do
+    if ((i == clients - 1)); then sleep "${LAST_CLIENT_DELAY:-0}"; fi
     timeout 150 "$program" --consumer "$consumer" --client "${where[@]}" "$@" > "client$i.log" 2>&1 &
     client_pids+=($!)
 done
 
 wait "$server"; server_exit=$?
+cat server.log
 failed=0
 for pid in "${client_pids[@]}"; do
     # A client ends when its server has gone; give it 30 s

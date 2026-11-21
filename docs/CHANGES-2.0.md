@@ -178,7 +178,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (examples 01 and 02 show the two forms, example 11 a choice made on the launcher). The
   producing function runs on the submitter only; `prepare(role)` runs in every process (constant
   problem data, an exit before anything runs). `run()` returns: `--help` gives 0, a malformed
-  command line prints the error and the help text and gives 1. Removed from `Go2`: the constructor
+  command line prints the error and the help text and gives 1. With `--waitForClients N` the
+  submitter waits before producing until its consumer reports N connected clients, and ends with
+  an error after `--clientWaitLimit` seconds (600) with fewer. Removed from `Go2`: the constructor
   `Go2(argc, argv, config_file, options)`, `clientMode()`, `clientRun()`, `setClientMode()`,
   `registerConsumer()`, `consumer()`, `setConsumerName()`, `getConsumerName()`, `addModulePath()`,
   `setModulePaths()`, `getModulePaths()`, `setMaxClientTime()`, `getMaxClientTime()`,
@@ -296,7 +298,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   nothing; what a client held is put back by the lease). A send that is still under way when the
   work ends (a large item for a rank that has left, say) is waited for up to 2 s
   (`GMPIPEERDRAINGRACE`) and then given up. The consumer answers
-  `connectedClients()` (the clients that have asked for work), so the speed-up benchmarks'
+  `connectedClients()` (the clients that have asked for work), so the launcher's
   `--waitForClients` works for MPI. The default depth is 2 for MPI and 1 for websocket. The submitter serves waiting requests oldest
   first and does not ask whether their client is evaluating. While items are pending no request
   waits, and one sent ahead takes an item nobody waits for; but when fewer items become available

@@ -58,7 +58,6 @@ int main(int argc, char **argv) {
     // the parallel measurement would run on the same workers and be no reference at all.
     bool reference_run = false;
     std::string reference_file = "referenceLine.txt";
-    SpeedupMeasurement::ClientGate gate;
     auto user_options = [&](Gem::Common::GParserBuilder &gpb) {
         gpb.registerCLParameter<bool>(
             "reference",
@@ -75,7 +74,6 @@ int main(int argc, char **argv) {
             reference_file,
             "The file that holds the line of the serial reference"
         );
-        SpeedupMeasurement::addClientGateOptions(gpb, gate);
     };
 
     // The parallel measurement, or the reference
@@ -127,8 +125,7 @@ int main(int argc, char **argv) {
                      return gind::GDelayIndividual::create(delay_config, delay);
                  },
                  delay_config_par.result_file,
-                 delay_config_par.short_result_file,
-                 gate
+                 delay_config_par.short_result_file
              );
              return 0;
          }}

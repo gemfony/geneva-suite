@@ -49,7 +49,6 @@
 #include <iostream>
 #include <limits>
 #include <memory>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -58,8 +57,6 @@
 
 // Geneva header files go here
 #include "common/GCommonMathHelperFunctionsT.hpp"
-#include "common/GParserBuilder.hpp"
-#include "courtier/GConsumerRegistry.hpp"
 #include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "dietrich/GPlotDesigner.hpp"
@@ -97,93 +94,6 @@ struct Schedule {
     std::uint32_t n_measurements = 1;                  ///< Measurements per evaluation time
     std::uint32_t inter_measurement_delay = 1;         ///< Seconds to wait after an evaluation time
 };
-
-/******************************************************************************/
-/** The gate before the measurement: how many clients the server waits for, and how long */
-struct ClientGate {
-    std::size_t clients = 0;        ///< Clients to wait for; 0: none (nothing is waited for)
-    std::size_t limitSeconds = 600; ///< How long the server waits for them at most
-};
-
-/// How often the gate asks the consumer how many clients are connected
-inline constexpr std::chrono::milliseconds CLIENTGATEPOLL{100};
-
-/**
- * Adds the options of the gate to a benchmark's options: --waitForClients and --clientWaitLimit.
- *
- * @param gpb The launcher's parser
- * @param gate Where the values go
- */
-inline void addClientGateOptions(Gem::Common::GParserBuilder &gpb, ClientGate &gate) {
-    gpb.registerCLParameter<std::size_t>(
-        "waitForClients",
-        gate.clients,
-        gate.clients,
-        "The server waits, before the measurement starts, until its consumer reports this many "
-        "connected clients (0: it does not wait). A client counts once it has asked for work on "
-        "an open connection; one that has died without its connection ending counts until the "
-        "transport notices the loss, and one that has connected again after such a loss counts "
-        "for its old connection too until then. A consumer that cannot tell how many clients it "
-        "has "
-        "is not waited for; the log says so"
-    );
-    gpb.registerCLParameter<std::size_t>(
-        "clientWaitLimit",
-        gate.limitSeconds,
-        gate.limitSeconds,
-        "Seconds the server waits for the clients of --waitForClients; the program ends with an "
-        "error if fewer have connected by then"
-    );
-}
-
-/**
- * Waits until the process consumer reports at least @p gate.clients connected clients, at most
- * @p gate.limitSeconds, and says how long it waited. The clients need no signal: a connected client asks
- * for work at once and waits, parked by the server, until the first batch is submitted.
- *
- * @param gate How many clients, and how long
- * @throws std::runtime_error if fewer clients have connected within the limit, naming how many
- */
-inline void waitForClients(const ClientGate &gate) {
-    if(gate.clients == 0) {
-        return;
-    }
-    // The consumer the launcher established; it outlives the producing function
-    const auto consumer = Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().consumer();
-    const auto ask = [&consumer]() -> std::optional<std::size_t> {
-        if(not consumer) {
-            throw std::runtime_error("waitForClients: this process has no consumer to ask");
-        }
-        return consumer->connectedClients();
-    };
-    const auto start = std::chrono::steady_clock::now();
-    std::optional<std::size_t> connected = ask();
-    if(not connected) {
-        std::cout << "Waiting for clients: the consumer of this run cannot tell how many clients "
-                     "are connected; the measurement starts without "
-                     "waiting for "
-                  << gate.clients << " clients" << std::endl;
-        return;
-    }
-    std::cout << "Waiting for " << gate.clients << " clients (at most " << gate.limitSeconds
-              << " s)" << std::endl;
-    while(*connected < gate.clients) {
-        const auto waited = std::chrono::steady_clock::now() - start;
-        if(waited >= std::chrono::seconds(gate.limitSeconds)) {
-            throw std::runtime_error(
-                "only " + std::to_string(*connected) + " of " + std::to_string(gate.clients) +
-                " clients connected within the limit of " + std::to_string(gate.limitSeconds) +
-                " s (--clientWaitLimit)"
-            );
-        }
-        std::this_thread::sleep_for(CLIENTGATEPOLL);
-        connected = ask().value_or(0);
-    }
-    const std::chrono::duration<double> waited = std::chrono::steady_clock::now() - start;
-    std::cout << "Waiting for clients: " << *connected << " of " << gate.clients
-              << " clients connected after " << std::fixed << std::setprecision(1) << waited.count()
-              << " s" << std::defaultfloat << std::endl;
-}
 
 /******************************************************************************/
 /**
@@ -321,22 +231,17 @@ inline Line measureReference(const Schedule &schedule, const IndividualFactory &
 
 /******************************************************************************/
 /**
- * Measures the (usually parallel) run times through the consumer of the process. Before anything
- * runs, it waits for the clients of @p gate (waitForClients()).
+ * Measures the (usually parallel) run times through the consumer of the process. The clients of
+ * the launcher's --waitForClients are connected before the program's producing function is
+ * called (the launcher's client gate), so the measurement does not wait for them.
  *
  * @param go The optimization wrapper whose consumer is measured
  * @param schedule The evaluation times and measurements
  * @param make_individual Builds the individual for one evaluation time
- * @param gate How many clients the measurement waits for
  * @return Per evaluation time: the evaluation time, 0, the mean run time and its standard deviation
  */
-inline Timings measureParallel(
-    Go2 &go,
-    const Schedule &schedule,
-    const IndividualFactory &make_individual,
-    const ClientGate &gate = {}
-) {
-    waitForClients(gate);
+inline Timings
+measureParallel(Go2 &go, const Schedule &schedule, const IndividualFactory &make_individual) {
     std::cout << "Starting parallel measurement" << std::endl;
 
     Timings parallel_times;
@@ -350,8 +255,8 @@ inline Timings measureParallel(
         go.registerAdaptionConfig("PERSONALITY_EA", ballastAdaption(*individual));
 
         // One run that is not measured, before the first delay: the clients (connected, if the
-        // gate waited for them) receive the genome's layout, so that the first measurement does
-        // not carry that start-up time.
+        // launcher waited for them) receive the genome's layout, so that the first measurement
+        // does not carry that start-up time.
         if(iter == 0) {
             std::cout << "Warm-up run" << std::endl;
             go.push_back(individual);
@@ -459,7 +364,6 @@ inline void writeResults(
  * @param make_individual Builds the individual for one evaluation time
  * @param result_file The plot script
  * @param short_result_file The table
- * @param gate How many clients the parallel measurement waits for
  */
 inline void
 run(Go2 &go,
@@ -469,8 +373,7 @@ run(Go2 &go,
     const Schedule &parallel,
     const IndividualFactory &make_individual,
     const std::string &result_file,
-    const std::string &short_result_file,
-    const ClientGate &gate = {}) {
+    const std::string &short_result_file) {
     if(reference_run) {
         writeReferenceLine(reference_file, measureReference(reference, make_individual));
         std::cout << "The serial reference is in " << reference_file << std::endl;
@@ -479,7 +382,7 @@ run(Go2 &go,
     const Line ab = readReferenceLine(reference_file);
     writeResults(
         ab,
-        measureParallel(go, parallel, make_individual, gate),
+        measureParallel(go, parallel, make_individual),
         result_file,
         short_result_file
     );

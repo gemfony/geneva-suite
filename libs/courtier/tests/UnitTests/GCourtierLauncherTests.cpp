@@ -34,18 +34,24 @@
  * command line, the refusals (an unknown consumer, a module that cannot be loaded, a module for
  * another item type, --client for a consumer without clients, a consumer that misses a
  * prerequisite, a second item type, a second run()), a choice in main() against options given
- * explicitly, prepare() and the release of the consumer; consumer and client built without a
- * launcher; the options of the shipped thread-pool and websocket providers.
+ * explicitly, prepare() and the release of the consumer, the client gate (--waitForClients,
+ * --clientWaitLimit); consumer and client built without a launcher; the options of the shipped
+ * thread-pool and websocket providers.
  *
  * Every launcher here distributes GSimpleContainer, but for the one case that is refused because
  * of it: the item type is recorded once per process.
  */
 
 // Standard header files go here
+#include <chrono>
+#include <cstddef>
 #include <filesystem>
+#include <functional>
+#include <ios>
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -58,6 +64,7 @@
 
 // Geneva header files go here
 #include "GDemoProcessingContainers.hpp"
+#include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/GLauncherT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -73,6 +80,7 @@ using Gem::Courtier::GSimpleContainer;
 using Gem::Courtier::processRole;
 using Gem::Courtier::Tests::GNeedyConsumerConfig;
 using Gem::Courtier::Tests::lastNeedyConfig;
+using Gem::Courtier::Tests::needyHasClients;
 using Gem::Courtier::Tests::needySupplied;
 
 namespace {
@@ -271,6 +279,10 @@ TEST_CASE("Launcher: refusals", "[launcher]") {
         const std::string msg = run({"--client"});
         CHECK(mentions(msg, "the consumer \"stc\" has no clients"));
     }
+    SECTION("--waitForClients for a consumer without clients") {
+        const std::string msg = run({"--waitForClients", "2"});
+        CHECK(mentions(msg, "--waitForClients was given, but the consumer \"stc\" has no clients"));
+    }
     SECTION("a consumer that misses a prerequisite") {
         needySupplied() = false;
         const std::string msg = run({"--consumer", "needy"});
@@ -384,6 +396,125 @@ TEST_CASE("Launcher: the program's own consumer is built on the submitter", "[la
     });
     CHECK(launcher.run({.produce = [] { return submitEight() == 8 ? 0 : 1; }}) == 0);
     CHECK(made == 1);
+}
+
+namespace {
+
+/** @brief A consumer that evaluates in place and answers connectedClients() as the test says */
+class GGatedConsumer final : public Gem::Courtier::GBaseConsumerT<GSimpleContainer> {
+public:
+    using answer_type = std::function<std::optional<std::size_t>()>;
+    /** @param answer What connectedClients() answers, asked once per call */
+    explicit GGatedConsumer(answer_type answer)
+      : answer_(std::move(answer)) {
+    }
+    [[nodiscard]] std::optional<std::size_t> connectedClients() const override {
+        return answer_();
+    }
+
+private:
+    void dispatch_(std::span<item_ptr> items) override {
+        for(auto &item : items) {
+            if(item && item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS) {
+                item->process();
+            }
+        }
+    }
+    answer_type answer_;
+};
+
+} // namespace
+
+// The client gate: the submitter asks its consumer for the connected clients after building it and
+// before produce(), until there are --waitForClients of them; at --clientWaitLimit it ends the run
+// without producing. A networked server whose clients are started one after another would
+// otherwise finish with the first and leave a later one waiting for a server that is gone.
+TEST_CASE("Launcher: the client gate of --waitForClients and --clientWaitLimit", "[launcher]") {
+    needySupplied() = true;
+    needyHasClients() = true; // the gate is refused for a consumer without clients
+    struct Restore {
+        Restore() = default;
+        Restore(const Restore &) = delete;
+        Restore &operator=(const Restore &) = delete;
+        Restore(Restore &&) = delete;
+        Restore &operator=(Restore &&) = delete;
+        ~Restore() {
+            needyHasClients() = false;
+        }
+    } const restore;
+
+    std::size_t asked = 0; // how often connectedClients() was asked
+    std::optional<std::size_t> asked_before_produce;
+    std::string out; // what the run wrote to std::cout
+    // Runs the launcher on "needy" with a GGatedConsumer; returns the refusal, empty if none
+    auto run = [&](std::vector<std::string> args, GGatedConsumer::answer_type answer) {
+        args.insert(args.begin(), {"--consumer", "needy"});
+        CommandLine cl(std::move(args));
+        launcher_type launcher(cl.argc(), cl.data());
+        launcher.setConsumerModules(testModules());
+        launcher.setConsumer([&answer]() -> launcher_type::consumer_ptr {
+            return std::make_shared<GGatedConsumer>(std::move(answer));
+        });
+        const CoutCapture capture;
+        const std::string msg = refusalOf([&] {
+            (void)launcher.run({.produce = [&] {
+                asked_before_produce = asked;
+                return submitEight() == 8 ? 0 : 1;
+            }});
+        });
+        out = capture.text.str();
+        return msg;
+    };
+
+    SECTION("the submitter waits until the consumer reports the clients, then produces") {
+        // The program's output keeps its format: the waited time once set the precision of
+        // std::cout to 1, which cut every double the program printed later to one digit
+        const std::streamsize precision = std::cout.precision();
+        const std::ios_base::fmtflags flags = std::cout.flags();
+        // 0, 0, 0, 1, 1, 1, 2: the seventh answer is the first with two clients
+        CHECK(run({"--waitForClients", "2"}, [&] {
+                  return std::optional<std::size_t>(asked++ / 3);
+              }).empty());
+        CHECK(asked_before_produce == std::optional<std::size_t>(7));
+        CHECK(asked == 7);
+        CHECK(mentions(out, "Waiting for 2 clients (at most 600 s)"));
+        CHECK(mentions(out, "Waiting for clients: 2 of 2 clients connected after"));
+        CHECK(std::cout.precision() == precision);
+        CHECK(std::cout.flags() == flags);
+    }
+    SECTION("too few clients end the run at the limit, before produce()") {
+        const auto start = std::chrono::steady_clock::now();
+        const std::string msg = run({"--waitForClients", "3", "--clientWaitLimit", "1"}, [&] {
+            ++asked;
+            return std::optional<std::size_t>(2);
+        });
+        CHECK(std::chrono::steady_clock::now() - start >= std::chrono::seconds(1));
+        CHECK(mentions(
+            msg,
+            "only 2 of 3 clients connected within the limit of 1 s (--clientWaitLimit)"
+        ));
+        CHECK_FALSE(asked_before_produce.has_value());
+        CHECK(asked > 1);
+        CHECK(
+            Gem::Courtier::GConsumerRegistryT<GSimpleContainer>::instance().consumer() == nullptr
+        );
+    }
+    SECTION("a consumer that cannot tell how many clients it has is not waited for") {
+        CHECK(run({"--waitForClients", "2"}, [&] {
+                  ++asked;
+                  return std::optional<std::size_t>{};
+              }).empty());
+        CHECK(asked_before_produce == std::optional<std::size_t>(1));
+        CHECK(mentions(out, "cannot tell how many clients are connected"));
+    }
+    SECTION("without --waitForClients the consumer is not asked") {
+        CHECK(run({}, [&] {
+                  ++asked;
+                  return std::optional<std::size_t>(0);
+              }).empty());
+        CHECK(asked_before_produce == std::optional<std::size_t>(0));
+        CHECK_FALSE(mentions(out, "Waiting for"));
+    }
 }
 
 TEST_CASE("Without a launcher: consumer and client from the modules", "[launcher]") {

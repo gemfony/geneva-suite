@@ -39,12 +39,14 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <typeinfo>
 #include <utility>
 #include <vector>
@@ -80,6 +82,11 @@ namespace Gem::Courtier {
  * @throws gem_exception if a launcher for another item type was built before
  */
 void claimItemType(const std::type_info &item_type);
+
+/// How long the submitter waits at most for the clients of --waitForClients (--clientWaitLimit)
+inline constexpr std::size_t GDEFAULTCLIENTWAITLIMIT = 600;
+/// How often the submitter asks its consumer how many clients are connected, while it waits
+inline constexpr std::chrono::milliseconds GCLIENTGATEPOLL{100};
 
 /******************************************************************************/
 /**
@@ -278,12 +285,21 @@ public:
  *  4. the full parse: the launcher's, the consumers', the description's and the program's
  *     options; --help and --showAll print the help text and make run() return 0, a malformed
  *     command line prints the error and the help text and makes it return 1;
- *  5. the consumer is checked (known, nothing missing, --client only for a consumer with
- *     clients) and the role of the process is asked for;
+ *  5. the consumer is checked (known, nothing missing, --client and --waitForClients only for
+ *     a consumer with clients) and the role of the process is asked for;
  *  6. the description is configured; 7. prepare(role), which may end the program;
  *  8. a bystander returns 0; a client builds its client and runs it; the submitter builds the
  *     consumer (or the program's, setConsumer(make)), registers it as the process consumer,
- *     calls produce() and releases the consumer again -- also if produce() throws.
+ *     waits for the clients of --waitForClients (the client gate), calls produce() and releases
+ *     the consumer again -- also if produce() or the gate throws.
+ *
+ * The client gate: with --waitForClients N the submitter asks its consumer every
+ * GCLIENTGATEPOLL how many clients are connected (GBaseConsumerT::connectedClients()) until it
+ * reports N, and throws if fewer have connected within --clientWaitLimit seconds; a consumer that
+ * cannot tell (std::nullopt) is not waited for, and the output says so. A connected client asks
+ * for work at once and waits until the first batch is submitted, so no item is processed before
+ * every client is there -- the condition of a measurement, and of a run whose clients must all
+ * take part. Not under --update-configs.
  *
  * A choice made in main() (setConsumer(), setClientMode(), setMaxClientTime()) loses against an
  * option given explicitly on the command line, option by option, and wins against a default.
@@ -423,6 +439,9 @@ private:
         const ConsumerSpec &spec,
         Program &program
     );
+    /** @brief The client gate (see the class comment) @param consumer The process consumer
+     *  @throws gem_exception if fewer than --waitForClients clients connect within the limit */
+    void waitForClients_(const GBaseConsumerT<processable_type> &consumer) const;
     /** @brief The available consumers, for the help text and the refusals @param description The
      *  producer @return "a, b, c" */
     [[nodiscard]] std::string listing_(const GProducerDescriptionI &description) const;
@@ -460,6 +479,8 @@ private:
     bool cl_client_ = false;                ///< --client
     bool cl_update_configs_ = false;     ///< --update-configs (read by configEmissionRequested())
     std::string cl_max_client_duration_; ///< --max_client_duration
+    std::size_t cl_wait_for_clients_ = 0;                        ///< --waitForClients
+    std::size_t cl_client_wait_limit_ = GDEFAULTCLIENTWAITLIMIT; ///< --clientWaitLimit
     std::string mnemonic_;               ///< The chosen consumer
     processRole role_ = processRole::SUBMITTER; ///< The role of this process
 };
@@ -500,6 +521,24 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
         std::string("00:00:00"),
         R"(The maximum run time of a client, as "hh:mm:ss"; "00:00:00": no limit)"
     );
+    gpb_.registerCLParameter<std::size_t>(
+        "waitForClients",
+        cl_wait_for_clients_,
+        std::size_t(0),
+        "The submitter waits, before it produces anything, until its consumer reports this many "
+        "connected clients (0: it does not wait). A client counts once it has asked for work on "
+        "an open connection; one that has died without its connection ending counts until the "
+        "transport notices the loss, and one that has connected again after such a loss counts "
+        "for its old connection too until then. A consumer that cannot tell how many clients it "
+        "has is not waited for; the output says so. Refused for a consumer without clients"
+    );
+    gpb_.registerCLParameter<std::size_t>(
+        "clientWaitLimit",
+        cl_client_wait_limit_,
+        GDEFAULTCLIENTWAITLIMIT,
+        "Seconds the submitter waits for the clients of --waitForClients; the program ends with "
+        "an error if fewer have connected by then"
+    );
     std::vector<GConsumerProviderPtrT<processable_type>> providers =
         consumerCatalog<processable_type>()->getContentSnapshot();
     std::ranges::sort(providers, {}, [](const auto &p) { return p->getMnemonic(); });
@@ -531,6 +570,12 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
     if(client_requested && not refresh_ && not role_at_runtime && not provider->needsClient()) {
         throw refusal_(
             "Client mode was requested, but the consumer \"" + mnemonic_ + "\" has no clients."
+        );
+    }
+    if(cl_wait_for_clients_ > 0 && not refresh_ && not role_at_runtime &&
+       not provider->needsClient()) {
+        throw refusal_(
+            "--waitForClients was given, but the consumer \"" + mnemonic_ + "\" has no clients."
         );
     }
     const std::any chosen_config =
@@ -732,8 +777,51 @@ int GLauncherT<processable_type>::runSubmitter_(
         GConsumerRegistryT<processable_type> &registry_;
         consumer_ptr consumer_;
     };
-    const Release release(registry, std::move(consumer));
+    const Release release(registry, consumer);
+    if(not refresh_) {
+        waitForClients_(*consumer);
+    }
     return program.produce ? program.produce() : 0;
+}
+
+/******************************************************************************/
+
+template <ProcessableItem processable_type>
+void GLauncherT<processable_type>::waitForClients_(
+    const GBaseConsumerT<processable_type> &consumer
+) const {
+    const std::size_t wanted = cl_wait_for_clients_;
+    if(wanted == 0) {
+        return;
+    }
+    const auto start = std::chrono::steady_clock::now();
+    std::optional<std::size_t> connected = consumer.connectedClients();
+    if(not connected) {
+        std::cout << "Waiting for clients: the consumer \"" << mnemonic_
+                  << "\" cannot tell how many clients are connected; the program starts without "
+                     "waiting for "
+                  << wanted << " clients" << std::endl;
+        return;
+    }
+    std::cout << "Waiting for " << wanted << " clients (at most " << cl_client_wait_limit_ << " s)"
+              << std::endl;
+    while(*connected < wanted) {
+        if(std::chrono::steady_clock::now() - start >=
+           std::chrono::seconds(cl_client_wait_limit_)) {
+            throw refusal_(
+                "only " + std::to_string(*connected) + " of " + std::to_string(wanted) +
+                " clients connected within the limit of " + std::to_string(cl_client_wait_limit_) +
+                " s (--clientWaitLimit)"
+            );
+        }
+        std::this_thread::sleep_for(GCLIENTGATEPOLL);
+        connected = consumer.connectedClients().value_or(0);
+    }
+    // Formatted apart, so that std::cout keeps its precision for what the program prints
+    const std::chrono::duration<double> waited = std::chrono::steady_clock::now() - start;
+    std::cout << "Waiting for clients: " << *connected << " of " << wanted
+              << " clients connected after " << std::format("{:.1f}", waited.count()) << " s"
+              << std::endl;
 }
 
 /******************************************************************************/

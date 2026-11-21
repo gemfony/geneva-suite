@@ -74,10 +74,18 @@ inline bool &needySupplied() {
     return supplied;
 }
 
+/** @brief Whether "needy" says it has clients (needsClient()), so that the launcher accepts
+ *  --waitForClients for it @return The flag */
+inline bool &needyHasClients() {
+    static bool has_clients = false;
+    return has_clients;
+}
+
 /******************************************************************************/
 /**
  * @brief A provider that builds a thread pool, records its configuration and needs something
- * the program must supply (needySupplied())
+ * the program must supply (needySupplied()); it claims clients if the test says so
+ * (needyHasClients())
  * @tparam processable_type The item type
  */
 template <ProcessableItem processable_type>
@@ -90,7 +98,7 @@ public:
         return "GNeedyConsumer";
     }
     [[nodiscard]] bool needsClient() const override {
-        return false;
+        return needyHasClients();
     }
     [[nodiscard]] std::string missingPrerequisite() const override {
         return needySupplied() ? std::string() : std::string("the test has supplied nothing");

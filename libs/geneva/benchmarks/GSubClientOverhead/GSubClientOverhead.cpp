@@ -124,8 +124,7 @@ Role readRole(int argc, char **argv) {
 struct Settings {
     bool referenceRun = false;                       ///< --reference
     std::string referenceFile = "referenceLine.txt"; ///< --referenceFile
-    unsigned int group = Role{}.group;   ///< --group (read by readRole(); here for the help text)
-    SpeedupMeasurement::ClientGate gate; ///< --waitForClients, --clientWaitLimit
+    unsigned int group = Role{}.group; ///< --group (read by readRole(); here for the help text)
 };
 
 /**
@@ -158,7 +157,6 @@ void benchmarkOptions(Gem::Common::GParserBuilder &gpb, Settings &settings) {
         "cascade). With mpi the job has 1 + clients x group processes; a networked client is an "
         "MPI job of group processes"
     );
-    SpeedupMeasurement::addClientGateOptions(gpb, settings.gate);
 }
 
 /******************************************************************************/
@@ -202,8 +200,7 @@ int measure(Go2 &go, const Settings &settings) {
             return GSleepGroupIndividual::create(config, delay);
         },
         config_par.result_file,
-        config_par.short_result_file,
-        settings.gate
+        config_par.short_result_file
     );
     return 0;
 }

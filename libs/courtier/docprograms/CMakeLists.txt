@@ -59,8 +59,10 @@ ENDFOREACH ()
 # libcourtier_grid_minimum_<consumer>.so. A module links nothing it can resolve in the program
 # (linked with exported symbols); the MPI module links courtier's MPI library, which holds the
 # process's MPI environment. Run on every consumer: stc alone; beast and mqtt as a server and two
-# clients, processes of their own (runServerAndClients.sh; mqtt on the tests' broker); mpi under
-# mpirun with three ranks.
+# clients, processes of their own (runServerAndClients.sh; mqtt on the tests' broker), the server
+# waiting for both (--waitForClients); mpi under mpirun with three ranks. beast_late_client starts
+# the second client 3 s after the first: a server that did not wait for it would finish with the
+# first and leave it waiting for a server that is gone.
 ADD_EXECUTABLE ( courtier_grid_minimum grid_minimum.cpp GGridSlice.hpp )
 TARGET_LINK_LIBRARIES ( courtier_grid_minimum ${COURTIER_LIBNAME} ${COMMON_LIBNAME} ${WEFT_LIBNAME}
 	${Boost_LIBRARIES} )
@@ -91,21 +93,28 @@ ADD_TEST ( NAME courtier_grid_minimum COMMAND courtier_grid_minimum )
 ADD_TEST ( NAME courtier_grid_minimum_beast
 	COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh $<TARGET_FILE:courtier_grid_minimum>
 	beast 2 - )
-SET ( _GRID_MINIMUM_TESTS courtier_grid_minimum courtier_grid_minimum_beast )
+ADD_TEST ( NAME courtier_grid_minimum_beast_late_client
+	COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh $<TARGET_FILE:courtier_grid_minimum>
+	beast 2 - )
+SET_TESTS_PROPERTIES ( courtier_grid_minimum_beast_late_client PROPERTIES
+	ENVIRONMENT LAST_CLIENT_DELAY=3 )
+SET ( _GRID_MINIMUM_NETWORKED courtier_grid_minimum_beast courtier_grid_minimum_beast_late_client )
 IF ( GEM_MQTT_CONSUMER_ENABLED AND GEM_MOSQUITTO_EXECUTABLE )
 	ADD_TEST ( NAME courtier_grid_minimum_mqtt
 		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh $<TARGET_FILE:courtier_grid_minimum>
 		mqtt 2 ${GEM_MQTT_TEST_BROKER_DIR} )
 	SET_TESTS_PROPERTIES ( courtier_grid_minimum_mqtt PROPERTIES FIXTURES_REQUIRED courtier_mqtt_broker )
-	LIST ( APPEND _GRID_MINIMUM_TESTS courtier_grid_minimum_mqtt )
+	LIST ( APPEND _GRID_MINIMUM_NETWORKED courtier_grid_minimum_mqtt )
 ENDIF ()
-FOREACH ( _test ${_GRID_MINIMUM_TESTS} )
-	SET_TESTS_PROPERTIES ( ${_test} PROPERTIES TIMEOUT 300 )
+# A server and two clients, in a directory of their own: the logs and config/ of one run are not
+# another's
+FOREACH ( _test ${_GRID_MINIMUM_NETWORKED} )
+	FILE ( MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} )
+	SET_TESTS_PROPERTIES ( ${_test} PROPERTIES TIMEOUT 300 PROCESSORS 3
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} )
 ENDFOREACH ()
-SET_TESTS_PROPERTIES ( courtier_grid_minimum_beast PROPERTIES PROCESSORS 3 )
-IF ( TEST courtier_grid_minimum_mqtt )
-	SET_TESTS_PROPERTIES ( courtier_grid_minimum_mqtt PROPERTIES PROCESSORS 3 )
-ENDIF ()
+SET ( _GRID_MINIMUM_TESTS courtier_grid_minimum ${_GRID_MINIMUM_NETWORKED} )
+SET_TESTS_PROPERTIES ( courtier_grid_minimum PROPERTIES TIMEOUT 300 )
 IF ( GEM_BUILD_WITH_MPI_CONSUMER AND MPIEXEC_EXECUTABLE )
 	GEM_ADD_MPI_TEST ( NAME courtier_grid_minimum_mpi TIMEOUT 120
 		COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
