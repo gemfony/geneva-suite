@@ -60,8 +60,8 @@ struct GStreamInfo {
 /**
  * Where the rows of a stream go. A stream calls its sinks under its own lock, one call at a time
  * and in this order: open() once, before the first rows; write() with the rows of each flush, in
- * the order they were appended; close() once, at the end of the stream (and only if it was
- * opened). A sink therefore needs no lock of its own. It reports a failure by throwing; the stream
+ * the order they were appended; close() once, at the end of the stream -- only if open() was
+ * called, and then also when open() threw (a sink must tolerate that). A sink therefore needs no lock of its own. It reports a failure by throwing; the stream
  * passes the exception on to the caller of append() or close().
  *
  * The framework ships GCsvSink and GJsonLinesSink; dietrich adds a plot sink (GPlotSink). A

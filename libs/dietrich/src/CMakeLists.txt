@@ -30,6 +30,7 @@
 SET ( DIETRICHSOURCES
 	GPlotDesigner.cpp
 	GDataLog.cpp
+	GPlotSink.cpp
 	GGraphPlots.cpp
 	GHistogramPlots.cpp
 	GRootEmitter.cpp

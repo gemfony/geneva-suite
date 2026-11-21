@@ -140,6 +140,15 @@ public:
      */
     [[nodiscard]] std::size_t nSeries() const;
 
+    /** @brief The plot spec of a series @param id The series @return Its spec */
+    [[nodiscard]] GPlotSpec const &spec(SeriesId id) const;
+    /** @brief The plot spec of a series, to be changed before the log is realized (e.g. the bins
+     *  of a histogram fitted to its data); valid until the next series is declared
+     *  @param id The series @return Its spec */
+    [[nodiscard]] GPlotSpec &spec(SeriesId id);
+    /** @brief The rows appended to a series @param id The series @return Its rows */
+    [[nodiscard]] std::vector<std::vector<double>> const &rows(SeriesId id) const;
+
 private:
     /***************************************************************************/
     /** @brief One declared series: its spec, its appended rows, and (for an overlay) the

@@ -1037,23 +1037,30 @@ void GPlotDesigner::writeToFile(const std::filesystem::path &file_name) {
  * @param backend The plotting backend to use (ROOT, the default; GNUPLOT; MATPLOTLIB; OCTAVE; DATA)
  */
 void GPlotDesigner::setPlotBackend(plotBackend backend) {
+    emitter_ = makeEmitter(backend);
+}
+
+/******************************************************************************/
+/**
+ * The standard emitter of a backend.
+ *
+ * @param backend The plotting backend (ROOT, GNUPLOT, MATPLOTLIB, OCTAVE, or DATA as CSV)
+ * @return A new emitter of that backend
+ */
+std::shared_ptr<IPlotEmitter> makeEmitter(plotBackend backend) {
     switch(backend) {
     case plotBackend::ROOT:
-        emitter_ = std::make_shared<GRootEmitter>();
-        break;
+        return std::make_shared<GRootEmitter>();
     case plotBackend::GNUPLOT:
-        emitter_ = std::make_shared<GnuplotEmitter>();
-        break;
+        return std::make_shared<GnuplotEmitter>();
     case plotBackend::MATPLOTLIB:
-        emitter_ = std::make_shared<MatplotlibEmitter>();
-        break;
+        return std::make_shared<MatplotlibEmitter>();
     case plotBackend::OCTAVE:
-        emitter_ = std::make_shared<OctaveEmitter>();
-        break;
+        return std::make_shared<OctaveEmitter>();
     case plotBackend::DATA:
-        emitter_ = std::make_shared<GDataEmitter>();
-        break;
+        return std::make_shared<GDataEmitter>();
     }
+    return std::make_shared<GRootEmitter>();
 }
 
 /******************************************************************************/
@@ -1128,6 +1135,39 @@ void GDataLog::writeToFile(const std::filesystem::path &path, plotBackend backen
  */
 std::size_t GDataLog::nSeries() const {
     return series_.size();
+}
+
+/******************************************************************************/
+/**
+ * The plot spec of a series.
+ *
+ * @param id The series
+ * @return Its spec
+ */
+GPlotSpec const &GDataLog::spec(SeriesId id) const {
+    return series_.at(id).spec;
+}
+
+/******************************************************************************/
+/**
+ * The plot spec of a series, to be changed before the log is realized.
+ *
+ * @param id The series
+ * @return Its spec; valid until the next series is declared
+ */
+GPlotSpec &GDataLog::spec(SeriesId id) {
+    return series_.at(id).spec;
+}
+
+/******************************************************************************/
+/**
+ * The rows appended to a series.
+ *
+ * @param id The series
+ * @return Its rows, one value per column each
+ */
+std::vector<std::vector<double>> const &GDataLog::rows(SeriesId id) const {
+    return series_.at(id).rows;
 }
 
 /******************************************************************************/
