@@ -15,6 +15,17 @@ genevaConfig.gcfg
    The configuration file for prepareBuild.sh (Boost location, build type,
    examples/tests/benchmarks, CUDA/MPI, etc.).
 
+Preparing a host
+----------------
+
+ansible/geneva-host.yml
+   An Ansible playbook that prepares an Ubuntu 26.10 host for building Geneva:
+   the packages INSTALL names and Boost compiled from source in C++23 mode,
+   optionally MPI, plot viewers, an MQTT broker and CUDA; and, with
+   -e geneva_measure_server=true, a host that runs only the server of a
+   distributed measurement (its header says what that sets up).
+   Usage: ansible-playbook -K -i localhost, -c local ansible/geneva-host.yml
+
 Running networked jobs (server + clients)
 -----------------------------------------
 

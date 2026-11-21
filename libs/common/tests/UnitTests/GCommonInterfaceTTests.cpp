@@ -30,8 +30,10 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
+#include <iterator>
 #include <memory>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <type_traits>
 
@@ -65,6 +67,9 @@ public:
         v_ = v;
     }
 
+    /** Makes the next writes throw after v_ was written (a write that fails midway). */
+    static inline bool throw_while_saving = false;
+
 protected:
     void load_(TestObj const *cp) override {
         if(cp)
@@ -91,6 +96,11 @@ private:
     template <class archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
         Gem::Common::archive_named(ar, "v_", v_);
+        if constexpr(archive_type::is_saving) {
+            if(throw_while_saving) {
+                throw std::runtime_error("TestObj: a write that fails midway");
+            }
+        }
     }
 
     int v_{0};
@@ -257,6 +267,39 @@ TEST_CASE(
     dst.fromFile(path, serializationMode::GEM_JSON);
     CHECK(dst.v() == 314);
     std::filesystem::remove(path);
+}
+
+// A write that fails midway leaves the file that was there before, and no temporary file. Regression
+// (2026-11-20): toFile() wrote into the target itself, so a write that failed -- or a process that was
+// killed while it wrote a checkpoint -- left an empty or a truncated file in its place.
+TEST_CASE(
+    "GCommonInterfaceT::toFile: a write that fails midway leaves the previous file",
+    "[common][interface][serialize]"
+) {
+    auto const base = std::filesystem::temp_directory_path() / "gem_interface_tests_failed_write";
+    std::filesystem::remove_all(base);
+    std::filesystem::create_directories(base);
+    auto const path = base / "obj.json";
+
+    TestObj const before(1);
+    before.toFile(path, serializationMode::GEM_JSON);
+
+    TestObj const after(2);
+    TestObj::throw_while_saving = true;
+    CHECK_THROWS(after.toFile(path, serializationMode::GEM_JSON));
+    TestObj::throw_while_saving = false;
+
+    TestObj dst(0);
+    REQUIRE_NOTHROW(dst.fromFile(path, serializationMode::GEM_JSON));
+    CHECK(dst.v() == 1);
+    // Only the file itself is left in the directory: the temporary file was removed
+    CHECK(
+        std::distance(
+            std::filesystem::directory_iterator(base),
+            std::filesystem::directory_iterator{}
+        ) == 1
+    );
+    std::filesystem::remove_all(base);
 }
 
 TEST_CASE("GCommonInterfaceT::fromFile: missing file throws", "[common][interface][serialize]") {

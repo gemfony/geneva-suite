@@ -612,6 +612,58 @@ bool backupExistingFile(const std::string &file_name, std::string_view context) 
 
 /******************************************************************************/
 /**
+ * Replaces a file as a whole through a temporary file beside it; documented at the declaration.
+ */
+void replaceFileAtomically(
+    std::filesystem::path const &target,
+    std::function<void(std::ostream &)> const &write,
+    std::string_view context
+) {
+    // The same directory, so the same filesystem: the rename below is atomic there
+    std::filesystem::path const tmp_path =
+        target.parent_path() / ("." + target.filename().string() + ".tmp");
+    auto const fail = [&](std::string const &what) {
+        std::error_code ignore;
+        std::filesystem::remove(tmp_path, ignore);
+        throw gem_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In " << context << ": Error!" << '\n'
+            << what << '\n'
+        );
+    };
+
+    {
+        std::ofstream ofs(tmp_path, std::ofstream::trunc);
+        if(not ofs) {
+            fail("Could not open the temporary file " + tmp_path.string());
+        }
+        try {
+            write(ofs);
+        }
+        catch(...) {
+            ofs.close();
+            std::error_code ignore;
+            std::filesystem::remove(tmp_path, ignore);
+            throw;
+        }
+        ofs.close(); // flushes: a full disk shows here, before the target is touched
+        if(ofs.fail()) {
+            fail("Could not write the temporary file " + tmp_path.string());
+        }
+    }
+
+    std::error_code ec;
+    std::filesystem::rename(tmp_path, target, ec);
+    if(ec) {
+        fail(
+            "Could not rename " + tmp_path.string() + " over " + target.string() + ": " +
+            ec.message()
+        );
+    }
+}
+
+/******************************************************************************/
+/**
  * Converts a std::chrono::high_resolution_clock::time_point into an arithmetic number
  *
  * @param val The time point to convert

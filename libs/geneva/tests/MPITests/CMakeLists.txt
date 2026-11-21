@@ -116,4 +116,46 @@ IF ( GEM_BUILD_EXAMPLES )
 		WORKING_DIRECTORY ${ONERANK_WORKDIR} )
 	SET_TESTS_PROPERTIES ( GMPIOneRankRefused PROPERTIES LABELS "geneva" )
 	GEM_TEST_SIZE ( GMPIOneRankRefused S )
+
+	# A batch job started again from its last checkpoint (checkpointRestart.sh says what it
+	# requires): job 1 under the MPI consumer, with three ranks each in a directory of its own, ends
+	# by its iteration limit; job 2, started with --cp_file on its final checkpoint and a higher
+	# limit, continues the run.
+	SET ( RESTART_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-restart )
+	FILE ( MAKE_DIRECTORY ${RESTART_WORKDIR} )
+	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartLimit TIMEOUT 120
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh limit 3
+			rank-0/config/GEvolutionaryAlgorithm.json rank-0/checkpoints --
+			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
+			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
+			$<TARGET_FILE:GSimpleOptimizer> ${MPIEXEC_POSTFLAGS} --consumer mpi
+		WORKING_DIRECTORY ${RESTART_WORKDIR} )
+	SET_TESTS_PROPERTIES ( GMPICheckpointRestartLimit PROPERTIES LABELS "geneva" PROCESSORS 3 )
+	GEM_TEST_SIZE ( GMPICheckpointRestartLimit M )
+
+	# As before, but job 1 is ended from outside once it has written a checkpoint: SIGKILL to the
+	# launcher, then to what is left of the job, as a batch system does at a job's time limit. Job 2
+	# starts from the newest checkpoint, which must be complete.
+	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartKilled TIMEOUT 120
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh kill 3
+			rank-0/config/GEvolutionaryAlgorithm.json rank-0/checkpoints --
+			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
+			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
+			$<TARGET_FILE:GSimpleOptimizer> ${MPIEXEC_POSTFLAGS} --consumer mpi
+		WORKING_DIRECTORY ${RESTART_WORKDIR} )
+	SET_TESTS_PROPERTIES ( GMPICheckpointRestartKilled PROPERTIES LABELS "geneva" PROCESSORS 3 )
+	GEM_TEST_SIZE ( GMPICheckpointRestartKilled M )
+
+	# As the first, under the MPI cascade of example 16: nine ranks, the submitter and two groups of
+	# four, each of which evaluates one item on all its ranks. The ranks share the run directory, so
+	# the example's materialized configuration is copied there first.
+	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartCascade TIMEOUT 120
+		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh limit 2
+			config/GEvolutionaryAlgorithm.json checkpoints
+			$<TARGET_FILE_DIR:GMPISubClients>/config --
+			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 9 ${MPIEXEC_PREFLAGS}
+			$<TARGET_FILE:GMPISubClients> ${MPIEXEC_POSTFLAGS} --consumer mpi
+		WORKING_DIRECTORY ${RESTART_WORKDIR} )
+	SET_TESTS_PROPERTIES ( GMPICheckpointRestartCascade PROPERTIES LABELS "geneva" PROCESSORS 9 )
+	GEM_TEST_SIZE ( GMPICheckpointRestartCascade L )
 ENDIF ()

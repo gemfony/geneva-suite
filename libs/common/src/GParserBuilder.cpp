@@ -944,8 +944,8 @@ GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) 
 
 /******************************************************************************/
 /**
- * Atomically replaces @p config_file with the serialization of @p document: writes a temporary sibling
- * file and then renames it over the target. This is the one caller that legitimately overwrites an
+ * Atomically replaces @p config_file with the serialization of @p document
+ * (Gem::Common::replaceFileAtomically()). This is the one caller that legitimately overwrites an
  * existing configuration file (writeConfigFile() deliberately refuses to), so an interrupted update can
  * never truncate a live config, and the .json extension is enforced here too.
  *
@@ -965,34 +965,14 @@ void GParserBuilder::atomicReplaceConfigFile_(
         );
     }
 
-    // Write to a temporary sibling (same directory -> same filesystem, so the rename is atomic).
-    std::filesystem::path tmp_path = config_file;
-    tmp_path += ".tmp";
-    {
-        std::ofstream ofs(tmp_path);
-        if(not ofs) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParserBuilder::atomicReplaceConfigFile_(): Error writing temporary file "
-                << tmp_path.string() << '\n'
-            );
-        }
-        Gem::Common::prettyPrintJson(ofs, document);
-        ofs << '\n';
-    } // ofs flushed and closed here, before the rename
-
-    std::error_code ec;
-    std::filesystem::rename(tmp_path, config_file, ec);
-    if(ec) {
-        std::error_code ignore;
-        std::filesystem::remove(tmp_path, ignore);
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParserBuilder::atomicReplaceConfigFile_(): Error!" << '\n'
-            << "Could not rename " << tmp_path.string() << " over " << config_file.string() << ": "
-            << ec.message() << '\n'
-        );
-    }
+    Gem::Common::replaceFileAtomically(
+        config_file,
+        [&document](std::ostream &os) {
+            Gem::Common::prettyPrintJson(os, document);
+            os << '\n';
+        },
+        "GParserBuilder::atomicReplaceConfigFile_()"
+    );
 }
 
 /******************************************************************************/

@@ -52,11 +52,16 @@
 #include <memory>
 #include <mutex>
 #include <set>
+#include <string>
+#include <string_view>
 #include <tuple>
 #include <utility>
 #include <vector>
 
+#include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
+#include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -65,6 +70,7 @@
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "geneva/oa/GBasePluggableOM.hpp"
 #include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
@@ -73,6 +79,7 @@
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (the counting monitor)
 
 namespace gen = Gem::Geneva::Genome;
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -730,6 +737,363 @@ TEST_CASE(
     CHECK(have_final); // the run's final state was checkpointed
 
     fs::remove_all(cp_dir);
+}
+
+/******************************************************************************/
+
+TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
+    // A resume starts at the iteration after the one its checkpoint holds (Go2). Regression
+    // (2026-11-20): the final checkpoint was written after the loop had counted on, so it held the
+    // iteration that would have come next, and a run resumed from it skipped one iteration.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-final-checkpoint-iteration-test";
+    fs::remove_all(cp_dir);
+
+    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    ea->push_back(gind::GLineFitIndividual(data_points).clone());
+    ea->setPopulationSizes(4, 2);
+    ea->setMaxIteration(3); // iterations 0, 1 and 2
+    ea->setReportIteration(0);
+    ea->setAdaptionConfig(
+        dynamic_cast<gind::GLineFitIndividual &>((*ea->at(0))).getAdaptionConfig()
+    );
+    ea->setCheckpointInterval(1);
+    ea->setRemoveCheckpointFiles(false); // keep the numbered checkpoints beside the final one
+    ea->setCheckpointBaseName(cp_dir.string(), "iteration.cp");
+    ea->optimize();
+
+    fs::path numbered;
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(cp_dir)) {
+        const auto tokens = Gem::Common::splitString(entry.path().filename().string(), "-");
+        REQUIRE(tokens.size() > 2);
+        if(tokens[2] == "2") {
+            numbered = entry.path();
+        }
+        else if(tokens[2] == "final") {
+            final_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not numbered.empty());
+    REQUIRE(not final_checkpoint.empty());
+
+    oa::GEvolutionaryAlgorithm from_numbered;
+    from_numbered.loadCheckpoint(numbered);
+    oa::GEvolutionaryAlgorithm from_final;
+    from_final.loadCheckpoint(final_checkpoint);
+    CHECK(from_numbered.getIteration() == 2);
+    CHECK(from_final.getIteration() == 2);
+    CHECK(ea->getIteration() == 3); // the run itself still ends having counted on
+
+    fs::remove_all(cp_dir);
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "a run resumed from a checkpoint follows the settings of the job that resumes it",
+    "[oa][go2]"
+) {
+    // The checkpoint supplies the state of the run; the halt criteria and the checkpoint settings
+    // are those of the job that resumes it (maintainer decision, 2026-11-20). Regression: they came
+    // from the checkpoint, so a run ended by its iteration limit could not be continued -- job 2 ran
+    // one iteration past job 1's limit, whatever limit it was given.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+    const fs::path base = fs::temp_directory_path() / "geneva-job-settings-resume-test";
+    fs::remove_all(base);
+
+    // Job 1: iterations 0 to 2, a checkpoint every iteration; the final one holds iteration 2
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(3);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName((base / "checkpoints").string(), "settings.cp");
+    job1->optimize();
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(base / "checkpoints")) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            final_checkpoint = base / entry.path().filename();
+            fs::rename(entry.path(), final_checkpoint);
+        }
+    }
+    REQUIRE(not final_checkpoint.empty());
+    fs::remove_all(base / "checkpoints");
+
+    // Job 2: a higher limit, and no checkpoints of its own
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::string arg3 = "--cp_file";
+    std::string arg4 = final_checkpoint.string();
+    std::vector<char *>
+        argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
+    auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    {
+        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
+        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+        job2->setPopulationSizes(4, 2);
+        job2->setMaxIteration(6);
+        job2->setReportIteration(0);
+        job2->setCheckpointInterval(0);
+        go & job2;
+        REQUIRE_NOTHROW(go.optimize());
+    }
+    CHECK(job2->getStartIteration() == 3); // the iteration after the checkpoint's
+    CHECK(job2->getIteration() == 6);      // ran on to job 2's own limit
+    CHECK(job2->getMaxIteration() == 6);
+    CHECK(job2->getCheckpointInterval() == 0);
+    CHECK(not fs::exists(base / "checkpoints")); // job 2 wrote no checkpoint
+
+    fs::remove_all(base);
+}
+
+/******************************************************************************/
+
+namespace {
+/** Calls of every GResumeCountingMonitor in the per-iteration phase, over all its objects. */
+std::size_t resume_monitor_calls = 0;
+
+/** A pluggable monitor that counts the iterations it is called for. */
+class GResumeCountingMonitor final
+  : public Gem::Common::GReflectiveInterfaceT<GResumeCountingMonitor, oa::GBasePluggableOM> {
+    friend struct Gem::Weft::access;
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
+
+public:
+    static constexpr std::string_view class_name = "GResumeCountingMonitor";
+
+private:
+    void informationFunction_(
+        Gem::Geneva::infoMode im,
+        oa::GOptimizationAlgorithmBase const *const /*goa*/
+    ) override {
+        if(im == Gem::Geneva::infoMode::INFOPROCESSING) {
+            ++resume_monitor_calls;
+        }
+    }
+};
+} // namespace
+
+GEM_REGISTER_ARCHIVABLE(GResumeCountingMonitor) // NOLINT
+
+TEST_CASE("a resumed run is watched by the monitors of the job that resumes it", "[oa][go2]") {
+    // Pluggable monitors belong to the job, not to the state of the run (maintainer decision,
+    // 2026-11-21). Regression: the checkpoint brought job 1's monitors back and Go2 registered job
+    // 2's beside them, so a monitor ran twice in every iteration of the resumed run.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+    const fs::path base = fs::temp_directory_path() / "geneva-monitors-resume-test";
+    fs::remove_all(base);
+
+    // Job 1: iterations 0 to 2 under a monitor; the final checkpoint holds iteration 2
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(3);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    job1->registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName(base.string(), "monitors.cp");
+    job1->optimize();
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(base)) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            final_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not final_checkpoint.empty());
+
+    // The algorithm keeps the monitors it held before the load and takes none from the checkpoint
+    oa::GEvolutionaryAlgorithm loaded;
+    loaded.loadCheckpoint(final_checkpoint);
+    CHECK(not loaded.hasPluggableOptimizationMonitors());
+
+    // Job 2 through Go2 with a monitor of its own, reporting every iteration: one call per iteration
+    resume_monitor_calls = 0;
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::string arg3 = "--cp_file";
+    std::string arg4 = final_checkpoint.string();
+    std::vector<char *>
+        argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
+    auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    {
+        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
+        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+        go.registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
+        job2->setPopulationSizes(4, 2);
+        job2->setMaxIteration(6);
+        job2->setReportIteration(1);
+        job2->setCheckpointInterval(0);
+        go & job2;
+        REQUIRE_NOTHROW(go.optimize());
+    }
+    REQUIRE(job2->getStartIteration() == 3);
+    REQUIRE(job2->getIteration() == 6);
+    CHECK(resume_monitor_calls == 3); // iterations 3, 4 and 5, once each
+
+    fs::remove_all(base);
+}
+
+/******************************************************************************/
+
+TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[oa]") {
+    // The best-so-far record and the stall counter belong to the state of a run, which a
+    // checkpoint supplies. Regression (2026-11-20): optimize() reset both at every start, a resume
+    // included, so a resumed run reported and checkpointed only the best of its own iterations
+    // (worse than the checkpoint's, where the population keeps no parents) and counted stalls anew.
+    // The checkpoint is edited to hold a record no fitness can reach (a squared error is >= 0) and a
+    // stall counter of 7, so that the outcome is certain.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(2);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-record-resume-test";
+    fs::remove_all(cp_dir);
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName(cp_dir.string(), "record.cp");
+    job1->optimize();
+    fs::path cp;
+    for(const auto &entry : fs::directory_iterator(cp_dir)) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            cp = entry.path();
+        }
+    }
+    REQUIRE(not cp.empty());
+
+    std::string content = Gem::Common::loadTextDataFromFile(cp);
+    const auto replace_value = [&content](const std::string &key, char end, const std::string &by) {
+        const auto at = content.find("\"" + key + "\":");
+        REQUIRE(at != std::string::npos);
+        const auto from = at + key.size() + 3;
+        content.replace(from, content.find(end, from) - from, by);
+    };
+    replace_value("best_known_primary_fitness_", ']', R"(["-1","-1")");
+    replace_value("stall_counter_", ',', "7");
+    {
+        std::ofstream out(cp, std::ofstream::trunc);
+        out << content;
+    }
+
+    oa::GEvolutionaryAlgorithm job2;
+    job2.loadCheckpoint(cp);
+    fs::remove_all(cp_dir);
+    job2.setCheckpointInterval(0);
+    job2.setMaxIteration(job2.getIteration() + 2); // one iteration
+    job2.setMaxStallIteration(0);
+    job2.setAdaptionConfig(adaption_config);
+    job2.optimize(job2.getIteration() + 1);
+
+    CHECK(std::get<0>(job2.getBestKnownPrimaryFitness()) == -1.); // the record went on
+    CHECK(job2.getStallCounter() == 8);                           // and so did the stall count
+}
+
+/******************************************************************************/
+
+TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
+    // Regression (2026-11-20): an empty checkpoint file -- left by a job that was killed while it
+    // wrote one in place -- was reported as "usually means the individual type ... is not available".
+    const std::filesystem::path cp =
+        std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-0-0-emptytest.cp";
+    {
+        std::ofstream const create(cp, std::ofstream::trunc);
+    }
+
+    oa::GEvolutionaryAlgorithm ea;
+    CHECK_THROWS_WITH(
+        ea.loadCheckpoint(cp),
+        Catch::Matchers::ContainsSubstring("The file is empty") &&
+            not Catch::Matchers::ContainsSubstring("individual")
+    );
+    std::filesystem::remove(cp);
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "a Go2 resumed from a checkpoint does not add its own individuals to the population",
+    "[oa][go2]"
+) {
+    // A program that registers its individual with Go2::push_back() (instead of a content creator)
+    // and is started again with --cp_file: the checkpoint brings the whole population. Regression
+    // (2026-11-20): Go2 added its own individuals to the restored population as well, and the
+    // algorithm stopped with "Size of data vector (5) should be 4".
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+
+    const fs::path base = fs::temp_directory_path() / "geneva-go2-resume-test";
+    fs::remove_all(base);
+
+    // Job 1: a short run whose last checkpoint is the final one
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(2);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName((base / "checkpoints").string(), "resume.cp");
+    job1->optimize();
+    fs::path final_checkpoint;
+    for(const auto &entry : fs::directory_iterator(base / "checkpoints")) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            final_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not final_checkpoint.empty());
+
+    // Job 2: Go2 with --cp_file and an individual of its own
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::string arg3 = "--cp_file";
+    std::string arg4 = final_checkpoint.string();
+    std::vector<char *>
+        argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
+    {
+        Gem::Geneva::Go2 go(static_cast<int>(argv.size() - 1), argv.data(), base / "Go2.json");
+        go.push_back(proto.clone());
+        go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+        auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        job2->setPopulationSizes(4, 2);
+        job2->setMaxIteration(3); // job 2's own limit: one iteration after job 1's last
+        job2->setReportIteration(0);
+        go & job2;
+        REQUIRE_NOTHROW(go.optimize());
+        CHECK(go.getBestGlobalIndividual<gind::GLineFitIndividual>());
+    }
+
+    fs::remove_all(base);
 }
 
 /******************************************************************************/

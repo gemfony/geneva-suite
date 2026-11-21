@@ -196,6 +196,50 @@ private:
         );
     }
 
+    /**
+     * @brief The settings of the job that runs this algorithm, as references: loadCheckpoint() keeps
+     * them across reading a checkpoint.
+     *
+     * A checkpoint supplies the state of a run -- the population, the iteration counter, the
+     * best-so-far records, the stall counter, the worst known valid evaluations, and the search
+     * state and search parameters of the derived algorithms. What the job that resumes it is to do
+     * with that state comes from that job's own configuration and command line: these halt
+     * criteria, checkpoint settings, threads, report interval and termination messages (maintainer
+     * decision, 2026-11-20). Kept from the checkpoint instead, a resumed run could not be given a
+     * higher iteration limit, nor write its checkpoints elsewhere. The pluggable optimization
+     * monitors belong to the job as well (maintainer decision, 2026-11-21): those registered before
+     * the load stay, those of the checkpoint are dropped -- else Go2, which registers the job's
+     * monitors after the load, would run each monitor twice.
+     *
+     * @tparam self_type The (deduced) class type
+     * @param self The algorithm
+     * @return A tuple of references to the settings
+     */
+    template <typename self_type>
+    auto jobSettings_(this self_type &self) {
+        return std::tie(
+            self.max_iteration_,
+            self.min_iteration_,
+            self.max_stall_iteration_,
+            self.max_duration_,
+            self.min_duration_,
+            self.quality_threshold_,
+            self.has_quality_threshold_,
+            self.termination_file_,
+            self.terminate_on_file_modification_,
+            self.cp_interval_,
+            self.cp_base_name_,
+            self.cp_directory_path_,
+            self.cp_last_,
+            self.cp_remove_,
+            self.cp_serialization_mode_,
+            self.n_threads_,
+            self.report_iteration_,
+            self.emit_termination_reason_,
+            self.pluggable_monitors_cnt_
+        );
+    }
+
     /** @brief Disambiguating serialize(): both stateful bases in the inheritance set (the GReflectiveInterfaceBaseT
      *  mixin and the GUniquePtrContainerT base) declare a serialize(), so this one-liner resolves the
      *  ambiguity and emits the single member list -- which now ties in the container's population as
@@ -246,7 +290,8 @@ public:
     void checkpoint(bool is_better) const;
 
     /**
-     * @brief Loads the state of the class from disc.
+     * @brief Loads the state of a run from a checkpoint file; the settings of this job
+     * (jobSettings_(): halt criteria, checkpoint settings, pluggable monitors, ...) stay as they are.
      */
     void loadCheckpoint(std::filesystem::path const &cp_file);
 
@@ -1031,7 +1076,8 @@ private:
     /// A collection of monitors. Shared, not owned: a monitor registered through Go2 is
     /// co-owned by Go2 and by every algorithm of a chain, so that it observes the whole run
     /// (see Go2::pluggable_monitors_cnt_). Deep-cloned only when one algorithm is loaded from
-    /// another, which is a different object and must not share the original's monitors.
+    /// another, which is a different object and must not share the original's monitors. Not
+    /// taken from a checkpoint: the monitors belong to the job (jobSettings_()).
     std::vector<std::shared_ptr<GBasePluggableOM>> pluggable_monitors_cnt_;
 
     /**

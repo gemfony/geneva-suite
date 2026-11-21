@@ -772,6 +772,9 @@ void Go2::ensureAlgorithmPresent() {
 /**
  * @brief Loads a checkpoint into the first algorithm, or fills the population from the content creator.
  *
+ * A checkpoint brings the whole population: the individuals registered with this object are then
+ * dropped, as they belong to the start of a new run.
+ *
  * Returns the iteration offset for the FIRST algorithm only (a checkpoint resume overrides the
  * passed-in offset); every subsequent algorithm in the chain starts at iteration 0 so it gets its
  * full iteration budget -- otherwise a chained algorithm would inherit the previous one's end
@@ -787,6 +790,10 @@ std::uint32_t Go2::prepareInitialPopulation(std::uint32_t offset) {
     // Load the checkpoint file or create individuals from the content creator
     if(cp_file_ != "empty") {
         this->loadFirstAlgorithmCheckpoint();
+        // The checkpoint holds the whole population of the run: the individuals registered with this
+        // object (push_back) start a new run only, as the content creator does. Kept, they would be
+        // added to the restored population (runAlgorithmChain()), beyond its size.
+        this->clear();
         // The first algorithm starts right after the iteration where the checkpoint file ended
         return algorithms_cnt_[0]->getIteration() + 1;
     }
@@ -1309,7 +1316,7 @@ void Go2::parseCommandLine(
 				("update-configs", "Refresh every configuration file this binary owns (Go2.json, each algorithm's config and the individual's config) in place -- drop keys no registered parameter consumes, keep existing values, add newly-registered keys with defaults -- then exit without optimizing. Runs on the local thread-pool consumer regardless of --consumer.")
 				("optimizationAlgorithms,a", po::value<std::string>(&optimization_algorithms), oa_help.c_str())
 				("cp_file,f", po::value<std::string>(&checkpoint_file)->default_value("empty"),
-				 "A file (including its path) holding a checkpoint for a given optimization algorithm")
+				 "A file (including its path) holding a checkpoint for the first optimization algorithm. The run continues from the state it holds, with the settings of this job: halt criteria, checkpoint settings, threads and report interval come from this job's configuration and command line, and only the optimization monitors registered by this job observe the run")
 				("client", "Indicates that this program should run as a client or in server mode. Note that "
 				 "this setting will trigger an error unless called in conjunction with a consumer capable "
 				 "of dealing with clients. "

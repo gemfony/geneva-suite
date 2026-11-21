@@ -58,10 +58,10 @@ namespace Gem::Courtier::Consumers {
  * environment. Part of libgemfony-courtier-mpi; the poll that uses it (GMPIPollCore) is not.
  *
  * It holds the environment, and with it MPI initialized, for as long as it exists. A request
- * handle is the MPI_Request itself, its bytes carried in the handle (MPI_REQUEST_NULL is
- * GMPIRequest::NONE). A send that is given up is cancelled and its request freed; its bytes are
- * kept for the rest of the process, because MPI may still read them and says nothing about when it
- * has stopped.
+ * handle carries the bytes of the MPI_Request XOR those of MPI_REQUEST_NULL, so MPI_REQUEST_NULL is
+ * GMPIRequest::NONE and no other request is. A send that is given up is cancelled and its request
+ * freed; its bytes are kept for the rest of the process, because MPI may still read them and says
+ * nothing about when it has stopped.
  */
 class GMPICalls final : public GMPICallsI {
 public:

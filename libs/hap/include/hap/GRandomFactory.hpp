@@ -384,9 +384,11 @@ public:
      * still creating GPU resources when the program can end. That wait has no time limit; if it takes
      * longer than PRODUCERSTARTFIRSTWARNING, a warning names what is waited for, and again every
      * PRODUCERSTARTREPEATWARNING. Other threads that draw meanwhile are served from the producers that
-     * have finished their start. Every call, the first after its wait included, then waits at most
-     * DEFAULTFACTORYGETWAIT milliseconds for a filled container and returns a null pointer if none came
-     * (counted in getNGetTimeouts()); callers retry.
+     * have finished their start. Only the call that starts the producers is held behind their
+     * start: a program must not end -- return from main() or call std::exit() -- while another of
+     * its threads is still in a call to hap. Every call, the first after its wait included, then
+     * waits at most DEFAULTFACTORYGETWAIT milliseconds for a filled container and returns a null
+     * pointer if none came (counted in getNGetTimeouts()); callers retry.
      *
      * If only k of the n producer threads can be created, the factory runs with those k: the
      * producer count (getNProducerThreads()) and the reservation in the thread budget become k, a

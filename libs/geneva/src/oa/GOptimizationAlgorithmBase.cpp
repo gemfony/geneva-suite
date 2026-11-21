@@ -62,6 +62,7 @@
 #include <ranges>
 #include <set>
 #include <span>
+#include <system_error>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -161,7 +162,10 @@ void GOptimizationAlgorithmBase::checkpoint(bool is_better) const {
 
 /******************************************************************************/
 /**
- * @brief Loads the state of the class from disc
+ * @brief Loads the state of a run from a checkpoint file. The settings of the job that resumes it
+ * (jobSettings_(): halt criteria, checkpoint settings, threads, report interval, pluggable
+ * monitors) are kept: they come from this job's configuration, command line and registrations, not
+ * from the checkpoint.
  *
  * @param cp_file The path to the checkpoint file to be loaded
  */
@@ -181,29 +185,43 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
         );
     }
 
+    // The job's own settings outlive what the checkpoint says about them (see jobSettings_()).
+    auto job_settings = this->jobSettings_();
+    auto const kept = std::apply(
+        [](auto const &...setting) { return std::make_tuple(setting...); },
+        job_settings
+    );
+
     // Deserialize the checkpoint. A checkpoint is a GArchive of this algorithm AND its polymorphic
     // population, so the concrete individual type must be registered (compiled in, or loaded from an
     // --individual plugin) BEFORE this point -- exactly like the networked wire. If it is not, the codec
-    // throws deep inside deserialization (an unknown archive tag); translate that into actionable
-    // guidance rather than an opaque archive error, while preserving the original message.
+    // throws deep inside deserialization (an unknown archive tag). The file itself may also be empty or
+    // incomplete (written by another program, or by a Geneva that wrote checkpoints in place). Translate
+    // both into actionable guidance rather than an opaque archive error, keeping the original message.
     try {
         this->fromFile(cp_file, this->getCheckpointSerializationMode());
     }
     catch(const std::exception &e) {
+        std::error_code ec;
+        bool const empty = std::filesystem::file_size(cp_file, ec) == 0 && not ec;
         throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GOptimizationAlgorithmBase<>::loadCheckpoint(): Error!" << '\n'
             << "Failed to deserialize the checkpoint file " << cp_file << '\n'
             << "Underlying error: " << e.what() << '\n'
-            << "This usually means the individual (optimization-problem) type stored in the "
-               "checkpoint is"
-            << '\n'
-            << "not available. Resume with the SAME individual that wrote the checkpoint -- "
-               "compiled in, or"
-            << '\n'
-            << "loaded via --individual <path>.so -- built against the same Geneva version." << '\n'
+            << (empty ? "The file is empty: it holds no checkpoint. Resume from another checkpoint "
+                        "file.\n"
+                      : "Either the file is incomplete or damaged, or the individual "
+                        "(optimization-problem)\n"
+                        "type stored in it is not available. In the second case resume with the "
+                        "SAME individual\n"
+                        "that wrote the checkpoint -- compiled in, or loaded via --individual "
+                        "<path>.so -- built\n"
+                        "against the same Geneva version.\n")
         );
     }
+
+    job_settings = kept;
 
     // A population shares ONE problem policy in memory (optimization direction, evaluation policy,
     // constraint), but the archive stores a copy with every individual, so after deserialization each
@@ -519,12 +537,16 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     }
     //! [monitors:info-cycle#1]
 
-    // We want to know if no better values were found for a longer period of time
-    double const worst_case = this->at(0)->getWorstCase();
-    best_known_primary_fitness_ = std::make_tuple(worst_case, worst_case);
-    best_current_primary_fitness_ = std::make_tuple(worst_case, worst_case);
+    // We want to know if no better values were found for a longer period of time. A run resumed
+    // from a checkpoint goes on with the best-so-far records and the stall counter it holds: they
+    // belong to the state of the run, which started before this job.
+    if(not resumed_from_checkpoint_) {
+        double const worst_case = this->at(0)->getWorstCase();
+        best_known_primary_fitness_ = std::make_tuple(worst_case, worst_case);
+        best_current_primary_fitness_ = std::make_tuple(worst_case, worst_case);
 
-    stall_counter_ = 0;
+        stall_counter_ = 0;
+    }
 
     // Give derived classes the opportunity to perform any other necessary preparatory work.
     init();
@@ -589,8 +611,13 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // in-loop checkpoint() call, so the in-loop calls never see halted() == true --
     // without this post-loop call the "final" checkpoint (see checkpoint()'s halted()
     // branch and the "final" file-name tag) would never be written at all. checkpoint()
-    // itself gates on the user having enabled checkpointing (cp_interval_ != 0).
+    // itself gates on the user having enabled checkpointing (cp_interval_ != 0). The loop has
+    // already counted on to the iteration that would come next: the final checkpoint holds the
+    // last iteration that ran, as a numbered one does, so that a resume (Go2: the checkpoint's
+    // iteration + 1) starts right after it instead of skipping one.
+    --iteration_;
     checkpoint(progress());
+    ++iteration_;
     //! [geneva.oa.cycle]
 
     // Give derived classes the opportunity to perform any remaining clean-up work
