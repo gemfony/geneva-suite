@@ -111,6 +111,7 @@ TEST_CASE("a plot sink draws its series from the stream's columns and writes at 
     ScratchDirectory const dir("plot");
     GDataLog layout("Progress", 1, 1);
     layout.declareSeries(curve("best", {"iteration", "fitness"}));
+    layout.setAddPrintCommand(true);
     {
         auto s = recorder().stream<std::uint64_t, double, std::string>(
             "progress",
@@ -127,6 +128,10 @@ TEST_CASE("a plot sink draws its series from the stream's columns and writes at 
     CHECK(macro.find("123.25") != std::string::npos);
     CHECK(macro.find("99.5") != std::string::npos);
     CHECK(macro.find("best") != std::string::npos);
+    // Regression: the macro named its picture with the directory of the program that wrote it
+    // ("<records dir>/progress.C.png"), so it failed when run from where it lies. It names the
+    // picture by its own file name, beside wherever ROOT runs it.
+    CHECK(macro.find("cc->Print(\"progress.C.png\");") != std::string::npos);
 }
 
 TEST_CASE("the backend is chosen per sink and names the extension", "[dietrich][record]") {
