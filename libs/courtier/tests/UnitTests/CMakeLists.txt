@@ -123,6 +123,33 @@ gem_courtier_test(GCourtierPeerClientTests  M  SPEC "~[programidentity]" GCourti
 # The identity of the program is one per process and is set by the case this entry runs
 gem_courtier_test_entry(GCourtierPeerClientProgramTests GCourtierPeerClientTests S "[programidentity]")
 gem_courtier_test(GCourtierLifecycleTests   M  GCourtierLifecycleTests.cpp)
+# The launcher (courtier/GLauncherT.hpp) with consumer modules of its own (launcher/): the default
+# consumer, help, a malformed command line, the refusals, a choice in main() against the command
+# line. The program is linked with exported symbols, so that a module shares its catalogue. Under
+# --update-configs the parser rewrites configuration files for the rest of the process: that case
+# runs in an entry of its own.
+gem_courtier_test(GCourtierLauncherTests S SPEC "~[refresh]" GCourtierLauncherTests.cpp
+	launcher/GLauncherTestSupport.hpp)
+gem_courtier_test_entry(GCourtierLauncherRefreshTests GCourtierLauncherTests S "[refresh]")
+SET_TARGET_PROPERTIES(GCourtierLauncherTests PROPERTIES ENABLE_EXPORTS ON)
+FOREACH(_module stc needy foreign)
+	STRING(SUBSTRING ${_module} 0 1 _first)
+	STRING(TOUPPER ${_first} _first)
+	STRING(SUBSTRING ${_module} 1 -1 _rest)
+	SET(_target gem_launcher_test_${_module})
+	ADD_LIBRARY(${_target} MODULE launcher/GLauncher${_first}${_rest}Module.cpp)
+	SET_TARGET_PROPERTIES(${_target} PROPERTIES PREFIX "lib")
+	# A module links nothing: it resolves the libraries in the program (ENABLE_EXPORTS)
+	TARGET_INCLUDE_DIRECTORIES(${_target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
+		$<TARGET_PROPERTY:courtier-test-support,INTERFACE_INCLUDE_DIRECTORIES>)
+	TARGET_COMPILE_OPTIONS(${_target} PRIVATE -UGEM_TESTING)
+	ADD_DEPENDENCIES(GCourtierLauncherTests ${_target})
+ENDFOREACH()
+# The foreign module lies under another name, so that it is no consumer module of the tests
+SET_TARGET_PROPERTIES(gem_launcher_test_foreign PROPERTIES OUTPUT_NAME gem_launcher_foreign)
+TARGET_COMPILE_DEFINITIONS(GCourtierLauncherTests PRIVATE
+	GEM_LAUNCHER_TEST_MODULE_DIR="$<TARGET_FILE_DIR:gem_launcher_test_stc>"
+	GEM_LAUNCHER_TEST_FOREIGN_MODULE="$<TARGET_FILE:gem_launcher_test_foreign>")
 # run() returns only once no evaluation of the client runs any more, also when it is asked to close
 # while one runs
 gem_courtier_test(GCourtierClientRunEndTests M  GCourtierClientRunEndTests.cpp GInProcessTestSupport.hpp)

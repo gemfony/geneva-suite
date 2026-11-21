@@ -32,10 +32,12 @@ SET ( COMMUNICATIONINCLUDES
     GBaseConsumerT.hpp
     GCommandContainerT.hpp
     GConsumerPlugin.hpp
+    GConsumerProviderT.hpp
     GConsumerRegistry.hpp
     GConsumerSpec.hpp
     GCourtierEnums.hpp
     GCourtierHelperFunctions.hpp
+    GLauncherT.hpp
     GProcessable.hpp
     GProcessingContainerT.hpp
     GProcessingOutcome.hpp
@@ -57,6 +59,7 @@ SET ( CONSUMER_INCLUDES
     consumers/GNetworkedTimeoutConfig.hpp
     consumers/GPeerConsumerT.hpp
     consumers/GStdThreadConsumerConfig.hpp
+    consumers/GStdThreadConsumerProviderT.hpp
     consumers/GStdThreadConsumerT.hpp
     consumers/GWebsocketConsumerConfig.hpp
     consumers/GWebsocketConsumerT.hpp
