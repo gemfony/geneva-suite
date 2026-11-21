@@ -42,3 +42,16 @@ oversubscribes by default, so the plain commands above work there as-is.
 
 The cascade has a second layout, in which the leads are clients of a networked consumer (websockets)
 and each group is an MPI job of its own; the benchmark `GSubClientOverhead` shows it.
+
+## Files
+
+- `GMPISubClients.cpp` -- `main()`: the cascade first, then courtier's launcher (the long form);
+  the leads hand the launcher the group's item processor.
+- `GParaboloidGroupIndividual.{hpp,cpp}` -- the individual: 64 parameters and an `evaluate()` that
+  computes the parabola in one process. It knows nothing of MPI.
+- `GParaboloidGroup.{hpp,cpp}` -- the lead's and the members' halves of one evaluation on the
+  cascade: the lead scatters the parameters over its group, takes the rest itself, and returns the
+  sum of the parts it gathers.
+- `GParaboloidPart.hpp` -- the work every process does on its part: square the values (each square
+  standing for a fixed delay) and sum them.
+

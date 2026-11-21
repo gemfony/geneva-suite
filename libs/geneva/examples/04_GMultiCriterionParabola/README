@@ -4,3 +4,13 @@ possibly opposing evaluation criteria. Geneva's EA implementation of pareto-fron
 optimization is used to tackle this problem. Make sure that the parameter "sortingMode"
 is set to 3 or 4 in config/GEvolutionaryAlgorithm.json (this is the default in 
 the configuration file provided with this example).
+
+The example has no main() of its own: it is a runtime-loadable module,
+libGMultiCriterionParabolaIndividual.so, that the generic optimizer of example 18 loads:
+
+  GGenericOptimizer --individual ./libGMultiCriterionParabolaIndividual.so
+
+GMultiCriterionParabolaIndividual.{hpp,cpp} hold the individual (its criteria and their
+evaluation); GMultiCriterionParabolaIndividualPlugin.cpp is only the module's entry point
+(gem_module_manifest(), which names the individual's factory and its configuration file).
+

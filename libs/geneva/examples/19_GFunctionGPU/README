@@ -1,0 +1,24 @@
+Example 19 -- a stock library individual evaluated on the GPU
+================================================================
+
+GFunctionIndividual, the library's benchmark-function individual, is evaluated on a CUDA device
+purely by choosing the GPU consumer: the program contributes nothing but a GPU marshaller
+(GFunctionGPUMarshaller.hpp), which lays a generation out for the device kernel. The kernel
+(kernels/function_eval.cu, compiled at run time with NVRTC) runs the same benchmark-function math
+as GFunctionIndividual::evaluate(), so a GPU run and a CPU run can be compared. Requires a CUDA
+device for --consumer gpu.
+
+Files
+-----
+  GFunctionGPUMain.cpp        main(): registers the marshaller, then runs on the launcher
+                              (runOptimization()); options of its own in config/GFunctionGPUGeneral.json
+  GFunctionGPUMarshaller.hpp  the marshaller for GFunctionIndividual (adds the function id)
+  kernels/function_eval.cu    the device kernel, compiled at run time
+
+Running
+-------
+  ./GFunctionGPU --consumer gpu    # evaluate on the device
+  ./GFunctionGPU --consumer stc    # evaluate on the CPU, through the individual's evaluate()
+
+The launcher checks, when the GPU consumer is chosen, that a marshaller for the item type is
+registered. See examples 14 and 21 for a GPU problem that comes as a loadable module.

@@ -1,0 +1,27 @@
+Example 21 -- a GPU problem as one loadable module
+===================================================
+
+One runtime-loadable module, libGGPUParaboloid.so, carries both an optimization individual
+(a paraboloid, GGPUParaboloid.hpp) and its GPU marshaller (GGPUParaboloidMarshaller.hpp). The
+program GGPUParaboloidOptimizer has nothing problem-specific compiled in: courtier's launcher loads
+the module, the individual claims the content-creator slot, the marshaller registers for the
+device target "cuda", and --consumer gpu then evaluates on the device. The kernel
+(kernels/paraboloid.cu) is compiled at run time with NVRTC. Requires a CUDA device for
+--consumer gpu.
+
+Files
+-----
+  GGPUParaboloidOptimizer.cpp   the generic program
+  GGPUParaboloid.hpp            the individual
+  GGPUParaboloidMarshaller.hpp  its marshaller for the device kernel
+  GGPUParaboloidPlugin.cpp      the module's entry point: one manifest with two contributions
+                                (the individual and the marshaller)
+  kernels/paraboloid.cu         the device kernel, compiled at run time
+
+Running
+-------
+  ./GGPUParaboloidOptimizer --module ./libGGPUParaboloid.so --consumer gpu   # on the device
+  ./GGPUParaboloidOptimizer --module ./libGGPUParaboloid.so --consumer stc   # on the CPU
+
+Example 14 has the same shape for a larger problem; example 20 does the same for an optimization
+algorithm, example 18 for an individual without a GPU.

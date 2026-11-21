@@ -14,3 +14,14 @@ Its main() has the long form of a Geneva program: Geneva's description
 the producing function is handed to the launcher's run(). This is the form a program takes when it
 sets something on the launcher. The example 01_GSimpleOptimizer shows the short form,
 runOptimization(), which builds both for you.
+
+The same individual is also built as a runtime-loadable module, libGParaboloid2D-module.so:
+GParaboloidIndividual2D.cpp holds the individual, GParaboloidIndividual2DPlugin.cpp only the
+module's entry point (gem_module_manifest(), which names the individual's factory and its
+configuration file). A program with no individual compiled in loads it at run time:
+
+  GGenericOptimizer --individual ./libGParaboloid2D-module.so
+
+So this directory gives two programs from one individual: GParaboloid2D-fixed, with the
+individual compiled in (GParaboloid2D.cpp), and the module for the generic optimizer.
+

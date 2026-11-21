@@ -35,8 +35,8 @@
  *
  *   ./GGPUParaboloidOptimizer --module ./libGGPUParaboloid.so --consumer gpu
  *
- * Go2 loads the module during construction: the individual claims the single content-creator slot and the
- * marshaller registers under the "cuda" device target, so `--consumer gpu` builds the generic GPU consumer
+ * courtier's launcher loads the module before it parses: the individual claims the single content-creator
+ * slot and the marshaller registers under the "cuda" device target, so `--consumer gpu` builds the GPU consumer
  * around the loaded marshaller (whose kernel, kernels/paraboloid.cu, is NVRTC-compiled at run time). The
  * same binary also runs on the CPU with `--consumer stc`, using the individual's own evaluate(). This is the
  * GPU North Star of the loadable-module scheme (the OA analogue is example 20, the individual analogue 19).

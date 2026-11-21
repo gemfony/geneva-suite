@@ -76,8 +76,7 @@ int main(int argc, char **argv) {
         go & "ea";
 
         // Perform the actual optimization
-        auto const *algorithm = go.optimize();
-        auto const best = algorithm->getBestGlobalIndividual<GParaboloidIndividual2D>();
+        auto best = go.optimize()->getBestGlobalIndividual<GParaboloidIndividual2D>();
 
         // Do something with the best result
         std::cout << "Best fitness found: " << best->raw_fitness(0) << '\n';

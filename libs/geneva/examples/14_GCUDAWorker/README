@@ -71,3 +71,16 @@ Configuration files (config/)
   GEvolutionaryAlgorithm.json the evolutionary algorithm (population size, iterations, ...)
   GImageIndividual.json      the image individual (number of triangles, adaption, ...)
   GGPUConsumer.json          GPU consumer: backend (cpu|cuda), kernel path/entry, launch sizes
+
+Files
+-----
+  GCUDAWorker.cpp              the thin program: loads the module, the target image and GImagePOM
+  GImageIndividual.{hpp,cpp}   the individual (triangles, background, CPU evaluate())
+  GImageIndividualPlugin.cpp   the module's entry point (individual + marshaller)
+  GMonaLisaGPUMarshaller.hpp   flattens a generation for the device kernel
+  GMonaLisaProblem.hpp         the host renderer and score, shared by CPU and the parity check
+  GImagePOM.hpp                the monitor that writes the best image of each iteration
+  GImageHelperFunctions.{hpp,cpp}  reading and writing RGB images (PNG)
+  GImageScalar.hpp             the compile-time choice of float or double for the whole example
+  kernels/                     the CUDA kernels, compiled at run time (NVRTC)
+
