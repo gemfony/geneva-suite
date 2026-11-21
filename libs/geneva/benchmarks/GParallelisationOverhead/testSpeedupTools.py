@@ -65,6 +65,9 @@ Usage:
       a job that does not form whole groups is refused, in both layouts, with a message that
       names its size and the group; a job of -c mpi whose submitter fails (an option only it
       refuses, no serial reference) ends at once, with the submitter's message
+  testSpeedupTools.py bounded
+      a command that runs into its limit is ended, and the check's failure names what still ran
+      and the end of its output
   testSpeedupTools.py refusal <GParallelisationOverhead> <workdir>
       a serial reference of two measurements is refused with a message that says why
   testSpeedupTools.py gate <GParallelisationOverhead> <workdir> <reference dir>
@@ -223,21 +226,27 @@ def run_bounded(command, limit, env=None, capture=True):
     """Runs a command in a process group of its own and returns its exit code and its output
     (stdout and stderr; empty unless captured). At the limit the whole group is ended -- the
     command and every process it started, an MPI job included, which would otherwise outlive it
-    -- and the check fails."""
+    -- and the check fails, with what still ran (every thread of the session and the kernel
+    function it waited in, where ps knows -L) and the end of the output, so that a hang that
+    happens rarely is not lost."""
     with subprocess.Popen(command, env=env, text=True, start_new_session=True,
                           stdout=subprocess.PIPE if capture else None,
                           stderr=subprocess.STDOUT if capture else None) as job:
         try:
             out, _ = job.communicate(timeout=limit)
         except subprocess.TimeoutExpired:
+            running = subprocess.run(['ps', '-L', '-o', 'pid,tid,stat,wchan:32,comm', '--sid',
+                                      str(job.pid)], text=True, capture_output=True,
+                                     check=False).stdout
             os.killpg(job.pid, signal.SIGTERM)
             try:
-                job.communicate(timeout=20)
+                out, _ = job.communicate(timeout=20)
             except subprocess.TimeoutExpired:
                 os.killpg(job.pid, signal.SIGKILL)
-                job.communicate()
+                out, _ = job.communicate()
             fail(f'{" ".join(command[:3])} ... did not end within {limit} s; it was ended with '
-                 'every process it started')
+                 f'every process it started. What still ran:\n{running}'
+                 f'The end of its output:\n{(out or "")[-4000:]}')
     return job.returncode, out or ''
 
 
@@ -845,6 +854,20 @@ def check_groups(program, workdir):
         print(f'{ranks} processes with {" ".join(args)}: refused')
 
 
+def check_bounded():
+    """A command that does not end within its limit: the failure carries its output."""
+    try:
+        # The output is computed, so that the command line the failure names does not hold it
+        run_bounded(['sh', '-c', 'echo output-$((6 * 7)); exec sleep 60'], 1)
+    except SystemExit as e:
+        message = str(e.code)
+        if 'did not end within 1 s' not in message or 'output-42' not in message:
+            fail(f'the failure at the limit does not carry the output: {message}')
+        print('a command at its limit is ended, and the failure carries its output')
+        return
+    fail('a command that ran into its limit did not fail the check')
+
+
 def check_refusal(program, workdir):
     """A reference of two measurements cannot give its line an error and must be refused."""
     os.makedirs(workdir, exist_ok=True)
@@ -927,6 +950,8 @@ def main(args):
         check_groups(os.path.abspath(args[1]), os.path.abspath(args[2]))
     elif len(args) >= 4 and args[0] == 'gate':
         check_gate(os.path.abspath(args[1]), os.path.abspath(args[2]), os.path.abspath(args[3]))
+    elif len(args) >= 1 and args[0] == 'bounded':
+        check_bounded()
     elif len(args) >= 3 and args[0] == 'refusal':
         check_refusal(os.path.abspath(args[1]), os.path.abspath(args[2]))
     else:
