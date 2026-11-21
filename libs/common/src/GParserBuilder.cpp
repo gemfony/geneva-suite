@@ -44,6 +44,7 @@
 #include <sstream>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
 // Other Geneva headers whose symbols are used directly
@@ -72,6 +73,28 @@ bool Gem::Common::GParserBuilder::unknown_key_is_error_ = false;
 bool Gem::Common::GParserBuilder::check_unknown_keys_ = true;
 bool Gem::Common::GParserBuilder::update_in_place_ = false;
 bool Gem::Common::GParserBuilder::emit_timestamp_ = true;
+
+/******************************************************************************/
+/**
+ * Stores the message and the help text.
+ *
+ * @param message What is wrong with the command line (what())
+ * @param usage The text --help prints
+ */
+GCommandLineError::GCommandLineError(std::string const &message, std::string usage)
+  : gem_exception(message)
+  , usage_(std::move(usage)) { /* nothing */
+}
+
+/******************************************************************************/
+/**
+ * The text --help prints.
+ *
+ * @return The usage line and the options --help lists
+ */
+std::string const &GCommandLineError::usage() const noexcept {
+    return usage_;
+}
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -1037,14 +1060,14 @@ bool GParserBuilder::unknownKeyIsError() {
  * @param argv The argument vector
  * @param verbose If set to true, the function will emit information about the parsed parameters
  * @return A boolean indicating whether help was requested (true) or not (false)
+ * @throws GCommandLineError if the command line is malformed (an unknown option, a value that does
+ *         not read as its type, a missing value); it carries the help text
  */
 bool GParserBuilder::parseCommandLine(int argc, char **argv, bool verbose) {
     namespace po = boost::program_options;
 
-    bool result = GCL_NO_HELP_REQUESTED;
-
-    // The options description is needed both for parsing and for the usage message printed on a
-    // command-line error, so it is built outside the try block below.
+    // The options description is needed both for parsing and for the help text a command-line
+    // error carries, so it is built outside the try block below.
     std::string const usage_string = std::string("Usage: ") + argv[0] + " [options]";
     po::options_description desc(usage_string);
 
@@ -1056,47 +1079,39 @@ bool GParserBuilder::parseCommandLine(int argc, char **argv, bool verbose) {
         p_ptr->save_to(desc);
     }
 
+    po::variables_map vm;
     try {
-        // Do the actual parsing
-        po::variables_map vm;
         po::store(po::parse_command_line(argc, (const char *const *)argv, desc), vm);
-        po::notify(vm);
 
         // Emit a help message, if necessary and let the caller of this function know
         if(vm.contains("help")) {
             std::cout << desc << '\n';
-            result = GCL_HELP_REQUESTED;
+            return GCL_HELP_REQUESTED;
         }
-        else {
-            if(verbose) {
-                std::cout << "GParserBuilder::parseCommandLine():" << '\n'
-                          << "Working with the following options:" << '\n';
-                for(auto const &p_ptr : cl_parameter_proxies_) {
-                    std::cout << p_ptr->content() << '\n';
-                }
-                std::cout << '\n';
-            }
-        }
+
+        po::notify(vm);
     }
     catch(po::error const &e) {
-        // A malformed command line is a USER error, not an internal fault. Report it together with
-        // the usage and exit cleanly with a non-zero status via LOGEXIT -- rather than
-        // std::terminate()-ing via GTERMINATION (which would dump core on a mere CLI typo).
+        // A malformed command line is a USER error, not an internal fault: the caller decides what
+        // happens (an uncaught exception ends the program through the fatal report, exit code 1).
         std::ostringstream usage; // NOLINT(cppcoreguidelines-init-variables)
         usage << desc;
-        glogger << "Error on the command line: " << e.what() << '\n'
-                << '\n'
-                << usage.str() << LOGEXIT(EXIT_FAILURE);
-    }
-    catch(...) {
-        // Anything other than a program_options error here is an unexpected INTERNAL fault, so the
-        // hard stop is kept.
-        glogger << "In GParserBuilder::parseCommandLine(int argc, char **argv):" << '\n'
-                << "Unknown error while parsing the command line" << '\n'
-                << GTERMINATION;
+        throw GCommandLineError(
+            std::string("Malformed command line: ") + e.what() + " (--help lists the options)",
+            usage.str()
+        );
     }
 
-    return result;
+    if(verbose) {
+        std::cout << "GParserBuilder::parseCommandLine():" << '\n'
+                  << "Working with the following options:" << '\n';
+        for(auto const &p_ptr : cl_parameter_proxies_) {
+            std::cout << p_ptr->content() << '\n';
+        }
+        std::cout << '\n';
+    }
+
+    return GCL_NO_HELP_REQUESTED;
 }
 
 /******************************************************************************/

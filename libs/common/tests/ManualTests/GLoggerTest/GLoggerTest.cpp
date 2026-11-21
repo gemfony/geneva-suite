@@ -39,12 +39,14 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 
 using namespace Gem::Common;
 
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     bool do_crash = false;
 
     // Create the parser builder

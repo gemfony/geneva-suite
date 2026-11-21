@@ -139,6 +139,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `void`. They used to log the error and return `false`, which most callers ignored -- a direct
   `readConfigFile()` of an optimization algorithm among them -- so a configuration that could not be
   applied ran on its defaults. Code that tested the result drops the test.
+- **`GParserBuilder::parseCommandLine()` throws `Gem::Common::GCommandLineError`** for a
+  malformed command line (an unknown option, a value that does not read as its type, a missing
+  value). It used to print the error and the usage and end the process. The exception carries the
+  help text (`usage()`); a program that does not catch it ends through the fatal report with the
+  message and the exit code 1.
 - **A Geneva program ends on an error nobody handles with a message and the exit code 1**, not
   with an abort and a core dump: Go2's constructor makes `Gem::Common::installFatalReport()`
   (`common/GFatalReport.hpp`) the terminate handler of the process; a program without Go2 calls it

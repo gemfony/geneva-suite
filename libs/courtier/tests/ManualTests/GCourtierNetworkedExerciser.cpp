@@ -48,6 +48,7 @@
 #include <vector>
 
 #include "GDemoProcessingContainers.hpp"
+#include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -121,6 +122,7 @@ int runClient(const std::string &ip, unsigned short port) {
 } /* anonymous namespace */
 
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::string consumer;
     bool is_client = false;
     std::string beast_ip;

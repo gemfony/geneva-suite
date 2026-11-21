@@ -77,6 +77,7 @@
  *                     the batch: every client finds it silent and ends, and the job is ended.
  */
 
+#include "common/GFatalReport.hpp"
 #include "common/GGlobalDefines.hpp"
 
 #ifdef GEM_BUILD_WITH_MPI_CONSUMER
@@ -457,6 +458,7 @@ int runClient(
 } // namespace
 
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     constexpr std::size_t N = 120;
 
     std::string scenario;

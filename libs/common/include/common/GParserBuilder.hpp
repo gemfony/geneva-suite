@@ -374,6 +374,26 @@ constexpr bool GCL_IMPLICIT_ALLOWED = true;
 constexpr bool GCL_IMPLICIT_NOT_ALLOWED = false;
 
 /******************************************************************************/
+/**
+ * The exception GParserBuilder throws for a command line it cannot read: an unknown option, a value
+ * that does not read as its type, a missing value, a flag given a value. A malformed command line is
+ * the user's error, so the parser does not end the process: the caller decides. A program that does
+ * not catch it ends through the fatal report (common/GFatalReport.hpp) with its message and the exit
+ * code 1; a caller that catches it can print usage(), the text --help prints, and return.
+ */
+class GCommandLineError : public gem_exception {
+public:
+    /** @brief Stores the message (what()) and the help text */
+    GCommandLineError(std::string const &message, std::string usage);
+
+    /** @brief The text --help prints: the usage line and the options --help lists */
+    [[nodiscard]] std::string const &usage() const noexcept;
+
+private:
+    std::string usage_; ///< The text --help prints
+};
+
+/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
@@ -1949,7 +1969,7 @@ public:
     /** @brief Provides information on the number of file configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfFileOptions() const;
 
-    /** @brief Parses the commandline for options */
+    /** @brief Parses the command line for options; throws GCommandLineError if it is malformed */
     bool parseCommandLine(int argc, char **argv, bool verbose = false);
     /** @brief Provides information on the number of command line configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfCLOptions() const;

@@ -52,6 +52,7 @@
 // Boost header files
 
 // Geneva header files
+#include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "dietrich/GPlotDesigner.hpp"
@@ -296,6 +297,7 @@ void createRandomVector(
 
 // NOLINTNEXTLINE(readability-function-size) -- main() of a manual test: CLI parsing, a switch selecting the RNG source, then the fixed ROOT-macro header + per-distribution sampling/Fill() sections
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::shared_ptr<Gem::Hap::GRandomBase> gr_ptr;
 
     std::size_t nEntries = 0;

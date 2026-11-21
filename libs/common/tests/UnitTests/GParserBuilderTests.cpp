@@ -38,6 +38,7 @@
 #include <iterator>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <boost/json.hpp>
@@ -48,6 +49,7 @@
 #include "common/GParserBuilder.hpp"
 
 using namespace Gem::Common;
+using Catch::Matchers::ContainsSubstring;
 
 namespace {
 
@@ -56,6 +58,42 @@ std::filesystem::path scratch(std::string const &tag) {
     std::filesystem::create_directories(base);
     return base / (tag + ".json");
 }
+
+/** An argv for parseCommandLine(): "prog" followed by @p args; the strings live as long as it does */
+class Argv {
+public:
+    explicit Argv(std::vector<std::string> args)
+      : args_(std::move(args)) {
+        args_.insert(args_.begin(), "prog");
+        for(auto &arg : args_) {
+            pointers_.push_back(arg.data());
+        }
+        pointers_.push_back(nullptr);
+    }
+    [[nodiscard]] int argc() const { return static_cast<int>(args_.size()); }
+    [[nodiscard]] char **argv() { return pointers_.data(); }
+
+private:
+    std::vector<std::string> args_;
+    std::vector<char *> pointers_;
+};
+
+/** Collects what std::cout receives while it lives */
+class CoutCapture {
+public:
+    CoutCapture()
+      : old_(std::cout.rdbuf(captured_.rdbuf())) {}
+    ~CoutCapture() { std::cout.rdbuf(old_); }
+    CoutCapture(CoutCapture const &) = delete;
+    CoutCapture(CoutCapture &&) = delete;
+    CoutCapture &operator=(CoutCapture const &) = delete;
+    CoutCapture &operator=(CoutCapture &&) = delete;
+    [[nodiscard]] std::string text() const { return captured_.str(); }
+
+private:
+    std::ostringstream captured_;
+    std::streambuf *old_;
+};
 
 } // namespace
 
@@ -1303,4 +1341,33 @@ TEST_CASE(
     CHECK_FALSE(binary.fail());
     CHECK(mode == Gem::Common::serializationMode::GEM_BINARY);
     CHECK(Gem::Common::numericEnumValueList<Gem::Common::logType>() == "0, 1, 2, 3, 4, 5, 6 or 7");
+}
+
+// ---------------------------------------------------------------------------
+// The command line: a malformed one throws GCommandLineError (the parser does not end the process)
+
+TEST_CASE(
+    "GParserBuilder::parseCommandLine: a malformed command line throws and carries the help text",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    int count = 0;
+    gpb.registerCLParameter<int>("count", count, 3, "how many");
+
+    Argv unknown({"--count=4", "--nonsense"});
+    try {
+        gpb.parseCommandLine(unknown.argc(), unknown.argv());
+        FAIL("an unknown option was accepted");
+    }
+    catch(GCommandLineError const &e) {
+        CHECK_THAT(std::string(e.what()), ContainsSubstring("nonsense"));
+        CHECK_THAT(e.usage(), ContainsSubstring("Usage: prog [options]"));
+        CHECK_THAT(e.usage(), ContainsSubstring("--count"));
+        CHECK_THAT(e.usage(), ContainsSubstring("how many"));
+    }
+
+    Argv bad_value({"--count=many"});
+    CHECK_THROWS_AS(gpb.parseCommandLine(bad_value.argc(), bad_value.argv()), GCommandLineError);
+    Argv no_value({"--count"});
+    CHECK_THROWS_AS(gpb.parseCommandLine(no_value.argc(), no_value.argv()), GCommandLineError);
 }

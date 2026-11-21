@@ -41,6 +41,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/concurrency/GThreadPool.hpp"
@@ -158,6 +159,7 @@ private:
  */
 // NOLINTNEXTLINE(readability-function-size) -- manual-test main: CLI setup, task submission loop, and result verification form one linear test scenario
 int main(int argc, char **argv) {
+    Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     std::mt19937_64 gr{
         std::random_device{}()
     }; // A standard engine: common's programs do not use hap
