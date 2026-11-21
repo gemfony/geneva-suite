@@ -149,7 +149,8 @@ def check_figure(program, workdir):
     write_table('fast-2.txt', [(0.01, 3.4, 0.1), (0.1, 3.81, 0.05)])
     write_table('slow.txt', [(0.01, 1.0, 0.2), (0.1, 2.0, 0.1), (1, 3.9, 0.01)])
     run = subprocess.run([program, '--ideal', '4', '--figure', 'figure.C', '--means', 'means.txt',
-                          'fast=fast-1.txt', 'fast=fast-2.txt', 'slow=slow.txt'],
+                          '--table', 'fast=fast-1.txt', '--table', 'fast=fast-2.txt',
+                          '--table', 'slow=slow.txt'],
                          capture_output=True, text=True, check=False)
     if run.returncode != 0:
         fail(f'GSpeedupFigure exited with {run.returncode}: {run.stderr}')
@@ -196,20 +197,25 @@ def check_figure(program, workdir):
     for args, expected in (([], 'new TLegend(0.56, 0.3875, 0.88, 0.6125)'),
                            (['--legend', 'top_left'], 'new TLegend(0.12, 0.655, 0.44, 0.88)')):
         placed = subprocess.run([program, '--ideal', '4', '--zoom', '0', '--figure', 'placed.C']
-                                + args + ['high=high.txt', 'low=low.txt'],
+                                + args + ['--table', 'high=high.txt', '--table', 'low=low.txt'],
                                 capture_output=True, text=True, check=False)
         if placed.returncode != 0 or expected not in open('placed.C', encoding='utf-8').read():
             fail(f'the legend is not at {expected} with {args}')
 
-    untitled = subprocess.run([program, '--no-title', '--figure', 'untitled.C', 'fast=fast-1.txt'],
+    untitled = subprocess.run([program, '--no-title', '--figure', 'untitled.C',
+                               '--table', 'fast=fast-1.txt'],
                               capture_output=True, text=True, check=False)
     if untitled.returncode != 0 or 'TPaveLabel' in open('untitled.C', encoding='utf-8').read():
         fail('--no-title does not leave the title out')
 
-    bad = subprocess.run([program, 'fast=missing.txt'], capture_output=True, text=True,
+    bad = subprocess.run([program, '--table', 'fast=missing.txt'], capture_output=True, text=True,
                          check=False)
     if bad.returncode == 0 or 'missing.txt' not in bad.stderr:
         fail('a missing table is not refused with its name')
+    none = subprocess.run([program, '--figure', 'none.C'], capture_output=True, text=True,
+                          check=False)
+    if none.returncode == 0 or '--table' not in none.stderr:
+        fail('a call without a table is not refused with a hint to --table')
     print('figure and means as expected')
 
 

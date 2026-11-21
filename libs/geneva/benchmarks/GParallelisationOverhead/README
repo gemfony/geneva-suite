@@ -77,11 +77,12 @@ GSpeedupFigure draws the tables of several runs into one figure with linear
 axes, one series per label, with error bars and the ideal speed-up as a line:
 
   ./GSpeedupFigure --ideal 400 --figure comparison.C \
-      websocket=run-1/shortDelayResults.txt MPI=run-2/shortDelayResults.txt ...
+      --table websocket=run-1/shortDelayResults.txt \
+      --table MPI=run-2/shortDelayResults.txt ...
 
 Tables with the same label are averaged as compareSpeedups.py does. Further
 pads show the short evaluation times alone, which a linear axis crowds at the
-left (--zoom). Each pad's legend goes where it covers the least of the curves,
-the lower right where that is free (--legend sets a place), and --no-title
+left (--zoom, once per pad). Each pad's legend goes where it covers the least of
+the curves, the lower right where that is free (--legend sets a place), and --no-title
 leaves out the figure's title. It writes a ROOT script unless --backend names another one;
 GSpeedupFigure --help lists the options.
