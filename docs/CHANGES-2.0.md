@@ -758,6 +758,53 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   by earlier 1.99 development builds do not load; 1.11 checkpoints never loaded in 2.0
   anyway (see the top of this document).
 
+## 9. Recording: monitors write streams
+
+- **A recording framework in common** (`common/record/`, namespace `Gem::Common::Record`). The
+  process-wide `recorder()` hands out streams -- named tables with fixed, typed columns
+  (integers, floating point, bool, text, time stamps; optionally an automatic `time` column of
+  the wall or the steady clock) -- to which any thread appends rows:
+  `auto s = recorder().stream<std::uint64_t, double>("progress", {"iteration", "best_fitness"});
+  s.append(i, f);`. Columns known only at run time are declared as a list of `GColumn`. The rows
+  go to sinks: `GCsvSink` (the default) and `GJsonLinesSink` in common, `GPlotSink` in dietrich
+  (the stream drawn as a `GDataLog` plot at its end, ROOT by default).
+- **One output rule for every file.** A stream writes `<directory>/<stream name>.<extension>`;
+  the directory is `./records`, created when needed, set with `--recordDir` (courtier's launcher)
+  or `recorder().setDirectory()`. Two open streams of one name are refused, naming both
+  declarers -- two monitors of one class in one process need different stream names. An existing
+  file is backed up at the first write; a run resumed from a checkpoint appends to the files of
+  its monitors when their columns are the same. Each row is flushed to its file. Courtier's
+  launcher closes all streams when `run()` ends -- also after an exception or a stop request; a
+  program without the launcher calls `recorder().closeAll()` itself.
+- **The shipped monitors record streams instead of writing files of their own.** Each declares
+  its stream at the first INFOINIT and appends at INFOPROCESSING; every row begins with
+  `algorithm` and `iteration`. In a Go2 chain one stream (and one plot) holds every algorithm of
+  the chain. The default stream names: `GFitnessMonitor` "best_fitness" (it now writes its
+  data), `GProgressPlotterT` "progress", `GAllSolutionFileLogger` "all_solutions",
+  `GIterationResultsFileLogger` "iteration_results", `GNAdpationsLogger` "n_adaptions",
+  `GAdaptorPropertyLoggerT` "adaptor_properties", `GProcessingTimesLogger` "processing_times",
+  `GOptOptMonitorT` "meta_optimization"; `setStreamName()` changes it. `GStandardMonitor` writes
+  its summary through the logger, as before, and is registered only when a program registers it.
+- **What leaves the monitors.** The file names, their setters and the constructor arguments that
+  took them (`setFileName()`, `GFitnessMonitor::setResultFileName()`, `setFileName_pth()`,
+  `setFileName_pth2()`, `setFileName_txt()`, the file name of `GOptOptMonitorT`'s constructor);
+  the canvas of `GFitnessMonitor`, which drew nothing (`setDims()`, `getDims()`, `getXDim()`,
+  `getYDim()`); the text layout of `GAllSolutionFileLogger` and `GIterationResultsFileLogger`
+  (`setPrintWithNameAndType()`, `setPrintWithCommas()`, `setShowIterationBoundaries()` -- a CSV
+  file has a header line and commas); `GProcessingTimesLogger`'s two canvases (one plot now:
+  `setCanvasDimensions()`). Constructors: `GAllSolutionFileLogger(boundaries)`,
+  `GAdaptorPropertyLoggerT(adaptor_name, property)`, `GProcessingTimesLogger(n_bins_x, n_bins_y)`,
+  `GOptOptMonitorT()`. The constants `DEFAULTROOTRESULTFILEOM`, `DEFAULTXDIMOM` and
+  `DEFAULTYDIMOM` are gone. 1.99 keeps no archive compatibility: a checkpoint written before
+  this change that holds such a monitor is not meant to load.
+- **Corrected on the way.** `GIterationResultsFileLogger` recorded the raw fitness whatever
+  `setUseTrueFitness()` said; the progress plotter of a Go2 chain kept only the last algorithm's
+  data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
+- **courtier's end-of-run report.** When the launcher releases its consumer, the consumer
+  appends one row of its counters to the stream `courtier` (`GBaseConsumerT::recordEndOfRun()`,
+  `endOfRunFigures()`): the connected clients, and for a networked consumer the requeued items
+  and the dropped, foreign and dropped late returns.
+
 ---
 
 *For the day-to-day authoring model with worked examples, see
