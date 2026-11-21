@@ -349,6 +349,12 @@ int runGroupProcess(
     if(cascade.role() == processRole::CLIENT) { // also if the launcher ended before its role
         cascade.release();                      // prints the lead's line (lead_log's tearDown())
     }
+    if(cascade.role() == processRole::SUBMITTER && rc != 0) {
+        // A submitter that fails must end the job (GMPICascade, "A submitter that fails"):
+        // returning would leave MPI_Finalize waiting for the leads. (Its leads fail alike, so a
+        // test cannot make the wait certain; GSubClientOverheadGroups runs the case.)
+        cascade.abortJob(rc, "the launcher ended with " + std::to_string(rc));
+    }
     return rc;
 }
 
