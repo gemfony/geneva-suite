@@ -127,15 +127,7 @@ public:
         );
     }
 
-    /**
-     * @brief Declares a stream with columns given at run time
-     * @param name The name of the stream, also that of its files
-     * @param columns The columns
-     * @param time Whether a time column ("time") comes first
-     * @param options The sinks, resume and flush
-     * @param declarer Where the stream is declared (named by a refusal)
-     * @return The handle of the stream
-     */
+    /** @brief Declares a stream with columns given at run time (GStream) */
     [[nodiscard]] GStream stream(
         std::string name,
         std::vector<GColumn> columns,
@@ -144,9 +136,9 @@ public:
         std::source_location declarer = std::source_location::current()
     );
 
-    /** @brief Sets the directory of the streams declared from now on @param directory It */
+    /** @brief Sets the directory of the streams declared from now on */
     void setDirectory(std::filesystem::path directory);
-    /** @brief The directory of the streams declared from now on @return It */
+    /** @brief The directory of the streams declared from now on */
     [[nodiscard]] std::filesystem::path directory() const;
 
     /** @brief Closes every open stream; a failure is reported through the log, not thrown */
@@ -154,7 +146,7 @@ public:
 
 private:
     friend class detail::GStreamCore;
-    /** @brief Frees the name of a stream that has closed @param core The stream */
+    /** @brief Frees the name of a stream that has closed */
     void forget_(detail::GStreamCore const *core);
 
     mutable std::mutex mutex_; ///< Guards the two members below
@@ -166,7 +158,6 @@ private:
 /******************************************************************************/
 /**
  * @brief The recorder of this process, created at the first call and never destroyed
- * @return It
  */
 [[nodiscard]] GRecorder &recorder();
 

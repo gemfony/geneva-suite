@@ -245,9 +245,8 @@ private:
 /******************************************************************************/
 /**
  * @brief The standard emitter of a backend: what GPlotDesigner::setPlotBackend() installs, and
- * what tells a writer the extension of the backend's files (IPlotEmitter::fileExtension())
- * @param backend The backend (the DATA backend in its default format, CSV)
- * @return A new emitter of that backend
+ * what tells a writer the extension of the backend's files (IPlotEmitter::fileExtension()); the
+ * DATA backend in its default format, CSV
  */
 [[nodiscard]] std::shared_ptr<IPlotEmitter> makeEmitter(plotBackend backend);
 

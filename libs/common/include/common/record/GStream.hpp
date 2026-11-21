@@ -78,9 +78,7 @@ namespace detail {
  */
 class GStreamCore {
 public:
-    /** @brief A stream as declared @param info Its name, columns (the time column included) and
-     *  directory @param time Its time column @param options Its sinks, resume and flush
-     *  @param declarer Where it was declared */
+    /** @brief A stream as declared */
     GStreamCore(
         GStreamInfo info,
         withTime time,
@@ -95,17 +93,16 @@ public:
     /** @brief The destructor; the stream was closed before */
     ~GStreamCore() = default;
 
-    /** @brief Appends a row (without the time column) @param row The row */
+    /** @brief Appends a row (without the time column) */
     void append(GRow row);
-    /** @brief Hands the rows held back to the sinks and closes them; again: nothing
-     *  @return Whether this call closed the stream */
+    /** @brief Hands the rows held back to the sinks and closes them; again: nothing */
     bool close();
-    /** @brief Whether the stream is open @return Whether it is */
+    /** @brief Whether the stream is open */
     [[nodiscard]] bool isOpen() const;
 
-    /** @brief The name and the columns @return They */
+    /** @brief The name and the columns */
     [[nodiscard]] GStreamInfo const &info() const;
-    /** @brief Where the stream was declared @return The place */
+    /** @brief Where the stream was declared */
     [[nodiscard]] std::source_location const &declarer() const;
 
 private:
@@ -140,10 +137,9 @@ class GStream {
 public:
     /** @brief An empty handle */
     GStream() = default;
-    /** @brief Takes over the stream of another handle @param cp The other handle */
+    /** @brief Takes over the stream of another handle */
     GStream(GStream &&cp) noexcept = default;
-    /** @brief Closes this handle's stream and takes over that of another @param cp The other
-     *  handle @return This handle */
+    /** @brief Closes this handle's stream and takes over that of another */
     GStream &operator=(GStream &&cp) noexcept;
     /** @brief Closes the stream; a failure is reported through the log, not thrown */
     ~GStream();
@@ -151,20 +147,20 @@ public:
     GStream(GStream const &) = delete;
     GStream &operator=(GStream const &) = delete;
 
-    /** @brief Appends a row, from any thread @param row One value per column, in column order */
+    /** @brief Appends a row, from any thread */
     void append(GRow row);
     /** @brief Closes the stream: the rows held back go to the sinks, which close */
     void close();
-    /** @brief Whether the handle has a stream that is open @return Whether it has */
+    /** @brief Whether the handle has a stream that is open */
     [[nodiscard]] bool isOpen() const;
-    /** @brief The name of the stream @return It (empty for an empty handle) */
+    /** @brief The name of the stream */
     [[nodiscard]] std::string name() const;
-    /** @brief The columns of the stream, the time column included @return They */
+    /** @brief The columns of the stream, the time column included */
     [[nodiscard]] std::vector<GColumn> columns() const;
 
 private:
     friend class GRecorder;
-    /** @brief A handle of a declared stream @param core The stream */
+    /** @brief A handle of a declared stream */
     explicit GStream(std::shared_ptr<detail::GStreamCore> core);
 
     std::shared_ptr<detail::GStreamCore> core_; ///< The stream; empty for an empty handle

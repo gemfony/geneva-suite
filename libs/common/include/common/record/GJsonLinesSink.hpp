@@ -55,15 +55,14 @@ namespace Gem::Common::Record {
  */
 class GJsonLinesSink final : public GFileSink {
 protected:
-    /** @brief The extension @return ".jsonl" */
+    /** @brief The extension */
     [[nodiscard]] std::string extension_() const override;
-    /** @brief A JSON Lines file begins with its first row: writes nothing @param out The file
-     *  @param columns The columns */
+    /** @brief A JSON Lines file begins with its first row: writes nothing */
     void writeStart_(std::ostream &out, std::vector<GColumn> const &columns) override;
-    /** @brief Writes one row as one JSON object on one line @param out The file @param row The row */
+    /** @brief Writes one row as one JSON object on one line */
     void writeRow_(std::ostream &out, GRow const &row) override;
     /** @brief Whether the members of the file's first object are the columns, in their order
-     *  @param existing The file @param columns The columns @return Whether they are */
+     */
     [[nodiscard]] bool holdsColumns_(
         std::filesystem::path const &existing,
         std::vector<GColumn> const &columns

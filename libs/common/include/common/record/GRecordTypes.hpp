@@ -114,8 +114,6 @@ struct GColumn {
 /******************************************************************************/
 /**
  * @brief The name of a column type, for messages
- * @param type The column type
- * @return "integer", "unsigned", "floating", "boolean", "text" or "timestamp"
  */
 [[nodiscard]] std::string to_string(columnType type);
 

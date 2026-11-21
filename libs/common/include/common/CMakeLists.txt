@@ -98,8 +98,8 @@ SET ( COMMONRECORDINCLUDES
 	record/GCsvSink.hpp
 	record/GFileSink.hpp
 	record/GJsonLinesSink.hpp
-	record/GRecorder.hpp
 	record/GRecordTypes.hpp
+	record/GRecorder.hpp
 	record/GSink.hpp
 	record/GStream.hpp
 )

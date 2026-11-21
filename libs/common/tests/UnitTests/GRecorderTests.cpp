@@ -221,7 +221,7 @@ TEST_CASE("a stream with columns given at run time checks each row", "[common][r
     CHECK_THROWS_AS(s.append(GRow{1.5, std::uint64_t{3}}), gem_exception);
 }
 
-TEST_CASE("the time column comes first, of the wall or the steady clock", "[common][record]") {
+TEST_CASE("the time column comes first: of the wall or the steady clock", "[common][record]") {
     ScratchDirectory const dir("time");
     {
         auto wall = recorder().stream<std::string, double>("quotes", {"symbol", "price"}, withTime::wall);
@@ -247,7 +247,7 @@ TEST_CASE("the time column comes first, of the wall or the steady clock", "[comm
     );
 }
 
-TEST_CASE("a second open stream of a name is refused, naming both declarers", "[common][record]") {
+TEST_CASE("a second open stream of a name is refused and both declarers are named", "[common][record]") {
     ScratchDirectory const dir("duplicate");
     auto first = recorder().stream<int>("twice", {"n"});
     try {
@@ -268,7 +268,7 @@ TEST_CASE("a second open stream of a name is refused, naming both declarers", "[
     CHECK_THROWS_AS((recorder().stream<int, int>("dup", {"n", "n"})), gem_exception);
 }
 
-TEST_CASE("an existing file is backed up at the first write, not before", "[common][record]") {
+TEST_CASE("an existing file is backed up at the first write and not before", "[common][record]") {
     ScratchDirectory const dir("backup");
     std::filesystem::create_directories(dir / "");
     {
@@ -282,7 +282,7 @@ TEST_CASE("an existing file is backed up at the first write, not before", "[comm
     CHECK(linesOf(dir / "kept.csv") == std::vector<std::string>{"n", "1"});
 }
 
-TEST_CASE("a resuming stream appends when its columns match, else starts anew", "[common][record]") {
+TEST_CASE("a resuming stream appends when its columns match and else starts anew", "[common][record]") {
     ScratchDirectory const dir("resume");
     for(bool const json : {false, true}) {
         auto const sinks = [json]() {

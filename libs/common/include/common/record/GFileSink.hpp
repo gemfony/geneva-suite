@@ -60,14 +60,14 @@ namespace Gem::Common::Record {
  */
 class GFileSink : public GSink {
 public:
-    /** @brief Opens the file by the output rule @param info The stream */
+    /** @brief Opens the file by the output rule */
     void open(GStreamInfo const &info) final;
-    /** @brief Writes the rows, one line each, and flushes them @param rows The rows */
+    /** @brief Writes the rows, one line each, and flushes them */
     void write(std::span<GRow const> rows) final;
     /** @brief Closes the file */
     void close() final;
 
-    /** @brief The file, once the sink is open @return Its path */
+    /** @brief The file, once the sink is open */
     [[nodiscard]] std::filesystem::path const &path() const;
 
 protected:
@@ -84,7 +84,7 @@ protected:
     [[nodiscard]] virtual bool
     holdsColumns_(std::filesystem::path const &existing, std::vector<GColumn> const &columns) const = 0;
 
-    /** @brief The columns of the stream, once the sink is open @return They */
+    /** @brief The columns of the stream, once the sink is open */
     [[nodiscard]] std::vector<GColumn> const &streamColumns_() const;
 
 private:

@@ -57,14 +57,13 @@ namespace Gem::Common::Record {
  */
 class GCsvSink final : public GFileSink {
 protected:
-    /** @brief The extension @return ".csv" */
+    /** @brief The extension */
     [[nodiscard]] std::string extension_() const override;
-    /** @brief Writes the header line @param out The file @param columns The columns */
+    /** @brief Writes the header line */
     void writeStart_(std::ostream &out, std::vector<GColumn> const &columns) override;
-    /** @brief Writes one row as one line @param out The file @param row The row */
+    /** @brief Writes one row as one line */
     void writeRow_(std::ostream &out, GRow const &row) override;
-    /** @brief Whether the file's header line is that of the columns @param existing The file
-     *  @param columns The columns @return Whether it is */
+    /** @brief Whether the file's header line is that of the columns */
     [[nodiscard]] bool holdsColumns_(
         std::filesystem::path const &existing,
         std::vector<GColumn> const &columns

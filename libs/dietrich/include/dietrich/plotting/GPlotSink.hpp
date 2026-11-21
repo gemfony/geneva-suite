@@ -69,23 +69,22 @@ namespace Gem::Dietrich {
  */
 class GPlotSink : public Gem::Common::Record::GSink {
 public:
-    /** @brief A sink that writes the given plot through the given backend @param layout The
-     *  canvas and the series, without data @param backend The backend; not DATA */
+    /** @brief A sink that writes the given plot through the given backend */
     explicit GPlotSink(GDataLog layout, plotBackend backend = plotBackend::ROOT);
 
-    /** @brief Matches the series to the stream's columns @param info The stream */
+    /** @brief Matches the series to the stream's columns */
     void open(Gem::Common::Record::GStreamInfo const &info) override;
-    /** @brief Adds the rows to the series @param rows The rows */
+    /** @brief Adds the rows to the series */
     void write(std::span<Gem::Common::Record::GRow const> rows) override;
     /** @brief Completes the plot and writes it */
     void close() override;
 
-    /** @brief The file of the plot, once the sink is open @return Its path */
+    /** @brief The file of the plot, once the sink is open */
     [[nodiscard]] std::filesystem::path const &path() const;
 
 protected:
     /** @brief Called at the end, before the plot is written: a derived sink may add data or
-     *  change the specs. The default does nothing. @param log The plot, with its data */
+     *  change the specs. The default does nothing. */
     virtual void completeLog_(GDataLog &log);
 
 private:
