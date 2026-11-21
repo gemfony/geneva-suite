@@ -61,7 +61,9 @@
 #include "common/GExceptions.hpp"
 #include "common/GModuleLoader.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GLogger.hpp"
 #include "common/GStopRequest.hpp"
+#include "common/record/GRecorder.hpp" // --recordDir, closeAll() at the end of run()
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GConsumerPlugin.hpp"
 #include "courtier/GConsumerProviderT.hpp"
@@ -295,7 +297,12 @@ public:
  *  8. a bystander returns 0; a client builds its client and runs it; the submitter builds the
  *     consumer (or the program's, setConsumer(make)), registers it as the process consumer,
  *     waits for the clients of --waitForClients (the client gate), calls produce() and releases
- *     the consumer again -- also if produce() or the gate throws.
+ *     the consumer again -- also if produce() or the gate throws; at its release the consumer
+ *     records its end-of-run report (GBaseConsumerT::recordEndOfRun(), the stream "courtier").
+ *
+ * However run() ends -- normally, by an exception or after a stop request -- it closes the streams
+ * of the recorder (Gem::Common::Record::GRecorder::closeAll()), so their files are complete;
+ * --recordDir sets the directory they are written to (default ./records).
  *
  * The client gate: with --waitForClients N the submitter asks its consumer every
  * GCLIENTGATEPOLL how many clients are connected (GBaseConsumerT::connectedClients()) until it
@@ -487,6 +494,7 @@ private:
     std::string cl_max_client_duration_; ///< --max_client_duration
     std::size_t cl_wait_for_clients_ = 0;                        ///< --waitForClients
     std::size_t cl_client_wait_limit_ = GDEFAULTCLIENTWAITLIMIT; ///< --clientWaitLimit
+    std::string cl_record_dir_;                                  ///< --recordDir
     std::string mnemonic_;               ///< The chosen consumer
     processRole role_ = processRole::SUBMITTER; ///< The role of this process
 };
@@ -499,6 +507,18 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
         throw refusal_("run() was called a second time; a launcher runs once.");
     }
     ran_ = true;
+    // The streams of the recorder are closed when run() ends, however it ends: normally, by an
+    // exception, or after a stop request
+    struct CloseRecords {
+        CloseRecords() = default;
+        CloseRecords(const CloseRecords &) = delete;
+        CloseRecords &operator=(const CloseRecords &) = delete;
+        CloseRecords(CloseRecords &&) = delete;
+        CloseRecords &operator=(CloseRecords &&) = delete;
+        ~CloseRecords() {
+            Gem::Common::Record::recorder().closeAll();
+        }
+    } const close_records;
     Gem::Common::installStopHandlers();
 
     // Step 1
@@ -546,6 +566,13 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
         "Seconds the submitter waits for the clients of --waitForClients; the program ends with "
         "an error if fewer have connected by then"
     );
+    gpb_.registerCLParameter<std::string>(
+        "recordDir",
+        cl_record_dir_,
+        Gem::Common::Record::recorder().directory().string(),
+        "The directory into which the streams of the recorder write their files (Gem::Common::Record), "
+        "created when needed; in it, courtier's end-of-run report courtier.csv"
+    );
     std::vector<GConsumerProviderPtrT<processable_type>> providers =
         consumerCatalog<processable_type>()->getContentSnapshot();
     std::ranges::sort(providers, {}, [](const auto &p) { return p->getMnemonic(); });
@@ -565,6 +592,9 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
     catch(const Gem::Common::GCommandLineError &e) {
         std::cerr << e.what() << '\n' << e.usage() << '\n';
         return EXIT_FAILURE;
+    }
+    if(gpb_.givenExplicitly("recordDir")) {
+        Gem::Common::Record::recorder().setDirectory(cl_record_dir_);
     }
 
     // Step 5: the chosen consumer and the role of this process
@@ -764,17 +794,37 @@ int GLauncherT<processable_type>::runSubmitter_(
     auto &registry = GConsumerRegistryT<processable_type>::instance();
     registry.setConsumer(consumer);
     // Released also if produce() throws, and only if the program did not replace it
+    // and then records the consumer's end-of-run report (not under --update-configs, which runs
+    // nothing of its own)
     class Release {
     public:
-        Release(GConsumerRegistryT<processable_type> &registry, consumer_ptr consumer)
+        Release(
+            GConsumerRegistryT<processable_type> &registry,
+            consumer_ptr consumer,
+            std::string mnemonic,
+            bool report
+        )
           : registry_(registry)
-          , consumer_(std::move(consumer)) {
+          , consumer_(std::move(consumer))
+          , mnemonic_(std::move(mnemonic))
+          , report_(report) {
         }
         Release(const Release &) = delete;
         Release &operator=(const Release &) = delete;
         Release(Release &&) = delete;
         Release &operator=(Release &&) = delete;
         ~Release() {
+            if(report_) {
+                try {
+                    consumer_->recordEndOfRun(mnemonic_);
+                }
+                catch(const std::exception &e) {
+                    glogger << "The end-of-run report of the consumer \"" << mnemonic_
+                            << "\" could not be recorded:" << '\n'
+                            << e.what() << '\n'
+                            << GWARNING;
+                }
+            }
             if(registry_.consumer() == consumer_) {
                 registry_.clear();
             }
@@ -783,8 +833,10 @@ int GLauncherT<processable_type>::runSubmitter_(
     private:
         GConsumerRegistryT<processable_type> &registry_;
         consumer_ptr consumer_;
+        std::string mnemonic_;
+        bool report_;
     };
-    const Release release(registry, consumer);
+    const Release release(registry, consumer, mnemonic_, not refresh_);
     // A stop at the gate ends the program: produce() would submit work the missing clients cannot
     // take, and a run halts only after an iteration, so it would not end at once
     if(not refresh_ && not waitForClients_(*consumer)) {

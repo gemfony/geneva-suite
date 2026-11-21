@@ -140,12 +140,14 @@ SET_TESTS_PROPERTIES ( ${_test} PROPERTIES ENVIRONMENT CLIENT_SIGNAL=USR1 TIMEOU
 GEM_TEST_SIZE ( ${_test} M )
 
 # A server that gets SIGUSR1 while it waits for clients that never come ends at once, with 0, and
-# not at --clientWaitLimit (60 s here) with an error
+# not at --clientWaitLimit (60 s here) with an error; its consumer's end-of-run report is recorded
+# into the directory of --recordDir
 SET ( _test courtier_grid_minimum_beast_stop_at_gate )
 ADD_TEST ( NAME ${_test} COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh
-	$<TARGET_FILE:courtier_grid_minimum> beast 2 - )
+	$<TARGET_FILE:courtier_grid_minimum> beast 2 - --recordDir stop_records )
 FILE ( MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} )
-SET_TESTS_PROPERTIES ( ${_test} PROPERTIES ENVIRONMENT SERVER_SIGNAL=USR1 TIMEOUT 120
+SET_TESTS_PROPERTIES ( ${_test} PROPERTIES
+	ENVIRONMENT "SERVER_SIGNAL=USR1;SERVER_REPORT=stop_records/courtier.csv" TIMEOUT 120
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} LABELS "courtier;docprogram" )
 GEM_TEST_SIZE ( ${_test} S )
 

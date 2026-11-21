@@ -48,7 +48,9 @@
 #                    The client must go on serving: the run must still be going when the signal
 #                    arrives, and must end as without it.
 # SERVER_SIGNAL      (environment) a signal sent to the server while it waits for its clients,
-#                    none of which is started then: the server must end with 0 within 10 s.
+#                    none of which is started then: the server must end with 0 within 10 s, and
+#                    its consumer's end-of-run report must be recorded (a header and one row in
+#                    SERVER_REPORT, default records/courtier.csv).
 #
 # The server must end with 0 within 120 s, the clients within 30 s after it. The script starts
 # in, and its programs write into, the current directory (the server's output: server.log, shown
@@ -80,7 +82,15 @@ if [ -n "${SERVER_SIGNAL:-}" ]; then
     kill -KILL "$program_pid" 2> /dev/null && echo "the server did not end within 10 s"
     wait "$server"; server_exit=$?
     cat server.log; echo "server exit $server_exit"
-    [ "$server_exit" = 0 ]; exit
+    # A stopped server still records its consumer's end-of-run report (into --recordDir, if given)
+    report=${SERVER_REPORT:-records/courtier.csv}
+    report_ok=0
+    if [ "$(wc -l < "$report" 2> /dev/null)" = 2 ] && grep -q "^$consumer," "$report"; then
+        report_ok=1; echo "end-of-run report:"; cat "$report"
+    else
+        echo "no end-of-run report in $report"
+    fi
+    [ "$server_exit" = 0 ] && [ "$report_ok" = 1 ]; exit
 fi
 client_pids=()
 for ((i = 0; i < clients; i++)); do

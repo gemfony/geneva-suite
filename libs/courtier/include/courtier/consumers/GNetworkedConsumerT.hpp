@@ -273,6 +273,21 @@ public:
         std::scoped_lock const lk(mtx_);
         return n_empty_checkouts_;
     }
+    /** @brief The end-of-run figures (GBaseConsumerT::recordEndOfRun()): the connected clients, if
+     *  known, and the counters above -- requeued items, dropped, foreign and dropped late returns,
+     *  empty checkouts
+     *  @return The figures, by name */
+    [[nodiscard]] typename GBaseConsumerT<processable_type>::figures_type
+    endOfRunFigures() const override {
+        auto figures = GBaseConsumerT<processable_type>::endOfRunFigures();
+        std::scoped_lock const lk(mtx_);
+        figures.emplace_back("requeued", n_requeued_);
+        figures.emplace_back("dropped_returns", n_dropped_returns_);
+        figures.emplace_back("foreign_returns", n_foreign_returns_);
+        figures.emplace_back("late_returns_dropped", late_dropped_count_);
+        figures.emplace_back("empty_checkouts", n_empty_checkouts_);
+        return figures;
+    }
     /** @brief Number of callers that are parked right now, waiting to be told about work (see
      *  checkoutOrPark()). A caller that has gone away while parked is counted until the next
      *  announcement.
