@@ -114,6 +114,35 @@ public:
      * @param extension An identifier of the logging source (e.g. appended to a file name)
      */
     virtual void logWithSource(std::string const &message, std::string const &extension) const = 0;
+
+    /**
+     * @brief Logs a message of a given severity; unless overridden, as log(message)
+     *
+     * GLogger calls this overload: GLOGGING passes logType::LOGGING, GWARNING logType::WARNING and
+     * LOGEXIT logType::EXIT. A target that has a use for the severity overrides it.
+     *
+     * @param message The log message to be emitted by the target
+     * @param severity The kind of message
+     */
+    virtual void log(std::string const &message, [[maybe_unused]] logType severity) const {
+        this->log(message);
+    }
+
+    /**
+     * @brief Logs a message of a given severity with its source; unless overridden, as
+     * logWithSource(message, extension)
+     *
+     * @param message The log message to be emitted by the target
+     * @param extension An identifier of the logging source
+     * @param severity The kind of message (see log(message, severity))
+     */
+    virtual void logWithSource(
+        std::string const &message,
+        std::string const &extension,
+        [[maybe_unused]] logType severity
+    ) const {
+        this->logWithSource(message, extension);
+    }
 };
 
 /******************************************************************************/
@@ -342,11 +371,15 @@ public:
 
     /***************************************************************************/
     /** @brief Hands a message to every registered log target, or to the default one */
-    void log(std::string const &message) const;
+    void log(std::string const &message, logType severity = logType::LOGGING) const;
 
     /***************************************************************************/
     /** @brief Hands a message and its source to every registered log target, or to the default one */
-    void logWithSource(std::string const &message, std::string const &extension) const;
+    void logWithSource(
+        std::string const &message,
+        std::string const &extension,
+        logType severity = logType::LOGGING
+    ) const;
 
     /***************************************************************************/
     /**
@@ -444,7 +477,7 @@ private:
     /** @brief Locks the logger's mutex, unless this thread is handing a message to the targets */
     [[nodiscard]] std::unique_lock<std::mutex> lock_() const;
     /** @brief Calls the targets for log() and logWithSource() */
-    void deliver_(std::string const &message, std::string const *extension) const;
+    void deliver_(std::string const &message, std::string const *extension, logType severity) const;
 
     std::vector<std::shared_ptr<GBaseLogTarget>> log_cnt_; ///< Contains the log targets
     mutable std::mutex logger_mutex_; ///< Needed for concurrent access to the log targets

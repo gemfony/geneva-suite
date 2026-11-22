@@ -208,9 +208,10 @@ std::unique_lock<std::mutex> GLogger::lock_() const {
  * Thread-safe; see deliver_(). Throws if neither a target nor a default target is available.
  *
  * @param message The message to be forwarded to the log targets
+ * @param severity The kind of message, passed on to the targets
  */
-void GLogger::log(std::string const &message) const {
-    this->deliver_(message, nullptr);
+void GLogger::log(std::string const &message, logType severity) const {
+    this->deliver_(message, nullptr, severity);
 }
 
 /******************************************************************************/
@@ -222,9 +223,14 @@ void GLogger::log(std::string const &message) const {
  *
  * @param message The message to be forwarded to the log targets
  * @param extension An identifier of the logging source forwarded alongside the message
+ * @param severity The kind of message, passed on to the targets
  */
-void GLogger::logWithSource(std::string const &message, std::string const &extension) const {
-    this->deliver_(message, &extension);
+void GLogger::logWithSource(
+    std::string const &message,
+    std::string const &extension,
+    logType severity
+) const {
+    this->deliver_(message, &extension, severity);
 }
 
 /******************************************************************************/
@@ -237,8 +243,13 @@ void GLogger::logWithSource(std::string const &message, std::string const &exten
  *
  * @param message The message
  * @param extension The identifier of the message's source; none: the targets' log() is called
+ * @param severity The kind of message
  */
-void GLogger::deliver_(std::string const &message, std::string const *extension) const {
+void GLogger::deliver_(
+    std::string const &message,
+    std::string const *extension,
+    logType severity
+) const {
     if(t_delivering) {
         std::cerr << message;
         return;
@@ -248,10 +259,10 @@ void GLogger::deliver_(std::string const &message, std::string const *extension)
 
     auto const call = [&](GBaseLogTarget const &target) {
         if(extension != nullptr) {
-            target.logWithSource(message, *extension);
+            target.logWithSource(message, *extension, severity);
         }
         else {
-            target.log(message);
+            target.log(message, severity);
         }
     };
     if(not log_cnt_.empty()) {
@@ -539,10 +550,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
 
         // Do all necessary logging.
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(warning, this->getExtension());
+            glogger_ptr->logWithSource(warning, this->getExtension(), logType::WARNING);
         }
         else {
-            glogger_ptr->log(warning);
+            glogger_ptr->log(warning, logType::WARNING);
         }
     } break;
 
@@ -550,10 +561,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
     case Gem::Common::logType::LOGGING: {
         // Do all necessary logging.
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(oss_.str(), this->getExtension());
+            glogger_ptr->logWithSource(oss_.str(), this->getExtension(), logType::LOGGING);
         }
         else {
-            glogger_ptr->log(oss_.str());
+            glogger_ptr->log(oss_.str(), logType::LOGGING);
         }
     } break;
 
@@ -593,10 +604,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         msg << oss_.str() << '\n';
 
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(msg.str(), this->getExtension());
+            glogger_ptr->logWithSource(msg.str(), this->getExtension(), logType::EXIT);
         }
         else {
-            glogger_ptr->log(msg.str());
+            glogger_ptr->log(msg.str(), logType::EXIT);
         }
 
         glogger_ptr->exitApplication(msg.str(), gm.getReturnCode());

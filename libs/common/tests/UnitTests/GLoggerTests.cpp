@@ -575,3 +575,68 @@ TEST_CASE(
 ) {
     checkReentry(logType::STDERR);
 }
+
+// ---------------------------------------------------------------------------
+// Severity: the targets learn the kind of message
+
+namespace {
+
+// A target that records the severity and the source of each message
+class SeverityTarget : public GBaseLogTarget {
+public:
+    struct Entry {
+        logType severity;
+        std::string source;
+        std::string message;
+    };
+    void log(std::string const &msg) const override {
+        entries.push_back({logType::FILE, "", msg}); // only the severity overloads are expected
+    }
+    void logWithSource(std::string const &msg, std::string const &src) const override {
+        entries.push_back({logType::FILE, src, msg});
+    }
+    void log(std::string const &msg, logType severity) const override {
+        entries.push_back({severity, "", msg});
+    }
+    void
+    logWithSource(std::string const &msg, std::string const &src, logType severity) const override {
+        entries.push_back({severity, src, msg});
+    }
+    mutable std::vector<Entry> entries;
+};
+
+} // namespace
+
+TEST_CASE("GLogger: GLOGGING and GWARNING pass their severity to the targets", "[common][logger]") {
+    auto target = std::make_shared<SeverityTarget>();
+    glogger.addLogTarget(target);
+    glogger << "plain" << '\n' << GLOGGING;
+    glogger << "careful" << '\n' << GWARNING;
+    glogger(std::string("modY")) << "plain with source" << '\n' << GLOGGING;
+    glogger(std::string("modY")) << "careful with source" << '\n' << GWARNING;
+    glogger.resetLogTargets();
+
+    REQUIRE(target->entries.size() == 4);
+    CHECK(target->entries[0].severity == logType::LOGGING);
+    CHECK(target->entries[0].message == "plain\n");
+    CHECK(target->entries[1].severity == logType::WARNING);
+    CHECK(target->entries[1].message.contains("careful"));
+    CHECK(target->entries[2].severity == logType::LOGGING);
+    CHECK(target->entries[2].source == "modY");
+    CHECK(target->entries[3].severity == logType::WARNING);
+    CHECK(target->entries[3].source == "modY");
+}
+
+TEST_CASE(
+    "GLogger::log: a target without the severity overloads still gets the message",
+    "[common][logger]"
+) {
+    GLogger g;
+    auto target = std::make_shared<CapturingTarget>();
+    g.addLogTarget(target);
+    g.log("a warning\n", logType::WARNING);
+    g.logWithSource("an exit\n", "modZ", logType::EXIT);
+    REQUIRE(target->messages.size() == 2);
+    CHECK(target->messages[0] == "a warning\n");
+    CHECK(target->messages[1] == "[modZ] an exit\n");
+}
