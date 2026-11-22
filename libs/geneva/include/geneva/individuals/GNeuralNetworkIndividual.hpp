@@ -58,6 +58,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GGlobalOptionsT.hpp"
 #include "common/GLogger.hpp"
+#include "common/GSelfTestable.hpp"
 #include "common/GSingletonT.hpp"
 #include "common/GUnitTestFrameworkT.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -537,7 +538,8 @@ inline std::shared_ptr<networkData> createNetworkData(
  * standard back-propagation algorithm to train feed-forward neural networks.
  */
 class GNeuralNetworkIndividual // NOLINT(cppcoreguidelines-special-member-functions)
-  : public gen::GGenomeT<GNeuralNetworkIndividual> {
+  : public gen::GGenomeT<GNeuralNetworkIndividual>
+  , public Gem::Common::GSelfTestable {
     /////////////////////////////////////////////////////////////////////////////
 
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
@@ -1002,6 +1004,45 @@ protected:
      * @brief The evaluation hook: the training error of the network encoded by this individual's weights.
      */
     std::vector<double> evaluate() final;
+
+    /***************************************************************************/
+    /**
+     * @brief Applies modifications to this object. This is needed for testing purposes.
+     *
+     * Besides the category root's perturbation it switches the transfer function, so that the standard
+     * tests see the one member this class serializes.
+     *
+     * @return true: the object was modified
+     */
+    bool modify_GUnitTests_() override {
+#ifdef GEM_TESTING
+        gen::GGenome::modify_GUnitTests_();
+        t_f_ =
+            (t_f_ == transferFunction::SIGMOID) ? transferFunction::RBF : transferFunction::SIGMOID;
+        return true;
+#else  /* GEM_TESTING */
+        Gem::Common::condnotset("GNeuralNetworkIndividual::modify_GUnitTests", "GEM_TESTING");
+        return false;
+#endif /* GEM_TESTING */
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Performs self tests that are expected to succeed. This is needed for testing purposes.
+     *
+     * This class contributes no checks of its own; it opts into the self-test facet so that the
+     * category root's checks run for it under the standard tests.
+     */
+    void specificTestsNoFailureExpected_GUnitTests_() override {
+#ifdef GEM_TESTING
+        gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
+#else  /* GEM_TESTING */
+        Gem::Common::condnotset(
+            "GNeuralNetworkIndividual::specificTestsNoFailureExpected_GUnitTests",
+            "GEM_TESTING"
+        );
+#endif /* GEM_TESTING */
+    }
 
 public:
     /**

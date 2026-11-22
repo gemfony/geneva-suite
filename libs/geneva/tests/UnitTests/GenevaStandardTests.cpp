@@ -33,7 +33,16 @@
 
 #include <catch2/catch_template_test_macros.hpp>
 
+#include <algorithm>
 #include <cmath>
+#include <filesystem>
+#include <iterator>
+#include <mutex>
+#include <string>
+#include <tuple>
+#include <vector>
+
+#include <unistd.h> // getpid()
 
 // All classes that will be tested in this file
 #include "geneva/individuals/GDelayIndividual.hpp"
@@ -41,21 +50,23 @@
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/individuals/GMetaOptimizerIndividualT.hpp"
+#include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 #include "geneva/individuals/GTestIndividual1.hpp"
 #include "geneva/individuals/GTestIndividual2.hpp"
 #include "geneva/individuals/GTestIndividual3.hpp"
-#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
-#include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
-#include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
-#include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
-#include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (probe types)
-// Optimization algorithms
+// Optimization algorithms (each names its personality traits) and the store they register in
+#include "geneva/oa/GAntColonyOptimization.hpp"
 #include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
+#include "geneva/oa/GFactoryStore.hpp"
+#include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
+#include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GNelderMead.hpp"
 #include "geneva/oa/GParameterScan.hpp"
+#include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
+#include "geneva/oa/GStandardPSO2011.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 // Constraints
 #include "geneva/genome/GGenomeMultiConstraint.hpp"
@@ -97,24 +108,47 @@ inline std::shared_ptr<gind::GLineFitIndividual> TFactory_GUnitTests<gind::GLine
 }
 
 // ============================================================================
-// Standard tests — no failure expected
+// The type lists. The algorithms are listed ONCE; their personality traits are derived from that list
+// at compile time, and a test below compares the list with what the library registers, so a built-in
+// algorithm that is left out turns the suite red.
 // ============================================================================
 
-TEMPLATE_TEST_CASE(
-    "StandardTests_no_failure_expected — trait types",
-    "[geneva][standard]",
-    oa::GEvolutionaryAlgorithm_PersonalityTraits,
-    oa::GConjugateGradientDescent_PersonalityTraits,
-    oa::GSwarmAlgorithm_PersonalityTraits,
-    oa::GSimulatedAnnealing_PersonalityTraits,
-    oa::GParameterScan_PersonalityTraits
-) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
-}
+namespace {
 
-TEMPLATE_TEST_CASE(
-    "StandardTests_no_failure_expected — individual types",
-    "[geneva][standard]",
+/** @brief Every built-in algorithm that registers a factory in oaFactoryStore() (GBuiltinAlgorithms.cpp). */
+using registered_algorithm_types = std::tuple<
+    oa::GAntColonyOptimization,
+    oa::GConjugateGradientDescent,
+    oa::GEvolutionaryAlgorithm,
+    oa::GGeneralizedSimulatedAnnealing,
+    oa::GNelderMead,
+    oa::GParameterScan,
+    oa::GSepCmaEvolutionStrategy,
+    oa::GSimulatedAnnealing,
+    oa::GStandardPSO2011,
+    oa::GSwarmAlgorithm>;
+
+/** @brief The personality traits each algorithm of a list names, as a list. */
+template <typename list_type>
+struct personality_traits_of;
+template <typename... algorithm_types>
+struct personality_traits_of<std::tuple<algorithm_types...>> {
+    using type = std::tuple<typename algorithm_types::personality_traits_type...>;
+};
+
+/** @brief All algorithm types under the standard tests. GMetaEvolutionaryAlgorithm is added by hand: it
+ *  carries the EA's personality traits, so its mnemonic would be "ea", and it is not registered in the
+ *  factory store -- the store comparison below cannot see it. */
+using algorithm_types = decltype(std::tuple_cat(
+    std::declval<registered_algorithm_types>(),
+    std::declval<std::tuple<oa::GMetaEvolutionaryAlgorithm>>()
+));
+
+/** @brief The personality traits of all registered algorithms (MetaEA's are the EA's). */
+using trait_types = personality_traits_of<registered_algorithm_types>::type;
+
+/** @brief The individuals under the standard tests. */
+using individual_types = std::tuple<
     gind::GTestIndividual1,
     gind::GTestIndividual2,
     gind::GTestIndividual3,
@@ -122,42 +156,17 @@ TEMPLATE_TEST_CASE(
     gind::GFunctionIndividual,
     gind::GDelayIndividual,
     gind::GExternalEvaluatorIndividual,
-    gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>
-) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
-}
+    gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>,
+    gind::GNeuralNetworkIndividual>;
 
-// The concrete GGenomeConstraint subclasses defined in GFunctionIndividual.hpp.
-// They have public default + copy ctors and are tie-converted (they declare
-// localMembers()), so clone/copy/load/compare are exercised. They do not override
-// modify_GUnitTests_, so the standard test's (de)serialization round-trip block is
-// skipped here (it is covered separately by the focused round-trip TEST_CASEs below).
-TEMPLATE_TEST_CASE(
-    "StandardTests_no_failure_expected — constraint types",
-    "[geneva][standard]",
-    gind::GDoubleSumConstraint,
-    gind::GSphereConstraint,
-    gind::GDoubleSumGapConstraint
-) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
-}
+/** @brief The concrete GGenomeConstraint subclasses defined in GFunctionIndividual.hpp. They do not override
+ *  modify_GUnitTests_, so the standard test's (de)serialization round-trip block is skipped for them (it is
+ *  covered by the focused round-trip TEST_CASEs below). */
+using constraint_types =
+    std::tuple<gind::GDoubleSumConstraint, gind::GSphereConstraint, gind::GDoubleSumGapConstraint>;
 
-TEMPLATE_TEST_CASE(
-    "StandardTests_no_failure_expected — algorithm types",
-    "[geneva][standard]",
-    oa::GEvolutionaryAlgorithm,
-    oa::GSimulatedAnnealing,
-    oa::GSwarmAlgorithm,
-    oa::GConjugateGradientDescent,
-    oa::GParameterScan,
-    oa::GNelderMead
-) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
-}
-
-TEMPLATE_TEST_CASE(
-    "StandardTests_no_failure_expected — monitor types",
-    "[geneva][standard]",
+/** @brief The pluggable optimization monitors under the standard tests. */
+using monitor_types = std::tuple<
     GStandardMonitor,
     GFitnessMonitor,
     GCollectiveMonitor,
@@ -166,7 +175,111 @@ TEMPLATE_TEST_CASE(
     GNAdpationsLogger,
     GAdaptorPropertyLogger<double>,
     GProcessingTimesLogger,
-    gind::GOptOptMonitorT<gind::GFunctionIndividual>
+    gind::GOptOptMonitorT<gind::GFunctionIndividual>>;
+
+/** @brief The mnemonics of the registered algorithms, sorted.
+ *  @return One personality nickname per algorithm of registered_algorithm_types */
+template <typename... algorithm_types>
+std::vector<std::string> mnemonicsOf(std::tuple<algorithm_types...> const * /* list */) {
+    std::vector<std::string> mnemonics{
+        std::string(algorithm_types::personality_traits_type::nickname)...
+    };
+    std::ranges::sort(mnemonics);
+    return mnemonics;
+}
+
+/** @brief GNeuralNetworkIndividual reads its network geometry from a training-data file, through a
+ *  process-wide singleton. Writes a small hyper-cube data set to a temporary file, points the option the
+ *  singleton reads at it and loads the singleton once, before the first individual is built. */
+void provideNeuralNetworkTrainingData() {
+    static std::once_flag once;
+    std::call_once(once, [] {
+        auto const file = std::filesystem::temp_directory_path() /
+                          ("geneva_standard_tests_nn_" + std::to_string(::getpid()) + ".dat");
+        gind::GNeuralNetworkIndividual::createHyperCubeNetworkData({2, 3, 1}, 20, 0.5)
+            ->saveToDisk(file.string());
+        Gem::Common::neuralNetworkOptions()->set("trainingDataFile", file.string());
+        REQUIRE(gind::nnTrainingDataStore()->size() == 3); // loads the file into the singleton
+        std::filesystem::remove(file);
+    });
+}
+
+} // anonymous namespace
+
+TEST_CASE(
+    "Every algorithm in the factory store is in the standard tests' algorithm list",
+    "[geneva][standard]"
+) {
+    std::vector<std::string> const listed =
+        mnemonicsOf(static_cast<registered_algorithm_types const *>(nullptr));
+    std::vector<std::string> stored;
+    oaFactoryStore()->getKeyVector(stored);
+    std::ranges::sort(stored);
+
+    std::vector<std::string> missing_from_list;
+    std::ranges::set_difference(stored, listed, std::back_inserter(missing_from_list));
+    for(auto const &mnemonic : missing_from_list) {
+        FAIL_CHECK(
+            "The library registers algorithm \""
+            << mnemonic << "\", but registered_algorithm_types does not list it"
+        );
+    }
+
+    std::vector<std::string> missing_from_store;
+    std::ranges::set_difference(listed, stored, std::back_inserter(missing_from_store));
+    for(auto const &mnemonic : missing_from_store) {
+        FAIL_CHECK(
+            "registered_algorithm_types lists algorithm \""
+            << mnemonic << "\", but the library does not register it"
+        );
+    }
+
+    CHECK(listed == stored);
+}
+
+// ============================================================================
+// Standard tests — no failure expected
+// ============================================================================
+
+TEMPLATE_LIST_TEST_CASE(
+    "StandardTests_no_failure_expected — trait types",
+    "[geneva][standard]",
+    trait_types
+) {
+    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+}
+
+TEMPLATE_LIST_TEST_CASE(
+    "StandardTests_no_failure_expected — individual types",
+    "[geneva][standard]",
+    individual_types
+) {
+    if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
+        provideNeuralNetworkTrainingData();
+    }
+    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+}
+
+TEMPLATE_LIST_TEST_CASE(
+    "StandardTests_no_failure_expected — constraint types",
+    "[geneva][standard]",
+    constraint_types
+) {
+    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+}
+
+TEMPLATE_LIST_TEST_CASE(
+    "StandardTests_no_failure_expected — algorithm types",
+    "[geneva][standard]",
+    algorithm_types
+) {
+    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+}
+
+TEMPLATE_LIST_TEST_CASE(
+    "StandardTests_no_failure_expected — monitor types",
+    "[geneva][standard]",
+    monitor_types
 ) {
     Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
 }
@@ -175,68 +288,45 @@ TEMPLATE_TEST_CASE(
 // Standard tests — failures expected
 // ============================================================================
 
-TEMPLATE_TEST_CASE(
+TEMPLATE_LIST_TEST_CASE(
     "StandardTests_failures_expected — trait types",
     "[geneva][standard][failures-expected]",
-    oa::GEvolutionaryAlgorithm_PersonalityTraits,
-    oa::GConjugateGradientDescent_PersonalityTraits,
-    oa::GSwarmAlgorithm_PersonalityTraits,
-    oa::GSimulatedAnnealing_PersonalityTraits,
-    oa::GParameterScan_PersonalityTraits
+    trait_types
 ) {
     Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
 }
 
-TEMPLATE_TEST_CASE(
+TEMPLATE_LIST_TEST_CASE(
     "StandardTests_failures_expected — individual types",
     "[geneva][standard][failures-expected]",
-    gind::GTestIndividual1,
-    gind::GTestIndividual2,
-    gind::GTestIndividual3,
-    gind::GLineFitIndividual,
-    gind::GFunctionIndividual,
-    gind::GDelayIndividual,
-    gind::GExternalEvaluatorIndividual,
-    gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>
+    individual_types
 ) {
+    if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
+        provideNeuralNetworkTrainingData();
+    }
     Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
 }
 
-TEMPLATE_TEST_CASE(
+TEMPLATE_LIST_TEST_CASE(
     "StandardTests_failures_expected — constraint types",
     "[geneva][standard][failures-expected]",
-    gind::GDoubleSumConstraint,
-    gind::GSphereConstraint,
-    gind::GDoubleSumGapConstraint
+    constraint_types
 ) {
     Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
 }
 
-TEMPLATE_TEST_CASE(
+TEMPLATE_LIST_TEST_CASE(
     "StandardTests_failures_expected — algorithm types",
     "[geneva][standard][failures-expected]",
-    oa::GEvolutionaryAlgorithm,
-    oa::GSimulatedAnnealing,
-    oa::GSwarmAlgorithm,
-    oa::GConjugateGradientDescent,
-    oa::GParameterScan,
-    oa::GNelderMead
+    algorithm_types
 ) {
     Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
 }
 
-TEMPLATE_TEST_CASE(
+TEMPLATE_LIST_TEST_CASE(
     "StandardTests_failures_expected — monitor types",
     "[geneva][standard][failures-expected]",
-    GStandardMonitor,
-    GFitnessMonitor,
-    GCollectiveMonitor,
-    GProgressPlotter,
-    GAllSolutionFileLogger,
-    GNAdpationsLogger,
-    GAdaptorPropertyLogger<double>,
-    GProcessingTimesLogger,
-    gind::GOptOptMonitorT<gind::GFunctionIndividual>
+    monitor_types
 ) {
     Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
 }
@@ -331,13 +421,6 @@ TEST_CASE(
         CHECK(gep.isSimilar(restored, original));
     }
 }
-
-// NOTE: GNeuralNetworkIndividual's t_f_ (de)serialization fix (split save()/load()
-// now route t_f_ through serialize_members(localMembers())) is NOT unit-tested
-// here: a round-trip calls load(), which reloads the training data from disk via a
-// global singleton (./Datasets/*.dat) that is absent in the unit-test environment,
-// so the class cannot be (de)serialised standalone. The fix follows the same proven
-// serialize_members pattern and is compile-checked.
 
 // Safety net for the oa::GOptimizationAlgorithmBase serialize() refactor: oa::GOptimizationAlgorithmBase is the central
 // serialised class for all optimization algorithms (checkpoints + network
