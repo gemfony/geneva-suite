@@ -19,8 +19,8 @@ asserts that the reconstructed value matches the original.
 
 ```console
 $ ./weft_quickstart
-binary: round-tripped 24 bytes
-json:   {"id":42,"mass":"0x1.7cf5c28f5c28fp-101","label":"electron"}
+binary: round-tripped 28 bytes
+json:   {"id":42,"mass":"9.10938e-31","label":"electron"}
 quickstart: OK
 ```
 
