@@ -61,6 +61,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "weft/GWeftError.hpp"
 
 namespace Gem::Weft {
 
@@ -909,6 +910,16 @@ private:
             std::size_t idx = 0;
             d().member("index");
             process(idx);
+            // The index comes from the stream. One past the last alternative would match none
+            // below and leave the variant unchanged with its value unread.
+            if(idx >= std::variant_size_v<U>) {
+                throw weft_exception(
+                    weft_error_streamer()
+                    << "In GIArchiveT: variant index " << idx
+                    << " is out of range (the variant has "
+                    << std::variant_size_v<U> << " alternatives). Malformed archive." << '\n'
+                );
+            }
             d().member("value");
             // Runtime index -> compile-time alternative: read the alternative that
             // matches the stored index and assign it into the variant.
