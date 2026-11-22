@@ -39,6 +39,7 @@ SET ( COMMONSOURCES
 	GModuleLoader.cpp
 	GParserBuilder.cpp
 	GProgramIdentity.cpp
+	GRecordLogTarget.cpp
 	GStopRequest.cpp
 	concurrency/GThreadGroup.cpp
 	concurrency/GThreadPool.cpp

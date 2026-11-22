@@ -29,18 +29,27 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iostream>
+#include <iterator>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <sstream>
 #include <streambuf>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GRecordLogTarget.hpp"
+#include "common/record/GJsonLinesSink.hpp"
+#include "common/record/GRecorder.hpp"
 
 using namespace Gem::Common;
 
@@ -681,4 +690,191 @@ TEST_CASE(
     glogger.setDefaultLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
     glogger.setDefaultLogTarget(std::make_shared<GConsoleLogger>());
     CHECK_FALSE(glogger.hasLogTargets());
+}
+
+// ---------------------------------------------------------------------------
+// GRecordLogTarget: the log as a stream of the recorder
+
+namespace {
+
+// A fresh record directory per test case; at its end the targets are reset (which closes the
+// log stream) and every other stream is closed
+class RecordScratch {
+public:
+    explicit RecordScratch(std::string const &tag)
+      : dir_(scratch(
+            tag + "_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+        )) {
+        Record::recorder().setDirectory(dir_);
+    }
+    RecordScratch(RecordScratch const &) = delete;
+    RecordScratch(RecordScratch &&) = delete;
+    RecordScratch &operator=(RecordScratch const &) = delete;
+    RecordScratch &operator=(RecordScratch &&) = delete;
+    ~RecordScratch() {
+        glogger.resetLogTargets();
+        Record::recorder().closeAll();
+        std::error_code ec;
+        std::filesystem::remove_all(dir_, ec);
+    }
+    std::filesystem::path operator/(std::string const &name) const {
+        return dir_ / name;
+    }
+
+private:
+    std::filesystem::path dir_;
+};
+
+// The records of a CSV file, each a list of its fields; a quoted field may hold line breaks
+std::vector<std::vector<std::string>> csvRecords(std::filesystem::path const &file) {
+    std::ifstream in(file);
+    std::string const text{std::istreambuf_iterator<char>(in), {}};
+    std::vector<std::vector<std::string>> records;
+    std::vector<std::string> fields(1);
+    bool quoted = false;
+    for(std::size_t i = 0; i < text.size(); ++i) {
+        char const c = text[i];
+        if(quoted && c == '"' && i + 1 < text.size() && text[i + 1] == '"') {
+            fields.back() += '"';
+            ++i;
+        }
+        else if(c == '"') {
+            quoted = not quoted;
+        }
+        else if(not quoted && c == ',') {
+            fields.emplace_back();
+        }
+        else if(not quoted && c == '\n') {
+            records.push_back(std::exchange(fields, std::vector<std::string>(1)));
+        }
+        else {
+            fields.back() += c;
+        }
+    }
+    return records;
+}
+
+} // namespace
+
+TEST_CASE(
+    "GRecordLogTarget: severity and source arrive in their columns",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("severity");
+    Record::recorder().addSink("log", std::make_shared<Record::GJsonLinesSink>());
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    glogger << "plain message" << '\n' << GLOGGING;
+    glogger(std::string("modA")) << "careful" << '\n' << GWARNING;
+    glogger.resetLogTargets();
+
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 3);
+    CHECK(rows[0] == std::vector<std::string>{"time", "severity", "source", "text"});
+    REQUIRE(rows[1].size() == 4);
+    CHECK(rows[1][0].ends_with('Z'));
+    CHECK(rows[1][1] == "LOGGING");
+    CHECK(rows[1][2].empty());
+    CHECK(rows[1][3] == "plain message\n");
+    REQUIRE(rows[2].size() == 4);
+    CHECK(rows[2][1] == "WARNING");
+    CHECK(rows[2][2] == "modA");
+    CHECK(rows[2][3].contains("careful"));
+    CHECK(std::filesystem::exists(dir / "log.jsonl")); // the sink of addSink() joined the stream
+}
+
+TEST_CASE("GRecordLogTarget: a multi-line message is one row", "[common][logger][record]") {
+    RecordScratch const dir("multiline");
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    std::string const message = "first line\nsecond line, with a comma\n\"quoted\"\n";
+    glogger << message << GLOGGING;
+    glogger.resetLogTargets();
+
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 2);
+    REQUIRE(rows[1].size() == 4);
+    CHECK(rows[1][3] == message);
+}
+
+TEST_CASE(
+    "GRecordLogTarget: messages from several threads stay whole",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("threads");
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    constexpr std::size_t N_THREADS = 8;
+    constexpr std::size_t N_MESSAGES = 50;
+    std::set<std::string> expected;
+    for(std::size_t t = 0; t < N_THREADS; ++t) {
+        for(std::size_t i = 0; i < N_MESSAGES; ++i) {
+            expected.insert(
+                std::format("thread {} message {}\nsecond line of {}/{}\n", t, i, t, i)
+            );
+        }
+    }
+    {
+        std::vector<std::jthread> threads;
+        for(std::size_t t = 0; t < N_THREADS; ++t) {
+            threads.emplace_back([t] {
+                for(std::size_t i = 0; i < N_MESSAGES; ++i) {
+                    glogger << "thread " << t << " message " << i << '\n'
+                            << "second line of " << t << "/" << i << '\n'
+                            << GLOGGING;
+                }
+            });
+        }
+    }
+    glogger.resetLogTargets();
+
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 1 + N_THREADS * N_MESSAGES);
+    std::set<std::string> texts;
+    for(std::size_t r = 1; r < rows.size(); ++r) {
+        REQUIRE(rows[r].size() == 4);
+        texts.insert(rows[r][3]);
+    }
+    CHECK(texts == expected);
+}
+
+TEST_CASE(
+    "GRecordLogTarget: the backup warning of its own stream goes to std::cerr",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("backup");
+    std::filesystem::create_directories(dir / "");
+    std::ofstream(dir / "log.csv") << "an earlier file\n";
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    std::string err;
+    {
+        CerrCapture const capture;
+        glogger << "the first message" << '\n' << GLOGGING; // the sink backs up log.csv and warns
+        err = capture.text();
+    }
+    glogger.resetLogTargets();
+
+    CHECK(err.contains("Attempt to output information to file"));
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[1][3] == "the first message\n");
+}
+
+TEST_CASE(
+    "GRecordLogTarget: a message after closeAll() goes to std::cerr",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("closed");
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    glogger << "before the close" << '\n' << GLOGGING;
+    Record::recorder().closeAll();
+    std::string err;
+    {
+        CerrCapture const capture;
+        CHECK_NOTHROW(glogger << "after the close" << '\n' << GLOGGING);
+        err = capture.text();
+    }
+    glogger.resetLogTargets();
+
+    CHECK(err.contains("after the close"));
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[1][3] == "before the close\n");
 }
