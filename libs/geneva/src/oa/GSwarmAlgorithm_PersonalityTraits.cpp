@@ -63,13 +63,10 @@ const std::string GSwarmAlgorithm_PersonalityTraits::nickname = "swarm"; // NOLI
 GSwarmAlgorithm_PersonalityTraits::GSwarmAlgorithm_PersonalityTraits(
     const GSwarmAlgorithm_PersonalityTraits &cp
 )
-  : Gem::Common::GReflectiveInterfaceT<GSwarmAlgorithm_PersonalityTraits, GPersonalityTraits>(cp)
-  , neighborhood_(cp.neighborhood_)
-  , no_position_update_(cp.no_position_update_)
-  , personal_best_quality_(cp.personal_best_quality_) {
-    // Copy the personal_best_ vector over. The stored best is a bare individual carrying no personality
-    // (the personality lives on the population slot), so there is no "chain" of individuals to break.
-    Gem::Common::copyCloneableSmartPointer(cp.personal_best_, personal_best_);
+  : Gem::Common::GReflectiveInterfaceT<GSwarmAlgorithm_PersonalityTraits, GPersonalityTraits>(cp) {
+    // The members are copied through localMembers_(); the personal best is deep-cloned. It is a bare
+    // individual carrying no personality, so there is no "chain" of individuals to break.
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
 }
 
 /******************************************************************************/

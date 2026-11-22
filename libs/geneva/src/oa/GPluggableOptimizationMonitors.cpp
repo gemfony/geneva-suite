@@ -276,7 +276,7 @@ bool GFitnessMonitor::modify_GUnitTests_() {
  */
 GCollectiveMonitor::GCollectiveMonitor(const GCollectiveMonitor &cp)
   : Gem::Common::GReflectiveInterfaceT<GCollectiveMonitor, oa::GBasePluggableOM>(cp) {
-    Gem::Common::copyCloneableSmartPointerContainer(cp.pluggable_monitors_, pluggable_monitors_);
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_()); // monitors deep-cloned
 }
 
 /******************************************************************************/

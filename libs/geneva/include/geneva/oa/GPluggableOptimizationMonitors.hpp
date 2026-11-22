@@ -66,6 +66,10 @@
 #include "geneva/oa/GMonitorStream.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
+#ifdef GEM_TESTING
+#include <catch2/catch_test_macros.hpp>
+#endif /* GEM_TESTING */
+
 namespace Gem::Geneva {
 
 /******************************************************************************/
@@ -455,24 +459,32 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief The copy constructor; the copy has no stream (GMonitorStream) and no landscape sink of
-	  * its own
+	  * @brief The copy constructor: the configuration is copied through localMembers_(); the copy has
+	  * no stream (GMonitorStream) and no landscape sink of its own
 	  *
 	  * @param cp A constant reference to another GProgressPlotterT object whose data is deep-copied
 	  */
     GProgressPlotterT(const GProgressPlotterT<fp_type> &cp)
-      : Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, oa::GBasePluggableOM>(cp)
-      , canvas_label_(cp.canvas_label_)
-      , stream_name_(cp.stream_name_)
-      , canvas_dimensions_(cp.canvas_dimensions_)
-      , monitor_best_only_(cp.monitor_best_only_)
-      , monitor_valid_only_(cp.monitor_valid_only_)
-      , observe_boundaries_(cp.observe_boundaries_)
-      , add_print_command_(cp.add_print_command_)
-      , variable_names_(cp.variable_names_)
-      , landscape_resolution_(cp.landscape_resolution_) {
-        // The stream and its plot sink are transient and not copied.
-        Gem::Common::copyCloneableObjectsContainer(cp.fp_prof_var_vec_, fp_prof_var_vec_);
+      : Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, oa::GBasePluggableOM>(cp) {
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
+    }
+
+    /***************************************************************************/
+    /**
+	  * @brief The copy assignment: the configuration is copied through localMembers_(); the target
+	  * keeps its own stream and the landscape sink that belongs to that stream. (Not copy-and-move:
+	  * that would replace the target's stream with the temporary's empty one.)
+	  *
+	  * @param cp A constant reference to another GProgressPlotterT object whose data is copied
+	  * @return A reference to this object
+	  */
+    GProgressPlotterT &operator=(const GProgressPlotterT<fp_type> &cp) {
+        if(this != &cp) {
+            Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, oa::GBasePluggableOM>::
+            operator=(cp);
+            Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
+        }
+        return *this;
     }
 
     /***************************************************************************/
@@ -789,6 +801,31 @@ protected:
         Gem::Common::condnotset("GProgressPlotterT<fp_type>::modify_GUnitTests", "GEM_TESTING");
         return false;
 #endif                  /* GEM_TESTING */
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Performs self tests that are expected to succeed. This is needed for testing purposes
+     */
+    void specificTestsNoFailureExpected_GUnitTests_() override {
+#ifdef GEM_TESTING
+        { // An assigned plotter keeps its own landscape sink, as it keeps its own stream (regression:
+            // the implicit assignment took the source's sink, so a chain drew its landscape there)
+            GProgressPlotterT<fp_type> source;
+            source.landscape_sink_ = std::make_shared<detail::GLandscapePlotSink>(
+                Gem::Dietrich::GDataLog("landscape", 1, 1),
+                Gem::Dietrich::GDataLog::SeriesId{0}
+            );
+            GProgressPlotterT<fp_type> assigned;
+            assigned = source;
+            CHECK(assigned.landscape_sink_ != source.landscape_sink_);
+        }
+#else  /* GEM_TESTING */
+        Gem::Common::condnotset(
+            "GProgressPlotterT<fp_type>::specificTestsNoFailureExpected_GUnitTests",
+            "GEM_TESTING"
+        );
+#endif /* GEM_TESTING */
     }
 
     /***************************************************************************/
