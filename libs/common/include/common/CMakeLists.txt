@@ -60,6 +60,7 @@ SET ( COMMONINCLUDES
 	GParserBuilder.hpp
 	GProviderStoreT.hpp
 	GProviderT.hpp
+	GRecordLogTarget.hpp
 	GReflectiveInterfaceT.hpp
 	GSelfTestable.hpp
 	GSerializableFunctionObjectT.hpp
@@ -102,6 +103,7 @@ SET ( COMMONRECORDINCLUDES
 	record/GRecorder.hpp
 	record/GSink.hpp
 	record/GStream.hpp
+	record/GTextSink.hpp
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker

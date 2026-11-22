@@ -29,16 +29,29 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <chrono>
 #include <filesystem>
+#include <format>
 #include <fstream>
+#include <iostream>
+#include <iterator>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <sstream>
+#include <streambuf>
 #include <string>
+#include <thread>
+#include <utility>
 #include <vector>
 
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GRecordLogTarget.hpp"
+#include "common/record/GJsonLinesSink.hpp"
+#include "common/record/GRecorder.hpp"
+#include "common/record/GTextSink.hpp"
 
 using namespace Gem::Common;
 
@@ -150,7 +163,7 @@ TEST_CASE("GLogStreamer::reset() drops the accumulated content", "[common][logge
 }
 
 // ---------------------------------------------------------------------------
-// GConsoleLogger / GFileLogger
+// GConsoleLogger
 
 TEST_CASE("GConsoleLogger::log: callable", "[common][logger]") {
     // log() writes to std::clog. We can't easily intercept that here without
@@ -158,42 +171,6 @@ TEST_CASE("GConsoleLogger::log: callable", "[common][logger]") {
     GConsoleLogger const l;
     CHECK_NOTHROW(l.log("hello\n"));
     CHECK_NOTHROW(l.logWithSource("hello\n", "source-x"));
-}
-
-TEST_CASE("GFileLogger::log: appends the message to the configured file", "[common][logger]") {
-    auto path = scratch("flog_append.log");
-    std::filesystem::remove(path);
-
-    GFileLogger const l(path);
-    l.log("first-line\n");
-    l.log("second-line\n");
-
-    REQUIRE(std::filesystem::exists(path));
-    std::ifstream ifs(path);
-    std::string const content{std::istreambuf_iterator<char>(ifs), {}};
-    CHECK(content.contains("first-line"));
-    CHECK(content.contains("second-line"));
-
-    std::filesystem::remove(path);
-}
-
-TEST_CASE(
-    "GFileLogger::logWithSource: appends the source suffix to the file name",
-    "[common][logger]"
-) {
-    auto base_path = scratch("flog_source.log");
-    auto src_path = std::filesystem::path(base_path.string() + "_modA");
-    std::filesystem::remove(src_path);
-
-    GFileLogger const l(base_path);
-    l.logWithSource("payload-a\n", "modA");
-    REQUIRE(std::filesystem::exists(src_path));
-
-    std::ifstream ifs(src_path);
-    std::string const content{std::istreambuf_iterator<char>(ifs), {}};
-    CHECK(content.contains("payload-a"));
-
-    std::filesystem::remove(src_path);
 }
 
 // ---------------------------------------------------------------------------
@@ -424,37 +401,6 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// GFileLogger::logWithSource — first-call header vs. subsequent writes
-
-TEST_CASE(
-    "GFileLogger::logWithSource: header line appears on first write only",
-    "[common][logger]"
-) {
-    auto base_path = scratch("flog_first_flag.log");
-    auto src_path = std::filesystem::path(base_path.string() + "_chk");
-    std::filesystem::remove(src_path);
-
-    GFileLogger const l(base_path);
-    l.logWithSource("msg1\n", "chk");
-    l.logWithSource("msg2\n", "chk");
-
-    REQUIRE(std::filesystem::exists(src_path));
-    std::ifstream ifs(src_path);
-    std::string const content{std::istreambuf_iterator<char>(ifs), {}};
-
-    // The header "Logging data from source" must appear exactly once.
-    auto first_pos = content.find("Logging data from source");
-    REQUIRE(first_pos != std::string::npos);
-    CHECK(content.find("Logging data from source", first_pos + 1) == std::string::npos);
-
-    // Both payloads must be present.
-    CHECK(content.contains("msg1"));
-    CHECK(content.contains("msg2"));
-
-    std::filesystem::remove(src_path);
-}
-
-// ---------------------------------------------------------------------------
 // GLogger::setDefaultLogTarget: success path — verify the default is actually used
 
 TEST_CASE("GLogger::setDefaultLogTarget routes log() through the new default", "[common][logger]") {
@@ -478,4 +424,428 @@ TEST_CASE(
     g.logWithSource("payload\n", "ext");
     REQUIRE(cap->messages.size() == 1);
     CHECK(cap->messages[0] == "[ext] payload\n");
+}
+
+// ---------------------------------------------------------------------------
+// Re-entry: a target whose own path logs again through glogger on the same thread (a record
+// sink's backup warning, a plot emitter's warning). The inner call must not lock the logger's
+// mutex a second time -- a deadlock -- and must not reach the targets; it goes to std::cerr.
+
+namespace {
+
+// Redirects std::cerr into a string for the life of the object
+class CerrCapture {
+public:
+    CerrCapture()
+      : old_(std::cerr.rdbuf(buffer_.rdbuf())) {
+    }
+    ~CerrCapture() {
+        std::cerr.rdbuf(old_);
+    }
+    CerrCapture(CerrCapture const &) = delete;
+    CerrCapture &operator=(CerrCapture const &) = delete;
+    CerrCapture(CerrCapture &&) = delete;
+    CerrCapture &operator=(CerrCapture &&) = delete;
+
+    [[nodiscard]] std::string text() const {
+        return buffer_.str();
+    }
+
+private:
+    std::ostringstream buffer_;
+    std::streambuf *old_;
+};
+
+// A target that logs again through glogger from inside log(), with the given manipulator
+class ReenteringTarget : public GBaseLogTarget {
+public:
+    explicit ReenteringTarget(logType inner)
+      : inner_(inner) {
+    }
+    void log(std::string const &msg) const override {
+        messages.push_back(msg);
+        glogger << "inner message" << '\n' << GManipulator(inner_);
+    }
+    void logWithSource(std::string const &msg, std::string const &src) const override {
+        this->log("[" + src + "] " + msg);
+    }
+    mutable std::vector<std::string> messages;
+
+private:
+    logType inner_;
+};
+
+// Logs twice through a ReenteringTarget: the outer messages reach it, the inner ones std::cerr
+void checkReentry(logType inner) {
+    auto target = std::make_shared<ReenteringTarget>(inner);
+    glogger.addLogTarget(target);
+    std::string err;
+    {
+        CerrCapture const capture;
+        glogger << "outer message" << '\n' << GLOGGING;
+        glogger(std::string("src")) << "outer with source" << '\n' << GWARNING;
+        err = capture.text();
+    }
+    glogger.resetLogTargets();
+
+    REQUIRE(target->messages.size() == 2);
+    CHECK(target->messages[0] == "outer message\n");
+    CHECK(target->messages[1].starts_with("[src] "));
+    CHECK(target->messages[1].contains("outer with source"));
+    auto const first = err.find("inner message");
+    REQUIRE(first != std::string::npos);
+    CHECK(err.find("inner message", first + 1) != std::string::npos);
+}
+
+} // namespace
+
+TEST_CASE(
+    "GLogger: a target that logs again with GLOGGING does not deadlock",
+    "[common][logger][reentry]"
+) {
+    checkReentry(logType::LOGGING);
+}
+
+TEST_CASE(
+    "GLogger: a target that logs again with GWARNING does not deadlock",
+    "[common][logger][reentry]"
+) {
+    checkReentry(logType::WARNING);
+}
+
+TEST_CASE(
+    "GLogger: a target that writes with GSTDERR does not deadlock",
+    "[common][logger][reentry]"
+) {
+    checkReentry(logType::STDERR);
+}
+
+// ---------------------------------------------------------------------------
+// Severity: the targets learn the kind of message
+
+namespace {
+
+// A target that records the severity and the source of each message
+class SeverityTarget : public GBaseLogTarget {
+public:
+    struct Entry {
+        logType severity;
+        std::string source;
+        std::string message;
+    };
+    void log(std::string const &msg) const override {
+        entries.push_back({logType::FILE, "", msg}); // only the severity overloads are expected
+    }
+    void logWithSource(std::string const &msg, std::string const &src) const override {
+        entries.push_back({logType::FILE, src, msg});
+    }
+    void log(std::string const &msg, logType severity) const override {
+        entries.push_back({severity, "", msg});
+    }
+    void
+    logWithSource(std::string const &msg, std::string const &src, logType severity) const override {
+        entries.push_back({severity, src, msg});
+    }
+    mutable std::vector<Entry> entries;
+};
+
+} // namespace
+
+TEST_CASE("GLogger: GLOGGING and GWARNING pass their severity to the targets", "[common][logger]") {
+    auto target = std::make_shared<SeverityTarget>();
+    glogger.addLogTarget(target);
+    glogger << "plain" << '\n' << GLOGGING;
+    glogger << "careful" << '\n' << GWARNING;
+    glogger(std::string("modY")) << "plain with source" << '\n' << GLOGGING;
+    glogger(std::string("modY")) << "careful with source" << '\n' << GWARNING;
+    glogger.resetLogTargets();
+
+    REQUIRE(target->entries.size() == 4);
+    CHECK(target->entries[0].severity == logType::LOGGING);
+    CHECK(target->entries[0].message == "plain\n");
+    CHECK(target->entries[1].severity == logType::WARNING);
+    CHECK(target->entries[1].message.contains("careful"));
+    CHECK(target->entries[2].severity == logType::LOGGING);
+    CHECK(target->entries[2].source == "modY");
+    CHECK(target->entries[3].severity == logType::WARNING);
+    CHECK(target->entries[3].source == "modY");
+}
+
+TEST_CASE(
+    "GLogger::log: a target without the severity overloads still gets the message",
+    "[common][logger]"
+) {
+    GLogger g;
+    auto target = std::make_shared<CapturingTarget>();
+    g.addLogTarget(target);
+    g.log("a warning\n", logType::WARNING);
+    g.logWithSource("an exit\n", "modZ", logType::EXIT);
+    REQUIRE(target->messages.size() == 2);
+    CHECK(target->messages[0] == "a warning\n");
+    CHECK(target->messages[1] == "[modZ] an exit\n");
+}
+
+// ---------------------------------------------------------------------------
+// Release: a target whose destructor logs (a record target closes its stream, and a failed
+// close is reported through the log) must not be destroyed under the logger's mutex.
+
+namespace {
+
+class LogsWhenDestroyedTarget : public GBaseLogTarget {
+public:
+    LogsWhenDestroyedTarget() = default;
+    LogsWhenDestroyedTarget(LogsWhenDestroyedTarget const &) = delete;
+    LogsWhenDestroyedTarget(LogsWhenDestroyedTarget &&) = delete;
+    LogsWhenDestroyedTarget &operator=(LogsWhenDestroyedTarget const &) = delete;
+    LogsWhenDestroyedTarget &operator=(LogsWhenDestroyedTarget &&) = delete;
+    ~LogsWhenDestroyedTarget() override {
+        glogger << "a target is destroyed" << '\n' << GLOGGING;
+    }
+    void log(std::string const &) const override { /* nothing */
+    }
+    void logWithSource(std::string const &, std::string const &) const override { /* nothing */
+    }
+};
+
+} // namespace
+
+TEST_CASE(
+    "GLogger::resetLogTargets: a target whose destructor logs does not deadlock",
+    "[common][logger][release]"
+) {
+    glogger.addLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
+    glogger.resetLogTargets();
+    CHECK_FALSE(glogger.hasLogTargets());
+}
+
+TEST_CASE(
+    "GLogger::setDefaultLogTarget: a replaced default whose destructor logs does not deadlock",
+    "[common][logger][release]"
+) {
+    glogger.setDefaultLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
+    glogger.setDefaultLogTarget(std::make_shared<GConsoleLogger>());
+    CHECK_FALSE(glogger.hasLogTargets());
+}
+
+// ---------------------------------------------------------------------------
+// GRecordLogTarget: the log as a stream of the recorder
+
+namespace {
+
+// A fresh record directory per test case; at its end the targets are reset (which closes the
+// log stream) and every other stream is closed
+class RecordScratch {
+public:
+    explicit RecordScratch(std::string const &tag)
+      : dir_(scratch(
+            tag + "_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count())
+        )) {
+        Record::recorder().setDirectory(dir_);
+    }
+    RecordScratch(RecordScratch const &) = delete;
+    RecordScratch(RecordScratch &&) = delete;
+    RecordScratch &operator=(RecordScratch const &) = delete;
+    RecordScratch &operator=(RecordScratch &&) = delete;
+    ~RecordScratch() {
+        glogger.resetLogTargets();
+        Record::recorder().closeAll();
+        std::error_code ec;
+        std::filesystem::remove_all(dir_, ec);
+    }
+    std::filesystem::path operator/(std::string const &name) const {
+        return dir_ / name;
+    }
+
+private:
+    std::filesystem::path dir_;
+};
+
+// The records of a CSV file, each a list of its fields; a quoted field may hold line breaks
+std::vector<std::vector<std::string>> csvRecords(std::filesystem::path const &file) {
+    std::ifstream in(file);
+    std::string const text{std::istreambuf_iterator<char>(in), {}};
+    std::vector<std::vector<std::string>> records;
+    std::vector<std::string> fields(1);
+    bool quoted = false;
+    for(std::size_t i = 0; i < text.size(); ++i) {
+        char const c = text[i];
+        if(quoted && c == '"' && i + 1 < text.size() && text[i + 1] == '"') {
+            fields.back() += '"';
+            ++i;
+        }
+        else if(c == '"') {
+            quoted = not quoted;
+        }
+        else if(not quoted && c == ',') {
+            fields.emplace_back();
+        }
+        else if(not quoted && c == '\n') {
+            records.push_back(std::exchange(fields, std::vector<std::string>(1)));
+        }
+        else {
+            fields.back() += c;
+        }
+    }
+    return records;
+}
+
+} // namespace
+
+TEST_CASE(
+    "GRecordLogTarget: severity and source arrive in their columns",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("severity");
+    Record::recorder().addSink("log", std::make_shared<Record::GJsonLinesSink>());
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    glogger << "plain message" << '\n' << GLOGGING;
+    glogger(std::string("modA")) << "careful" << '\n' << GWARNING;
+    glogger.resetLogTargets();
+
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 3);
+    CHECK(rows[0] == std::vector<std::string>{"time", "severity", "source", "text"});
+    REQUIRE(rows[1].size() == 4);
+    CHECK(rows[1][0].ends_with('Z'));
+    CHECK(rows[1][1] == "LOGGING");
+    CHECK(rows[1][2].empty());
+    CHECK(rows[1][3] == "plain message\n");
+    REQUIRE(rows[2].size() == 4);
+    CHECK(rows[2][1] == "WARNING");
+    CHECK(rows[2][2] == "modA");
+    CHECK(rows[2][3].contains("careful"));
+    CHECK(std::filesystem::exists(dir / "log.jsonl")); // the sink of addSink() joined the stream
+}
+
+TEST_CASE("GRecordLogTarget: a multi-line message is one row", "[common][logger][record]") {
+    RecordScratch const dir("multiline");
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    std::string const message = "first line\nsecond line, with a comma\n\"quoted\"\n";
+    glogger << message << GLOGGING;
+    glogger.resetLogTargets();
+
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 2);
+    REQUIRE(rows[1].size() == 4);
+    CHECK(rows[1][3] == message);
+}
+
+TEST_CASE(
+    "GRecordLogTarget: messages from several threads stay whole",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("threads");
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    constexpr std::size_t N_THREADS = 8;
+    constexpr std::size_t N_MESSAGES = 50;
+    std::set<std::string> expected;
+    for(std::size_t t = 0; t < N_THREADS; ++t) {
+        for(std::size_t i = 0; i < N_MESSAGES; ++i) {
+            expected.insert(
+                std::format("thread {} message {}\nsecond line of {}/{}\n", t, i, t, i)
+            );
+        }
+    }
+    {
+        std::vector<std::jthread> threads;
+        for(std::size_t t = 0; t < N_THREADS; ++t) {
+            threads.emplace_back([t] {
+                for(std::size_t i = 0; i < N_MESSAGES; ++i) {
+                    glogger << "thread " << t << " message " << i << '\n'
+                            << "second line of " << t << "/" << i << '\n'
+                            << GLOGGING;
+                }
+            });
+        }
+    }
+    glogger.resetLogTargets();
+
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 1 + N_THREADS * N_MESSAGES);
+    std::set<std::string> texts;
+    for(std::size_t r = 1; r < rows.size(); ++r) {
+        REQUIRE(rows[r].size() == 4);
+        texts.insert(rows[r][3]);
+    }
+    CHECK(texts == expected);
+}
+
+TEST_CASE(
+    "GRecordLogTarget: the backup warning of its own stream goes to std::cerr",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("backup");
+    std::filesystem::create_directories(dir / "");
+    std::ofstream(dir / "log.csv") << "an earlier file\n";
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    std::string err;
+    {
+        CerrCapture const capture;
+        glogger << "the first message" << '\n' << GLOGGING; // the sink backs up log.csv and warns
+        err = capture.text();
+    }
+    glogger.resetLogTargets();
+
+    CHECK(err.contains("Attempt to output information to file"));
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[1][3] == "the first message\n");
+}
+
+TEST_CASE(
+    "GRecordLogTarget: a message after closeAll() goes to std::cerr",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("closed");
+    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    glogger << "before the close" << '\n' << GLOGGING;
+    Record::recorder().closeAll();
+    std::string err;
+    {
+        CerrCapture const capture;
+        CHECK_NOTHROW(glogger << "after the close" << '\n' << GLOGGING);
+        err = capture.text();
+    }
+    glogger.resetLogTargets();
+
+    CHECK(err.contains("after the close"));
+    auto const rows = csvRecords(dir / "log.csv");
+    REQUIRE(rows.size() == 2);
+    CHECK(rows[1][3] == "before the close\n");
+}
+
+TEST_CASE(
+    "GRecordLogTarget with a GTextSink: one message per line with time and severity in front",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("text");
+    glogger.addLogTarget(
+        std::make_shared<GRecordLogTarget>(
+            "plain",
+            std::vector<std::shared_ptr<Record::GSink>>{std::make_shared<Record::GTextSink>()}
+        )
+    );
+    glogger << "first message" << '\n' << GLOGGING;
+    glogger << "second message, no line break" << GLOGGING;
+    glogger(std::string("modA")) << "from a source" << '\n' << GLOGGING;
+    glogger << "careful" << '\n' << GWARNING;
+    glogger.resetLogTargets();
+
+    std::ifstream in(dir / "plain.log");
+    std::vector<std::string> lines;
+    for(std::string line; std::getline(in, line);) {
+        lines.push_back(line);
+    }
+    REQUIRE(lines.size() > 4);
+    // "2026-11-22T14:56:03Z LOGGING first message": the time to the second, in UTC
+    REQUIRE(lines[0].size() > 21);
+    CHECK(lines[0][20] == ' ');
+    CHECK(lines[0][4] == '-');
+    CHECK(lines[0][10] == 'T');
+    CHECK(lines[0][19] == 'Z');
+    CHECK(lines[0].substr(21) == "LOGGING first message");
+    CHECK(lines[1].substr(21) == "LOGGING second message, no line break");
+    CHECK(lines[2].substr(21) == "LOGGING modA from a source");
+    CHECK(lines[3].substr(21) == "WARNING"); // the banner of a warning begins on the next line
+    CHECK(std::ranges::any_of(lines, [](std::string const &l) { return l.contains("careful"); }));
 }

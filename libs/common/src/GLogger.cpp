@@ -81,83 +81,119 @@ void GConsoleLogger::logWithSource(std::string const &msg, std::string const &ex
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
-/*******************************************************************************/
+/******************************************************************************/
+namespace {
+// True while THIS thread hands a message to the log targets (GLogger::log(), logWithSource()). A
+// logger call that arrives from inside a target then does not lock the logger's mutex again.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) -- a per-thread state flag: it must change
+thread_local bool thisThreadDelivers = false;
+
+// Marks this thread as handing a message to the targets, for the life of the object -- so the
+// mark is cleared on every way out, also when a target throws.
+class GDeliveryScope {
+public:
+    GDeliveryScope() {
+        thisThreadDelivers = true;
+    }
+    ~GDeliveryScope() {
+        thisThreadDelivers = false;
+    }
+    GDeliveryScope(GDeliveryScope const &) = delete;
+    GDeliveryScope(GDeliveryScope &&) = delete;
+    GDeliveryScope &operator=(GDeliveryScope const &) = delete;
+    GDeliveryScope &operator=(GDeliveryScope &&) = delete;
+};
+} // namespace
+
+/******************************************************************************/
 /**
- * @brief This constructor accepts a path to a log-file name as argument
+ * @brief Locks the logger's mutex -- unless this thread is handing a message to the targets
+ * already, where it holds the mutex and locking it again would deadlock.
  *
- * @param p The filesystem path of the log file to write to
+ * @return The lock; one that owns nothing in that case
  */
-GFileLogger::GFileLogger(std::filesystem::path const &p)
-  : fname_(p.string()) { /* nothing */
+std::unique_lock<std::mutex> GLogger::lock_() const {
+    if(thisThreadDelivers) {
+        return {logger_mutex_, std::defer_lock};
+    }
+    return std::unique_lock<std::mutex>(logger_mutex_);
 }
 
 /******************************************************************************/
 /**
- * @brief Logs a message to a file in append mode
+ * @brief Hands a message to every registered log target, or to the default target if none
+ * is registered.
  *
- * This function logs a message to a file, whose name it takes from the private
- * variable fname_. The file is reopened in append mode for every log message. On
- * a failure to open the file, the message is written to std::cerr instead.
+ * Thread-safe; see deliver_(). Throws if neither a target nor a default target is available.
  *
- * @param msg The log message to be appended to the file
+ * @param message The message to be forwarded to the log targets
+ * @param severity The kind of message, passed on to the targets
  */
-void GFileLogger::log(std::string const &msg) const {
-    std::ofstream ofstr(
-        std::filesystem::path(fname_),
-        std::ios_base::app
-    ); // NOLINT(cppcoreguidelines-init-variables)
-    if(ofstr) {
-        ofstr << msg;
-        ofstr.close();
-    }
-    else {
-        // A transient file-open failure (disk full, EACCES, ...) must never bring the
-        // optimisation down: fall back to std::cerr so the message is at least visible,
-        // with a one-line diagnostic that makes the lost log target visible to the
-        // operator. Do NOT turn this back into a fatal path.
-        std::cerr << "[GFileLogger::log] could not open \"" << fname_
-                  << "\" for appending — falling back to stderr:" << '\n'
-                  << msg;
-    }
+void GLogger::log(std::string const &message, logType severity) const {
+    this->deliver_(message, nullptr, severity);
 }
 
 /******************************************************************************/
 /**
- * @brief Logs a message to a source-specific file in append mode
+ * @brief Hands a message, together with an identifier of its source, to every registered log
+ * target, or to the default target if none is registered.
  *
- * This function logs a message to a file, whose name it takes from the private
- * variable fname_. The file is reopened in append mode for every log message.
- * In addition to the standard log() function, this function appends the logging
- * source to the file name. On a failure to open the file, the message is written
- * to std::cerr instead.
+ * Thread-safe; see deliver_(). Throws if neither a target nor a default target is available.
  *
- * @param msg The log message to be appended to the file
- * @param extension An identifier of the logging source, appended (with an underscore) to the file name
+ * @param message The message to be forwarded to the log targets
+ * @param extension An identifier of the logging source forwarded alongside the message
+ * @param severity The kind of message, passed on to the targets
  */
-void GFileLogger::logWithSource(std::string const &msg, std::string const &extension) const {
-    std::ofstream ofstr(
-        std::filesystem::path(fname_ + "_" + extension),
-        std::ios_base::app
-    ); // NOLINT(cppcoreguidelines-init-variables)
-    if(ofstr) {
-        if(first_) {
-            ofstr << "Logging data from source " + extension << '\n' << msg;
-            ofstr.close();
-            first_ = false;
+void GLogger::logWithSource(
+    std::string const &message,
+    std::string const &extension,
+    logType severity
+) const {
+    this->deliver_(message, &extension, severity);
+}
+
+/******************************************************************************/
+/**
+ * @brief Calls the targets for log() and logWithSource().
+ *
+ * The targets are called under the logger's mutex, one message at a time, so a target needs no
+ * lock of its own. A call from inside a target, on the same thread, writes the message to
+ * std::cerr instead and returns: it does not lock again and does not reach the targets.
+ *
+ * @param message The message
+ * @param extension The identifier of the message's source; none: the targets' log() is called
+ * @param severity The kind of message
+ */
+void GLogger::deliver_(
+    std::string const &message,
+    std::string const *extension,
+    logType severity
+) const {
+    if(thisThreadDelivers) {
+        std::cerr << message;
+        return;
+    }
+    std::scoped_lock const lk(logger_mutex_);
+    GDeliveryScope const delivering;
+
+    auto const call = [&](GBaseLogTarget const &target) {
+        if(extension != nullptr) {
+            target.logWithSource(message, *extension, severity);
         }
         else {
-            ofstr << msg;
-            ofstr.close();
+            target.log(message, severity);
+        }
+    };
+    if(not log_cnt_.empty()) {
+        for(auto const &target : log_cnt_) {
+            call(*target);
         }
     }
+    else if(default_logger_) {
+        call(*default_logger_);
+    }
     else {
-        // Same fallback as GFileLogger::log(): a transient open failure
-        // should not bring the optimisation down. Emit a one-line
-        // diagnostic to stderr and let execution continue.
-        std::cerr << "[GFileLogger::logWithSource] could not open \"" << (fname_ + "_" + extension)
-                  << "\" for appending — "
-                  << "falling back to stderr:" << '\n'
-                  << msg;
+        raiseException("In GLogger::log(): Error!" << '\n' << "No loggers found" << '\n');
     }
 }
 
@@ -354,6 +390,27 @@ std::string assembleBanner(
     );
 }
 
+/******************************************************************************/
+/**
+ * @brief Appends a text to a file of the error path (GEM-EXCEPTION.log, GEM-TERMINATION.log, the
+ * file of GFILE): opened for this text alone, so that it works while the program fails, and
+ * appended to across runs. If the file cannot be opened, the text goes to std::cerr -- a failure
+ * to write a log must not bring the program down.
+ *
+ * @param file The file
+ * @param text The text
+ */
+void appendToFile(std::filesystem::path const &file, std::string const &text) {
+    std::ofstream out(file, std::ios_base::app);
+    if(out) {
+        out << text;
+        return;
+    }
+    std::cerr << "[GLogger] could not open \"" << file.string()
+              << "\" for appending -- falling back to stderr:" << '\n'
+              << text;
+}
+
 /// The advisory shown for hard errors (EXCEPTION / TERMINATION).
 constexpr std::string_view ERROR_ADVICE = "If you suspect that this error is due to Geneva,\n"
                                           "then please consider filing a bug.";
@@ -388,12 +445,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             ERROR_ADVICE
         );
 
-        // Do all necessary logging. We use a central exception file for this purpose.
-        // The logger's routines will in addition try to print on the console. Note
-        // that we ignore any "source" information, as this is already contained
-        // in the logged message.
-        GFileLogger const gfl("GEM-EXCEPTION.log");
-        gfl.log(error);
+        // Record the error in a central exception file; nothing is printed on the console
+        // here -- the message travels with the exception. Note that we ignore any "source"
+        // information, as this is already contained in the logged message.
+        appendToFile("GEM-EXCEPTION.log", error);
 
         // Send the exception out. This done globally, so an exception
         // thrown from within a thread doesn't get lost.
@@ -410,12 +465,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             ERROR_ADVICE
         );
 
-        // Do all necessary logging. We use a central exception file for this purpose.
-        // The logger's routines will in addition try to print on the console. Note
-        // that we ignore any "source" information, as this is already contained
-        // in the logged message.
-        GFileLogger const gfl("GEM-TERMINATION.log");
-        gfl.log(error);
+        // Record the error in a central termination file; terminateApplication() also
+        // prints it on std::cerr. Note that we ignore any "source" information, as this is
+        // already contained in the logged message.
+        appendToFile("GEM-TERMINATION.log", error);
 
         // Initiate the termination sequence.
         glogger_ptr->terminateApplication(error);
@@ -433,10 +486,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
 
         // Do all necessary logging.
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(warning, this->getExtension());
+            glogger_ptr->logWithSource(warning, this->getExtension(), logType::WARNING);
         }
         else {
-            glogger_ptr->log(warning);
+            glogger_ptr->log(warning, logType::WARNING);
         }
     } break;
 
@@ -444,18 +497,17 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
     case Gem::Common::logType::LOGGING: {
         // Do all necessary logging.
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(oss_.str(), this->getExtension());
+            glogger_ptr->logWithSource(oss_.str(), this->getExtension(), logType::LOGGING);
         }
         else {
-            glogger_ptr->log(oss_.str());
+            glogger_ptr->log(oss_.str(), logType::LOGGING);
         }
     } break;
 
     //------------------------------------------------------------------------
     case Gem::Common::logType::FILE: {
         if(this->hasOneTimeLogFile()) {
-            GFileLogger const gfl(this->getOneTimeLogFile());
-            gfl.log(oss_.str());
+            appendToFile(this->getOneTimeLogFile(), oss_.str());
         }
         else {
             raiseException(
@@ -487,10 +539,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         msg << oss_.str() << '\n';
 
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(msg.str(), this->getExtension());
+            glogger_ptr->logWithSource(msg.str(), this->getExtension(), logType::EXIT);
         }
         else {
-            glogger_ptr->log(msg.str());
+            glogger_ptr->log(msg.str(), logType::EXIT);
         }
 
         glogger_ptr->exitApplication(msg.str(), gm.getReturnCode());

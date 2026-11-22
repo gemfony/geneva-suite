@@ -547,7 +547,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     with the old names is configured again (`prepareBuild.sh <gcfg> --clean -y`);
   - the environment variables `GEM_CONFIG_BASENAME` and `GEM_RUN_TIMEOUT` (`startLocalJobs.sh`);
   - the log files a program writes into its working directory: `GEM-EXCEPTION.log`,
-    `GEM-TERMINATION.log`, `Gem-Library-Collection.log`;
+    `GEM-TERMINATION.log`;
   - the file `GEM_COMMIT` at the top of the sources and the container build argument
     `GEM_COMMIT` (`--build-arg GEM_COMMIT=$(git rev-parse HEAD)`);
   - the CMake presets `gem-default` (`CMakePresets.json`) and `gem-from-script` (written by
@@ -814,6 +814,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   this change that holds such a monitor is not meant to load.
 - **Corrected on the way.** The progress plotter of a Go2 chain kept only the last algorithm's
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
+- **The log file is a stream.** `GRecordLogTarget` (columns time, severity, source, text; plain
+  text with `GTextSink`) replaces `GFileLogger`; a target may override `log(message, logType)`.
 - **courtier's end-of-run report.** When the launcher releases a consumer that counts something,
   the consumer appends one row of its counters to the stream `courtier`
   (`GBaseConsumerT::recordEndOfRun()`, `endOfRunFigures()`): a networked consumer its connected

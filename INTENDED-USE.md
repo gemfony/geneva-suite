@@ -1,65 +1,51 @@
 # Intended use of the Gemfony Scientific Library Collection
 
 The one home of the collection's intended use (Invariant 20). Invariant 14 measures a generalization
-against it, Invariant 23 measures reviews of public API against it, and the manual reflects it in
-its appendix chapter "Intended Use" (manual invariant D15). Status: first version of 2026-11-22, to be curated by the
-maintainer.
+against it, Invariant 23 measures reviews of public API against it, and the manual states it in its
+appendix chapter "Intended Use" (manual invariant D15). Curated by the maintainer, 2026-11-22.
 
 ## Who uses the collection
 
-The collection is a set of C++23 libraries that **other programs link against**. Its users write those
-programs. The programs inside this repository (examples, tests, benchmarks, documentation programs) only
-demonstrate and check the libraries; they are not its users and do not show the full range of use
-(Invariant 23).
+The collection is a set of C++23 libraries that other programs link against. Its users are the authors
+of those programs. Examples, tests, benchmarks and documentation programs of the source tree
+demonstrate and check the libraries, but do not show the full range of their use.
 
 ## What it is for
 
-- **Geneva: parametric optimization of expensive problems.** The typical evaluation of one candidate
-  takes seconds, minutes or hours: a simulation, a numerical model, a measurement chain, an external
-  program. Problems with evaluations in the microsecond range are allowed, but the libraries are not
-  tuned for them.
-- **Several algorithms on one problem description.** A user describes the problem once and can run any
-  of the algorithms on it, alone or chained.
-- **The same program from one core to many machines.** It runs serially, multi-threaded, on GPUs, or
-  distributed over a network (MPI, websocket, MQTT), from a workstation to clusters and HPC systems
-  under a batch system, with on the order of a thousand nodes. The choice is made at start-up (command
-  line, configuration file), without changing the user's code.
-- **The libraries below Geneva on their own.**
-  - courtier distributes any kind of compute task;
-  - hap supplies random numbers in quantity;
-  - weft serializes objects;
-  - dietrich turns collected data into plots for several backends;
-  - common holds the shared foundation, including the recording of data series.
-  Programs may use them without any optimization.
-- **Extension at run time.** Users add their own individuals, optimization algorithms and consumers as
-  loadable modules, on an equal footing with the shipped ones.
+- **Parametric optimization of computationally expensive problems.** The typical evaluation of one
+  candidate takes seconds, minutes or hours: a simulation, a numerical model, a chain of measurements or
+  an external program. Problems whose evaluations take microseconds can be solved as well, but should
+  restrict themselves to local execution.
+- **Several optimization algorithms target one problem description.** A problem is described once, and
+  any of the algorithms can run on it, alone or chained, one after the other.
+- **The same program from one core to many machines.** A program runs serially, multi-threaded, on GPUs
+  or distributed over MPI, websockets or MQTT, from a workstation to clusters under a batch system with
+  up to about a thousand nodes. The choice is made at start-up, without changes to the user's code.
+- **The libraries below Geneva on their own.** courtier distributes compute tasks, hap supplies random
+  numbers, weft serializes objects, dietrich plots collected data, and common holds the shared
+  foundation; each can be used without any optimization.
+- **Extension at run time.** Users add individuals, algorithms and consumers as modules loaded at
+  start-up, on an equal footing with the shipped ones.
 - **Watching and recording a run.** Recorded data go to files that other tools read (CSV, JSON Lines,
   plot scripts).
 
 ## The conditions it assumes
 
-- **A trusted network** between the processes of one run (a cluster, or a VPN or ssh tunnel). The
-  libraries do not authenticate or encrypt.
-- **Linux** as the main platform, with recent GCC and Clang, CMake and a small set of Boost components.
-  Other platforms are not excluded but are not tested.
-- **Random numbers are not reproducible** run to run (Invariant 18). Results are judged statistically.
-  Reproducible sequences are not hap's use case: they would need a very large rebuild of the framework,
-  and they depend on the machine architecture as well. A program that needs them uses the engines of
-  the C++ standard library (maintainer, 2026-11-22).
-- **Long runs end cleanly** on a batch system's warning (SIGHUP, SIGUSR1) and resume from checkpoints.
+- The processes of a distributed run communicate over a trusted network, a cluster or a connection
+  protected by a VPN or an ssh tunnel. The libraries do not authenticate their peers or encrypt their
+  traffic.
+- Linux is the main platform, with recent versions of GCC and Clang, CMake and a small set of Boost
+  components. Other platforms are not excluded, but they are not tested.
+- Random numbers are not reproducible from one run to the next, and results are judged statistically. A
+  program that needs reproducible random numbers uses the engines of the C++ standard library.
+- A long run ends cleanly when a batch system sends its warning (SIGHUP or SIGUSR1), and it can be
+  resumed from a checkpoint.
 
 ## What it is not meant for
 
-- A stand-alone optimization application with a user interface. It is a toolkit for programs.
-- Hard real-time use, or results that must be bit-for-bit reproducible.
+- A stand-alone optimization application with a user interface. The collection can be the basis of
+  one, but is itself a toolkit for programs.
+- Hard real-time use, or results that must be reproducible bit for bit.
 - Untrusted networks without a protecting layer.
-- Being the fastest library for small, cheap problems on one machine.
-
-## How this file is used
-
-- **Invariant 14:** a generalization is built when its use case can be named, and this file is where
-  the intended uses are. A use case that this file covers counts as named.
-- **Reviews (Invariant 23):** they judge public API against this file, not against the callers in the
-  tree.
-- **The manual** reflects this file in its appendix chapter "Intended Use" and follows every change;
-  its introduction points there.
+- Being the fastest library for small, cheap problems on a single machine. Geneva targets large,
+  computationally expensive problems.

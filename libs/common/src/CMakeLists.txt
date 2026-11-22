@@ -39,6 +39,7 @@ SET ( COMMONSOURCES
 	GModuleLoader.cpp
 	GParserBuilder.cpp
 	GProgramIdentity.cpp
+	GRecordLogTarget.cpp
 	GStopRequest.cpp
 	concurrency/GThreadGroup.cpp
 	concurrency/GThreadPool.cpp
@@ -48,6 +49,7 @@ SET ( COMMONSOURCES
 	record/GRecorder.cpp
 	record/GRecordTypes.cpp
 	record/GStream.cpp
+	record/GTextSink.cpp
 	${GEM_COMMIT_SOURCE}
 )
 

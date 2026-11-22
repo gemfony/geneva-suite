@@ -62,6 +62,7 @@
 #include <string>
 #include <time.h>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 // Boost header files go here
@@ -80,9 +81,10 @@ namespace Gem::Common {
 /**
  * This class defines the interface of log targets, i.e. targets for the logging of
  * messages through the GLogStreamer class. Essentially all that is needed is
- * the log function. Pointers to this class are stored in the GLogStreamer. They
- * point to objects of the GConsoleLogger or GFileLogger classes, or other log targets
- * defined by the user.
+ * the log function. Pointers to this class are stored in the GLogger. They point
+ * to a GConsoleLogger (the default), a GRecordLogTarget (the log as a record
+ * stream: a CSV, JSON Lines or plain-text file) or other log targets defined by
+ * the user.
  */
 class GBaseLogTarget {
 public:
@@ -114,6 +116,35 @@ public:
      * @param extension An identifier of the logging source (e.g. appended to a file name)
      */
     virtual void logWithSource(std::string const &message, std::string const &extension) const = 0;
+
+    /**
+     * @brief Logs a message of a given severity; unless overridden, as log(message)
+     *
+     * GLogger calls this overload: GLOGGING passes logType::LOGGING, GWARNING logType::WARNING and
+     * LOGEXIT logType::EXIT. A target that has a use for the severity overrides it.
+     *
+     * @param message The log message to be emitted by the target
+     * @param severity The kind of message
+     */
+    virtual void log(std::string const &message, [[maybe_unused]] logType severity) const {
+        this->log(message);
+    }
+
+    /**
+     * @brief Logs a message of a given severity with its source; unless overridden, as
+     * logWithSource(message, extension)
+     *
+     * @param message The log message to be emitted by the target
+     * @param extension An identifier of the logging source
+     * @param severity The kind of message (see log(message, severity))
+     */
+    virtual void logWithSource(
+        std::string const &message,
+        std::string const &extension,
+        [[maybe_unused]] logType severity
+    ) const {
+        this->logWithSource(message, extension);
+    }
 };
 
 /******************************************************************************/
@@ -152,48 +183,6 @@ public:
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-/**
- * The file logger writes log messages to a file.
- */
-class GFileLogger : public GBaseLogTarget {
-public:
-    /**
-     * @brief This constructor accepts a path to a log-file name as argument
-     */
-    explicit GFileLogger(std::filesystem::path const &p);
-
-    /*************************************************************************/
-    // Defaulted or deleted constructors, destructor and assignment operators
-    // rule of five
-
-    GFileLogger() = default;
-    GFileLogger(GFileLogger const &) = delete;
-    GFileLogger(GFileLogger &&) = default;
-    ~GFileLogger() override = default;
-
-    GFileLogger &operator=(GFileLogger const &) = delete;
-    GFileLogger &operator=(GFileLogger &&) = default;
-
-    /*************************************************************************/
-
-    /**
-     * @brief Implements logging to a file on disk
-     */
-    void log(std::string const &msg) const override;
-
-    /**
-     * @brief Logs to a file whose name is extended with the source identifier
-     */
-    void logWithSource(std::string const &msg, std::string const &extension) const override;
-
-private:
-    std::string fname_ = "Gem-Library-Collection.log"; ///< The name of the log file
-    mutable bool first_ = true; ///< Indicates whether any logging has already been done
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
 // The streamer type produced by GLogger's streaming operators; defined further down in this header.
 class GLogStreamer;
 
@@ -203,6 +192,14 @@ class GLogStreamer;
  * Upon invocation of the streaming operator it produces a GLogStreamer object
  * which is supposed to handle the rest of the work, either using the log targets
  * stored in the GLogger object or letting manipulators output the work.
+ *
+ * The targets are called one message at a time, under the logger's mutex. A target whose
+ * own path logs again on the same thread -- a record sink that backs up a file and warns
+ * about it, say -- does not lock the mutex a second time: while a thread hands a message
+ * to the targets, a further log() or logWithSource() from it writes the message straight
+ * to std::cerr, without the targets, and toStdOut(), toStdErr(), terminateApplication()
+ * and exitApplication() write without the lock. A target does not add, reset or replace
+ * targets from inside its own call.
  */
 class GLogger {
 public:
@@ -271,11 +268,13 @@ public:
 		 * @param gblt A shared pointer to the log target to be used as the default (must not be empty)
 		 */
     void setDefaultLogTarget(const std::shared_ptr<GBaseLogTarget> &gblt) {
+        // The replaced default dies after the lock is released: its destructor may log
+        std::shared_ptr<GBaseLogTarget> released;
         // Serialise with concurrent log() / addLogTarget() etc.
         std::scoped_lock const lk(logger_mutex_);
 
         if(gblt) {
-            default_logger_ = gblt;
+            released = std::exchange(default_logger_, gblt);
         }
         else {
             raiseException(
@@ -325,88 +324,36 @@ public:
     /***************************************************************************/
     /**
 		 * @brief Clears all registered local log-targets
+		 *
+		 * The targets are released after the lock: a target's destructor may log (one that
+		 * writes to a record stream closes it, and a failed close is logged).
 		 */
     void resetLogTargets() {
+        std::vector<std::shared_ptr<GBaseLogTarget>> released;
         // Serialise with concurrent log() / addLogTarget().
         std::scoped_lock const lk(logger_mutex_);
-        log_cnt_.clear();
+        released.swap(log_cnt_);
     }
 
     /***************************************************************************/
-    /**
-		 * @brief Allows S-objects to submit strings to the log targets
-		 *
-		 * Forwards the message to every registered log target, or to the default
-		 * target if none are registered. Note that this function is thread-safe and
-		 * thus may be called from different threads. Note that this function throws
-		 * if neither any logging target nor a default target is available.
-		 *
-		 * @param message The message to be forwarded to the log targets
-		 */
-    void log(std::string const &message) const {
-        // Make sure only one entity outputs data
-        std::scoped_lock const lk(logger_mutex_);
-
-        if(not log_cnt_.empty()) {
-            // Do the actual logging
-            for(auto const &cit : log_cnt_) {
-                cit->log(message);
-            }
-        }
-        else {
-            if(default_logger_) {
-                default_logger_->log(message);
-            }
-            else {
-                raiseException("In GLogger::log(): Error!" << '\n' << "No loggers found" << '\n');
-            }
-        }
-    }
+    /** @brief Hands a message to every registered log target, or to the default one */
+    void log(std::string const &message, logType severity = logType::LOGGING) const;
 
     /***************************************************************************/
-    /**
-		 * @brief Allows S-objects to submit strings, together with a source identifier, to the log targets
-		 *
-		 * Forwards the message and its source identifier to every registered log
-		 * target, or to the default target if none are registered. Note that this
-		 * function is thread-safe and thus may be called from different threads.
-		 * Note that this function throws if neither any logging target nor a default
-		 * target is available.
-		 *
-		 * @param message The message to be forwarded to the log targets
-		 * @param extension An identifier of the logging source forwarded alongside the message
-		 */
-    void logWithSource(std::string const &message, std::string const &extension) const {
-        // Make sure only one entity outputs data
-        std::scoped_lock const lk(logger_mutex_);
-
-        if(not log_cnt_.empty()) {
-            // Do the actual logging
-            for(auto cit : log_cnt_) { // std::shared_ptr max be copied
-                cit->logWithSource(message, extension);
-            }
-        }
-        else {
-            if(default_logger_) {
-                default_logger_->logWithSource(message, extension);
-            }
-            else {
-                raiseException(
-                    "In GLogger::logWithSource(): Error!" << '\n'
-                                                          << "No loggers found" << '\n'
-                );
-            }
-        }
-    }
+    /** @brief Hands a message and its source to every registered log target, or to the default one */
+    void logWithSource(
+        std::string const &message,
+        std::string const &extension,
+        logType severity = logType::LOGGING
+    ) const;
 
     /***************************************************************************/
     /**
 		 * @brief Throws an exception from a global position
 		 *
-		 * This prevents exceptions thrown from within threads from getting lost. The
-		 * mutex is released *before* the throw so that stack-unwinding exception
-		 * handlers (which may re-enter the logger) do not deadlock against the lock
-		 * we just held.
+		 * This prevents exceptions thrown from within threads from getting lost. It
+		 * takes no lock, so that stack-unwinding exception handlers (which may re-enter
+		 * the logger) cannot deadlock against it.
 		 *
 		 * @param error The error message carried by the thrown gem_exception
 		 */
@@ -430,7 +377,7 @@ public:
 		 */
     void terminateApplication(std::string const &error) {
         {
-            std::scoped_lock const lk(logger_mutex_);
+            auto const lk = this->lock_();
             std::cerr << error;
         }
         std::terminate();
@@ -450,7 +397,7 @@ public:
 			 */
     void exitApplication(std::string const &message, int return_code) {
         {
-            std::scoped_lock const lk(logger_mutex_);
+            auto const lk = this->lock_();
             std::cerr << message << std::flush;
         }
         // NOLINTNEXTLINE(concurrency-mt-unsafe) -- deliberate: terminating the process is this function's purpose
@@ -468,7 +415,7 @@ public:
 		 */
     void toStdOut(std::string const &message) {
         // Make sure only one entity outputs data
-        std::scoped_lock const lk(logger_mutex_);
+        auto const lk = this->lock_();
 
         // Flush: std::cout is buffered and may otherwise lose output on an
         // abnormal exit.
@@ -485,13 +432,17 @@ public:
 		 */
     void toStdErr(std::string const &message) {
         // Make sure only one entity outputs data
-        std::scoped_lock const lk(logger_mutex_);
+        auto const lk = this->lock_();
 
         std::cerr << message;
     }
 
 private:
     /***************************************************************************/
+    /** @brief Locks the logger's mutex, unless this thread is handing a message to the targets */
+    [[nodiscard]] std::unique_lock<std::mutex> lock_() const;
+    /** @brief Calls the targets for log() and logWithSource() */
+    void deliver_(std::string const &message, std::string const *extension, logType severity) const;
 
     std::vector<std::shared_ptr<GBaseLogTarget>> log_cnt_; ///< Contains the log targets
     mutable std::mutex logger_mutex_; ///< Needed for concurrent access to the log targets
