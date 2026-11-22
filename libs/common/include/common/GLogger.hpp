@@ -62,6 +62,7 @@
 #include <string>
 #include <time.h>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 // Boost header files go here
@@ -308,11 +309,13 @@ public:
 		 * @param gblt A shared pointer to the log target to be used as the default (must not be empty)
 		 */
     void setDefaultLogTarget(const std::shared_ptr<GBaseLogTarget> &gblt) {
+        // The replaced default dies after the lock is released: its destructor may log
+        std::shared_ptr<GBaseLogTarget> released;
         // Serialise with concurrent log() / addLogTarget() etc.
         std::scoped_lock const lk(logger_mutex_);
 
         if(gblt) {
-            default_logger_ = gblt;
+            released = std::exchange(default_logger_, gblt);
         }
         else {
             raiseException(
@@ -362,11 +365,15 @@ public:
     /***************************************************************************/
     /**
 		 * @brief Clears all registered local log-targets
+		 *
+		 * The targets are released after the lock: a target's destructor may log (one that
+		 * writes to a record stream closes it, and a failed close is logged).
 		 */
     void resetLogTargets() {
+        std::vector<std::shared_ptr<GBaseLogTarget>> released;
         // Serialise with concurrent log() / addLogTarget().
         std::scoped_lock const lk(logger_mutex_);
-        log_cnt_.clear();
+        released.swap(log_cnt_);
     }
 
     /***************************************************************************/

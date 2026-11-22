@@ -167,17 +167,18 @@ void GFileLogger::logWithSource(std::string const &msg, std::string const &exten
 namespace {
 // True while THIS thread hands a message to the log targets (GLogger::log(), logWithSource()). A
 // logger call that arrives from inside a target then does not lock the logger's mutex again.
-thread_local bool t_delivering = false;
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables) -- a per-thread state flag: it must change
+thread_local bool thisThreadDelivers = false;
 
 // Marks this thread as handing a message to the targets, for the life of the object -- so the
 // mark is cleared on every way out, also when a target throws.
 class GDeliveryScope {
 public:
     GDeliveryScope() {
-        t_delivering = true;
+        thisThreadDelivers = true;
     }
     ~GDeliveryScope() {
-        t_delivering = false;
+        thisThreadDelivers = false;
     }
     GDeliveryScope(GDeliveryScope const &) = delete;
     GDeliveryScope(GDeliveryScope &&) = delete;
@@ -194,8 +195,8 @@ public:
  * @return The lock; one that owns nothing in that case
  */
 std::unique_lock<std::mutex> GLogger::lock_() const {
-    if(t_delivering) {
-        return std::unique_lock<std::mutex>(logger_mutex_, std::defer_lock);
+    if(thisThreadDelivers) {
+        return {logger_mutex_, std::defer_lock};
     }
     return std::unique_lock<std::mutex>(logger_mutex_);
 }
@@ -250,7 +251,7 @@ void GLogger::deliver_(
     std::string const *extension,
     logType severity
 ) const {
-    if(t_delivering) {
+    if(thisThreadDelivers) {
         std::cerr << message;
         return;
     }

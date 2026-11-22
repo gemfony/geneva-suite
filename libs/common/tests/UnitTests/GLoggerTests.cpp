@@ -640,3 +640,45 @@ TEST_CASE(
     CHECK(target->messages[0] == "a warning\n");
     CHECK(target->messages[1] == "[modZ] an exit\n");
 }
+
+// ---------------------------------------------------------------------------
+// Release: a target whose destructor logs (a record target closes its stream, and a failed
+// close is reported through the log) must not be destroyed under the logger's mutex.
+
+namespace {
+
+class LogsWhenDestroyedTarget : public GBaseLogTarget {
+public:
+    LogsWhenDestroyedTarget() = default;
+    LogsWhenDestroyedTarget(LogsWhenDestroyedTarget const &) = delete;
+    LogsWhenDestroyedTarget(LogsWhenDestroyedTarget &&) = delete;
+    LogsWhenDestroyedTarget &operator=(LogsWhenDestroyedTarget const &) = delete;
+    LogsWhenDestroyedTarget &operator=(LogsWhenDestroyedTarget &&) = delete;
+    ~LogsWhenDestroyedTarget() override {
+        glogger << "a target is destroyed" << '\n' << GLOGGING;
+    }
+    void log(std::string const &) const override { /* nothing */
+    }
+    void logWithSource(std::string const &, std::string const &) const override { /* nothing */
+    }
+};
+
+} // namespace
+
+TEST_CASE(
+    "GLogger::resetLogTargets: a target whose destructor logs does not deadlock",
+    "[common][logger][release]"
+) {
+    glogger.addLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
+    glogger.resetLogTargets();
+    CHECK_FALSE(glogger.hasLogTargets());
+}
+
+TEST_CASE(
+    "GLogger::setDefaultLogTarget: a replaced default whose destructor logs does not deadlock",
+    "[common][logger][release]"
+) {
+    glogger.setDefaultLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
+    glogger.setDefaultLogTarget(std::make_shared<GConsoleLogger>());
+    CHECK_FALSE(glogger.hasLogTargets());
+}
