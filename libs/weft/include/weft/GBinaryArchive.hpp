@@ -346,12 +346,16 @@ public:
     }
 
 private:
-    void require(std::size_t n) const {
-        if(pos_ + n > data_.size()) {
+    // n may be a length taken from the stream. The check subtracts instead of adding: pos_ never
+    // exceeds data_.size(), so the remaining count cannot wrap, while pos_ + n would wrap for a
+    // forged length near 2^64 and let the read pass the end of the buffer.
+    void require(std::uint64_t n) const {
+        const std::size_t remaining = data_.size() - pos_;
+        if(n > remaining) {
             throw weft_exception(
                 weft_error_streamer()
-                << "In GBinaryIArchive: attempt to read " << n << " byte(s) past the end of a "
-                << data_.size() << "-byte stream (cursor at " << pos_
+                << "In GBinaryIArchive: attempt to read " << n << " byte(s) with only " << remaining
+                << " left in a " << data_.size() << "-byte stream (cursor at " << pos_
                 << "). Truncated or malformed archive." << '\n'
             );
         }

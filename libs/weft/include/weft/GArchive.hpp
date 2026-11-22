@@ -363,8 +363,10 @@ template <typename T, typename... R>
 struct is_sequence<std::unordered_multiset<T, R...>> : std::true_type {};
 
 // std::vector<bool> is a proxy-reference specialization: its elements are not
-// real bool lvalues, so the generic is_sequence arm (which binds each element by
-// reference) cannot handle it. It gets its own arm, serializing bit by bit.
+// real bool lvalues, so the generic is_sequence arm of the saving archive (which
+// binds each element by reference) cannot handle it. It gets its own arm there,
+// serializing bit by bit; the loading archive's generic arm builds each element as
+// a value and serves it unchanged.
 template <typename T>
 inline constexpr bool is_vector_bool_v = std::is_same_v<T, std::vector<bool>>;
 
@@ -977,20 +979,11 @@ private:
             }
             d().end_seq();
         }
-        else if constexpr(detail::is_vector_bool_v<U>) {
-            std::size_t n = d().begin_seq();
-            v.clear();
-            v.reserve(n);
-            for(std::size_t i = 0; i < n; ++i) {
-                d().begin_elem();
-                bool bit = false;
-                process(bit);
-                d().end_elem();
-                v.push_back(bit);
-            }
-            d().end_seq();
-        }
         else if constexpr(detail::is_sequence<U>::value) {
+            // Serves std::vector<bool> as well: each element is built as a value, never bound to a
+            // proxy reference. No reserve(n): n is read from the stream, and a forged count would
+            // become a huge allocation. The container grows only by elements actually read, so a
+            // count larger than the input ends in the codec's underflow exception.
             std::size_t n = d().begin_seq();
             v.clear();
             for(std::size_t i = 0; i < n; ++i) {
