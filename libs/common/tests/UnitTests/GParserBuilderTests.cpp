@@ -36,7 +36,9 @@
 #include <fstream>
 #include <functional>
 #include <iterator>
+#include <locale>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -95,6 +97,35 @@ private:
     std::streambuf *old_;
 };
 
+
+/** @brief Makes @p name the global C++ locale for its lifetime and restores the previous one. */
+class GGlobalLocale {
+public:
+    explicit GGlobalLocale(const char *name)
+      : previous_(std::locale()) {
+        try {
+            std::locale::global(std::locale(name));
+            active_ = true;
+        } catch(const std::runtime_error &) {
+            active_ = false; // the locale is not installed
+        }
+    }
+    ~GGlobalLocale() { std::locale::global(previous_); }
+    GGlobalLocale(const GGlobalLocale &) = delete;
+    GGlobalLocale &operator=(const GGlobalLocale &) = delete;
+    GGlobalLocale(GGlobalLocale &&) = delete;
+    GGlobalLocale &operator=(GGlobalLocale &&) = delete;
+    /** @return Whether the locale is in force and writes a decimal comma */
+    [[nodiscard]] bool hasDecimalComma() const {
+        return active_ && std::use_facet<std::numpunct<char>>(std::locale()).decimal_point() == ',';
+    }
+
+private:
+    std::locale previous_;
+    bool active_ = false;
+};
+
+constexpr const char *COMMALOCALE = "de_DE.UTF-8";
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -146,6 +177,39 @@ TEST_CASE(
         CHECK(scale == 3.14);
     }
 
+    std::filesystem::remove(cfg);
+}
+
+// ---------------------------------------------------------------------------
+// Regression: a configuration file is read the same whatever global C++ locale the program has set
+// (the read path parsed numbers through a string stream that took the global locale, and a
+// decimal-comma locale read "3.14" wrong or not at all).
+TEST_CASE("GParserBuilder: config numbers do not follow the global locale", "[common][parser-builder]") {
+    auto cfg = scratch("rt_locale");
+    std::filesystem::remove(cfg);
+    {
+        GParserBuilder gpb;
+        double scale = 0.0;
+        int count = 0;
+        gpb.registerFileParameter<double>("scale", scale, 1234.25, VAR_IS_ESSENTIAL);
+        gpb.registerFileParameter<int>("count", count, 1234567, VAR_IS_ESSENTIAL);
+        REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+    }
+    {
+        const GGlobalLocale comma(COMMALOCALE);
+        if(not comma.hasDecimalComma()) {
+            std::filesystem::remove(cfg);
+            SKIP("the decimal-comma locale " << COMMALOCALE << " is not installed");
+        }
+        GParserBuilder gpb;
+        double scale = 0.0;
+        int count = 0;
+        gpb.registerFileParameter<double>("scale", scale, 0.0, VAR_IS_ESSENTIAL);
+        gpb.registerFileParameter<int>("count", count, 0, VAR_IS_ESSENTIAL);
+        CHECK_NOTHROW(gpb.parseConfigFile(cfg));
+        CHECK(scale == 1234.25);
+        CHECK(count == 1234567);
+    }
     std::filesystem::remove(cfg);
 }
 

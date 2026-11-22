@@ -30,10 +30,12 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <limits>
+#include <locale>
 #include <map>
 #include <memory>
 #include <numbers>
@@ -77,6 +79,35 @@ enum class SmallEnum : std::uint8_t {
     B = 1,
     C = 200
 };
+
+/** @brief Makes @p name the global C++ locale for its lifetime and restores the previous one. */
+class GGlobalLocale {
+public:
+    explicit GGlobalLocale(const char *name)
+      : previous_(std::locale()) {
+        try {
+            std::locale::global(std::locale(name));
+            active_ = true;
+        } catch(const std::runtime_error &) {
+            active_ = false; // the locale is not installed
+        }
+    }
+    ~GGlobalLocale() { std::locale::global(previous_); }
+    GGlobalLocale(const GGlobalLocale &) = delete;
+    GGlobalLocale &operator=(const GGlobalLocale &) = delete;
+    GGlobalLocale(GGlobalLocale &&) = delete;
+    GGlobalLocale &operator=(GGlobalLocale &&) = delete;
+    /** @return Whether the locale is in force and writes a decimal comma */
+    [[nodiscard]] bool hasDecimalComma() const {
+        return active_ && std::use_facet<std::numpunct<char>>(std::locale()).decimal_point() == ',';
+    }
+
+private:
+    std::locale previous_;
+    bool active_ = false;
+};
+
+constexpr const char *COMMALOCALE = "de_DE.UTF-8";
 
 } // namespace
 
@@ -307,6 +338,21 @@ TEST_CASE("to_string: floating-point types", "[common][helper][to_string]") {
     REQUIRE(Gem::Common::to_string(1.5) == "1.5");
     REQUIRE(Gem::Common::to_string(0.) == "0");
     REQUIRE(Gem::Common::to_string(1.5f) == "1.5");
+}
+
+// A program may make a decimal-comma locale its global C++ locale. The text forms of numbers that
+// go to files (CSV rows, configuration values) must not follow it (a defect: the string streams
+// took the global locale and wrote "1,5" or "1.234.567,5").
+TEST_CASE("to_string / from_string: numbers do not follow the global locale", "[common][helper][to_string]") {
+    const GGlobalLocale comma(COMMALOCALE);
+    if(not comma.hasDecimalComma()) {
+        SKIP("the decimal-comma locale " << COMMALOCALE << " is not installed");
+    }
+    CHECK(Gem::Common::to_string(1.5) == "1.5");
+    CHECK(Gem::Common::to_string(1234567.5) == "1234567.5");
+    CHECK(Gem::Common::to_string(std::chrono::duration<double>(2.5)) == "2.5s");
+    CHECK(Gem::Common::from_string<double>("1234.5") == 1234.5);
+    CHECK(Gem::Common::from_string<int>("1234567") == 1234567);
 }
 
 TEST_CASE("to_string: scoped enum yields its underlying integer", "[common][helper][to_string]") {
