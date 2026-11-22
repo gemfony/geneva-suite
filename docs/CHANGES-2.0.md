@@ -783,26 +783,28 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `algorithm`, `iteration` (the algorithm's own) and `chain_iteration` (`GMonitorStream`). In a
   Go2 chain one stream (and one plot) holds every algorithm of the chain; the plots run over
   `chain_iteration`, which counts on through the chain, so they do not jump back when the next
-  algorithm starts at 0. A copy of a monitor has no stream of its own. The default stream names: `GFitnessMonitor` "best_fitness" (it now writes its
-  data), `GProgressPlotterT` "progress", `GAllSolutionFileLogger` "all_solutions",
-  `GIterationResultsFileLogger` "iteration_results", `GNAdpationsLogger` "n_adaptions",
+  algorithm starts at 0. A copy of a monitor has no stream of its own. The default stream
+  names: `GFitnessMonitor` "best_fitness" (it now writes its data), `GProgressPlotterT`
+  "progress", `GAllSolutionFileLogger` "all_solutions", `GNAdpationsLogger` "n_adaptions",
   `GAdaptorPropertyLoggerT` "adaptor_properties", `GProcessingTimesLogger` "processing_times",
   `GOptOptMonitorT` "meta_optimization"; `setStreamName()` changes it. `GStandardMonitor` writes
   its summary through the logger, as before, and is registered only when a program registers it.
+- **`GIterationResultsFileLogger` is gone**; it recorded a part of what `GAllSolutionFileLogger`
+  records. `GAllSolutionFileLogger::setFitnessOnly()` records what it did: the individual and its
+  fitness values (raw or transformed, `setUseTrueFitness()`), without parameters and validity.
 - **What leaves the monitors.** The file names, their setters and the constructor arguments that
   took them (`setFileName()`, `GFitnessMonitor::setResultFileName()`, `setFileName_pth()`,
   `setFileName_pth2()`, `setFileName_txt()`, the file name of `GOptOptMonitorT`'s constructor);
   the canvas of `GFitnessMonitor`, which drew nothing (`setDims()`, `getDims()`, `getXDim()`,
-  `getYDim()`); the text layout of `GAllSolutionFileLogger` and `GIterationResultsFileLogger`
-  (`setPrintWithNameAndType()`, `setPrintWithCommas()`, `setShowIterationBoundaries()` -- a CSV
-  file has a header line and commas); `GProcessingTimesLogger`'s two canvases (one plot now:
+  `getYDim()`); the text layout of `GAllSolutionFileLogger` (`setPrintWithNameAndType()`,
+  `setPrintWithCommas()`, `setShowIterationBoundaries()` -- a CSV file has a header line and
+  commas); `GProcessingTimesLogger`'s two canvases (one plot now:
   `setCanvasDimensions()`). Constructors: `GAllSolutionFileLogger(boundaries)`,
   `GAdaptorPropertyLoggerT(adaptor_name, property)`, `GProcessingTimesLogger(n_bins_x, n_bins_y)`,
   `GOptOptMonitorT()`. The constants `DEFAULTROOTRESULTFILEOM`, `DEFAULTXDIMOM` and
   `DEFAULTYDIMOM` are gone. 1.99 keeps no archive compatibility: a checkpoint written before
   this change that holds such a monitor is not meant to load.
-- **Corrected on the way.** `GIterationResultsFileLogger` recorded the raw fitness whatever
-  `setUseTrueFitness()` said; the progress plotter of a Go2 chain kept only the last algorithm's
+- **Corrected on the way.** The progress plotter of a Go2 chain kept only the last algorithm's
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
 - **courtier's end-of-run report.** When the launcher releases a consumer that counts something,
   the consumer appends one row of its counters to the stream `courtier`

@@ -1072,8 +1072,9 @@ private:
  * individual (the position in the population), one column per parameter ("var<k>", in the order
  * double, float, int32, bool, as GGenome::toCSV() numbers them; typed as they are), one per
  * fitness criterion ("fitness_<i>": the raw or the transformed fitness, setUseTrueFitness(); not a
- * number for an individual that was not evaluated) and, unless switched off, "valid". The results
- * can be filtered: only solutions better than given boundaries are recorded (setBoundaries());
+ * number for an individual that was not evaluated) and, unless switched off, "valid". With
+ * setFitnessOnly() it holds the individual and its fitness values only: no parameter columns and
+ * no "valid" -- the evaluations of each iteration. The results can be filtered: only solutions better than given boundaries are recorded (setBoundaries());
  * what is better depends on whether the criteria are maximized or minimized, as the individual
  * says.
  *
@@ -1102,7 +1103,8 @@ class GAllSolutionFileLogger // NOLINT(cppcoreguidelines-special-member-function
             Gem::Common::make_member("boundaries_active_", self.boundaries_active_),
             Gem::Common::make_member("use_raw_fitness_", self.use_raw_fitness_),
             Gem::Common::make_member("show_validity_", self.show_validity_),
-            Gem::Common::make_member("print_initial_", self.print_initial_)
+            Gem::Common::make_member("print_initial_", self.print_initial_),
+            Gem::Common::make_member("fitness_only_", self.fitness_only_)
         );
     }
 
@@ -1182,6 +1184,16 @@ public:
      */
     [[nodiscard]] bool getPrintInitial() const;
 
+    /**
+     * @brief Allows to record the individual and its fitness values only, without parameters
+     */
+    void setFitnessOnly(bool fitness_only = true);
+    /**
+     * @brief Allows to check whether only the individual and its fitness values are recorded
+     * @return true if the parameter columns and "valid" are left out, false otherwise
+     */
+    [[nodiscard]] bool getFitnessOnly() const;
+
 protected:
     /************************************************************************/
 
@@ -1218,98 +1230,7 @@ private:
         true;                   ///< Indicates whether true- or transformed fitness should be recorded
     bool show_validity_ = true; ///< Indicates whether the validity of a solution should be recorded
     bool print_initial_ = false; ///< Indicates whether the initial population should be recorded
-
-    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * This monitor records all evaluations of each reported iteration. Its stream (default
- * "iteration_results", setStreamName()) has the columns algorithm, iteration, chain_iteration
- * (GMonitorStream), individual (the position in the population) and one column per fitness
- * criterion ("fitness_<i>": the raw or the transformed fitness, setUseTrueFitness()), one row per
- * individual.
- *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
- * GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to it. Two
- * monitors of one class in one process need different stream names.
- */
-class GIterationResultsFileLogger // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GIterationResultsFileLogger, oa::GBasePluggableOM>
-  , public Gem::Common::GSelfTestable {
-    ///////////////////////////////////////////////////////////////////////
-    friend struct Gem::Common::GReflectiveInterfaceAccess;
-
-    /***************************************************************************/
-    /**
-     * Single declaration of this class'es local data members, driving
-     * serialize(), load_() and compare_() from one place: the configuration only; the stream is
-     * transient and not part of it.
-     */
-    template <typename self_type>
-    auto localMembers_(this self_type &self) {
-        return std::make_tuple(
-            Gem::Common::make_member("stream_name_", self.stream_name_),
-            Gem::Common::make_member("use_raw_fitness_", self.use_raw_fitness_)
-        );
-    }
-
-    ///////////////////////////////////////////////////////////////////////
-
-public:
-    /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
-    static constexpr std::string_view class_name = "GIterationResultsFileLogger";
-
-    /***************************************************************************/
-
-    /** @brief The default constructor */
-    GIterationResultsFileLogger() = default;
-    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
-    GIterationResultsFileLogger(const GIterationResultsFileLogger &cp) = default;
-    /** @brief The destructor */
-    ~GIterationResultsFileLogger() override = default;
-
-    /**
-     * @brief Sets the name of the stream (and of its file)
-     */
-    void setStreamName(std::string stream_name);
-    /**
-     * @brief The name of the stream
-     * @return The name of the stream
-     */
-    [[nodiscard]] std::string getStreamName() const;
-
-    /**
-     * @brief Allows to specify whether the true (instead of the transformed) fitness should be recorded
-     */
-    void setUseTrueFitness(bool use_raw_fitness);
-    /**
-     * @brief Allows to retrieve whether the true (instead of the transformed) fitness should be recorded
-     * @return true if the raw (true) fitness is recorded, false if the transformed fitness is recorded
-     */
-    [[nodiscard]] bool getUseTrueFitness() const;
-
-protected:
-    /************************************************************************/
-    // load_(), compare_(), name_() and clone_() are generated by the
-    // Gem::Common::GReflectiveInterfaceT base from class_name and localMembers_().
-
-    /** @brief Applies modifications to this object */
-    bool modify_GUnitTests_() override;
-
-private:
-    /**
-     * @brief Declares the stream at the first INFOINIT and records the evaluations
-     */
-    void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
-
-    std::string stream_name_ = "iteration_results"; ///< The name of the stream
-    bool use_raw_fitness_ =
-        false; ///< Indicates whether true- or transformed fitness should be recorded
+    bool fitness_only_ = false;  ///< Records the individual and its fitness values only
 
     oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };

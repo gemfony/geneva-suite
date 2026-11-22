@@ -402,17 +402,24 @@ TEST_CASE("GAllSolutionFileLogger records every candidate with its parameters", 
 
 /******************************************************************************/
 
-TEST_CASE("GIterationResultsFileLogger records the raw or the transformed fitness", "[monitor][oa]") {
-    // Regression: the monitor wrote the raw fitness whatever setUseTrueFitness() said. With a
+TEST_CASE(
+    "GAllSolutionFileLogger records only the raw or the transformed fitness when asked",
+    "[monitor][oa]"
+) {
+    // With setFitnessOnly() the stream holds the individual and its fitness values only (what the
+    // former GIterationResultsFileLogger recorded). And setUseTrueFitness() is honoured: with a
     // sigmoid evaluation policy the transformed fitness of a valid individual differs from its raw
     // fitness, so two monitors of one run, one raw and one transformed, record different values.
-    RecordDirectory const dir("iteration_results");
-    auto raw = std::make_shared<Gem::Geneva::GIterationResultsFileLogger>();
+    RecordDirectory const dir("fitness_only");
+    auto raw = std::make_shared<Gem::Geneva::GAllSolutionFileLogger>();
+    raw->setFitnessOnly();
     raw->setUseTrueFitness(true);
     raw->setStreamName("raw");
-    auto transformed = std::make_shared<Gem::Geneva::GIterationResultsFileLogger>();
+    auto transformed = std::make_shared<Gem::Geneva::GAllSolutionFileLogger>();
+    transformed->setFitnessOnly();
     transformed->setUseTrueFitness(false);
     transformed->setStreamName("transformed");
+    CHECK(transformed->getFitnessOnly());
 
     auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(8, 2);

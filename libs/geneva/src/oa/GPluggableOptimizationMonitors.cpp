@@ -62,7 +62,6 @@ GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GFitnessMonitor)                      // NO
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GCollectiveMonitor)                   // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GProgressPlotter)                     // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAllSolutionFileLogger)               // NOLINT
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GIterationResultsFileLogger)          // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GNAdpationsLogger)                    // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAdaptorPropertyLogger<double>)       // NOLINT
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GAdaptorPropertyLogger<std::int32_t>) // NOLINT
@@ -500,6 +499,27 @@ bool GAllSolutionFileLogger::getPrintInitial() const {
 
 /******************************************************************************/
 /**
+ * @brief Allows to record the individual and its fitness values only: the parameter columns and
+ * "valid" are left out
+ *
+ * @param fitness_only If true, the stream holds the individual and its fitness values only
+ */
+void GAllSolutionFileLogger::setFitnessOnly(bool fitness_only) {
+    fitness_only_ = fitness_only;
+}
+
+/******************************************************************************/
+/**
+ * @brief Allows to check whether only the individual and its fitness values are recorded
+ *
+ * @return true if the parameter columns and "valid" are left out, false otherwise
+ */
+bool GAllSolutionFileLogger::getFitnessOnly() const {
+    return fitness_only_;
+}
+
+/******************************************************************************/
+/**
  * @brief Declares the stream at the first INFOINIT (and records the initial population, if asked
  * for) and records the population at INFOPROCESSING
  *
@@ -550,16 +570,18 @@ void GAllSolutionFileLogger::declareStream_(oa::GOptimizationAlgorithmBase const
             columns.push_back({.name = "var" + Gem::Common::to_string(k), .type = type});
         }
     };
-    add(std::type_identity<double>{}, columnType::FLOATING);
-    add(std::type_identity<float>{}, columnType::FLOATING);
-    add(std::type_identity<std::int32_t>{}, columnType::INTEGER);
-    add(std::type_identity<bool>{}, columnType::BOOLEAN);
+    if(not fitness_only_) {
+        add(std::type_identity<double>{}, columnType::FLOATING);
+        add(std::type_identity<float>{}, columnType::FLOATING);
+        add(std::type_identity<std::int32_t>{}, columnType::INTEGER);
+        add(std::type_identity<bool>{}, columnType::BOOLEAN);
+    }
     for(std::size_t i = 0; i < first->getNStoredResults(); ++i) {
         columns.push_back(
             {.name = "fitness_" + Gem::Common::to_string(i), .type = columnType::FLOATING}
         );
     }
-    if(show_validity_) {
+    if(show_validity_ && not fitness_only_) {
         columns.push_back({.name = "valid", .type = columnType::BOOLEAN});
     }
     stream_.declare(stream_name_, std::move(columns), goa);
@@ -599,10 +621,12 @@ void GAllSolutionFileLogger::recordPopulation_(oa::GOptimizationAlgorithmBase co
                 }
             }
         };
-        add(std::type_identity<double>{});
-        add(std::type_identity<float>{});
-        add(std::type_identity<std::int32_t>{});
-        add(std::type_identity<bool>{});
+        if(not fitness_only_) {
+            add(std::type_identity<double>{});
+            add(std::type_identity<float>{});
+            add(std::type_identity<std::int32_t>{});
+            add(std::type_identity<bool>{});
+        }
         const bool processed = ind->is_processed();
         for(std::size_t i = 0; i < ind->getNStoredResults(); ++i) {
             row.emplace_back(
@@ -611,7 +635,7 @@ void GAllSolutionFileLogger::recordPopulation_(oa::GOptimizationAlgorithmBase co
                                    : ind->transformed_fitness(i)
             );
         }
-        if(show_validity_) {
+        if(show_validity_ && not fitness_only_) {
             row.emplace_back(processed && ind->isValid());
         }
         stream_.append(std::move(row));
@@ -643,122 +667,6 @@ bool GAllSolutionFileLogger::modify_GUnitTests_() {
 
 #else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
     Gem::Common::condnotset("GAllSolutionFileLogger::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-
-/**
- * @brief Sets the name of the stream, which also names its files
- *
- * @param stream_name The name of the stream
- */
-void GIterationResultsFileLogger::setStreamName(std::string stream_name) {
-    stream_name_ = std::move(stream_name);
-}
-
-/******************************************************************************/
-/**
- * @brief The name of the stream
- *
- * @return The name of the stream
- */
-std::string GIterationResultsFileLogger::getStreamName() const {
-    return stream_name_;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to specify whether the true (instead of the transformed) fitness should be recorded
- *
- * @param use_raw_fitness If true, the raw (true) fitness is recorded; otherwise the transformed fitness
- */
-void GIterationResultsFileLogger::setUseTrueFitness(bool use_raw_fitness) {
-    use_raw_fitness_ = use_raw_fitness;
-}
-
-/******************************************************************************/
-/**
- * @brief Allows to retrieve whether the true (instead of the transformed) fitness should be recorded
- *
- * @return true if the raw (true) fitness is recorded, false if the transformed fitness is recorded
- */
-bool GIterationResultsFileLogger::getUseTrueFitness() const {
-    return use_raw_fitness_;
-}
-
-/******************************************************************************/
-/**
- * @brief Declares the stream at the first INFOINIT (one fitness column per criterion of the first
- * individual) and records every individual's fitness values at INFOPROCESSING
- *
- * @param im The stage of the information cycle (INFOINIT, INFOPROCESSING or INFOEND)
- * @param goa A pointer to the optimization algorithm calling this function
- */
-void GIterationResultsFileLogger::informationFunction_(
-    infoMode im,
-    oa::GOptimizationAlgorithmBase const *const goa
-) {
-    switch(im) {
-    case Gem::Geneva::infoMode::INFOINIT:
-        if(stream_.beginAlgorithm(*goa)) {
-            using Gem::Common::Record::columnType;
-            std::vector<Gem::Common::Record::GColumn> columns;
-            columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
-            for(std::size_t i = 0; i < goa->at(0)->getNStoredResults(); ++i) {
-                columns.push_back(
-                    {.name = "fitness_" + Gem::Common::to_string(i), .type = columnType::FLOATING}
-                );
-            }
-            stream_.declare(stream_name_, std::move(columns), *goa);
-        }
-        break;
-
-    case Gem::Geneva::infoMode::INFOPROCESSING:
-        for(std::size_t pos = 0; pos < goa->size(); pos++) {
-            Gem::Common::Record::GRow row = stream_.row(*goa);
-            row.emplace_back(static_cast<std::uint64_t>(pos));
-            for(double const f : use_raw_fitness_ ? goa->at(pos)->raw_fitness_vec()
-                                                  : goa->at(pos)->transformed_fitness_vec()) {
-                row.emplace_back(f);
-            }
-            stream_.append(std::move(row));
-        }
-        break;
-
-    case Gem::Geneva::infoMode::INFOEND:
-        break;
-    };
-}
-
-// load_(), compare_(), name_() and clone_() for GIterationResultsFileLogger are generated by
-// Gem::Common::GReflectiveInterfaceT.
-
-/******************************************************************************/
-/**
- * @brief Applies modifications to this object. This is needed for testing purposes
- *
- * @return A boolean which indicates whether modifications were made
- */
-bool GIterationResultsFileLogger::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    bool result = false;
-
-    // Call the parent classes' functions
-    if(oa::GBasePluggableOM::modify_GUnitTests_()) {
-        result = true;
-    }
-
-    // no local data -- nothing to change
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GIterationResultsFileLogger::modify_GUnitTests", "GEM_TESTING");
     return false;
 #endif                  /* GEM_TESTING */
 }
