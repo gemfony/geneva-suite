@@ -76,22 +76,11 @@ const std::uint32_t DEFAULTMAXITERATIONS = 2000;
 const long DEFAULTMAXMINUTES = 10;
 const std::uint32_t DEFAULTREPORTITERATION = 1;
 const duplicationScheme DEFAULTRSCHEME = duplicationScheme::VALUEDUPLICATIONSCHEME;
-const bool DEFAULTVERBOSE = true;
-// The parallelization mode selected on the command line (a plain code, not an enum: the
-// per-algorithm execution-mode enum is gone): 0 = serial, 1 = multi-threaded, 2 = networked
+// The parallelization mode selected on the command line: 0 = serial, 1 = multi-threaded
 constexpr std::uint16_t PM_SERIAL = 0;
 constexpr std::uint16_t PM_MULTITHREADED = 1;
-constexpr std::uint16_t PM_NETWORKED = 2;
 const std::uint16_t DEFAULTPARALLELIZATIONMODE = PM_MULTITHREADED;
-const bool DEFAULTUSECOMMONADAPTOR =
-    false; // whether to use a common adaptor for all GParameterT objects
-const unsigned short DEFAULTPORT = 10000;
-const std::string DEFAULTIP = "localhost";
-const std::string DEFAULTCONFIGFILE = "./GConsumerOverhead.cfg";
 const sortingMode DEFAULTSORTINGSCHEME = sortingMode::MUPLUSNU_SINGLEEVAL;
-const std::uint32_t DEFAULTSTARTITERATION = 0;
-const std::size_t DEFAULTNBTCONSUMERTHREADS = 2;
-const std::uint32_t DEFAULTGBTCNPROCUNITS = 1;
 const std::size_t DEFAULTPARDIM = 100;
 const double DEFAULTMINVAR = -10.;
 const double DEFAULTMAXVAR = 10.;
@@ -116,7 +105,6 @@ bool parseCommandLine(
     std::uint32_t &reportIteration,
     duplicationScheme &rScheme,
     sortingMode &smode,
-    std::uint32_t &nProcessingUnits,
     double &adProb,
     std::uint32_t &adaptionThreshold,
     double &sigma,
@@ -137,8 +125,7 @@ bool parseCommandLine(
         "parallelizationMode,p",
         parallelizationMode,
         DEFAULTPARALLELIZATIONMODE,
-        "Whether to run this optimization in serial mode (0), multi-threaded (1) or mt-consumer "
-        "(2) mode"
+        "Whether to run this optimization in serial mode (0) or multi-threaded (1)"
     );
 
     gpb.registerCLParameter<std::uint16_t>(
@@ -203,13 +190,6 @@ bool parseCommandLine(
         DEFAULTSORTINGSCHEME,
         "Determines whether sorting is done in MUCOMMANU_SINGLEEVAL (0), MUPLUSNU_SINGLEEVAL (1) "
         "or MUNU1PRETAIN (2) mode"
-    );
-
-    gpb.registerCLParameter<std::uint32_t>(
-        "nProcessingUnits",
-        nProcessingUnits,
-        DEFAULTGBTCNPROCUNITS,
-        "Specifies how many processing units are available in networked mode"
     );
 
     gpb.registerCLParameter<double>(
@@ -278,11 +258,21 @@ bool parseCommandLine(
     gpb.registerCLParameter<std::uint16_t>(
         "evalFunction",
         evalFunction,
-        0,
+        DEFAULTEVALFUNCTION,
         "The id of the evaluation function"
     );
 
-    // Some post-processing:
+    // Parse the command line and leave if the help flag was given. The parser
+    // will emit an appropriate help message by itself
+    if(Gem::Common::GCL_HELP_REQUESTED == gpb.parseCommandLine(argc, argv, true /*verbose*/)) {
+        return false; // Do not continue
+    }
+
+    // Check the parsed values
+    if(parallelizationMode > PM_MULTITHREADED) {
+        std::cout << "Error: Invalid parallelization mode: " << parallelizationMode << std::endl;
+        return false;
+    }
 
     // Check the number of parents in the super-population
     if(2 * nParents > populationSize) {
@@ -300,12 +290,6 @@ bool parseCommandLine(
         return false;
     }
     df = (gind::solverFunction)evalFunction;
-
-    // Parse the command line and leave if the help flag was given. The parser
-    // will emit an appropriate help message by itself
-    if(Gem::Common::GCL_HELP_REQUESTED == gpb.parseCommandLine(argc, argv, true /*verbose*/)) {
-        return false; // Do not continue
-    }
 
     return true;
 }
@@ -325,9 +309,7 @@ int main(int argc, char **argv) {
         Gem::Common::finishConfigEmission();
     }
 
-    std::string const configFile;
     std::uint16_t parallelizationMode{};
-    std::string const ip;
     std::uint16_t nProducerThreads = 0;
     std::uint16_t nEvaluationThreads = 0;
     std::size_t populationSize = 0;
@@ -340,7 +322,6 @@ int main(int argc, char **argv) {
     double minVar = NAN;
     double maxVar = NAN;
     sortingMode smode;
-    std::uint32_t nProcessingUnits = 0;
     gind::solverFunction df;
     std::uint32_t adaptionThreshold = 0;
     double sigma = NAN;
@@ -363,7 +344,6 @@ int main(int argc, char **argv) {
            reportIteration,
            rScheme,
            smode,
-           nProcessingUnits,
            adProb,
            adaptionThreshold,
            sigma,
@@ -410,8 +390,8 @@ int main(int argc, char **argv) {
 
     std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(new oa::GEvolutionaryAlgorithm());
 
-    // All three modes are LOCAL here (the "broker" mode used a local thread consumer too); build and
-    // register the ONE process-wide consumer. Serial -> stc with one thread, the others -> multithreaded.
+    // Both modes are local: build and register the ONE process-wide consumer, stc with one thread
+    // (serial) or with nEvaluationThreads (multi-threaded).
     {
         GStdThreadConsumerConfig config;
         switch(parallelizationMode) {
@@ -425,10 +405,6 @@ int main(int argc, char **argv) {
             config.nThreads = static_cast<unsigned int>(nEvaluationThreads);
             break;
 
-        case PM_NETWORKED: // Historically a local thread consumer behind the broker -- still local.
-            std::cout << "Using a local multi-threaded courtier consumer." << std::endl;
-            config.nThreads = static_cast<unsigned int>(nEvaluationThreads);
-            break;
         }
         Gem::Courtier::buildConsumer<gen::GGenome>(config, Gem::Geneva::consumerModules());
     }

@@ -1,6 +1,6 @@
 This directory contains a simple Geneva application that searches for
 the minimum of a function. The parallelization mode is selected with
 --parallelizationMode: 0 runs serially (the local thread consumer with
-one worker), 1 multi-threaded, 2 networked. Comparing the run times of
-the modes measures the overhead the consumer/submission infrastructure
+one worker), 1 multi-threaded. Comparing the run times of the two modes
+measures the overhead the consumer/submission infrastructure
 adds over serial execution.
