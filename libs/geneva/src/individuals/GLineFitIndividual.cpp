@@ -198,24 +198,6 @@ void GLineFitIndividual::applyConfig(GLineFitIndividual &ind, const Config &c) {
 
 /******************************************************************************/
 /**
- * @brief The copy constructor.
- *
- * @param cp A constant reference to another GLineFitIndividual object to be copied
- */
-GLineFitIndividual::GLineFitIndividual(const GLineFitIndividual &cp)
-  : gen::GGenomeT<GLineFitIndividual>(cp)
-  , data_points_(cp.data_points_) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * @brief The standard destructor.
- */
-GLineFitIndividual::~GLineFitIndividual() { /* nothing */
-}
-
-/******************************************************************************/
-/**
  * @brief Retrieves the tuple (a, b) of the line represented by this object.
  *
  * @return A tuple holding the line's offset a (first parameter) and slope b (second parameter)

@@ -163,7 +163,7 @@ public:
  * @tparam T The parameter type held and scanned by this object (bool, std::int32_t, float, double)
  */
 template <typename T>
-class GBaseScanParT // NOLINT(cppcoreguidelines-special-member-functions)
+class GBaseScanParT
   : public Gem::Common::GPodContainerT<T>
   , public GScanParInterface
   , public Gem::Common::GReflectiveInterfaceBaseT<
@@ -243,32 +243,6 @@ public:
             this->data_cnt_ = fillWithData<T>(n_steps_, lower_, upper_);
         }
     }
-
-    /***************************************************************************/
-    /**
-     * @brief Copy constructor. Not defaulted, so we can avoid copying of the
-     * random number generator.
-     *
-     * @param cp Another GBaseScanParT object whose state is copied
-     */
-    GBaseScanParT(const GBaseScanParT<T> &cp)
-      : Gem::Common::GPodContainerT<T>(
-            cp
-        ) // copy the pre-computed grid (the random members default-construct)
-      , index_(cp.index_)
-      , step_(cp.step_)
-      , n_steps_(cp.n_steps_)
-      , lower_(cp.lower_)
-      , upper_(cp.upper_)
-      , random_scan_(cp.random_scan_)
-      , type_description_(cp.type_description_) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-     * @brief The (defaulted) destructor
-     */
-    ~GBaseScanParT() override = default;
 
     /***************************************************************************/
     /**

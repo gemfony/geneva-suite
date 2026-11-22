@@ -537,7 +537,7 @@ inline std::shared_ptr<networkData> createNetworkData(
  * With this individual you can use Genevas optimization algorithms instead of the
  * standard back-propagation algorithm to train feed-forward neural networks.
  */
-class GNeuralNetworkIndividual // NOLINT(cppcoreguidelines-special-member-functions)
+class GNeuralNetworkIndividual
   : public gen::GGenomeT<GNeuralNetworkIndividual>
   , public Gem::Common::GSelfTestable {
     /////////////////////////////////////////////////////////////////////////////
@@ -580,13 +580,6 @@ public:
         [[maybe_unused]] const double &min_ad_prob,
         [[maybe_unused]] const double &max_ad_prob
     );
-    /**
-     * @brief A standard copy constructor.
-     */
-    GNeuralNetworkIndividual(const GNeuralNetworkIndividual &cp);
-
-    /** @brief The standard destructor */
-    ~GNeuralNetworkIndividual() override;
 
     /**
      * @brief Initialization according to user-specifications.
