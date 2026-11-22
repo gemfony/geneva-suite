@@ -35,6 +35,9 @@ overlook. These include `GBlockingMPMCQueueT`, `GPreallocatedMPMCQueueT`, the `G
 `GThreadSafeSetT`, `GCompletionLatchT`, `GSPSCStagingRingT` and `GAgingStoreT`. No part of Geneva rolls its
 own. If a primitive does not meet a requirement, **improve it or add a variant there** — never a local
 `deque`+`mutex`, bespoke ring, hand-rolled thread pool, or ad-hoc thread-safe map at the use site.
+What is forbidden is building one's own building block -- a queue, a pool, a thread-safe store -- that
+other places could need as well. A mutex that guards the state of a single class is no such building
+block and is allowed. (Maintainer decision, 2026-11-22.)
 
 *Why:* one place to get memory ordering / ThreadSanitizer correctness right, one set of semantics, isolated
 tests — and a distinct, named dependency makes Invariant 1 unforgettable. The original cleanups owed to this
@@ -45,8 +48,8 @@ stores → `GThreadSafeKeyedStoreT`, and the MPI transport's raw `receiverThread
 
 ## 3. Build out-of-source only
 
-Never configure or build inside the source tree. Use an external build directory (e.g. `~/build`) via
-`scripts/prepareBuild.sh`. In-source builds pollute the repository and are rejected by `prepareBuild.sh`.
+Folded into Invariant 17, which states it in full (maintainer decision, 2026-11-22); the number stays so
+that references to "Invariant 3" keep their meaning.
 
 ## 4. Serialization is complete and single-sourced
 
@@ -98,7 +101,7 @@ For a full (clean) build of Geneva, use the project's build driver rather than a
 invocation — e.g.
 
 ```bash
-cd $HOME/build && $HOME/ClionProjects/geneva/scripts/prepareBuild.sh --clean -y --build genevaConfig.gcfg
+cd $HOME/build && $HOME/ClionProjects/geneva-suite/scripts/prepareBuild.sh --clean -y --build genevaConfig.gcfg
 ```
 
 (use `$HOME`, never a hard-coded home path). The `genevaConfig.gcfg` in the build directory centralises the
@@ -168,7 +171,16 @@ otherwise be duplicated, hard-coded per algorithm/type/transport, or branched by
 cases, hoist it into one general mechanism (a shared function, a template/policy, a virtual hook with a
 sensible default, a data-driven parameter) and let the specific sites specialize only where they genuinely
 differ. A special-purpose solution is justified **only** when a general one is genuinely infeasible or would
-be materially more complex, error-prone, or slower — and then the reason is recorded at the site. This is the
+be materially more complex, error-prone, or slower — and then the reason is recorded at the site.
+
+The measure is the use the collection is built for, stated in `INTENDED-USE.md` at the root of the tree,
+not the number of callers in the tree (Invariant 23). A generalization -- an additional template
+parameter, an extension point, an option, a further format -- is built when its use case can be named
+(who needs it and for what, e.g. "a program records share prices with a time tag"; a use that
+`INTENDED-USE.md` covers counts as named), or when it replaces the same logic at several places in the
+tree. The use case is written into the design or the commit. If none can be named, it is built only on
+the maintainer's request; he also speaks for the users of the collection. (Maintainer decision,
+2026-11-22.) This is the
 positive form of Invariant 1 (prefer existing capabilities) and composes with Invariant 13 (a general
 improvement is not blocked by a special-purpose consumer): prefer the general shape, generalize the
 special-purpose code you find, and only descend to the specific when the general level cannot express it.
@@ -222,11 +234,11 @@ churn for its own sake.
 
 ## 17. The source tree stays pristine — no in-source builds, no stray artifacts
 
-The Geneva source tree is never a workspace. This extends Invariant 3 (build out-of-source only) from
-*building* to *every* activity that could leave a footprint in the tree:
+The Geneva source tree is never a workspace -- neither for building (formerly Invariant 3, folded in
+here) nor for any other activity that could leave a footprint in the tree:
 
 - **Never configure or build in-source.** All configuration and compilation happens in an external build
-  directory (e.g. `$HOME/build`); `prepareBuild.sh` rejects an in-source build (cf. Invariant 3).
+  directory (e.g. `$HOME/build`) via `scripts/prepareBuild.sh`, which rejects an in-source build.
 - **Never run tools or binaries from the repository root** (or any source subdirectory) when they write
   output. A Geneva example or client writes its files relative to its working directory — run it from an
   external scratch/working directory, never from inside the checkout, so it cannot deposit `config/*.json`,
@@ -246,11 +258,16 @@ The Geneva source tree is never a workspace. This extends Invariant 3 (build out
 accidentally committed, and make "is the tree clean?" — the precondition for a trustworthy diff, build, and
 commit — unanswerable. A pristine tree keeps every diff meaningful and every build reproducible.
 
-## 18. Random numbers are never deterministic — never rely on reproducing them
+## 18. Hap's random numbers are not reproducible — never rely on reproducing them
 
-Geneva's random numbers come from Hap (`GRandomFactory` / `GRandomT`), which produces them from **concurrent
-producer threads** feeding a shared queue, seeded from entropy. The order in which numbers are consumed across
-threads is therefore **not reproducible**, and there is no supported "fixed seed → identical sequence" mode.
+This is a property of Hap's architecture, and a deliberate one: Hap is built for random numbers in
+quantity, not for reproducible sequences. Geneva's random numbers come from Hap (`GRandomFactory` /
+`GRandomT`), which produces them from **concurrent producer threads** feeding a shared queue, seeded from
+entropy. The order in which numbers are consumed across threads is therefore **not reproducible**, and
+there is no supported "fixed seed → identical sequence" mode. A reproducible mode would need a very large
+rebuild of the framework, and reproducibility would still depend on the machine architecture, outside
+the collection's control; a program that needs reproducible sequences uses the engines of the C++
+standard library. They are not Hap's use case (`INTENDED-USE.md`; maintainer decision, 2026-11-22).
 Consequently:
 
 - **Never write code or a test that depends on a specific random sequence, a specific seed, or a specific
@@ -386,6 +403,18 @@ not measured by the presence of a local caller.
   a wrong default, a lifecycle hazard), the correct response is to **repair** it (and add the regression test
   Invariant 15 requires), not to excise it because "nothing here calls it." Deleting a broken public entry
   point silently narrows the contract and breaks the very downstream callers who most needed the fix.
+- **Geneva's own callers are not its users.** Inside this repository Geneva is used only by examples,
+  tests, benchmarks and documentation programs; they show a fraction of what programs built on the
+  collection do (`INTENDED-USE.md`). A review therefore never proposes removing public API, or treats it
+  as a defect, because nothing in the tree calls it or the test suite never executes it. Such a finding
+  is at most a test gap; whether the API stays is the maintainer's decision, asked per finding. Excepted
+  is the periphery of a replaced mechanism (Invariant 20): what served only the old design leaves with
+  it, even if it was public. (Maintainer decision, 2026-11-22.)
+- **Everything possible, each in one way.** The converse holds as well: the collection does not grow
+  overlapping facilities. A task a user can do should be doable, but by one clear way. Two public ways
+  to the same result (two classes, two functions, two options that overlap) are a maintenance cost and a
+  source of confusion; a review names them, and the remedy is to fold one into the other, not to keep
+  both. (Maintainer decision, 2026-11-22.)
 - **Completeness and symmetry are themselves API value.** A public setter implies a getter, an `add` implies a
   `remove`, a `reset` completes a factory/singleton accessor — the rounded-out surface is part of what makes
   the toolkit usable, even where the in-tree code exercises only one direction.
@@ -465,7 +494,10 @@ fact in exactly one place.
 
 ## 26. Every commit compiles cleanly — on every compiler it was exercised with
 
-A commit is only allowed for code that **compiles cleanly on at least one of the supported compilers**
+A commit that is **pushed** compiles cleanly on **every** supported compiler (today clang and gcc), each
+commit of the series on its own: every pushed commit is a bisect point (maintainer decision, 2026-11-22).
+The rest of this rule governs local intermediate states. A local commit is only allowed for code that
+**compiles cleanly on at least one of the supported compilers**
 — zero errors, and zero new warnings (Invariant 10) — verified against the *committed* state, not
 against a similar-looking earlier state of the tree. If **both** compilers were exercised for the change
 (a clean-build gate, a pre-push verification, a vtable/build-system change that mandates it), the commit
