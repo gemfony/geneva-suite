@@ -65,6 +65,7 @@ ENDFUNCTION()
 # Test executables.
 
 gem_dietrich_test(GPlotDesignerTests           S  GPlotDesignerTests.cpp)
+gem_dietrich_test(GPlotSinkTests               S  GPlotSinkTests.cpp)
 
 ################################################################################
 # Aggregate `tests-dietrich-unit` target builds every Dietrich test exe at once.

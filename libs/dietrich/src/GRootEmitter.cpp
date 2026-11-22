@@ -147,7 +147,9 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
 
     // Check if we are supposed to output a png file
     if(gpd.add_print_command_ && plot_name.string() != "empty" && not(plot_name.string()).empty()) {
-        std::string plot_name_local = plot_name.string(); // Make sure there are no white spaces
+        // The picture is named by the macro's file name alone, without its directory, so that the
+        // macro works from wherever it lies (and is moved); make sure there are no white spaces
+        std::string plot_name_local = plot_name.filename().string();
         auto ltrim = plot_name_local.find_first_not_of(" \t\r\n");
         auto rtrim = plot_name_local.find_last_not_of(" \t\r\n");
         if(ltrim != std::string::npos) {

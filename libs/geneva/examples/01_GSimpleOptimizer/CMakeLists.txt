@@ -78,4 +78,19 @@ ADD_TEST ( NAME ${EXECUTABLENAME}ConfigError
 SET_TESTS_PROPERTIES ( ${EXECUTABLENAME}ConfigError PROPERTIES LABELS "geneva;example" )
 GEM_TEST_SIZE ( ${EXECUTABLENAME}ConfigError S )
 
+# A batch system warns a job before it ends it (Slurm: --signal=USR1@<s>). On SIGUSR1 or SIGHUP the
+# run must end after its current iteration with 0, report the stop request and leave a final
+# checkpoint that a second job continues from (checkpointRestart.sh says what it requires).
+SET ( STOP_REQUEST_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/stop-request )
+FILE ( MAKE_DIRECTORY ${STOP_REQUEST_WORKDIR} )
+FOREACH ( _signal IN ITEMS USR1 HUP )
+	ADD_TEST ( NAME ${EXECUTABLENAME}StopOn${_signal}
+		COMMAND ${PROJECT_SOURCE_DIR}/libs/geneva/tests/checkpointRestart.sh ${_signal} 3
+			config/GEvolutionaryAlgorithm.json checkpoints -- $<TARGET_FILE:${EXECUTABLENAME}>
+		WORKING_DIRECTORY ${STOP_REQUEST_WORKDIR} )
+	SET_TESTS_PROPERTIES ( ${EXECUTABLENAME}StopOn${_signal} PROPERTIES LABELS "geneva;example"
+		TIMEOUT 120 )
+	GEM_TEST_SIZE ( ${EXECUTABLENAME}StopOn${_signal} S )
+ENDFOREACH ()
+
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME} )

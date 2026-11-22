@@ -51,8 +51,10 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 
 # End-to-end test on the materialized default configuration: the stall criterion halts the run in well
-# under a second, and every registered pluggable monitor is exercised on the way.
+# under a second, and every pluggable monitor of the example is registered and exercised on the way,
+# recording into its stream under the default names.
 ADD_TEST(NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
+	--monitorSpec "d(0, -10, 10)" --logAll --monitorAdaptions --logSigma --monitorTimings
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 120)
 GEM_TEST_SIZE(${EXECUTABLENAME} S)

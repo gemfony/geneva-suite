@@ -29,7 +29,6 @@
 
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
-// Needed for the G_SIGHUP_SENT() signal-state query in sigHupHalt().
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -41,7 +40,7 @@
 #include "common/GParserBuilder.hpp"
 #include "common/GSelfTestable.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
-#include "common/GSigHupHandler.hpp"
+#include "common/GStopRequest.hpp" // stopRequested()
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GSubmissionStatusT.hpp"
 #include "geneva/GOptimizationDescription.hpp" // consumerModules() -- where the default consumer lies
@@ -780,7 +779,7 @@ std::uint32_t GOptimizationAlgorithmBase::getMaxIteration() const {
 /**
  * @brief Sets the minimal number of iterations to be performed before a halt may occur.
   * No halt will be performed if this is not the case (with the exception of halts
-  * that are triggered by user-actions, such as Ctrl-C (Sighup-Halt) and touched halt
+  * that are triggered by user-actions, such as a stop request (stopRequestHalt()) and touched halt
   * (Geneva checks whether a file was modified after Geneva has started). Set the number
   * of iterations to 0 in order to disable a check for the minimal number of iterations.
   *
@@ -2157,21 +2156,19 @@ bool GOptimizationAlgorithmBase::minIterationPassed() const {
 
 /******************************************************************************/
 /**
- * This function returns true if a SIGHUP / CTRL_CLOSE_EVENT signal was sent (provided the user
- * has registered the Gem::Common::sigHupHandler signal handler
+ * Ends the run when a stop was requested (Gem::Common::stopRequested(); courtier's launcher
+ * installs its handlers), e.g. by the warning a batch system sends before it ends a job. The run
+ * then ends after the current iteration and writes its final checkpoint.
  *
- * @return A boolean indicating whether the program was interrupted with a SIGHUP or CTRL_CLOSE_EVENT signal
+ * @return true if a stop was requested
  */
-bool GOptimizationAlgorithmBase::sigHupHalt() {
-    if(Gem::Common::G_SIGHUP_SENT()) {
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-        std::cout
-            << "Terminating optimization run because a CTRL_CLOSE_EVENT signal has been received"
-            << '\n';
-#else
-        std::cout << "Terminating optimization run because a SIGHUP signal has been received"
-                  << '\n';
-#endif
+bool GOptimizationAlgorithmBase::stopRequestHalt() const {
+    if(Gem::Common::stopRequested()) {
+        if(emit_termination_reason_) {
+            glogger << "Terminating optimization run because a stop was requested" << '\n'
+                    << GLOGGING;
+        }
+
         return true;
     }
     return false;
@@ -2257,8 +2254,8 @@ bool GOptimizationAlgorithmBase::halt() const {
     // The following halt criteria are triggered by the user. They override
     // all other (automatic) criteria
 
-    // Have we received a SIGHUP signal ?
-    if(sigHupHalt()) {
+    // Was a stop requested (e.g. by a batch system's signal)?
+    if(stopRequestHalt()) {
         return true;
     }
 

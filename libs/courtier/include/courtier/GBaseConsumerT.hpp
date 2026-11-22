@@ -43,6 +43,7 @@
 #include <span>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 // std::convertible_to, for the item's own clone() (clone_item_())
@@ -52,6 +53,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/record/GRecorder.hpp" // the end-of-run report (recordEndOfRun())
 #include "courtier/GCourtierEnums.hpp" // processingStatus
 #include "courtier/GProcessable.hpp"   // the non-generic work-item lifecycle base
 #include "courtier/GSubmissionPolicy.hpp"
@@ -112,6 +114,42 @@ public:
      *  @return The number of connected clients, or std::nullopt if this consumer cannot tell */
     [[nodiscard]] virtual std::optional<std::size_t> connectedClients() const {
         return 0;
+    }
+
+    /***************************************************************************/
+    /** @brief The figures of a consumer at the end of a run, as (name, value) pairs */
+    using figures_type = std::vector<std::pair<std::string, std::uint64_t>>;
+
+    /** @brief The counters this consumer keeps, for the end-of-run report (recordEndOfRun()). The
+     *  default has none: a local consumer counts nothing worth a report. A consumer that counts
+     *  overrides it (the networked ones: GNetworkedConsumerT). Read, not reset.
+     *  @return The figures, by name */
+    [[nodiscard]] virtual figures_type endOfRunFigures() const {
+        return {};
+    }
+
+    /** @brief The end-of-run report: appends one row of endOfRunFigures(), after the name of the
+     *  consumer, to the stream "courtier" of the recorder (Gem::Common::Record), and closes the
+     *  stream, so the file is complete at once. A consumer without figures records nothing (and so
+     *  creates no file). courtier's launcher calls it when it releases its consumer, also after an
+     *  exception or a stop request.
+     *  @param consumer The name of the consumer (its mnemonic) */
+    void recordEndOfRun(std::string const &consumer) const {
+        figures_type figures = this->endOfRunFigures();
+        if(figures.empty()) {
+            return;
+        }
+        std::vector<Gem::Common::Record::GColumn> columns{
+            {.name = "consumer", .type = Gem::Common::Record::columnType::TEXT}
+        };
+        Gem::Common::Record::GRow row{consumer};
+        for(auto &[name, value] : figures) {
+            columns.push_back({.name = std::move(name), .type = Gem::Common::Record::columnType::UNSIGNED});
+            row.emplace_back(value);
+        }
+        auto stream = Gem::Common::Record::recorder().stream("courtier", std::move(columns));
+        stream.append(std::move(row));
+        stream.close();
     }
 
     /***************************************************************************/

@@ -100,6 +100,7 @@ gem_common_test(GMPMCQueueShutdownStressTests  L  GMPMCQueueShutdownStressTests.
 gem_common_test(GModuleLoaderTests             S  GModuleLoaderTests.cpp)
 gem_common_test(GParserBuilderTests            S  GParserBuilderTests.cpp)
 gem_common_test(GProviderStoreTTests           S  GProviderStoreTTests.cpp)
+gem_common_test(GRecorderTests                 S  GRecorderTests.cpp)
 gem_common_test(GSelfTestableTests             S  GSelfTestableTests.cpp)
 gem_common_test(GSerializableFunctionObjectTTests
                                                   S  GSerializableFunctionObjectTTests.cpp)

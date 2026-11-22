@@ -29,10 +29,11 @@ evaluated on all cores. Useful options:
   ./GQuickStart -a swarm      another algorithm (or a chain, e.g. -a ea,swarm)
   ./GQuickStart --help        every option
 
-After the run, progressScan.C holds every evaluated candidate over the two
+After the run, records/progress.csv holds every evaluated candidate with its
+two parameters and its fitness, and records/progress.C draws them over the two
 parameters; draw it with ROOT:
 
-  root -l progressScan.C
+  root -l records/progress.C
 
 Where to go next
 ----------------

@@ -36,7 +36,8 @@
  * prerequisite, a second item type, a second run()), a choice in main() against options given
  * explicitly, prepare() and the release of the consumer, the client gate (--waitForClients,
  * --clientWaitLimit); consumer and client built without a launcher; the options of the shipped
- * thread-pool and websocket providers.
+ * thread-pool and websocket providers; --recordDir, the consumer's end-of-run report and the
+ * streams closed when run() ends.
  *
  * Every launcher here distributes GSimpleContainer, but for the one case that is refused because
  * of it: the item type is recorded once per process.
@@ -46,6 +47,7 @@
 #include <chrono>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
 #include <functional>
 #include <ios>
 #include <iostream>
@@ -64,6 +66,7 @@
 
 // Geneva header files go here
 #include "GDemoProcessingContainers.hpp"
+#include "common/record/GRecorder.hpp"
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "courtier/GLauncherT.hpp"
@@ -786,4 +789,122 @@ TEST_CASE("The thread consumer does not offer stcCapableOfFullReturn", "[launche
     GStdThreadProvider provider;
     CHECK(parsedConfig<GStdThreadConfig>(provider, {"--nWorkerThreads", "3"}).nThreads == 3);
     CHECK_THROWS(parsedConfig<GStdThreadConfig>(provider, {"--stcCapableOfFullReturn", "1"}));
+}
+
+/******************************************************************************/
+
+namespace {
+
+/** @brief A fresh directory for the records of one test case; the recorder's directory is
+ *  restored and the directory removed at the end */
+class RecordDirectory {
+public:
+    explicit RecordDirectory(const std::string &tag)
+      : dir_(
+            std::filesystem::temp_directory_path() / "gem_launcher_record_tests" /
+            (tag + "_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))
+        ) {
+    }
+    RecordDirectory(const RecordDirectory &) = delete;
+    RecordDirectory &operator=(const RecordDirectory &) = delete;
+    RecordDirectory(RecordDirectory &&) = delete;
+    RecordDirectory &operator=(RecordDirectory &&) = delete;
+    ~RecordDirectory() {
+        Gem::Common::Record::recorder().setDirectory(previous_);
+        std::error_code ec;
+        std::filesystem::remove_all(dir_, ec);
+    }
+    [[nodiscard]] const std::filesystem::path &path() const {
+        return dir_;
+    }
+
+private:
+    std::filesystem::path dir_;
+    std::filesystem::path previous_ = Gem::Common::Record::recorder().directory();
+};
+
+/** @brief A consumer that evaluates in place and counts something: its end-of-run report */
+class GCountingConsumer final : public Gem::Courtier::GBaseConsumerT<GSimpleContainer> {
+public:
+    [[nodiscard]] figures_type endOfRunFigures() const override {
+        return {{"counted", 3}};
+    }
+
+private:
+    void dispatch_(std::span<item_ptr> items) override {
+        for(auto &item : items) {
+            if(item && item->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS) {
+                item->process();
+            }
+        }
+    }
+};
+
+/** @brief The lines of a file */
+std::vector<std::string> linesOf(const std::filesystem::path &file) {
+    std::ifstream in(file);
+    std::vector<std::string> lines;
+    for(std::string line; std::getline(in, line);) {
+        lines.push_back(line);
+    }
+    return lines;
+}
+
+} // namespace
+
+TEST_CASE("Launcher: --recordDir and the end-of-run report; the streams are closed at the end", "[launcher][record]") {
+    const RecordDirectory dir("normal");
+    CommandLine cl({"--recordDir", dir.path().string()});
+    launcher_type launcher(cl.argc(), cl.data());
+    launcher.setConsumerModules(testModules());
+    Gem::Common::Record::GStreamT<int> stream;
+    CHECK(launcher.run({.produce = [&] {
+        stream = Gem::Common::Record::recorder().stream<int>("launcher_records", {"n"});
+        stream.append(1);
+        submitEight();
+        return 0;
+    }}) == 0);
+    // closeAll() at the end of run()
+    CHECK(not stream.isOpen());
+    CHECK(linesOf(dir.path() / "launcher_records.csv") == std::vector<std::string>{"n", "1"});
+    // Regression: a local consumer counts nothing, and wrote a report all the same ("stc,0"), in
+    // every run, backing the previous one up with a warning. It writes none.
+    CHECK_FALSE(std::filesystem::exists(dir.path() / "courtier.csv"));
+}
+
+TEST_CASE("Launcher: a consumer that counts records its end-of-run report", "[launcher][record]") {
+    const RecordDirectory dir("report");
+    CommandLine cl({"--recordDir", dir.path().string()});
+    launcher_type launcher(cl.argc(), cl.data());
+    launcher.setConsumerModules(testModules());
+    launcher.setConsumer([] { return std::make_shared<GCountingConsumer>(); });
+    CHECK(launcher.run({.produce = [] { return submitEight() == 8 ? 0 : 1; }}) == 0);
+    CHECK(
+        linesOf(dir.path() / "courtier.csv") ==
+        std::vector<std::string>{
+            "consumer,counted",
+            std::string(Gem::Courtier::GDEFAULTCONSUMERMNEMONIC) + ",3"
+        }
+    );
+}
+
+TEST_CASE("Launcher: the streams are closed and the report recorded when produce() throws", "[launcher][record]") {
+    const RecordDirectory dir("throws");
+    CommandLine cl({"--recordDir", dir.path().string()});
+    launcher_type launcher(cl.argc(), cl.data());
+    launcher.setConsumerModules(testModules());
+    launcher.setConsumer([] { return std::make_shared<GCountingConsumer>(); });
+    Gem::Common::Record::GStreamT<int> stream;
+    const std::string msg = refusalOf([&] {
+        (void)launcher.run({.produce = [&]() -> int {
+            stream = Gem::Common::Record::recorder().stream<int>("launcher_records", {"n"});
+            stream.append(2);
+            throw std::runtime_error("produce failed");
+        }});
+    });
+    CHECK(msg == "produce failed");
+    CHECK(not stream.isOpen());
+    CHECK(linesOf(dir.path() / "launcher_records.csv") == std::vector<std::string>{"n", "2"});
+    CHECK(linesOf(dir.path() / "courtier.csv").size() == 2);
 }

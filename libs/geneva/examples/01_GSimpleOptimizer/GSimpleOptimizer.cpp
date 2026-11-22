@@ -52,13 +52,6 @@ int main(int argc, char **argv) {
     // What the process that submits the work does; a client never runs it
     auto produce = [](Go2 &go, const GOptimizationDescription &) {
         //-----------------------------------------------------------------------
-        // As we are dealing with the submitter, register a signal handler that allows us
-        // to interrupt execution "on the run"
-        //! [go2-sighup]
-        signal(G_SIGHUP, Gem::Common::sigHupHandler);
-        //! [go2-sighup]
-
-        //-----------------------------------------------------------------------
         // Create a factory for GFunctionIndividual objects and perform
         // any necessary initial work.
         std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(

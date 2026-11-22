@@ -59,10 +59,6 @@ int main(int argc, char **argv) {
         argv,
         {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
             //---------------------------------------------------------------------------
-            // As this is a server, register a signal handler that allows interrupting execution "on the run".
-            signal(G_SIGHUP, Gem::Common::sigHupHandler);
-
-            //---------------------------------------------------------------------------
             // Supply the (compiled-in) optimization individual: the standard benchmark-function individual.
             std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
                 new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")

@@ -111,16 +111,13 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     // See example 12 for more monitors
 
     if(monitorTimings != "empty") {
-        std::shared_ptr<GProcessingTimesLogger> const processingTimesLogger_ptr(
-            new GProcessingTimesLogger(
-                "hist_" + monitorTimings + ".C",
-                "hist2D_" + monitorTimings + ".C",
-                monitorTimings + ".txt",
-                100 // nBins in x-direction
-                ,
-                100 // nBins in y-direction
-            )
+        // The times go into the stream named by the option (a CSV file and a plot in the record
+        // directory, --recordDir)
+        auto const processingTimesLogger_ptr = std::make_shared<GProcessingTimesLogger>(
+            100, // nBins in x-direction
+            100  // nBins in y-direction
         );
+        processingTimesLogger_ptr->setStreamName(monitorTimings);
         go.registerPluggableOM(processingTimesLogger_ptr);
     }
 
@@ -170,9 +167,10 @@ int main(int argc, char **argv) {
             "monitorTimings",
             options.monitorTimings,
             std::string("empty"),
-            "Logs the times for all processing steps",
+            "Records the times of all processing steps into the stream of this name (files "
+            "<name>.csv and <name>.C in the record directory)",
             Gem::Common::GCL_IMPLICIT_ALLOWED,
-            std::string("timingsLog")
+            std::string("processing_times")
         );
         gpb.registerCLParameter<bool>(
             "usePostProcessor",

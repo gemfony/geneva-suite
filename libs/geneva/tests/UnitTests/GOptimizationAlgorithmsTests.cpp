@@ -46,11 +46,13 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <ranges>
 #include <set>
 #include <string>
 #include <string_view>
@@ -61,6 +63,7 @@
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
+#include "common/record/GRecorder.hpp"
 #include "courtier/GLauncherT.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
@@ -77,6 +80,7 @@
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GNelderMead.hpp"
 #include "geneva/oa/GParameterScan.hpp"
+#include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
@@ -913,18 +917,34 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
     const auto adaption_config = proto.getAdaptionConfig();
     const fs::path base = fs::temp_directory_path() / "geneva-monitors-resume-test";
     fs::remove_all(base);
+    // The stream of a recording monitor goes on in the resumed run: its file is appended to
+    auto &recorder = Gem::Common::Record::recorder();
+    const fs::path previous_directory = recorder.directory();
+    recorder.setDirectory(base / "records");
+    const fs::path stream_file = base / "records" / "best_fitness.csv";
+    const auto data_rows = [&stream_file] {
+        std::ifstream in(stream_file);
+        std::vector<std::string> rows;
+        for(std::string line; std::getline(in, line);) {
+            rows.push_back(line);
+        }
+        return rows;
+    };
 
     // Job 1: iterations 0 to 2 under a monitor; the final checkpoint holds iteration 2
     auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
     job1->push_back(proto.clone());
     job1->setPopulationSizes(4, 2);
     job1->setMaxIteration(3);
-    job1->setReportIteration(0);
+    job1->setReportIteration(1);
     job1->setAdaptionConfig(adaption_config);
     job1->registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
+    job1->registerPluggableOM(std::make_shared<Gem::Geneva::GFitnessMonitor>());
     job1->setCheckpointInterval(1);
     job1->setCheckpointBaseName(base.string(), "monitors.cp");
     job1->optimize();
+    recorder.closeAll(); // the end of job 1, as its launcher would end it
+    REQUIRE(data_rows().size() == 1 + 3); // the header and iterations 0, 1 and 2
     fs::path final_checkpoint;
     for(const auto &entry : fs::directory_iterator(base)) {
         if(entry.path().filename().string().find("-final-") != std::string::npos) {
@@ -960,6 +980,9 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
                              Gem::Geneva::Go2 go(geneva);
                              go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
                              go.registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
+                             go.registerPluggableOM(
+                                 std::make_shared<Gem::Geneva::GFitnessMonitor>()
+                             );
                              job2->setPopulationSizes(4, 2);
                              job2->setMaxIteration(6);
                              job2->setReportIteration(1);
@@ -974,6 +997,212 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
     REQUIRE(job2->getIteration() == 6);
     CHECK(resume_monitor_calls == 3); // iterations 3, 4 and 5, once each
 
+    // The resumed run appended to job 1's file, which was not backed up
+    const std::vector<std::string> rows = data_rows();
+    REQUIRE(rows.size() == 1 + 6);
+    for(std::size_t iteration = 0; iteration < 6; ++iteration) {
+        CHECK(rows[1 + iteration].starts_with(
+            "Evolutionary Algorithm," + std::to_string(iteration) + "," + std::to_string(iteration) +
+            ",0,"
+        ));
+    }
+    std::size_t backups = 0;
+    for(const auto &entry : fs::directory_iterator(base / "records")) {
+        backups += entry.path().filename().string().starts_with("best_fitness.csv.bak_") ? 1 : 0;
+    }
+    CHECK(backups == 0);
+
+    recorder.setDirectory(previous_directory);
+    fs::remove_all(base);
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "a run resumed from an older checkpoint replaces the rows recorded after it",
+    "[oa][go2]"
+) {
+    // A resumed run cuts the streams of its monitors back to its checkpoint before it appends
+    // (GStreamOptions::resumeColumn, GMonitorStream::declare()). Regression: the iterations between
+    // the checkpoint and the end of the earlier run -- after a crash, those since the last
+    // checkpoint -- appeared twice.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+    const fs::path base = fs::temp_directory_path() / "geneva-monitors-older-checkpoint-test";
+    fs::remove_all(base);
+    auto &recorder = Gem::Common::Record::recorder();
+    const fs::path previous_directory = recorder.directory();
+    recorder.setDirectory(base / "records");
+
+    // Job 1: iterations 0 to 4, a checkpoint after each, all kept
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(5);
+    job1->setReportIteration(1);
+    job1->setAdaptionConfig(adaption_config);
+    job1->registerPluggableOM(std::make_shared<Gem::Geneva::GFitnessMonitor>());
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName(base.string(), "older.cp");
+    job1->setRemoveCheckpointFiles(false); // keep the older checkpoints
+    job1->optimize();
+    recorder.closeAll();
+    fs::path older_checkpoint; // the one of iteration 2
+    for(const auto &entry : fs::directory_iterator(base)) {
+        if(entry.path().filename().string().starts_with("checkpoint-PERSONALITY_EA-2-")) {
+            older_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not older_checkpoint.empty());
+
+    // Job 2 resumes from it and runs iterations 3 and 4 again; job 1's rows of 3 and 4 are dropped
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::string arg3 = "--cp_file";
+    std::string arg4 = older_checkpoint.string();
+    std::vector<char *>
+        argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
+    {
+        Gem::Geneva::GOptimizationDescription geneva;
+        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+            static_cast<int>(argv.size() - 1),
+            argv.data(),
+            base / "Go2.json"
+        );
+        REQUIRE(launcher.run(geneva, {.produce = [&] {
+                                 Gem::Geneva::Go2 go(geneva);
+                                 go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                                 go.registerPluggableOM(
+                                     std::make_shared<Gem::Geneva::GFitnessMonitor>()
+                                 );
+                                 auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+                                 job2->setPopulationSizes(4, 2);
+                                 job2->setMaxIteration(5);
+                                 job2->setReportIteration(1);
+                                 go & job2;
+                                 REQUIRE_NOTHROW(go.optimize());
+                                 return 0;
+                             }}) == 0);
+    }
+
+    std::ifstream in(base / "records" / "best_fitness.csv");
+    std::vector<std::string> iterations;
+    std::string line;
+    std::getline(in, line); // the header
+    while(std::getline(in, line)) {
+        iterations.push_back(line.substr(0, line.find(',', line.find(',') + 1)));
+    }
+    CHECK(
+        iterations ==
+        std::vector<std::string>{
+            "Evolutionary Algorithm,0",
+            "Evolutionary Algorithm,1",
+            "Evolutionary Algorithm,2",
+            "Evolutionary Algorithm,3",
+            "Evolutionary Algorithm,4"
+        }
+    );
+
+    recorder.setDirectory(previous_directory);
+    fs::remove_all(base);
+}
+
+/******************************************************************************/
+
+TEST_CASE("a monitor's stream holds every algorithm of a Go2 chain", "[oa][go2]") {
+    // Go2 registers the same monitor with every algorithm of a chain. Its stream is declared at the
+    // first INFOINIT and ends with the run, so it holds the rows of both algorithms and the plot
+    // shows them all. Regression: the progress plotter began a new plot at every INFOINIT, so only
+    // the last algorithm's data were written.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+    const fs::path base = fs::temp_directory_path() / "geneva-monitors-chain-test";
+    fs::remove_all(base);
+    auto &recorder = Gem::Common::Record::recorder();
+    const fs::path previous_directory = recorder.directory();
+    recorder.setDirectory(base / "records");
+
+    std::string arg0 = "unit-test";
+    std::string arg1 = "--consumer";
+    std::string arg2 = "stc";
+    std::vector<char *> argv{arg0.data(), arg1.data(), arg2.data(), nullptr};
+    {
+        Gem::Geneva::GOptimizationDescription geneva;
+        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+            static_cast<int>(argv.size() - 1),
+            argv.data(),
+            base / "Go2.json"
+        );
+        const int code = launcher.run(geneva, {.produce = [&] {
+                                          Gem::Geneva::Go2 go(geneva);
+                                          go.push_back(proto.clone());
+                                          go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                                          go.registerAdaptionConfig("PERSONALITY_SA", adaption_config);
+                                          auto plotter =
+                                              std::make_shared<Gem::Geneva::GProgressPlotter>();
+                                          plotter->setProfileSpec("d(0, -10, 10)");
+                                          go.registerPluggableOM(plotter);
+                                          auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+                                          ea->setPopulationSizes(4, 2);
+                                          ea->setMaxIteration(2);
+                                          ea->setReportIteration(1);
+                                          auto sa = std::make_shared<oa::GSimulatedAnnealing>();
+                                          sa->setPopulationSizes(4, 2);
+                                          sa->setMaxIteration(2);
+                                          sa->setReportIteration(1);
+                                          go & ea & sa;
+                                          REQUIRE_NOTHROW(go.optimize());
+                                          return 0;
+                                      }});
+        REQUIRE(code == 0);
+    }
+
+    // The launcher closed the stream at the end of its run: the file holds both algorithms. Each
+    // row keeps its algorithm's own iteration (SA starts again at 0), while chain_iteration counts
+    // on through the chain, so a plot over it does not jump back (regression: the plots of a chain
+    // ran from the last iteration of the first algorithm back to 0).
+    std::ifstream in(base / "records" / "progress.csv");
+    std::string header;
+    std::getline(in, header);
+    CHECK(header == "algorithm,iteration,chain_iteration,var0,fitness");
+    std::size_t ea_rows = 0;
+    std::size_t sa_rows = 0;
+    std::uint64_t ea_last_chain = 0;
+    std::uint64_t sa_first_chain = std::numeric_limits<std::uint64_t>::max();
+    std::uint64_t sa_first_iteration = std::numeric_limits<std::uint64_t>::max();
+    for(std::string line; std::getline(in, line);) {
+        std::vector<std::string> fields;
+        for(auto const part : line | std::views::split(',')) {
+            fields.emplace_back(part.begin(), part.end());
+        }
+        REQUIRE(fields.size() == 5);
+        const std::uint64_t iteration = std::stoull(fields[1]);
+        const std::uint64_t chain = std::stoull(fields[2]);
+        if(fields[0] == "Evolutionary Algorithm") {
+            ++ea_rows;
+            CHECK(chain == iteration);
+            ea_last_chain = std::max(ea_last_chain, chain);
+        }
+        else if(fields[0] == "Simulated Annealing") {
+            ++sa_rows;
+            sa_first_chain = std::min(sa_first_chain, chain);
+            sa_first_iteration = std::min(sa_first_iteration, iteration);
+        }
+    }
+    CHECK(ea_rows > 0);
+    CHECK(sa_rows > 0);
+    CHECK(sa_first_iteration == 0);
+    CHECK(sa_first_chain == ea_last_chain + 1);
+    CHECK(fs::exists(base / "records" / "progress.C"));
+
+    recorder.setDirectory(previous_directory);
     fs::remove_all(base);
 }
 

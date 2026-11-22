@@ -602,9 +602,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `geneva/ind/` to `geneva/genome/`; the entity multi-constraint headers (`GMultiConstraintT`,
   `GIndividualMultiConstraint`) moved under `geneva/genome/`; the pluggable optimization
   monitors (`GPluggableOptimizationMonitors`) and the nested-EA refiner (`GPostProcessorT`)
-  moved under `geneva/oa/`; and the generic OS-signal handler `GSigHupHandler` moved from
-  `geneva/` to `common/` (namespace `Gem::Geneva` → `Gem::Common`, so register it as
-  `Gem::Common::sigHupHandler`).
+  moved under `geneva/oa/`.
 - **The vestigial "Flat" qualifier was dropped from the genome layer** (source-breaking;
   update any references to the old `*Flat*` names).
 - **The standalone gradient descent ("gd") is gone.** Plain gradient descent survives as
@@ -749,6 +747,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **A final checkpoint is written when a run halts** (file name tagged `final`) whenever
   checkpointing is enabled (`cp_interval != 0`); with checkpointing disabled a run
   performs no checkpoint I/O at all.
+- **SIGHUP and SIGUSR1 end a run cleanly** (Slurm: `--signal=USR1@<s>`): after the current
+  iteration, with its final checkpoint; SIGTERM still ends it at once. The launcher installs the
+  handlers in every process (`common/GStopRequest.hpp`); a program no longer registers one itself.
+- **A malformed JSON checkpoint or archive throws `Gem::Weft::weft_exception`** naming the path
+  of the value in the document and the reason (text that is no JSON, a value of the wrong type, a
+  missing key, an array of the wrong length, a number out of range, a malformed floating-point or
+  hex string), as a malformed binary archive does; no exception of Boost.JSON leaves the codec.
 - **The personality-traits archive layout changed within the 1.99 development series**:
   the position-only traits of CGD / Nelder-Mead / parameter scan / GSA / ACO / PSO2011 and
   the parent-child traits now serialize their population position through the shared
@@ -756,6 +761,64 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `population_position_` and PSO `particle_` tags became `pop_pos_`). Checkpoints written
   by earlier 1.99 development builds do not load; 1.11 checkpoints never loaded in 2.0
   anyway (see the top of this document).
+
+## 9. Recording: monitors write streams
+
+- **A recording framework in common** (`common/record/`, namespace `Gem::Common::Record`). The
+  process-wide `recorder()` hands out streams -- named tables with fixed, typed columns
+  (integers, floating point, bool, text, time stamps; optionally an automatic `time` column of
+  the wall or the steady clock) -- to which any thread appends rows:
+  `auto s = recorder().stream<std::uint64_t, double>("progress", {"iteration", "best_fitness"});
+  s.append(i, f);`. Columns known only at run time are declared as a list of `GColumn`. The rows
+  go to sinks: `GCsvSink` (the default) and `GJsonLinesSink` in common, `GPlotSink` in dietrich
+  (the stream drawn as a `GDataLog` plot at its end, ROOT by default). `recorder().addSink(name,
+  sink)` adds a sink to a stream before another part of the program -- or another library --
+  declares it, e.g. a plot of courtier's end-of-run report.
+- **One output rule for every file.** A stream writes `<directory>/<stream name>.<extension>`;
+  the directory is `./records`, created when needed, set with `--recordDir` (courtier's launcher)
+  or `recorder().setDirectory()`. Two open streams of one name are refused, naming both
+  declarers -- two monitors of one class in one process need different stream names. An existing
+  file is backed up at the first write; a run resumed from a checkpoint appends to the files of
+  its monitors when their columns are the same, after cutting them back to the checkpoint: the
+  rows the earlier run recorded after it -- after a crash, those since the last checkpoint, and a
+  row cut in the middle -- are dropped (`GStreamOptions::resumeColumn`, `resumeAfter`); the plot
+  of a resumed stream reads the earlier rows from the stream's CSV file and draws the whole run.
+  Each row is flushed to its file. Courtier's launcher closes all streams when `run()` ends -- also after
+  an exception or a stop request; a program without the launcher calls `recorder().closeAll()`
+  itself.
+- **The shipped monitors record streams instead of writing files of their own.** Each declares
+  its stream at the first INFOINIT and appends at INFOPROCESSING; every row begins with
+  `algorithm`, `iteration` (the algorithm's own) and `chain_iteration` (`GMonitorStream`). In a
+  Go2 chain one stream (and one plot) holds every algorithm of the chain; the plots run over
+  `chain_iteration`, which counts on through the chain, so they do not jump back when the next
+  algorithm starts at 0. A copy of a monitor has no stream of its own. The default stream
+  names: `GFitnessMonitor` "best_fitness" (it now writes its data), `GProgressPlotterT`
+  "progress", `GAllSolutionFileLogger` "all_solutions", `GNAdpationsLogger` "n_adaptions",
+  `GAdaptorPropertyLoggerT` "adaptor_properties", `GProcessingTimesLogger` "processing_times",
+  `GOptOptMonitorT` "meta_optimization"; `setStreamName()` changes it. `GStandardMonitor` writes
+  its summary through the logger, as before, and is registered only when a program registers it.
+- **`GIterationResultsFileLogger` is gone**; it recorded a part of what `GAllSolutionFileLogger`
+  records. `GAllSolutionFileLogger::setFitnessOnly()` records what it did: the individual and its
+  fitness values (raw or transformed, `setUseTrueFitness()`), without parameters and validity.
+- **What leaves the monitors.** The file names, their setters and the constructor arguments that
+  took them (`setFileName()`, `GFitnessMonitor::setResultFileName()`, `setFileName_pth()`,
+  `setFileName_pth2()`, `setFileName_txt()`, the file name of `GOptOptMonitorT`'s constructor);
+  the canvas of `GFitnessMonitor`, which drew nothing (`setDims()`, `getDims()`, `getXDim()`,
+  `getYDim()`); the text layout of `GAllSolutionFileLogger` (`setPrintWithNameAndType()`,
+  `setPrintWithCommas()`, `setShowIterationBoundaries()` -- a CSV file has a header line and
+  commas); `GProcessingTimesLogger`'s two canvases (one plot now:
+  `setCanvasDimensions()`). Constructors: `GAllSolutionFileLogger(boundaries)`,
+  `GAdaptorPropertyLoggerT(adaptor_name, property)`, `GProcessingTimesLogger(n_bins_x, n_bins_y)`,
+  `GOptOptMonitorT()`. The constants `DEFAULTROOTRESULTFILEOM`, `DEFAULTXDIMOM` and
+  `DEFAULTYDIMOM` are gone. 1.99 keeps no archive compatibility: a checkpoint written before
+  this change that holds such a monitor is not meant to load.
+- **Corrected on the way.** The progress plotter of a Go2 chain kept only the last algorithm's
+  data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
+- **courtier's end-of-run report.** When the launcher releases a consumer that counts something,
+  the consumer appends one row of its counters to the stream `courtier`
+  (`GBaseConsumerT::recordEndOfRun()`, `endOfRunFigures()`): a networked consumer its connected
+  clients, if it can tell, and its requeued items, dropped, foreign and dropped late returns and
+  empty checkouts. A local consumer counts nothing and writes no report.
 
 ---
 

@@ -16,7 +16,11 @@ and AI work alike — so none was moved; this file starts with the rules below.)
 Large parallel efforts are split by the kind of judgment they need, and each kind runs on the tier suited
 to it:
 
-- **Mechanical work → Haiku (many agents in parallel).** High-volume, pattern-shaped detection: scanning
+- **Tiers are roles, not model names** (maintainer decision, 2026-11-22): supervision runs on the strongest
+  model in use (today Opus 5.5), executing work on Opus or Sonnet, mechanical search on Sonnet or Haiku.
+  **At most two agents run beside the supervisor at once**, and at most one of them writes in a working
+  tree (AI-3). Where the text below names a model, read the role.
+- **Mechanical work → Haiku.** High-volume, pattern-shaped detection: scanning
   for stale vocabulary, copy-paste identity errors, narration comments, convention drift, sibling
   asymmetries. Mechanical scanners are *detection-only*: they never change code, never decide fixes, and
   every finding must carry the repo-relative file, line, and a **verbatim quote** (the machine-validation
@@ -46,6 +50,9 @@ No fix, migration, or deletion is ever executed from a mechanical scan result al
   infrastructure in the tree.
 - "Unused" claims from scanners compose with Invariants 11 and 23: they are input for a maintainer
   exposure decision, never a licence to delete.
+- Review findings about unused or never-executed public API follow Invariant 23: they are questions to
+  the maintainer with a proposed consequence, never a list of deletions. (Maintainer decision,
+  2026-11-22.)
 
 ## AI-3. One writer in the checkout; fresh contexts; all state in files
 
@@ -154,7 +161,9 @@ is there.
   built, when that decision does not carry; that revision is put to the maintainer with the
   question.
 - **Every review finding is first asked whether it disappears by leaving something out** -- a
-  mechanism, a case, a guarantee nobody needs -- before code is added to close it.
+  mechanism, a case, a guarantee nobody needs -- before code is added to close it. What a
+  generalization must show before it is built is stated in Invariant 14 (a named use case,
+  `INTENDED-USE.md`).
 - This composes with AI-6 (which bounds the rounds of review) and with Invariant 29 (the thin
   slice that ends with a decision): those two limit how work is checked; this one limits how far it
   may grow unasked.

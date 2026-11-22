@@ -58,7 +58,6 @@ struct ProgramOptions {
     std::string monitorTimings = "empty";    ///< --monitorTimings
     bool addOneOnly = false;                 ///< --addOneOnly
     bool printInitial = false;               ///< --printInitial
-    bool showIterationBoundaries = false;    ///< --showIterationBoundaries
 };
 
 /**
@@ -81,8 +80,7 @@ int optimize(Go2 &go, const ProgramOptions &options) {
           logSigma,
           monitorTimings,
           addOneOnly,
-          printInitial,
-          showIterationBoundaries] = options;
+          printInitial] = options;
 
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
@@ -92,7 +90,9 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     );
 
     //---------------------------------------------------------------------------
-    // Register pluggable optimization monitors, if requested by the user
+    // Register pluggable optimization monitors, if requested by the user. Each records into a
+    // stream of its own, named by its option: a CSV file, and for most a plot, in the record
+    // directory (./records, or --recordDir)
 
     // Register a progress plotter with the global optimization algorithm factory
     //! [monitors:register-plotter]
@@ -119,35 +119,23 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     //! [monitors:register-plotter]
 
     if(logAll != "empty") {
-        std::shared_ptr<GAllSolutionFileLogger> const allSolutionLogger_ptr(
-            new GAllSolutionFileLogger(logAll)
-        );
-
-        allSolutionLogger_ptr->setPrintWithNameAndType(
-            true
-        ); // Output information about variable names and types
-        allSolutionLogger_ptr->setPrintWithCommas(true); // Output commas between values
+        auto const allSolutionLogger_ptr = std::make_shared<GAllSolutionFileLogger>();
+        allSolutionLogger_ptr->setStreamName(logAll);
         allSolutionLogger_ptr->setUseTrueFitness(
             false
-        ); // Output "transformed" fitness, not the "true" value
+        ); // Record the "transformed" fitness, not the "true" value
         allSolutionLogger_ptr->setShowValidity(true); // Indicate, whether this is a valid solution
 
         if(printInitial) {
             allSolutionLogger_ptr->setPrintInitial();
         }
 
-        if(showIterationBoundaries) {
-            allSolutionLogger_ptr->setShowIterationBoundaries();
-        }
-
         go.registerPluggableOM(allSolutionLogger_ptr);
     }
 
     if(monitorNAdaptions != "empty") {
-        std::shared_ptr<GNAdpationsLogger> const nAdaptionsLogger_ptr(
-            new GNAdpationsLogger(monitorNAdaptions)
-        );
-
+        auto const nAdaptionsLogger_ptr = std::make_shared<GNAdpationsLogger>();
+        nAdaptionsLogger_ptr->setStreamName(monitorNAdaptions);
         nAdaptionsLogger_ptr->setMonitorBestOnly(false); // Output information for all individuals
         nAdaptionsLogger_ptr->setAddPrintCommand(
             true
@@ -157,9 +145,9 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     }
 
     if(logSigma != "empty") {
-        std::shared_ptr<GAdaptorPropertyLogger<double>> const sigmaLogger_ptr(
-            new GAdaptorPropertyLogger<double>(logSigma, "GDoubleGaussAdaptor", "sigma")
-        );
+        auto const sigmaLogger_ptr =
+            std::make_shared<GAdaptorPropertyLogger<double>>("GDoubleGaussAdaptor", "sigma");
+        sigmaLogger_ptr->setStreamName(logSigma);
 
         sigmaLogger_ptr->setMonitorBestOnly(false); // Output information for all individuals
         sigmaLogger_ptr->setAddPrintCommand(true);  // Create a PNG file if Root-file is executed
@@ -168,16 +156,11 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     }
 
     if(monitorTimings != "empty") {
-        std::shared_ptr<GProcessingTimesLogger> const processingTimesLogger_ptr(
-            new GProcessingTimesLogger(
-                "hist_" + monitorTimings + ".C",
-                "hist2D_" + monitorTimings + ".C",
-                monitorTimings + ".txt",
-                100 // nBins in x-direction
-                ,
-                100 // nBins in y-direction
-            )
+        auto const processingTimesLogger_ptr = std::make_shared<GProcessingTimesLogger>(
+            100, // nBins in x-direction
+            100  // nBins in y-direction
         );
+        processingTimesLogger_ptr->setStreamName(monitorTimings);
         go.registerPluggableOM(processingTimesLogger_ptr);
     }
 
@@ -276,35 +259,38 @@ int main(int argc, char **argv) {
             "logAll",
             options.logAll,
             std::string("empty"),
-            "Logs all solutions to the file name provided as argument to this switch",
+            "Records all solutions into the stream of the name given (a CSV file in the record "
+            "directory)",
             Gem::Common::GCL_IMPLICIT_ALLOWED,
-            std::string("./logAll.txt")
+            std::string("all_solutions")
         );
         gpb.registerCLParameter<std::string>(
             "monitorAdaptions",
             options.monitorNAdaptions,
             std::string("empty"),
-            "Logs the number of adaptions for all individuals over the course of the optimization. "
-            "Useful for evolutionary algorithms only.",
+            "Records the number of adaptions of all individuals over the course of the "
+            "optimization into the stream of the name given (a CSV file and a plot in the record "
+            "directory). Useful for evolutionary algorithms only.",
             Gem::Common::GCL_IMPLICIT_ALLOWED,
-            std::string("./nAdaptions.C")
+            std::string("n_adaptions")
         );
         gpb.registerCLParameter<std::string>(
             "logSigma",
             options.logSigma,
             std::string("empty"),
-            "Logs the value of sigma for all or the best adaptors, if GDoubleGaussAdaptors are "
-            "being used",
+            "Records the value of sigma of all adaptors, if GDoubleGaussAdaptors are being used, "
+            "into the stream of the name given (a CSV file and a plot in the record directory)",
             Gem::Common::GCL_IMPLICIT_ALLOWED,
-            std::string("./sigmaLog.C")
+            std::string("adaptor_properties")
         );
         gpb.registerCLParameter<std::string>(
             "monitorTimings",
             options.monitorTimings,
             std::string("empty"),
-            "Logs the times for all processing steps",
+            "Records the times of all processing steps into the stream of this name (files "
+            "<name>.csv and <name>.C in the record directory)",
             Gem::Common::GCL_IMPLICIT_ALLOWED,
-            std::string("timingsLog")
+            std::string("processing_times")
         );
         gpb.registerCLParameter<bool>(
             "addOneIndividualOnly",
@@ -321,14 +307,6 @@ int main(int argc, char **argv) {
             false,
             "[logAll] When set, forces the printout of the initial population prior to the "
             "optimization",
-            Gem::Common::GCL_IMPLICIT_ALLOWED,
-            true
-        );
-        gpb.registerCLParameter<bool>(
-            "showIterationBoundaries",
-            options.showIterationBoundaries,
-            false,
-            "[logAll] When set, prints a comment inbetween iterations",
             Gem::Common::GCL_IMPLICIT_ALLOWED,
             true
         );

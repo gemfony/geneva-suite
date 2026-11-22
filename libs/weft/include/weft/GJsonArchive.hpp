@@ -82,6 +82,15 @@ namespace Gem::Weft {
  * The loader walks the parsed tree in the same fixed member order: object
  * members are looked up by name (order-tolerant), array elements by an advancing
  * per-level cursor.
+ *
+ * @par A malformed archive
+ * The loading codec reports every flaw of the document as @c weft_exception, with
+ * the path of the value in the tree (e.g. @c /point/x, @c /values/3) and the reason:
+ * text that is no JSON, a value of the wrong type, a missing key, an array of the
+ * wrong length (a fixed-size array, a tuple or a raw range must have exactly its
+ * elements), a number out of the range of its type, a floating-point string that is
+ * no number, a malformed hex string. No exception of Boost.JSON or of the standard
+ * library leaves the codec.
  */
 /******************************************************************************/
 
@@ -260,9 +269,10 @@ private:
  */
 class GJsonIArchive : public GIArchiveT<GJsonIArchive> {
 public:
-    /** @brief Parses @p text as JSON to read from. @param text The JSON document. */
+    /** @brief Parses @p text as JSON to read from; text that is no JSON throws weft_exception.
+     *  @param text The JSON document. */
     explicit GJsonIArchive(std::string_view text)
-      : root_(boost::json::parse(text)) {
+      : root_(parse(text)) {
     }
     /** @brief Reads from an existing JSON tree. @param v The JSON tree (copied). */
     explicit GJsonIArchive(boost::json::value v)
@@ -273,14 +283,30 @@ public:
 
     /** @brief Reads a boolean. @param b The value to fill. */
     void get_bool(bool &b) {
-        b = slot().as_bool();
+        const boost::json::value &v = slot();
+        if(not v.is_bool()) {
+            fail(expected("a bool", v));
+        }
+        b = v.get_bool();
     }
 
     /** @brief Reads an integer with a checked numeric conversion. @param v The value to fill. */
     template <typename int_type>
     void get_scalar(int_type &v) {
         static_assert(std::is_integral_v<int_type>);
-        v = slot().to_number<int_type>();
+        const boost::json::value &n = slot();
+        if(not n.is_number()) {
+            fail(expected("a number", n));
+        }
+        boost::system::error_code ec;
+        const auto value = n.to_number<int_type>(ec);
+        if(ec) {
+            fail(
+                "the number " + boost::json::serialize(n) + " does not fit its type (" + ec.message() +
+                ")"
+            );
+        }
+        v = value;
     }
 
     /**
@@ -291,21 +317,25 @@ public:
     template <typename float_type>
     void get_fp(float_type &v) {
         static_assert(std::is_floating_point_v<float_type>);
-        const boost::json::string &s = slot().as_string();
+        const boost::json::string &s = text(slot(), "a floating-point number as a string");
+        char *end = nullptr;
         if constexpr(std::is_same_v<float_type, long double>) {
-            v = std::strtold(s.c_str(), nullptr);
+            v = std::strtold(s.c_str(), &end);
         }
         else if constexpr(std::is_same_v<float_type, float>) {
-            v = std::strtof(s.c_str(), nullptr);
+            v = std::strtof(s.c_str(), &end);
         }
         else {
-            v = std::strtod(s.c_str(), nullptr);
+            v = std::strtod(s.c_str(), &end);
+        }
+        if(s.empty() || end != s.c_str() + s.size()) {
+            fail("\"" + std::string(s.c_str()) + "\" is no floating-point number");
         }
     }
 
     /** @brief Reads a string. @param s The string to fill. */
     void get_string(std::string &s) {
-        const boost::json::string &js = slot().as_string();
+        const boost::json::string &js = text(slot(), "a string");
         s.assign(js.begin(), js.end());
     }
 
@@ -313,7 +343,10 @@ public:
 
     void enter_object() {
         const boost::json::value &s = slot();
-        stack_.push_back(Cursor{&s, 0});
+        if(not s.is_object()) {
+            fail(expected("an object", s));
+        }
+        stack_.push_back(Cursor{&s, 0, where_});
     }
     void leave_object() {
         stack_.pop_back();
@@ -321,12 +354,15 @@ public:
     /** @brief Reads a container's element count. @return The number of elements. */
     std::size_t begin_seq() {
         const boost::json::value &s = slot();
-        std::size_t n = s.as_array().size();
-        stack_.push_back(Cursor{&s, 0});
+        if(not s.is_array()) {
+            fail(expected("an array", s));
+        }
+        std::size_t n = s.get_array().size();
+        stack_.push_back(Cursor{&s, 0, where_});
         return n;
     }
     void end_seq() {
-        stack_.pop_back();
+        leave_array();
     }
     /** @brief Selects the object member the next read targets. @param name The member name. */
     void member(const char *name) {
@@ -340,34 +376,39 @@ public:
     // Raw caller-managed range framing (make_array / make_binary).
     void begin_raw() {
         const boost::json::value &s = slot();
-        stack_.push_back(Cursor{&s, 0});
+        if(not s.is_array()) {
+            fail(expected("an array", s));
+        }
+        stack_.push_back(Cursor{&s, 0, where_});
     }
     void end_raw() {
-        stack_.pop_back();
+        leave_array();
     }
     /** @brief Reads a hex string of @p n bytes into @p p. @param p The pre-sized destination. @param n The byte count. */
     void get_bytes(void *p, std::size_t n) {
-        const boost::json::string &s = slot().as_string();
+        const boost::json::string &s = text(slot(), "a hex string");
         from_hex(std::string_view{s.data(), s.size()}, p, n);
     }
 
 private:
-    static void from_hex(std::string_view hex, void *p, std::size_t n) {
+    void from_hex(std::string_view hex, void *p, std::size_t n) const {
         if(hex.size() != 2 * n) {
-            throw weft_exception(
-                weft_error_streamer()
-                << "In GJsonIArchive::get_bytes(): hex string of length " << hex.size()
-                << " does not match the expected " << (2 * n) << " (for " << n << " bytes)." << '\n'
+            fail(
+                "the hex string has " + std::to_string(hex.size()) + " digits, " +
+                std::to_string(2 * n) + " were expected (for " + std::to_string(n) + " bytes)"
             );
         }
-        auto nibble = [](char c) -> unsigned {
-            if(c >= '0' && c <= '9')
+        auto nibble = [this](char c) -> unsigned {
+            if(c >= '0' && c <= '9') {
                 return static_cast<unsigned>(c - '0');
-            if(c >= 'a' && c <= 'f')
+            }
+            if(c >= 'a' && c <= 'f') {
                 return static_cast<unsigned>(c - 'a' + 10);
-            if(c >= 'A' && c <= 'F')
+            }
+            if(c >= 'A' && c <= 'F') {
                 return static_cast<unsigned>(c - 'A' + 10);
-            return 0;
+            }
+            fail(std::string("'") + c + "' is no hex digit");
         };
         auto *b = static_cast<unsigned char *>(p);
         for(std::size_t i = 0; i < n; ++i) {
@@ -377,24 +418,91 @@ private:
 
     struct Cursor {
         const boost::json::value *node;
-        std::size_t idx; // next array index to read (unused for objects)
+        std::size_t idx;   // next array index to read (unused for objects)
+        std::string where; // the path of this object or array in the tree
     };
 
+    // Parses the document; text that is no JSON is a malformed archive
+    static boost::json::value parse(std::string_view text) {
+        boost::system::error_code ec;
+        boost::json::value v = boost::json::parse(text, ec);
+        if(ec) {
+            throw weft_exception(
+                weft_error_streamer() << "In GJsonIArchive: the archive is no JSON: " << ec.message()
+                                      << '\n'
+            );
+        }
+        return v;
+    }
+
+    // Throws the weft_exception of a malformed archive, naming the path of the value last taken
+    [[noreturn]] void fail(const std::string &reason) const {
+        throw weft_exception(
+            weft_error_streamer() << "In GJsonIArchive: the archive is malformed at "
+                                  << (where_.empty() ? std::string("/") : where_) << ": " << reason
+                                  << '\n'
+        );
+    }
+
+    // "<what> was expected, found <kind of the value>"
+    static std::string expected(const std::string &what, const boost::json::value &found) {
+        return what + " was expected, found " + std::string(boost::json::to_string(found.kind()));
+    }
+
+    // The string a value must be
+    const boost::json::string &text(const boost::json::value &v, const std::string &what) const {
+        if(not v.is_string()) {
+            fail(expected(what, v));
+        }
+        return v.get_string();
+    }
+
+    // Leaves an array, which must have been read to its end: a fixed-size container (std::array,
+    // tuple) or a raw range reads as many elements as it has, so a longer array is malformed
+    void leave_array() {
+        const Cursor &c = stack_.back();
+        const std::size_t size = c.node->get_array().size();
+        if(c.idx != size) {
+            where_ = c.where;
+            fail(
+                "the array holds " + std::to_string(size) + " elements, " + std::to_string(c.idx) +
+                " were expected"
+            );
+        }
+        stack_.pop_back();
+    }
+
     // The next value to read at the current level: an object member by key, an
-    // array element by advancing cursor, or the whole tree at top level.
+    // array element by advancing cursor, or the whole tree at top level. Records
+    // its path (where_) for the message of a malformed archive.
     const boost::json::value &slot() {
         if(stack_.empty()) {
+            where_.clear();
             return root_;
         }
         Cursor &c = stack_.back();
         if(c.node->is_object()) {
-            return c.node->as_object().at(pending_key_);
+            where_ = c.where + "/" + pending_key_;
+            const boost::json::value *v = c.node->get_object().if_contains(pending_key_);
+            if(v == nullptr) {
+                fail("the key \"" + pending_key_ + "\" is missing");
+            }
+            return *v;
         }
-        return c.node->as_array().at(c.idx++);
+        const boost::json::array &a = c.node->get_array();
+        where_ = c.where + "/" + std::to_string(c.idx);
+        if(c.idx >= a.size()) {
+            where_ = c.where;
+            fail(
+                "the array holds " + std::to_string(a.size()) + " elements, more were expected"
+            );
+        }
+        return a[c.idx++];
     }
 
     boost::json::value root_;
     std::string pending_key_;
+    std::string where_; // the path of the value last taken (slot())
     std::vector<Cursor> stack_;
 };
 

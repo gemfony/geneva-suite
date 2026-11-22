@@ -29,12 +29,14 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <limits>
 #include <map>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -298,4 +300,110 @@ TEST_CASE(
     REQUIRE(entry.is_object());
     CHECK(entry.as_object().contains("key"));
     CHECK(entry.as_object().contains("value"));
+}
+
+// ---------------------------------------------------------------------------
+// A malformed archive is reported as weft_exception, with the path in the tree and the reason --
+// not as an exception of Boost.JSON or of the standard library (regression of the review W96).
+
+namespace {
+
+struct Holder {
+    Point point;
+    std::array<std::int32_t, 3> three{};
+    std::vector<double> values;
+
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
+        ar &Gem::Weft::make_nvp("point", point);
+        ar &Gem::Weft::make_nvp("three", three);
+        ar &Gem::Weft::make_nvp("values", values);
+    }
+};
+
+/** @brief The message of the weft_exception that loading @p text throws; fails if it throws
+ *  anything else or nothing */
+std::string malformedMessage(const std::string &text) {
+    try {
+        GJsonIArchive ia(text);
+        Holder h;
+        ia & h;
+    }
+    catch(const Gem::Weft::weft_exception &e) {
+        return e.what();
+    }
+    catch(const std::exception &e) {
+        FAIL("a foreign exception left the JSON codec: " << e.what());
+    }
+    FAIL("the malformed archive was loaded");
+    return {};
+}
+
+bool holds(const std::string &text, const std::string &part) {
+    return text.find(part) != std::string::npos;
+}
+
+} // namespace
+
+TEST_CASE("GJsonArchive: a malformed archive throws weft_exception with path and reason", "[common][archive][json]") {
+    const std::string good =
+        R"({"point":{"x":1,"y":"2.5","name":"p"},"three":[1,2,3],"values":["1","2"]})";
+    {
+        GJsonIArchive ia(good);
+        Holder h;
+        REQUIRE_NOTHROW(ia & h);
+        CHECK(h.three[2] == 3);
+    }
+
+    SECTION("text that is no JSON") {
+        CHECK(holds(malformedMessage(R"({"point":)"), "no JSON"));
+    }
+    SECTION("a value of the wrong type") {
+        const std::string m = malformedMessage(
+            R"({"point":{"x":"one","y":"2.5","name":"p"},"three":[1,2,3],"values":[]})"
+        );
+        CHECK(holds(m, "/point/x"));
+        CHECK(holds(m, "a number was expected"));
+    }
+    SECTION("an object where an array belongs") {
+        const std::string m = malformedMessage(
+            R"({"point":{"x":1,"y":"2.5","name":"p"},"three":{},"values":[]})"
+        );
+        CHECK(holds(m, "/three"));
+        CHECK(holds(m, "an array was expected"));
+    }
+    SECTION("a floating-point value that is no number") {
+        const std::string m = malformedMessage(
+            R"({"point":{"x":1,"y":"two","name":"p"},"three":[1,2,3],"values":[]})"
+        );
+        CHECK(holds(m, "/point/y"));
+        CHECK(holds(m, "floating-point"));
+    }
+    SECTION("a missing key") {
+        const std::string m = malformedMessage(
+            R"({"point":{"x":1,"y":"2.5"},"three":[1,2,3],"values":[]})"
+        );
+        CHECK(holds(m, "/point/name"));
+        CHECK(holds(m, "missing"));
+    }
+    SECTION("a fixed-size array that is too short") {
+        const std::string m = malformedMessage(
+            R"({"point":{"x":1,"y":"2.5","name":"p"},"three":[1,2],"values":[]})"
+        );
+        CHECK(holds(m, "/three"));
+        CHECK(holds(m, "holds 2 elements"));
+    }
+    SECTION("a fixed-size array that is too long") {
+        const std::string m = malformedMessage(
+            R"({"point":{"x":1,"y":"2.5","name":"p"},"three":[1,2,3,4],"values":[]})"
+        );
+        CHECK(holds(m, "/three"));
+        CHECK(holds(m, "holds 4 elements"));
+    }
+    SECTION("a number out of the range of its type") {
+        const std::string m = malformedMessage(
+            R"({"point":{"x":99999999999,"y":"2.5","name":"p"},"three":[1,2,3],"values":[]})"
+        );
+        CHECK(holds(m, "/point/x"));
+    }
 }

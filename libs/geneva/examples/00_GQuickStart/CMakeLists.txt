@@ -53,7 +53,7 @@ GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EX
 # The progress figure of an earlier run is removed before the run, so that GQuickStartTitles reads
 # only what this run wrote.
 ADD_TEST(NAME GQuickStartFigureRemoved
-	COMMAND ${CMAKE_COMMAND} -E rm -f ${CMAKE_CURRENT_BINARY_DIR}/progressScan.C)
+	COMMAND ${CMAKE_COMMAND} -E rm -f ${CMAKE_CURRENT_BINARY_DIR}/records/progress.C)
 SET_TESTS_PROPERTIES(GQuickStartFigureRemoved PROPERTIES LABELS "geneva;example"
 	RESOURCE_LOCK GQuickStart_workdir FIXTURES_SETUP GQuickStart_fresh)
 GEM_TEST_SIZE(GQuickStartFigureRemoved S)
@@ -75,7 +75,7 @@ GEM_TEST_SIZE(${EXECUTABLENAME} S)
 # The progress figure the run writes shows each text once, and its one pad has one title
 # (CheckFigureTitles.cmake): read after the run, in its working directory.
 ADD_TEST(NAME GQuickStartTitles
-	COMMAND ${CMAKE_COMMAND} -DFIGURES=${CMAKE_CURRENT_BINARY_DIR}/progressScan.C
+	COMMAND ${CMAKE_COMMAND} -DFIGURES=${CMAKE_CURRENT_BINARY_DIR}/records/progress.C
 		-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFigureTitles.cmake
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 SET_TESTS_PROPERTIES(GQuickStartTitles PROPERTIES LABELS "geneva;example"

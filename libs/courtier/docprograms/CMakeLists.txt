@@ -127,4 +127,28 @@ FOREACH ( _test ${_GRID_MINIMUM_TESTS} )
 	GEM_TEST_SIZE ( ${_test} S )
 ENDFOREACH ()
 
+# A client that gets SIGUSR1 during the run, the warning of a batch system, goes on serving: the
+# launcher installs the stop handlers in every process, and only the submitter acts on them. One
+# client, so that the run ends only if it does; enough work that the signal arrives during the run.
+SET ( _test courtier_grid_minimum_beast_client_signal )
+ADD_TEST ( NAME ${_test}
+	COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh $<TARGET_FILE:courtier_grid_minimum>
+	beast 1 - --slices 400 --points 2000000 )
+FILE ( MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} )
+SET_TESTS_PROPERTIES ( ${_test} PROPERTIES ENVIRONMENT CLIENT_SIGNAL=USR1 TIMEOUT 300 PROCESSORS 2
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} LABELS "courtier;docprogram" )
+GEM_TEST_SIZE ( ${_test} M )
+
+# A server that gets SIGUSR1 while it waits for clients that never come ends at once, with 0, and
+# not at --clientWaitLimit (60 s here) with an error; its consumer's end-of-run report is recorded
+# into the directory of --recordDir
+SET ( _test courtier_grid_minimum_beast_stop_at_gate )
+ADD_TEST ( NAME ${_test} COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/runServerAndClients.sh
+	$<TARGET_FILE:courtier_grid_minimum> beast 2 - --recordDir stop_records )
+FILE ( MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} )
+SET_TESTS_PROPERTIES ( ${_test} PROPERTIES
+	ENVIRONMENT "SERVER_SIGNAL=USR1;SERVER_REPORT=stop_records/courtier.csv" TIMEOUT 120
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${_test} LABELS "courtier;docprogram" )
+GEM_TEST_SIZE ( ${_test} S )
+
 GEM_AGGREGATE_TARGET( "docprograms-courtier" )

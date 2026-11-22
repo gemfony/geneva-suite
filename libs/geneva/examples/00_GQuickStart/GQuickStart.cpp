@@ -39,8 +39,8 @@
  * The problem is a bowl, f(x, y) = (x - 1)^2 + (y + 2)^2, whose minimum f = 0 lies at (1, -2) -- a
  * known answer, so a reader can check what the run reports. The program hands the problem to Go2,
  * lets the default algorithm (an evolutionary algorithm) search it on all cores, records the search
- * with a progress plotter (written to progressScan.C, a ROOT macro), and prints the best solution
- * found.
+ * with a progress plotter (its stream records/progress.csv, and its plot records/progress.C, a
+ * ROOT macro), and prints the best solution found.
  *
  * The example runs as a test. Geneva's random numbers are not reproducible from a seed
  * (DEVELOPMENT-INVARIANTS.md, Invariant 18), so the check at the end is a tolerance on the known

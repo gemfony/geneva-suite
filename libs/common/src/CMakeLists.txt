@@ -39,9 +39,15 @@ SET ( COMMONSOURCES
 	GModuleLoader.cpp
 	GParserBuilder.cpp
 	GProgramIdentity.cpp
-	GSigHupHandler.cpp
+	GStopRequest.cpp
 	concurrency/GThreadGroup.cpp
 	concurrency/GThreadPool.cpp
+	record/GCsvSink.cpp
+	record/GFileSink.cpp
+	record/GJsonLinesSink.cpp
+	record/GRecorder.cpp
+	record/GRecordTypes.cpp
+	record/GStream.cpp
 	${GEM_COMMIT_SOURCE}
 )
 

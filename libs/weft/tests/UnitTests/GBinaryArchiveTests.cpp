@@ -347,3 +347,51 @@ TEST_CASE("GBinaryArchive: truncated stream throws on underflow", "[common][arch
     std::uint64_t out = 0;
     CHECK_THROWS_AS(ia & out, Gem::Weft::weft_exception);
 }
+
+// ---------------------------------------------------------------------------
+// Failure mode: a forged length or count from the stream ends in weft_exception -- never in a
+// read past the end, a std::length_error or a huge allocation. The length check once computed
+// cursor + length, which wraps for a length near 2^64, and vector<bool> reserved a count taken
+// from the stream.
+
+namespace {
+
+// A stream that starts with the 64-bit length/count prefix n, followed by four payload bytes.
+std::string forged_prefix(std::uint64_t n) {
+    GBinaryOArchive oa;
+    oa & n;
+    std::uint32_t payload = 0x01010101U;
+    oa & payload;
+    return oa.str();
+}
+
+template <typename T>
+void check_forged_prefix_throws(std::uint64_t n) {
+    std::string bytes = forged_prefix(n);
+    GBinaryIArchive ia(bytes);
+    T out{};
+    CHECK_THROWS_AS(ia & out, Gem::Weft::weft_exception);
+}
+
+} // namespace
+
+TEST_CASE(
+    "GBinaryArchive: a forged string length throws and does not wrap the bounds check",
+    "[common][archive][binary]"
+) {
+    constexpr std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
+    check_forged_prefix_throws<std::string>(max);
+    // After the prefix the cursor stands at 8; this length makes cursor + length exactly 2^64.
+    check_forged_prefix_throws<std::string>(max - sizeof(std::uint64_t) + 1);
+}
+
+TEST_CASE(
+    "GBinaryArchive: a forged sequence count throws and is not allocated",
+    "[common][archive][binary]"
+) {
+    constexpr std::uint64_t count = std::uint64_t{1} << 62;
+    check_forged_prefix_throws<std::vector<std::int32_t>>(count);
+    check_forged_prefix_throws<std::vector<bool>>(count);
+    check_forged_prefix_throws<std::map<std::int32_t, std::int32_t>>(count);
+    check_forged_prefix_throws<std::string>(count);
+}

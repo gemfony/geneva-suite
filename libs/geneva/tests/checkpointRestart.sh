@@ -1,20 +1,24 @@
 #!/bin/sh
-# Usage: checkpointRestart.sh limit|kill <limit> <ea-config> <checkpoint-dir> [<config-dir>] --
-#            <command> [arguments...]
+# Usage: checkpointRestart.sh limit|kill|HUP|USR1 <limit> <ea-config> <checkpoint-dir>
+#            [<config-dir>] -- <command> [arguments...]
 #
-# A batch job that is started again from its last checkpoint. <command> is the MPI job (the
-# launcher with its program and arguments); <ea-config> and <checkpoint-dir> are the submitter's
-# configuration file of the evolutionary algorithm and its checkpoint directory, relative to a run
-# directory that this script creates below the current one. A <config-dir> is copied there first,
-# as config/ (for ranks that share the run directory and would otherwise create the same files at
-# the same time). The script writes the configuration of the algorithm (a checkpoint every
-# iteration, no stall limit, a small population) and runs two jobs:
+# A batch job that is started again from its last checkpoint. <command> is the job: a program, or an
+# MPI job (the launcher with its program and arguments); <ea-config> and <checkpoint-dir> are the
+# submitter's configuration file of the evolutionary algorithm and its checkpoint directory,
+# relative to a run directory that this script creates below the current one. A <config-dir> is
+# copied there first, as config/ (for ranks that share the run directory and would otherwise create
+# the same files at the same time). The script writes the configuration of the algorithm (a
+# checkpoint every iteration, no stall limit, a small population) and runs two jobs:
 #
 #   limit: job 1 ends by its iteration limit <limit>; job 2 starts from its newest checkpoint (the
 #          final one) with the limit <limit> + 2.
 #   kill:  job 1 has no reachable limit and is killed (SIGKILL to the launcher, then to what is left
 #          of the job, as a batch system does) once it has written a checkpoint; job 2 starts from
 #          the newest checkpoint, with a limit of that checkpoint's iteration + <limit>.
+#   HUP, USR1: job 1 has no reachable limit and gets this signal once it has written a
+#          checkpoint, as a batch system warns a job before it ends it. It must end with 0, report
+#          the stop request and leave a final checkpoint of its last iteration; job 2 starts from
+#          it, as after kill.
 #
 # Job 2 must end with 0, start at the iteration after the checkpoint's, run on to its own limit, and
 # end with a best result that is not worse than the checkpoint's (minimisation). Every line of the
@@ -22,8 +26,9 @@
 mode=$1; limit=$2; ea_config=$3; cp_dir=$4; shift 4
 config_dir=
 if [ "$1" != "--" ]; then config_dir=$1; shift; fi
+case $mode in limit|kill|HUP|USR1) ;; *) set -- usage ;; esac
 [ "$1" = "--" ] && [ $# -gt 1 ] || {
-    echo "FAIL: usage: $0 limit|kill <limit> <ea-config> <checkpoint-dir> [<config-dir>] -- <command>"
+    echo "FAIL: usage: $0 limit|kill|HUP|USR1 <limit> <ea-config> <checkpoint-dir> [<config-dir>] -- <command>"
     exit 2
 }
 shift
@@ -53,6 +58,18 @@ cp_fitness() { basename "$1" | sed -e 's/^checkpoint-[^-]*-[^-]*-//' -e 's/-[^-]
 # --- job 1
 if [ "$mode" = limit ]; then
     timeout -k 10 60 "$@" --eaMaxIterations "$limit" > job1.log 2>&1 || fail "job 1 ended with $?"
+elif [ "$mode" != kill ]; then
+    timeout -k 10 60 sh -c 'echo $$ > launcher.pid; exec "$@"' sh "$@" --eaMaxIterations 1000000 > job1.log 2>&1 &
+    job1=$!
+    trap '[ -s launcher.pid ] && kill -KILL "$(cat launcher.pid)" 2>/dev/null' EXIT INT TERM
+    i=0; while [ -z "$(checkpoints "$cp_dir")" ] && [ $i -lt 300 ]; do sleep 0.1; i=$((i+1)); done
+    [ -n "$(checkpoints "$cp_dir")" ] || fail "job 1 wrote no checkpoint within 30 s"
+    kill -"$mode" "$(cat launcher.pid)"
+    wait "$job1"; code=$?
+    trap - EXIT INT TERM
+    [ "$code" = 0 ] || fail "job 1 ended with $code after SIG$mode"
+    grep -q 'because a stop was requested' job1.log || fail "job 1 did not report the stop request"
+    checkpoints "$cp_dir" | grep -q -e '-final-' || fail "job 1 left no final checkpoint"
 else
     # A session of its own, so that the job can be ended as a whole; its launcher's pid from inside
     setsid sh -c 'echo $$ > launcher.pid; exec "$@"' sh "$@" --eaMaxIterations 1000000 > job1.log 2>&1 &
@@ -86,6 +103,8 @@ if [ "$mode" = limit ]; then
     [ "$from" = "$((limit - 1))" ] || fail "the final checkpoint holds iteration $from, not $((limit - 1))"
     limit2=$((limit + 2))
 else
+    [ "$mode" = kill ] || [ "$from" = "$(iterations job1.log | tail -n 1)" ] ||
+        fail "the final checkpoint holds iteration $from, not job 1's last"
     limit2=$((from + limit))
 fi
 echo "OK: job 1 left $newest (iteration $from)"

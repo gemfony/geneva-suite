@@ -46,6 +46,7 @@
 #include <optional>
 #include <set>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <variant>
@@ -53,6 +54,7 @@
 
 #include "weft/GBinaryArchive.hpp"
 #include "weft/GJsonArchive.hpp"
+#include "weft/GWeftError.hpp"
 
 using namespace Gem::Weft;
 
@@ -109,6 +111,29 @@ TEST_CASE("GArchive coverage: std::variant (each alternative)", "[common][archiv
     both_codecs(V{7});
     both_codecs(V{std::string{"middle"}});
     both_codecs(V{3.5});
+}
+
+TEST_CASE(
+    "GArchive coverage: a std::variant index out of range throws",
+    "[common][archive][coverage]"
+) {
+    using V = std::variant<int, std::string, double>;
+
+    // Binary: the variant is its index (a 64-bit size_t) followed by the alternative.
+    GBinaryOArchive oa;
+    oa &std::size_t{5};
+    oa &std::int32_t{7};
+    GBinaryIArchive bia(oa.str());
+    V bv{};
+    CHECK_THROWS_AS(bia & bv, weft_exception);
+
+    // JSON: the same object shape loads for a valid index and throws for an invalid one.
+    V jv{};
+    GJsonIArchive valid(std::string_view{R"({"index":0,"value":7})"});
+    valid & jv;
+    CHECK(jv == V{7});
+    GJsonIArchive forged(std::string_view{R"({"index":5,"value":7})"});
+    CHECK_THROWS_AS(forged & jv, weft_exception);
 }
 
 TEST_CASE("GArchive coverage: std::forward_list", "[common][archive][coverage]") {

@@ -125,7 +125,7 @@ IF ( GEM_BUILD_EXAMPLES )
 	SET ( RESTART_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/checkpoint-restart )
 	FILE ( MAKE_DIRECTORY ${RESTART_WORKDIR} )
 	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartLimit TIMEOUT 120
-		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh limit 3
+		COMMAND ${PROJECT_SOURCE_DIR}/libs/geneva/tests/checkpointRestart.sh limit 3
 			rank-0/config/GEvolutionaryAlgorithm.json rank-0/checkpoints --
 			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
 			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
@@ -138,7 +138,7 @@ IF ( GEM_BUILD_EXAMPLES )
 	# launcher, then to what is left of the job, as a batch system does at a job's time limit. Job 2
 	# starts from the newest checkpoint, which must be complete.
 	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartKilled TIMEOUT 120
-		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh kill 3
+		COMMAND ${PROJECT_SOURCE_DIR}/libs/geneva/tests/checkpointRestart.sh kill 3
 			rank-0/config/GEvolutionaryAlgorithm.json rank-0/checkpoints --
 			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 3 ${MPIEXEC_PREFLAGS}
 			${CMAKE_CURRENT_SOURCE_DIR}/runInRankDirectory.sh
@@ -151,7 +151,7 @@ IF ( GEM_BUILD_EXAMPLES )
 	# four, each of which evaluates one item on all its ranks. The ranks share the run directory, so
 	# the example's materialized configuration is copied there first.
 	GEM_ADD_MPI_TEST ( NAME GMPICheckpointRestartCascade TIMEOUT 120
-		COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/checkpointRestart.sh limit 2
+		COMMAND ${PROJECT_SOURCE_DIR}/libs/geneva/tests/checkpointRestart.sh limit 2
 			config/GEvolutionaryAlgorithm.json checkpoints
 			$<TARGET_FILE_DIR:GMPISubClients>/config --
 			${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 9 ${MPIEXEC_PREFLAGS}

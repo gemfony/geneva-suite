@@ -34,6 +34,7 @@
 #include "geneva/GNamespaceAliases.hpp"
 
 // Standard header files go here
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <iostream>
@@ -51,7 +52,10 @@
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GSelfTestable.hpp"
-#include "dietrich/GPlotDesigner.hpp"
+#include "common/record/GCsvSink.hpp"
+#include "common/record/GRecorder.hpp"
+#include "dietrich/plotting/GDataLog.hpp"
+#include "dietrich/plotting/GPlotSink.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
@@ -59,6 +63,7 @@
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GMonitorStream.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/oa/GTunableManifest.hpp"
@@ -1591,12 +1596,18 @@ constexpr std::size_t P_YDIM = 1400;
 
 /******************************************************************************/
 /**
- * This class implements a pluggable optimization monitor for Evolutionary Algorithms. Its main purpose
- * is to find out information about the development of various properties (e.g. sigma, best evaluation)
- * over the course of the optimization for the best individuals. This monitor is thus targeted at a specific
- * type of individual. Note that the class uses ROOT scripts for the output of its results.
+ * This monitor follows a meta-optimization with an Evolutionary Algorithm: in each reported
+ * iteration it records the best meta-individual's result and the settings it stands for. Its
+ * stream (default "meta_optimization", setStreamName()) has the columns algorithm, iteration,
+ * chain_iteration (GMonitorStream), best_fitness, n_parents, n_children, adaption_probability,
+ * min_sigma, max_sigma, sigma_range and sigma_sigma, written as CSV; a GPlotSink draws each of
+ * them over the iterations at the end of the stream (a ROOT macro "<stream>.C"). It is targeted at
+ * one type of individual.
  *
- * TODO: templatize this class on executor_type, like is being done for the other optimization monitors
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
+ * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
+ * GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to it. Two
+ * monitors of one class in one process need different stream names.
  *
  * @tparam ind_type The sub-individual type wrapped by the GMetaOptimizerIndividualT being monitored
  */
@@ -1614,49 +1625,63 @@ class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
 
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
-    // The GArchive registry factory reconstructs this (private default ctor) through the
-    // GReflectiveInterfaceAccess construct shim, so it needs reach to the private constructor.
+    // The GArchive registry factory reconstructs this through the GReflectiveInterfaceAccess
+    // construct shim.
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::archive_named_base<oa::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
-        // All local members, derived from the single localMembers() declaration (same NVP tags as before).
+        // All local members, derived from the single localMembers() declaration.
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
     ///////////////////////////////////////////////////////////////////////
 
     /** @brief Single declaration of this monitor's local data members, feeding serialize() / load_() /
-     *  compare_() from one source. Only file_name_ is state; the eight progress curves are declared into
-     *  a transient GDataLog at INFOINIT, filled in INFOPROCESSING and written at INFOEND. */
+     *  compare_() from one source: the name of the stream; the stream itself is transient. */
     template <typename self_type>
     auto localMembers_(this self_type &self) {
-        return std::make_tuple(Gem::Common::make_member("file_name_", self.file_name_));
+        return std::make_tuple(Gem::Common::make_member("stream_name_", self.stream_name_));
     }
+
+    /** @brief The columns after "algorithm" and "iteration", and the y-axis labels and titles of
+     *  their curves, in the order of the pads of the plot */
+    struct Curve {
+        const char *column;     ///< The column of the stream
+        const char *plot_label; ///< The title of its curve
+        const char *y_label;    ///< The label of its y-axis
+    };
+    static constexpr std::array<Curve, 8> CURVES{
+        {{"best_fitness", "Number of solver calls", "Best Result (lower is better)"},
+         {"n_parents", "Number of parents as a function of the iteration", "Number of parents"},
+         {"n_children", "Number of children as a function of the iteration", "Number of children"},
+         {"adaption_probability",
+          "Adaption probability as a function of the iteration",
+          "Adaption probability"},
+         {"min_sigma",
+          "Lower sigma boundary as a function of the iteration",
+          "Lower sigma boundary"},
+         {"max_sigma",
+          "Upper sigma boundary as a function of the iteration",
+          "Upper sigma boundary"},
+         {"sigma_range",
+          "Development of the sigma range as a function of the iteration",
+          "Sigma range"},
+         {"sigma_sigma",
+          "Development of the adaption strength as a function of the iteration",
+          "Sigma-Sigma"}}
+    };
 
 public:
     /***************************************************************************/
     /**
-     * Initialization with the name of the output file
-     *
-     * @param file_name The name of the file the recorded plots are written to
+     * The default constructor
      */
-    GOptOptMonitorT(const std::string &file_name)
-      : file_name_(file_name) { /* nothing -- the progress curves live in a transient data log */
-    }
+    GOptOptMonitorT() = default;
 
     /***************************************************************************/
-    /**
-     * The copy constructor
-     *
-     * @param cp A copy of another GOptOptMonitorT object
-     */
-    GOptOptMonitorT(const GOptOptMonitorT<ind_type> &cp)
-      : oa::GBasePluggableOM(cp)
-      , file_name_(cp.file_name_) {
-        // The transient data log (progress information) is deliberately not copied -- it is
-        // rebuilt per run in INFOINIT.
-    }
+    /** @brief The copy constructor; the copy has no stream of its own (GMonitorStream) */
+    GOptOptMonitorT(const GOptOptMonitorT<ind_type> &cp) = default;
 
     /***************************************************************************/
     /**
@@ -1667,22 +1692,22 @@ public:
 
     /***************************************************************************/
     /**
-     * Sets the file name
+     * Sets the name of the stream, which also names its files ("<name>.csv", "<name>.C")
      *
-     * @param file_name The name of the file the recorded plots are written to
+     * @param stream_name The name of the stream
      */
-    void setFileName(std::string file_name) {
-        file_name_ = std::move(file_name);
+    void setStreamName(std::string stream_name) {
+        stream_name_ = std::move(stream_name);
     }
 
     /***************************************************************************/
     /**
-     * Retrieves the current file name
+     * Retrieves the name of the stream
      *
-     * @return The name of the output file
+     * @return The name of the stream
      */
-    [[nodiscard]] std::string getFileName() const {
-        return file_name_;
+    [[nodiscard]] std::string getStreamName() const {
+        return stream_name_;
     }
 
 protected:
@@ -1803,118 +1828,90 @@ private:
 
     /***************************************************************************/
     /**
-     * Allows to emit information in different stages of the information cycle
-     * (initialization, during each cycle and during finalization)
+     * Declares the stream and its plot at the first INFOINIT and records the best meta-individual
+     * at INFOPROCESSING
      *
      * @param im The current stage of the information cycle (init, processing or end)
      * @param goa A pointer to the optimization algorithm the monitor is attached to
      */
     void
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
-        using namespace Gem::Common;
-        using namespace Gem::Dietrich; // GPlotSpec / plotKind / graphPlotMode
-
         switch(im) {
-        case Gem::Geneva::infoMode::INFOINIT: {
-            // Initialize the plots we want to record
-            // Declare the eight progress curves into a fresh data log, in the same order they were
-            // registered on the 2x4 canvas. Each is a CURVE graph (x = iteration).
-            const struct {
-                const char *plot_label;
-                const char *y_label;
-            } curves[] = {
-                {"Number of solver calls", "Best Result (lower is better)"},
-                {"Number of parents as a function of the iteration", "Number of parents"},
-                {"Number of children as a function of the iteration", "Number of children"},
-                {"Adaption probability as a function of the iteration", "Adaption probability"},
-                {"Lower sigma boundary as a function of the iteration", "Lower sigma boundary"},
-                {"Upper sigma boundary as a function of the iteration", "Upper sigma boundary"},
-                {"Development of the sigma range as a function of the iteration", "Sigma range"},
-                {"Development of the adaption strength as a function of the iteration",
-                 "Sigma-Sigma"}
-            };
-
-            data_log_.emplace("Progress information", 2, 4);
-            data_log_->setCanvasDimensions(P_XDIM, P_YDIM);
-            ids_.clear();
-            for(const auto &curve : curves) {
-                GPlotSpec spec(plotKind::graph_2d);
-                spec.plot_mode = graphPlotMode::CURVE;
-                spec.name = curve.plot_label;
-                spec.x_label = "Iteration";
-                spec.y_label = curve.y_label;
-                spec.columns = {"x", "y"};
-                ids_.push_back(data_log_->declareSeries(spec));
+        case Gem::Geneva::infoMode::INFOINIT:
+            if(stream_.beginAlgorithm(*goa)) {
+                this->declareStream_(*goa);
             }
-        } break;
+            break;
 
         case Gem::Geneva::infoMode::INFOPROCESSING: {
-            // Convert the base pointer to the target type
+            // The best individual is always in the first position with evolutionary algorithms
             auto const *const ea = static_cast<oa::GEvolutionaryAlgorithm const *const>(
                 goa
             ); // NOLINT(cppcoreguidelines-init-variables)
-
-            // Extract the requested data. First retrieve the best individual.
-            // It can always be found in the first position with evolutionary algorithms
             std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> const p =
                 ea->at(0)->clone<GMetaOptimizerIndividualT<ind_type>>();
-
-            // Retrieve the best fitness and average sigma value and append them to the data log,
-            // in the same { progress, n_parent, n_children, ad_prob, min_sigma, max_sigma,
-            // sigma_range, sigma_sigma } order the series were declared.
-            const auto iteration = static_cast<double>(ea->getIteration());
             const double min_sigma = p->getMinSigma();
             const double sigma_range = p->getSigmaRange();
-            const double max_sigma = min_sigma + sigma_range;
 
-            const double values[] = {
-                p->raw_fitness(0),
-                static_cast<double>(p->getNParents()),
-                static_cast<double>(p->getNChildren()),
-                p->getAdProb(),
-                min_sigma,
-                max_sigma,
-                sigma_range,
-                p->getSigmaSigma()
-            };
-            // The data log is created in INFOINIT, which precedes every per-iteration call.
-            // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-            auto &data_log = *data_log_;
-            for(std::size_t s = 0; s < ids_.size(); ++s) {
-                data_log.append(ids_[s], iteration, values[s]);
+            Gem::Common::Record::GRow row = stream_.row(*goa);
+            for(double const value :
+                {p->raw_fitness(0),
+                 static_cast<double>(p->getNParents()),
+                 static_cast<double>(p->getNChildren()),
+                 p->getAdProb(),
+                 min_sigma,
+                 min_sigma + sigma_range,
+                 sigma_range,
+                 p->getSigmaSigma()}) {
+                row.emplace_back(value);
             }
+            stream_.append(std::move(row));
         } break;
 
-        case Gem::Geneva::infoMode::INFOEND: {
-            // Write out the result, then drop the transient run state.
-            if(data_log_.has_value()) {
-                data_log_->writeToFile(file_name_);
-            }
-            data_log_.reset();
-            ids_.clear();
-        } break;
-
-        default: {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GOptOptMonitorT<ind_type>>: Received invalid infoMode " << im << '\n'
-            );
-        }
+        case Gem::Geneva::infoMode::INFOEND:
+            break;
         };
     }
 
     /***************************************************************************/
+    /**
+     * Declares the stream: a CSV file and the plot, one curve per column over the iterations
+     *
+     * @param goa The algorithm, for the resume of its run
+     */
+    void declareStream_(oa::GOptimizationAlgorithmBase const &goa) {
+        using Gem::Dietrich::GPlotSpec;
+        using Gem::Dietrich::plotKind;
 
-    GOptOptMonitorT() =
-        default; ///< Default constructor; Intentionally private (only needed for serialization)
+        std::vector<Gem::Common::Record::GColumn> columns;
+        Gem::Dietrich::GDataLog layout("Progress information", 2, 4);
+        layout.setCanvasDimensions(P_XDIM, P_YDIM);
+        for(auto const &curve : CURVES) {
+            columns.push_back(
+                {.name = curve.column, .type = Gem::Common::Record::columnType::FLOATING}
+            );
+            GPlotSpec spec(plotKind::graph_2d);
+            spec.plot_mode = Gem::Dietrich::graphPlotMode::CURVE;
+            spec.name = curve.plot_label;
+            spec.x_label = "Iteration";
+            spec.y_label = curve.y_label;
+            spec.columns = {"chain_iteration", curve.column};
+            layout.declareSeries(spec);
+        }
+        stream_.declare(
+            stream_name_,
+            std::move(columns),
+            goa,
+            {std::make_shared<Gem::Common::Record::GCsvSink>(),
+             std::make_shared<Gem::Dietrich::GPlotSink>(std::move(layout))}
+        );
+    }
 
-    std::string file_name_; ///< The name of the output file
+    /***************************************************************************/
 
-    // Transient run state: the eight progress curves are declared into this data log at INFOINIT,
-    // filled in INFOPROCESSING and written at INFOEND. It is NOT part of the serialized config.
-    std::optional<Gem::Dietrich::GDataLog> data_log_;
-    std::vector<Gem::Dietrich::GDataLog::SeriesId>
-        ids_; ///< the eight declared series, in registration order
+    std::string stream_name_ = "meta_optimization"; ///< The name of the stream
+
+    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
 };
 
 /******************************************************************************/

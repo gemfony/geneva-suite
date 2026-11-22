@@ -27,42 +27,35 @@
  *
  ********************************************************************************/
 
-#include "common/GSigHupHandler.hpp"
-#include "common/GCommonEnums.hpp"
-#include <csignal>
+#include "common/record/GRecordTypes.hpp"
 
-namespace Gem::Common {
-
-/******************************************************************************/
-// Needed to allow catching of a SIGHUP or CTRL_CLOSE_EVENT event.
-// Note that "volatile" is needed in order for the signal handler to work.
-namespace {
-volatile std::sig_atomic_t GemSigHupSent = 0;
-} // namespace
+namespace Gem::Common::Record {
 
 /******************************************************************************/
 /**
- * @brief A handler for SIGHUP or CTRL_CLOSE_EVENT signals. This function works both
- * for Windows and Unix systems.
+ * The name of a column type, for messages.
  *
- * @param signum The number of the signal that was raised; the internal flag is set only when it matches G_SIGHUP
+ * @param type The column type
+ * @return "integer", "unsigned", "floating", "boolean", "text" or "timestamp"
  */
-void sigHupHandler(int signum) {
-    if(G_SIGHUP == signum) {
-        GemSigHupSent = 1;
+std::string to_string(columnType type) {
+    switch(type) {
+    case columnType::INTEGER:
+        return "integer";
+    case columnType::UNSIGNED:
+        return "unsigned";
+    case columnType::FLOATING:
+        return "floating";
+    case columnType::BOOLEAN:
+        return "boolean";
+    case columnType::TEXT:
+        return "text";
+    case columnType::TIMESTAMP:
+        return "timestamp";
     }
-}
-
-/******************************************************************************/
-/**
- * @brief Checks whether a SIGHUP or CTRL_CLOSE_EVENT signal has been sent.
- *
- * @return true if a SIGHUP (or CTRL_CLOSE_EVENT) signal has been received since program start, false otherwise
- */
-bool G_SIGHUP_SENT() {
-    return (1 == GemSigHupSent);
+    return "unknown";
 }
 
 /******************************************************************************/
 
-} /* namespace Gem::Common */
+} /* namespace Gem::Common::Record */

@@ -44,6 +44,7 @@ SET ( DIETRICHPLOTTINGINCLUDES
 	plotting/GPlotDesigner.hpp
 	plotting/GPlotEmitter.hpp
 	plotting/GPlotEnums.hpp
+	plotting/GPlotSink.hpp
 	plotting/GPlotSpec.hpp
 	plotting/GPlots.hpp
 )

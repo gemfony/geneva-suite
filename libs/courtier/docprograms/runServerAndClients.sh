@@ -43,6 +43,14 @@
 # forever. The clients are started once the server waits for them -- on that line of its output,
 # not after a fixed pause.
 # LAST_CLIENT_DELAY  (environment) seconds the last client is started after the others (default 0)
+# CLIENT_SIGNAL      (environment) a signal (USR1 or HUP) sent to the first client once the
+#                    server has all its clients, as a batch system warns a job before it ends it.
+#                    The client must go on serving: the run must still be going when the signal
+#                    arrives, and must end as without it.
+# SERVER_SIGNAL      (environment) a signal sent to the server while it waits for its clients,
+#                    none of which is started then: the server must end with 0 within 10 s, and
+#                    its consumer's end-of-run report must be recorded (a header and one row in
+#                    SERVER_REPORT, default records/courtier.csv).
 #
 # The server must end with 0 within 120 s, the clients within 30 s after it. The script starts
 # in, and its programs write into, the current directory (the server's output: server.log, shown
@@ -66,12 +74,43 @@ for ((t = 0; t < 300; t++)); do
     kill -0 "$server" 2> /dev/null || break
     sleep 0.1
 done
+if [ -n "${SERVER_SIGNAL:-}" ]; then
+    # The program, not the timeout that runs it; it is reaped by timeout, so kill -0 sees its end
+    program_pid=$(pgrep -P "$server")
+    kill -"$SERVER_SIGNAL" "$program_pid"
+    for ((t = 0; t < 100; t++)); do kill -0 "$program_pid" 2> /dev/null || break; sleep 0.1; done
+    kill -KILL "$program_pid" 2> /dev/null && echo "the server did not end within 10 s"
+    wait "$server"; server_exit=$?
+    cat server.log; echo "server exit $server_exit"
+    # A stopped server still records its consumer's end-of-run report (into --recordDir, if given)
+    report=${SERVER_REPORT:-records/courtier.csv}
+    report_ok=0
+    if [ "$(wc -l < "$report" 2> /dev/null)" = 2 ] && grep -q "^$consumer," "$report"; then
+        report_ok=1; echo "end-of-run report:"; cat "$report"
+    else
+        echo "no end-of-run report in $report"
+    fi
+    [ "$server_exit" = 0 ] && [ "$report_ok" = 1 ]; exit
+fi
 client_pids=()
 for ((i = 0; i < clients; i++)); do
     if ((i == clients - 1)); then sleep "${LAST_CLIENT_DELAY:-0}"; fi
     timeout 150 "$program" --consumer "$consumer" --client "${where[@]}" "$@" > "client$i.log" 2>&1 &
     client_pids+=($!)
 done
+signal_failed=0
+if [ -n "${CLIENT_SIGNAL:-}" ]; then
+    for ((t = 0; t < 300; t++)); do
+        grep -q '^Waiting for clients: [0-9]* of [0-9]* clients connected' server.log && break
+        sleep 0.02
+    done
+    # The client itself, not the timeout that runs it
+    if kill -"$CLIENT_SIGNAL" "$(pgrep -P "${client_pids[0]}")" && kill -0 "$server"; then
+        echo "SIG$CLIENT_SIGNAL sent to a client during the run"
+    else
+        signal_failed=1; echo "SIG$CLIENT_SIGNAL could not be sent to a client during the run"
+    fi
+fi
 
 wait "$server"; server_exit=$?
 cat server.log
@@ -83,4 +122,4 @@ for pid in "${client_pids[@]}"; do
     wait "$pid" || failed=1
 done
 echo "server exit $server_exit, clients $([ $failed = 0 ] && echo ok || echo failed)"
-[ "$server_exit" = 0 ] && [ "$failed" = 0 ]
+[ "$server_exit" = 0 ] && [ "$failed" = 0 ] && [ "$signal_failed" = 0 ]
