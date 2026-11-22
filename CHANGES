@@ -13,7 +13,7 @@ Why the redesign:
 - Capabilities the old code base could not offer: runtime-loadable problem, algorithm and GPU
   modules, a first-class GPU consumer, strict-JSON configuration with a generated reference, one
   evaluation path for local, remote and GPU work, a clean stop on a batch system's signal, and one
-  recorder (common/record) whose streams all monitors write (docs/CHANGES-2.0.md, section 9).
+  recorder (common/record) for the monitors and the log file (docs/CHANGES-2.0.md, section 9).
 - Test coverage and build hygiene: Catch2 v3 suites across all libraries, every test registered
   and sized by CTest label, a self-contained installed header set, and C++23 throughout.
 

@@ -814,6 +814,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   this change that holds such a monitor is not meant to load.
 - **Corrected on the way.** The progress plotter of a Go2 chain kept only the last algorithm's
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
+- **The log file is a stream.** `GRecordLogTarget` (columns time, severity, source, text; plain
+  text with `GTextSink`) replaces `GFileLogger`; a target may override `log(message, logType)`.
 - **courtier's end-of-run report.** When the launcher releases a consumer that counts something,
   the consumer appends one row of its counters to the stream `courtier`
   (`GBaseConsumerT::recordEndOfRun()`, `endOfRunFigures()`): a networked consumer its connected

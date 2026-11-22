@@ -351,10 +351,9 @@ public:
     /**
 		 * @brief Throws an exception from a global position
 		 *
-		 * This prevents exceptions thrown from within threads from getting lost. The
-		 * mutex is released *before* the throw so that stack-unwinding exception
-		 * handlers (which may re-enter the logger) do not deadlock against the lock
-		 * we just held.
+		 * This prevents exceptions thrown from within threads from getting lost. It
+		 * takes no lock, so that stack-unwinding exception handlers (which may re-enter
+		 * the logger) cannot deadlock against it.
 		 *
 		 * @param error The error message carried by the thrown gem_exception
 		 */

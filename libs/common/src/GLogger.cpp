@@ -445,10 +445,9 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             ERROR_ADVICE
         );
 
-        // Do all necessary logging. We use a central exception file for this purpose.
-        // The logger's routines will in addition try to print on the console. Note
-        // that we ignore any "source" information, as this is already contained
-        // in the logged message.
+        // Record the error in a central exception file; nothing is printed on the console
+        // here -- the message travels with the exception. Note that we ignore any "source"
+        // information, as this is already contained in the logged message.
         appendToFile("GEM-EXCEPTION.log", error);
 
         // Send the exception out. This done globally, so an exception
@@ -466,10 +465,9 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             ERROR_ADVICE
         );
 
-        // Do all necessary logging. We use a central exception file for this purpose.
-        // The logger's routines will in addition try to print on the console. Note
-        // that we ignore any "source" information, as this is already contained
-        // in the logged message.
+        // Record the error in a central termination file; terminateApplication() also
+        // prints it on std::cerr. Note that we ignore any "source" information, as this is
+        // already contained in the logged message.
         appendToFile("GEM-TERMINATION.log", error);
 
         // Initiate the termination sequence.
