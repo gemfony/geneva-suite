@@ -90,8 +90,18 @@ public:
      * @brief The copy constructor
      */
     GSwarmAlgorithm_PersonalityTraits(const GSwarmAlgorithm_PersonalityTraits &cp);
+    /** @brief The move constructor */
+    GSwarmAlgorithm_PersonalityTraits(GSwarmAlgorithm_PersonalityTraits &&) noexcept = default;
     /** @brief The standard destructor */
     ~GSwarmAlgorithm_PersonalityTraits() override = default;
+
+    /**
+     * @brief The copy assignment: as deep as the copy constructor
+     */
+    GSwarmAlgorithm_PersonalityTraits &operator=(const GSwarmAlgorithm_PersonalityTraits &cp);
+    /** @brief The move assignment @return A reference to this object */
+    GSwarmAlgorithm_PersonalityTraits &
+    operator=(GSwarmAlgorithm_PersonalityTraits &&) noexcept = default;
 
     /**
      * @brief Specifies in which neighborhood the individual is at present

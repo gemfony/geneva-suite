@@ -884,6 +884,50 @@ TEST_CASE(
 }
 
 // ============================================================================
+// Copy assignment is as deep as copy construction. Both classes below wrote their copy constructor by
+// hand (a deep clone of a pointer member) and left the copy assignment implicit, so an assigned object
+// shared that member with its source.
+// ============================================================================
+
+TEST_CASE(
+    "GSwarmAlgorithm_PersonalityTraits: an assigned copy does not share the personal best",
+    "[geneva][copy]"
+) {
+    auto best = std::make_shared<gind::GTestIndividual1>();
+    best->process(); // registerPersonalBest() wants a processed individual
+
+    oa::GSwarmAlgorithm_PersonalityTraits source;
+    source.registerPersonalBest(best);
+
+    oa::GSwarmAlgorithm_PersonalityTraits assigned;
+    assigned = source;
+
+    REQUIRE(assigned.getPersonalBest());
+    // registerPersonalBest() loads into the stored individual in place, so a shared one would carry a
+    // later registration on the copy back into the source.
+    CHECK(assigned.getPersonalBest().get() != source.getPersonalBest().get());
+}
+
+TEST_CASE(
+    "GCollectiveMonitor: an assigned copy does not share the registered monitors",
+    "[geneva][copy]"
+) {
+    auto member = std::make_shared<GFitnessMonitor>();
+
+    GCollectiveMonitor source;
+    source.registerPluggableOM(member); // registration shares the monitor with the caller
+
+    GCollectiveMonitor const constructed(source); // deep, the reference
+    GCollectiveMonitor assigned;
+    assigned = source;
+
+    // A change to the source's monitor must not reach the assigned copy.
+    REQUIRE(member->modify_GUnitTests());
+    GEqualityPrinter const gep("collective-assignment", 0., Gem::Common::CE_WITH_MESSAGES);
+    CHECK(gep.isEqual(assigned, constructed));
+}
+
+// ============================================================================
 // Meta-optimizer: the search genome is built from the EA tunable manifest and
 // read back by name (no MOT_* index math). This pins that the manifest -> genome
 // -> readTuned() chain reproduces the manifest's values under their names, and

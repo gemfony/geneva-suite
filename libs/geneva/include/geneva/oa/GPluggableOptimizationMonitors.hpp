@@ -277,8 +277,17 @@ public:
      * @brief The copy constructor
      */
     GCollectiveMonitor(const GCollectiveMonitor &cp);
+    /** @brief The move constructor */
+    GCollectiveMonitor(GCollectiveMonitor &&) noexcept = default;
     /** @brief The destructor */
     ~GCollectiveMonitor() override = default;
+
+    /**
+     * @brief The copy assignment: as deep as the copy constructor
+     */
+    GCollectiveMonitor &operator=(const GCollectiveMonitor &cp);
+    /** @brief The move assignment @return A reference to this object */
+    GCollectiveMonitor &operator=(GCollectiveMonitor &&) noexcept = default;
 
     //! [monitors:collective]
     /**

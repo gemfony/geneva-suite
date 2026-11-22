@@ -281,6 +281,21 @@ GCollectiveMonitor::GCollectiveMonitor(const GCollectiveMonitor &cp)
 
 /******************************************************************************/
 /**
+ * @brief The copy assignment. Copy-constructs and move-assigns the result, so it is as deep as the copy
+ * constructor and states no member list of its own (the implicit assignment shared the monitors).
+ *
+ * @param cp The collective monitor to copy from
+ * @return A reference to this object
+ */
+GCollectiveMonitor &GCollectiveMonitor::operator=(const GCollectiveMonitor &cp) {
+    if(this != &cp) {
+        *this = GCollectiveMonitor(cp);
+    }
+    return *this;
+}
+
+/******************************************************************************/
+/**
  * @brief Aggregates the work of all registered pluggable monitors
  *
  * Forwards the information call to every pluggable monitor registered with this collective monitor.
