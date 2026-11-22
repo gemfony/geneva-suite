@@ -35,6 +35,7 @@
 // Standard header files go here
 #include <filesystem>
 #include <fstream>
+#include <optional>
 #include <ostream>
 #include <span>
 #include <string>
@@ -54,7 +55,11 @@ namespace Gem::Common::Record {
  * directory is created when needed. An existing file is backed up when the sink opens, that is at
  * the stream's first write (Gem::Common::backupExistingFile()), so nothing is overwritten
  * silently -- except that a resuming stream (GStreamInfo::resume) appends to an existing file
- * whose columns are its own, and backs it up only otherwise. Every write is flushed to the file.
+ * whose columns are its own, and backs it up only otherwise. Before it appends, it cuts the file
+ * back to the checkpoint: with GStreamInfo::resumeColumn, every row whose value in that column is
+ * greater than GStreamInfo::resumeAfter, or which cannot be read (a row cut by a crash), is
+ * dropped, and the file is rewritten as a whole (Gem::Common::replaceFileAtomically()). Every write
+ * is flushed to the file.
  *
  * A derived sink says how a file of its kind begins and how a row is written.
  */
@@ -83,11 +88,22 @@ protected:
      *  @return Whether they are the file's */
     [[nodiscard]] virtual bool
     holdsColumns_(std::filesystem::path const &existing, std::vector<GColumn> const &columns) const = 0;
+    /** @brief The number of lines a file of this kind begins with before its rows (a header)
+     *  @return The number */
+    [[nodiscard]] virtual std::size_t startLines_() const = 0;
+    /** @brief The value of one column in a row of a file of this kind, as a number
+     *  @param line The line of the row @param column The position of the column
+     *  @return The value; none if the line is no complete row or the value no number */
+    [[nodiscard]] virtual std::optional<double>
+    numberIn_(std::string const &line, std::size_t column) const = 0;
 
     /** @brief The columns of the stream, once the sink is open */
     [[nodiscard]] std::vector<GColumn> const &streamColumns_() const;
 
 private:
+    /** @brief Cuts the file back to the rows a resumed stream keeps */
+    void cutBack_(GStreamInfo const &info) const;
+
     std::filesystem::path path_;   ///< The file
     std::vector<GColumn> stream_columns_; ///< The columns of the stream
     std::ofstream out_;            ///< The open file

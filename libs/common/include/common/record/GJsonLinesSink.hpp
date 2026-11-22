@@ -34,6 +34,7 @@
 
 // Standard header files go here
 #include <filesystem>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -67,6 +68,11 @@ protected:
         std::filesystem::path const &existing,
         std::vector<GColumn> const &columns
     ) const override;
+    /** @brief A JSON Lines file begins with its first row @return 0 */
+    [[nodiscard]] std::size_t startLines_() const override;
+    /** @brief The value of one column of a JSON Lines row, as a number */
+    [[nodiscard]] std::optional<double>
+    numberIn_(std::string const &line, std::size_t column) const override;
 };
 
 /******************************************************************************/

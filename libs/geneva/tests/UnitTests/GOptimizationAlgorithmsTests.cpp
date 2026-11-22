@@ -1019,13 +1019,13 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
 /******************************************************************************/
 
 TEST_CASE(
-    "a run resumed from an older checkpoint records the iterations after it again",
+    "a run resumed from an older checkpoint replaces the rows recorded after it",
     "[oa][go2]"
 ) {
-    // The documented behaviour of a resume (GStreamOptions::resume, CHANGES-2.0.md section 9): the
-    // streams of the monitors are appended to, so the iterations between the checkpoint and the end
-    // of the earlier run -- after a crash, those since the last checkpoint -- appear twice; the later
-    // rows belong to the resumed run.
+    // A resumed run cuts the streams of its monitors back to its checkpoint before it appends
+    // (GStreamOptions::resumeColumn, GMonitorStream::declare()). Regression: the iterations between
+    // the checkpoint and the end of the earlier run -- after a crash, those since the last
+    // checkpoint -- appeared twice.
     namespace fs = std::filesystem;
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
@@ -1058,7 +1058,7 @@ TEST_CASE(
     }
     REQUIRE(not older_checkpoint.empty());
 
-    // Job 2 resumes from it and runs iterations 3 and 4 again
+    // Job 2 resumes from it and runs iterations 3 and 4 again; job 1's rows of 3 and 4 are dropped
     std::string arg0 = "unit-test";
     std::string arg1 = "--consumer";
     std::string arg2 = "stc";
@@ -1102,8 +1102,6 @@ TEST_CASE(
             "Evolutionary Algorithm,0",
             "Evolutionary Algorithm,1",
             "Evolutionary Algorithm,2",
-            "Evolutionary Algorithm,3",
-            "Evolutionary Algorithm,4",
             "Evolutionary Algorithm,3",
             "Evolutionary Algorithm,4"
         }

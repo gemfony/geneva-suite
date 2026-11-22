@@ -67,6 +67,8 @@ GStreamCore::GStreamCore(
   , flush_every_(options.flushEvery)
   , declarer_(declarer) {
     info_.resume = options.resume;
+    info_.resumeColumn = options.resumeColumn;
+    info_.resumeAfter = options.resumeAfter;
     if(sinks_.empty()) {
         sinks_.push_back(std::make_shared<GCsvSink>());
     }

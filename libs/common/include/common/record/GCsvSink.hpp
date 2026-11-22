@@ -34,6 +34,7 @@
 
 // Standard header files go here
 #include <filesystem>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <vector>
@@ -56,6 +57,11 @@ namespace Gem::Common::Record {
  * The default sink of a stream.
  */
 class GCsvSink final : public GFileSink {
+public:
+    /** @brief The rows of a CSV file written for the given columns, as the text of their fields */
+    [[nodiscard]] static std::optional<std::vector<std::vector<std::string>>>
+    readRows(std::filesystem::path const &file, std::vector<GColumn> const &columns);
+
 protected:
     /** @brief The extension */
     [[nodiscard]] std::string extension_() const override;
@@ -68,6 +74,11 @@ protected:
         std::filesystem::path const &existing,
         std::vector<GColumn> const &columns
     ) const override;
+    /** @brief A CSV file begins with its header line @return 1 */
+    [[nodiscard]] std::size_t startLines_() const override;
+    /** @brief The value of one column of a CSV row, as a number */
+    [[nodiscard]] std::optional<double>
+    numberIn_(std::string const &line, std::size_t column) const override;
 };
 
 /******************************************************************************/

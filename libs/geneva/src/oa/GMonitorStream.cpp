@@ -64,7 +64,10 @@ bool GMonitorStream::beginAlgorithm(GOptimizationAlgorithmBase const &goa) {
  * Declares the stream in the recorder: "algorithm", "iteration" and "chain_iteration", then the
  * monitor's own columns. A run that was resumed from a checkpoint appends to the files of the
  * stream when their columns are the same (the algorithm keeps its resume state until after
- * INFOINIT).
+ * INFOINIT), after cutting them back to the checkpoint: the rows whose chain_iteration is past the
+ * checkpoint's iteration -- the one before the resumed run's first -- are dropped
+ * (GStreamOptions::resumeColumn). A resumed process counts the chain from the resumed algorithm's
+ * iteration on.
  *
  * @param name The name of the stream
  * @param columns The monitor's own columns
@@ -79,6 +82,7 @@ void GMonitorStream::declare(
 ) {
     using Gem::Common::Record::columnType;
     using Gem::Common::Record::GColumn;
+    const bool resumed = goa.resumedFromCheckpoint();
     columns.insert(
         columns.begin(),
         {GColumn{.name = "algorithm", .type = columnType::TEXT},
@@ -89,7 +93,10 @@ void GMonitorStream::declare(
         name,
         std::move(columns),
         Gem::Common::Record::withTime::none,
-        {.sinks = std::move(sinks), .resume = goa.resumedFromCheckpoint()}
+        {.sinks = std::move(sinks),
+         .resume = resumed,
+         .resumeColumn = resumed ? "chain_iteration" : "",
+         .resumeAfter = static_cast<double>(goa.getIteration()) - 1.}
     );
 }
 

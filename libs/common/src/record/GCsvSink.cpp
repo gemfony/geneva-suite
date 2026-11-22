@@ -30,12 +30,14 @@
 #include "common/record/GCsvSink.hpp"
 
 // Standard header files go here
+#include <charconv>
 #include <format>
 #include <fstream>
 #include <sstream>
 #include <string_view>
 #include <type_traits>
 #include <variant>
+#include <vector>
 
 namespace Gem::Common::Record {
 
@@ -80,7 +82,61 @@ std::string headerLine(std::vector<GColumn> const &columns) {
     return line;
 }
 
+/******************************************************************************/
+/**
+ * @brief The fields of a CSV line, by RFC 4180 (no line break inside a field)
+ * @param line The line
+ * @return Its fields, unquoted
+ */
+std::vector<std::string> fieldsOf(std::string_view line) {
+    std::vector<std::string> fields(1);
+    bool quoted = false;
+    for(std::size_t i = 0; i < line.size(); ++i) {
+        char const c = line[i];
+        if(quoted && c == '"' && i + 1 < line.size() && line[i + 1] == '"') {
+            fields.back() += '"';
+            ++i;
+        }
+        else if(c == '"') {
+            quoted = not quoted;
+        }
+        else if(c == ',' && not quoted) {
+            fields.emplace_back();
+        }
+        else {
+            fields.back() += c;
+        }
+    }
+    return fields;
+}
+
 } /* namespace */
+
+/******************************************************************************/
+/**
+ * The rows of a CSV file that a GCsvSink wrote for the given columns: its header line must be
+ * theirs. A line with another number of fields (a row cut by a crash) is left out.
+ *
+ * @param file The file
+ * @param columns The columns of the stream
+ * @return The fields of each row, as text, in column order; none if there is no such file
+ */
+std::optional<std::vector<std::vector<std::string>>>
+GCsvSink::readRows(std::filesystem::path const &file, std::vector<GColumn> const &columns) {
+    std::ifstream in(file);
+    std::string line;
+    if(not std::getline(in, line) || line != headerLine(columns)) {
+        return std::nullopt;
+    }
+    std::vector<std::vector<std::string>> rows;
+    while(std::getline(in, line)) {
+        std::vector<std::string> fields = fieldsOf(line);
+        if(fields.size() == columns.size()) {
+            rows.push_back(std::move(fields));
+        }
+    }
+    return rows;
+}
 
 /******************************************************************************/
 /**
@@ -156,6 +212,39 @@ bool GCsvSink::holdsColumns_(
         return false;
     }
     return first == headerLine(columns);
+}
+
+/******************************************************************************/
+/**
+ * A CSV file begins with its header line.
+ *
+ * @return 1
+ */
+std::size_t GCsvSink::startLines_() const {
+    return 1;
+}
+
+/******************************************************************************/
+/**
+ * The value of one column of a CSV row, as a number.
+ *
+ * @param line The line of the row
+ * @param column The position of the column
+ * @return The value; none if the line has another number of fields than the stream has columns
+ *         (a row cut by a crash) or the field is no number
+ */
+std::optional<double> GCsvSink::numberIn_(std::string const &line, std::size_t column) const {
+    const std::vector<std::string> fields = fieldsOf(line);
+    if(fields.size() != this->streamColumns_().size() || column >= fields.size()) {
+        return std::nullopt;
+    }
+    std::string const &field = fields[column];
+    double value = 0.;
+    const auto [end, ec] = std::from_chars(field.data(), field.data() + field.size(), value);
+    if(ec != std::errc{} || end != field.data() + field.size()) {
+        return std::nullopt;
+    }
+    return value;
 }
 
 /******************************************************************************/

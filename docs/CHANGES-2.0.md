@@ -773,11 +773,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   or `recorder().setDirectory()`. Two open streams of one name are refused, naming both
   declarers -- two monitors of one class in one process need different stream names. An existing
   file is backed up at the first write; a run resumed from a checkpoint appends to the files of
-  its monitors when their columns are the same. The files are not cut back to the checkpoint:
-  the iterations the earlier run recorded after it -- after a crash, those since the last
-  checkpoint -- appear twice, and the later rows are the resumed run's. Each row is flushed to its file. Courtier's
-  launcher closes all streams when `run()` ends -- also after an exception or a stop request; a
-  program without the launcher calls `recorder().closeAll()` itself.
+  its monitors when their columns are the same, after cutting them back to the checkpoint: the
+  rows the earlier run recorded after it -- after a crash, those since the last checkpoint, and a
+  row cut in the middle -- are dropped (`GStreamOptions::resumeColumn`, `resumeAfter`). Each row
+  is flushed to its file. Courtier's launcher closes all streams when `run()` ends -- also after
+  an exception or a stop request; a program without the launcher calls `recorder().closeAll()`
+  itself.
 - **The shipped monitors record streams instead of writing files of their own.** Each declares
   its stream at the first INFOINIT and appends at INFOPROCESSING; every row begins with
   `algorithm`, `iteration` (the algorithm's own) and `chain_iteration` (`GMonitorStream`). In a

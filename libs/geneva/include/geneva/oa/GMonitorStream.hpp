@@ -56,7 +56,8 @@ class GOptimizationAlgorithmBase;
  * - **Declared at INFOINIT.** beginAlgorithm() says whether the monitor must declare (declare()):
  *   at the first INFOINIT, and after the stream was closed. In a Go2 chain the later algorithms
  *   find it open and record into the same stream. A run resumed from a checkpoint appends to the
- *   files (GStreamOptions::resume).
+ *   files (GStreamOptions::resume), after cutting them back to the checkpoint: the rows recorded
+ *   after it by the earlier run are dropped (declare()).
  * - **The first three columns.** Every row begins with "algorithm" (its name), "iteration" (the
  *   algorithm's own iteration) and "chain_iteration": the iteration counted through a Go2 chain,
  *   so that a plot over it does not jump back when the next algorithm starts at 0 (row()).

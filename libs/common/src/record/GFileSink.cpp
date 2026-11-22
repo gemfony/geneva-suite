@@ -30,7 +30,11 @@
 #include "common/record/GFileSink.hpp"
 
 // Standard header files go here
+#include <algorithm>
+#include <fstream>
+#include <string>
 #include <system_error>
+#include <vector>
 
 // Geneva header files go here
 #include "common/GCommonHelperFunctions.hpp" // backupExistingFile(), timeAndPlace()
@@ -73,6 +77,9 @@ void GFileSink::open(GStreamInfo const &info) {
         );
     }
 
+    if(append && not info.resumeColumn.empty()) {
+        this->cutBack_(info);
+    }
     out_.open(path_, append ? std::ios::app : std::ios::trunc);
     if(not out_) {
         throw gem_exception(
@@ -86,6 +93,44 @@ void GFileSink::open(GStreamInfo const &info) {
         this->writeStart_(out_, stream_columns_);
         out_.flush();
     }
+}
+
+/******************************************************************************/
+/**
+ * Cuts the file of a resumed stream back to its checkpoint: keeps the lines a file begins with
+ * and every row whose value in the resume column is at most the resume value, drops the rest --
+ * the rows written after the checkpoint, and a row cut by a crash -- and rewrites the file as a
+ * whole, so that a crash in the middle leaves the old file or the new one.
+ *
+ * @param info The stream, with its resume column and value
+ */
+void GFileSink::cutBack_(GStreamInfo const &info) const {
+    const auto at = std::ranges::find(stream_columns_, info.resumeColumn, &GColumn::name);
+    const auto column = static_cast<std::size_t>(at - stream_columns_.begin());
+    std::vector<std::string> kept;
+    {
+        std::ifstream in(path_);
+        std::size_t n = 0;
+        for(std::string line; std::getline(in, line); ++n) {
+            if(n < this->startLines_()) {
+                kept.push_back(line);
+                continue;
+            }
+            const std::optional<double> value = this->numberIn_(line, column);
+            if(value && *value <= info.resumeAfter) {
+                kept.push_back(line);
+            }
+        }
+    }
+    Gem::Common::replaceFileAtomically(
+        path_,
+        [&kept](std::ostream &out) {
+            for(auto const &line : kept) {
+                out << line << '\n';
+            }
+        },
+        "GFileSink::open() of the stream \"" + info.name + "\""
+    );
 }
 
 /******************************************************************************/

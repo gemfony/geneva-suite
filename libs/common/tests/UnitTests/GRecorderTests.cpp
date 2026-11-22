@@ -313,6 +313,74 @@ TEST_CASE("a resuming stream appends when its columns match and else starts anew
     }
 }
 
+TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[common][record]") {
+    // The earlier run wrote the rows of n = 0..4 and was cut in the middle of a sixth; the resumed
+    // run starts after the checkpoint of n = 2. Its stream drops the rows after it, and the broken
+    // line, before it appends -- in a CSV and in a JSON Lines file.
+    ScratchDirectory const dir("cut");
+    for(bool const json : {false, true}) {
+        auto const sinks = [json]() {
+            return json ? std::vector<std::shared_ptr<GSink>>{std::make_shared<GJsonLinesSink>()}
+                        : std::vector<std::shared_ptr<GSink>>{std::make_shared<GCsvSink>()};
+        };
+        auto const file = dir / (json ? "cut.jsonl" : "cut.csv");
+        {
+            auto s = recorder().stream<std::uint64_t, std::string>(
+                "cut", {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks()}
+            );
+            for(std::uint64_t n = 0; n < 5; ++n) {
+                s.append(n, "earlier");
+            }
+        }
+        {
+            std::ofstream(file, std::ios::app) << (json ? R"({"n":5,"no)" : "5,earl");
+        }
+        {
+            auto s = recorder().stream<std::uint64_t, std::string>(
+                "cut",
+                {"n", "note"},
+                withTime::none,
+                GStreamOptions{
+                    .sinks = sinks(), .resume = true, .resumeColumn = "n", .resumeAfter = 2.
+                }
+            );
+            s.append(3, "resumed");
+        }
+        CHECK(backupsOf(file) == 0);
+        const auto lines = linesOf(file);
+        if(json) {
+            CHECK(
+                lines ==
+                std::vector<std::string>{
+                    R"({"n":0,"note":"earlier"})",
+                    R"({"n":1,"note":"earlier"})",
+                    R"({"n":2,"note":"earlier"})",
+                    R"({"n":3,"note":"resumed"})"
+                }
+            );
+        }
+        else {
+            CHECK(
+                lines ==
+                std::vector<std::string>{"n,note", "0,earlier", "1,earlier", "2,earlier", "3,resumed"}
+            );
+        }
+    }
+    // The column by which a file is cut back must be a numeric column of the stream
+    CHECK_THROWS_AS(
+        (recorder().stream<std::string>(
+            "cut_text", {"note"}, withTime::none, GStreamOptions{.resume = true, .resumeColumn = "note"}
+        )),
+        gem_exception
+    );
+    CHECK_THROWS_AS(
+        (recorder().stream<int>(
+            "cut_none", {"n"}, withTime::none, GStreamOptions{.resume = true, .resumeColumn = "m"}
+        )),
+        gem_exception
+    );
+}
+
 TEST_CASE("rows held back reach the file when the stream closes", "[common][record]") {
     ScratchDirectory const dir("flush");
     auto s = recorder().stream<int>("held", {"n"}, withTime::none, GStreamOptions{.flushEvery = 100});

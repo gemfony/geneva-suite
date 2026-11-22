@@ -89,7 +89,8 @@ std::string place(std::source_location const &where) {
 /**
  * Declares a stream with columns given at run time. Refused: an empty name or one that is no
  * plain file name; an empty or a repeated column name; a column "time" in a stream with a time
- * column; flushEvery 0; and a name of a stream that is open, with both declarers named.
+ * column; flushEvery 0; a resumeColumn that is no numeric column of the stream; and a name of a
+ * stream that is open, with both declarers named.
  *
  * @param name The name of the stream, also that of its files
  * @param columns The columns
@@ -132,6 +133,18 @@ GStream GRecorder::stream(
     }
     if(options.flushEvery == 0) {
         refuse(name, "flushEvery must be at least 1");
+    }
+    if(not options.resumeColumn.empty()) {
+        const auto it = std::ranges::find(columns, options.resumeColumn, &GColumn::name);
+        if(it == columns.end() ||
+           (it->type != columnType::INTEGER && it->type != columnType::UNSIGNED &&
+            it->type != columnType::FLOATING)) {
+            refuse(
+                name,
+                "the column \"" + options.resumeColumn +
+                    "\" by which a resumed file is cut back is no numeric column of the stream"
+            );
+        }
     }
 
     const std::scoped_lock lk(mutex_);
