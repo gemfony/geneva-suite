@@ -81,9 +81,10 @@ namespace Gem::Common {
 /**
  * This class defines the interface of log targets, i.e. targets for the logging of
  * messages through the GLogStreamer class. Essentially all that is needed is
- * the log function. Pointers to this class are stored in the GLogStreamer. They
- * point to objects of the GConsoleLogger or GFileLogger classes, or other log targets
- * defined by the user.
+ * the log function. Pointers to this class are stored in the GLogger. They point
+ * to a GConsoleLogger (the default), a GRecordLogTarget (the log as a record
+ * stream: a CSV, JSON Lines or plain-text file) or other log targets defined by
+ * the user.
  */
 class GBaseLogTarget {
 public:
@@ -177,48 +178,6 @@ public:
      * @brief Writes a message to the console, prefixed with its source specifier
      */
     void logWithSource(std::string const &msg, std::string const &extension) const override;
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * The file logger writes log messages to a file.
- */
-class GFileLogger : public GBaseLogTarget {
-public:
-    /**
-     * @brief This constructor accepts a path to a log-file name as argument
-     */
-    explicit GFileLogger(std::filesystem::path const &p);
-
-    /*************************************************************************/
-    // Defaulted or deleted constructors, destructor and assignment operators
-    // rule of five
-
-    GFileLogger() = default;
-    GFileLogger(GFileLogger const &) = delete;
-    GFileLogger(GFileLogger &&) = default;
-    ~GFileLogger() override = default;
-
-    GFileLogger &operator=(GFileLogger const &) = delete;
-    GFileLogger &operator=(GFileLogger &&) = default;
-
-    /*************************************************************************/
-
-    /**
-     * @brief Implements logging to a file on disk
-     */
-    void log(std::string const &msg) const override;
-
-    /**
-     * @brief Logs to a file whose name is extended with the source identifier
-     */
-    void logWithSource(std::string const &msg, std::string const &extension) const override;
-
-private:
-    std::string fname_ = "Gem-Library-Collection.log"; ///< The name of the log file
-    mutable bool first_ = true; ///< Indicates whether any logging has already been done
 };
 
 /******************************************************************************/

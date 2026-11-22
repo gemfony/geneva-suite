@@ -50,6 +50,7 @@
 #include "common/record/GCsvSink.hpp"
 #include "common/record/GJsonLinesSink.hpp"
 #include "common/record/GRecorder.hpp"
+#include "common/record/GTextSink.hpp"
 
 using namespace Gem::Common::Record;
 
@@ -454,4 +455,18 @@ TEST_CASE("the directory is ./records until it is set", "[common][record]") {
     // Other test cases have set it; this checks the documented default of a fresh recorder
     GRecorder fresh;
     CHECK(fresh.directory() == std::filesystem::path(".") / "records");
+}
+
+/******************************************************************************/
+TEST_CASE("GTextSink: one row per line, the values separated by a space", "[common][record]") {
+    ScratchDirectory const dir("text");
+    {
+        auto s = recorder().stream<std::uint64_t, double, bool, std::string>(
+            "plain", {"n", "x", "ok", "note"}, withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<GTextSink>()}});
+        s.append(7, 2.5, true, "some text\n");
+        s.append(8, 0.5, false, "");
+    }
+    CHECK(linesOf(dir / "plain.log") == std::vector<std::string>{"7 2.5 true some text", "8 0.5 false"});
+    CHECK_FALSE(std::filesystem::exists(dir / "plain.csv")); // the sinks given replace the default
 }

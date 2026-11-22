@@ -547,7 +547,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     with the old names is configured again (`prepareBuild.sh <gcfg> --clean -y`);
   - the environment variables `GEM_CONFIG_BASENAME` and `GEM_RUN_TIMEOUT` (`startLocalJobs.sh`);
   - the log files a program writes into its working directory: `GEM-EXCEPTION.log`,
-    `GEM-TERMINATION.log`, `Gem-Library-Collection.log`;
+    `GEM-TERMINATION.log`;
   - the file `GEM_COMMIT` at the top of the sources and the container build argument
     `GEM_COMMIT` (`--build-arg GEM_COMMIT=$(git rev-parse HEAD)`);
   - the CMake presets `gem-default` (`CMakePresets.json`) and `gem-from-script` (written by

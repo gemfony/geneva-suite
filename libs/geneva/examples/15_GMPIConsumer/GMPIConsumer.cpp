@@ -74,6 +74,8 @@
 #include "common/GConfigEmission.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GRecordLogTarget.hpp"
+#include "common/record/GTextSink.hpp"
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCourtierEnums.hpp" // processRole
 #include "courtier/GLauncherT.hpp"
@@ -184,8 +186,8 @@ bool parseCommandLine(
         "logToFile",
         logToFile,
         DEFAULTLOGTOFILE,
-        "Boolean flag to indicate whether to write log messages to a file rather than print them "
-        "to console"
+        "Whether the submitter writes its log messages to records/GMPIConsumer.log rather than "
+        "print them to the console"
     );
 
     // Parse the command line and leave if the help flag was given. The parser
@@ -247,11 +249,6 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    if(logToFile) {
-        // writes log messages to a file rather than to std out
-        glogger.addLogTarget(std::make_shared<GFileLogger>("GMPIConsumer.cpp.log"));
-    }
-
     /****************************************************************************/
     // Random numbers are our most valuable good. Set the number of threads
     randomFactory()->setNProducerThreads(nProducerThreads);
@@ -272,6 +269,20 @@ int main(int argc, char **argv) {
         return 0;
     }
     auto mpi_consumer = Gem::Courtier::buildConsumer<gen::GGenome>(spec, consumerModules());
+
+    if(logToFile) {
+        // The submitter's log messages go to records/GMPIConsumer.log, plain text, rather than to
+        // the console. Only the submitter: every process has a recorder of its own, and processes
+        // sharing a working directory would back up each other's file.
+        glogger.addLogTarget(
+            std::make_shared<GRecordLogTarget>(
+                "GMPIConsumer",
+                std::vector<std::shared_ptr<Gem::Common::Record::GSink>>{
+                    std::make_shared<Gem::Common::Record::GTextSink>()
+                }
+            )
+        );
+    }
 
     /****************************************************************************/
     // We can now start creating populations. We refer to them through the base class

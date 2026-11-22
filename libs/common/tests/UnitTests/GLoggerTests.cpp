@@ -29,6 +29,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <format>
@@ -50,6 +51,7 @@
 #include "common/GRecordLogTarget.hpp"
 #include "common/record/GJsonLinesSink.hpp"
 #include "common/record/GRecorder.hpp"
+#include "common/record/GTextSink.hpp"
 
 using namespace Gem::Common;
 
@@ -161,7 +163,7 @@ TEST_CASE("GLogStreamer::reset() drops the accumulated content", "[common][logge
 }
 
 // ---------------------------------------------------------------------------
-// GConsoleLogger / GFileLogger
+// GConsoleLogger
 
 TEST_CASE("GConsoleLogger::log: callable", "[common][logger]") {
     // log() writes to std::clog. We can't easily intercept that here without
@@ -169,42 +171,6 @@ TEST_CASE("GConsoleLogger::log: callable", "[common][logger]") {
     GConsoleLogger const l;
     CHECK_NOTHROW(l.log("hello\n"));
     CHECK_NOTHROW(l.logWithSource("hello\n", "source-x"));
-}
-
-TEST_CASE("GFileLogger::log: appends the message to the configured file", "[common][logger]") {
-    auto path = scratch("flog_append.log");
-    std::filesystem::remove(path);
-
-    GFileLogger const l(path);
-    l.log("first-line\n");
-    l.log("second-line\n");
-
-    REQUIRE(std::filesystem::exists(path));
-    std::ifstream ifs(path);
-    std::string const content{std::istreambuf_iterator<char>(ifs), {}};
-    CHECK(content.contains("first-line"));
-    CHECK(content.contains("second-line"));
-
-    std::filesystem::remove(path);
-}
-
-TEST_CASE(
-    "GFileLogger::logWithSource: appends the source suffix to the file name",
-    "[common][logger]"
-) {
-    auto base_path = scratch("flog_source.log");
-    auto src_path = std::filesystem::path(base_path.string() + "_modA");
-    std::filesystem::remove(src_path);
-
-    GFileLogger const l(base_path);
-    l.logWithSource("payload-a\n", "modA");
-    REQUIRE(std::filesystem::exists(src_path));
-
-    std::ifstream ifs(src_path);
-    std::string const content{std::istreambuf_iterator<char>(ifs), {}};
-    CHECK(content.contains("payload-a"));
-
-    std::filesystem::remove(src_path);
 }
 
 // ---------------------------------------------------------------------------
@@ -432,37 +398,6 @@ TEST_CASE(
     GLogger g;
     CHECK_NOTHROW(g.toStdOut("via toStdOut\n"));
     CHECK_NOTHROW(g.toStdErr("via toStdErr\n"));
-}
-
-// ---------------------------------------------------------------------------
-// GFileLogger::logWithSource — first-call header vs. subsequent writes
-
-TEST_CASE(
-    "GFileLogger::logWithSource: header line appears on first write only",
-    "[common][logger]"
-) {
-    auto base_path = scratch("flog_first_flag.log");
-    auto src_path = std::filesystem::path(base_path.string() + "_chk");
-    std::filesystem::remove(src_path);
-
-    GFileLogger const l(base_path);
-    l.logWithSource("msg1\n", "chk");
-    l.logWithSource("msg2\n", "chk");
-
-    REQUIRE(std::filesystem::exists(src_path));
-    std::ifstream ifs(src_path);
-    std::string const content{std::istreambuf_iterator<char>(ifs), {}};
-
-    // The header "Logging data from source" must appear exactly once.
-    auto first_pos = content.find("Logging data from source");
-    REQUIRE(first_pos != std::string::npos);
-    CHECK(content.find("Logging data from source", first_pos + 1) == std::string::npos);
-
-    // Both payloads must be present.
-    CHECK(content.contains("msg1"));
-    CHECK(content.contains("msg2"));
-
-    std::filesystem::remove(src_path);
 }
 
 // ---------------------------------------------------------------------------
@@ -877,4 +812,40 @@ TEST_CASE(
     auto const rows = csvRecords(dir / "log.csv");
     REQUIRE(rows.size() == 2);
     CHECK(rows[1][3] == "before the close\n");
+}
+
+TEST_CASE(
+    "GRecordLogTarget with a GTextSink: one message per line, time and severity in front",
+    "[common][logger][record]"
+) {
+    RecordScratch const dir("text");
+    glogger.addLogTarget(
+        std::make_shared<GRecordLogTarget>(
+            "plain",
+            std::vector<std::shared_ptr<Record::GSink>>{std::make_shared<Record::GTextSink>()}
+        )
+    );
+    glogger << "first message" << '\n' << GLOGGING;
+    glogger << "second message, no line break" << GLOGGING;
+    glogger(std::string("modA")) << "from a source" << '\n' << GLOGGING;
+    glogger << "careful" << '\n' << GWARNING;
+    glogger.resetLogTargets();
+
+    std::ifstream in(dir / "plain.log");
+    std::vector<std::string> lines;
+    for(std::string line; std::getline(in, line);) {
+        lines.push_back(line);
+    }
+    REQUIRE(lines.size() > 4);
+    // "2026-11-22T14:56:03Z LOGGING first message": the time to the second, in UTC
+    REQUIRE(lines[0].size() > 21);
+    CHECK(lines[0][20] == ' ');
+    CHECK(lines[0][4] == '-');
+    CHECK(lines[0][10] == 'T');
+    CHECK(lines[0][19] == 'Z');
+    CHECK(lines[0].substr(21) == "LOGGING first message");
+    CHECK(lines[1].substr(21) == "LOGGING second message, no line break");
+    CHECK(lines[2].substr(21) == "LOGGING modA from a source");
+    CHECK(lines[3].substr(21) == "WARNING"); // the banner of a warning begins on the next line
+    CHECK(std::ranges::any_of(lines, [](std::string const &l) { return l.contains("careful"); }));
 }

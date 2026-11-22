@@ -81,88 +81,6 @@ void GConsoleLogger::logWithSource(std::string const &msg, std::string const &ex
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
-/*******************************************************************************/
-/**
- * @brief This constructor accepts a path to a log-file name as argument
- *
- * @param p The filesystem path of the log file to write to
- */
-GFileLogger::GFileLogger(std::filesystem::path const &p)
-  : fname_(p.string()) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * @brief Logs a message to a file in append mode
- *
- * This function logs a message to a file, whose name it takes from the private
- * variable fname_. The file is reopened in append mode for every log message. On
- * a failure to open the file, the message is written to std::cerr instead.
- *
- * @param msg The log message to be appended to the file
- */
-void GFileLogger::log(std::string const &msg) const {
-    std::ofstream ofstr(
-        std::filesystem::path(fname_),
-        std::ios_base::app
-    ); // NOLINT(cppcoreguidelines-init-variables)
-    if(ofstr) {
-        ofstr << msg;
-        ofstr.close();
-    }
-    else {
-        // A transient file-open failure (disk full, EACCES, ...) must never bring the
-        // optimisation down: fall back to std::cerr so the message is at least visible,
-        // with a one-line diagnostic that makes the lost log target visible to the
-        // operator. Do NOT turn this back into a fatal path.
-        std::cerr << "[GFileLogger::log] could not open \"" << fname_
-                  << "\" for appending — falling back to stderr:" << '\n'
-                  << msg;
-    }
-}
-
-/******************************************************************************/
-/**
- * @brief Logs a message to a source-specific file in append mode
- *
- * This function logs a message to a file, whose name it takes from the private
- * variable fname_. The file is reopened in append mode for every log message.
- * In addition to the standard log() function, this function appends the logging
- * source to the file name. On a failure to open the file, the message is written
- * to std::cerr instead.
- *
- * @param msg The log message to be appended to the file
- * @param extension An identifier of the logging source, appended (with an underscore) to the file name
- */
-void GFileLogger::logWithSource(std::string const &msg, std::string const &extension) const {
-    std::ofstream ofstr(
-        std::filesystem::path(fname_ + "_" + extension),
-        std::ios_base::app
-    ); // NOLINT(cppcoreguidelines-init-variables)
-    if(ofstr) {
-        if(first_) {
-            ofstr << "Logging data from source " + extension << '\n' << msg;
-            ofstr.close();
-            first_ = false;
-        }
-        else {
-            ofstr << msg;
-            ofstr.close();
-        }
-    }
-    else {
-        // Same fallback as GFileLogger::log(): a transient open failure
-        // should not bring the optimisation down. Emit a one-line
-        // diagnostic to stderr and let execution continue.
-        std::cerr << "[GFileLogger::logWithSource] could not open \"" << (fname_ + "_" + extension)
-                  << "\" for appending — "
-                  << "falling back to stderr:" << '\n'
-                  << msg;
-    }
-}
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 namespace {
 // True while THIS thread hands a message to the log targets (GLogger::log(), logWithSource()). A
@@ -472,6 +390,27 @@ std::string assembleBanner(
     );
 }
 
+/******************************************************************************/
+/**
+ * @brief Appends a text to a file of the error path (GEM-EXCEPTION.log, GEM-TERMINATION.log, the
+ * file of GFILE): opened for this text alone, so that it works while the program fails, and
+ * appended to across runs. If the file cannot be opened, the text goes to std::cerr -- a failure
+ * to write a log must not bring the program down.
+ *
+ * @param file The file
+ * @param text The text
+ */
+void appendToFile(std::filesystem::path const &file, std::string const &text) {
+    std::ofstream out(file, std::ios_base::app);
+    if(out) {
+        out << text;
+        return;
+    }
+    std::cerr << "[GLogger] could not open \"" << file.string()
+              << "\" for appending -- falling back to stderr:" << '\n'
+              << text;
+}
+
 /// The advisory shown for hard errors (EXCEPTION / TERMINATION).
 constexpr std::string_view ERROR_ADVICE = "If you suspect that this error is due to Geneva,\n"
                                           "then please consider filing a bug.";
@@ -510,8 +449,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         // The logger's routines will in addition try to print on the console. Note
         // that we ignore any "source" information, as this is already contained
         // in the logged message.
-        GFileLogger const gfl("GEM-EXCEPTION.log");
-        gfl.log(error);
+        appendToFile("GEM-EXCEPTION.log", error);
 
         // Send the exception out. This done globally, so an exception
         // thrown from within a thread doesn't get lost.
@@ -532,8 +470,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         // The logger's routines will in addition try to print on the console. Note
         // that we ignore any "source" information, as this is already contained
         // in the logged message.
-        GFileLogger const gfl("GEM-TERMINATION.log");
-        gfl.log(error);
+        appendToFile("GEM-TERMINATION.log", error);
 
         // Initiate the termination sequence.
         glogger_ptr->terminateApplication(error);
@@ -572,8 +509,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
     //------------------------------------------------------------------------
     case Gem::Common::logType::FILE: {
         if(this->hasOneTimeLogFile()) {
-            GFileLogger const gfl(this->getOneTimeLogFile());
-            gfl.log(oss_.str());
+            appendToFile(this->getOneTimeLogFile(), oss_.str());
         }
         else {
             raiseException(

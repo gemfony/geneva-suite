@@ -49,6 +49,7 @@ SET ( COMMONSOURCES
 	record/GRecorder.cpp
 	record/GRecordTypes.cpp
 	record/GStream.cpp
+	record/GTextSink.cpp
 	${GEM_COMMIT_SOURCE}
 )
 

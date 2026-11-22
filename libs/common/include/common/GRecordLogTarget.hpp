@@ -59,7 +59,7 @@ namespace Gem::Common {
  * glogger.addLogTarget(std::make_shared<Gem::Common::GRecordLogTarget>());
  * glogger.addLogTarget(std::make_shared<Gem::Common::GRecordLogTarget>(
  *     "run", std::vector<std::shared_ptr<Gem::Common::Record::GSink>>{
- *                std::make_shared<Gem::Common::Record::GJsonLinesSink>()})); // records/run.jsonl
+ *                std::make_shared<Gem::Common::Record::GTextSink>()})); // records/run.log, plain text
  * @endcode
  *
  * The stream has the columns `time` (the wall clock), `severity` (the kind of message as text:

@@ -42,6 +42,8 @@
 #include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GRecordLogTarget.hpp"
+#include "common/record/GTextSink.hpp"
 
 using namespace Gem::Common;
 
@@ -69,7 +71,11 @@ int main(int argc, char **argv) {
     }
 
     std::shared_ptr<GBaseLogTarget> const gcl_ptr(new GConsoleLogger());
-    std::shared_ptr<GBaseLogTarget> const gfl_ptr(new GFileLogger("./somePathToLogFile.txt"));
+    // The log as plain text in records/GLoggerTest.log
+    std::shared_ptr<GBaseLogTarget> const gfl_ptr = std::make_shared<GRecordLogTarget>(
+        "GLoggerTest",
+        std::vector<std::shared_ptr<Record::GSink>>{std::make_shared<Record::GTextSink>()}
+    );
 
     glogger.addLogTarget(gcl_ptr);
     glogger.addLogTarget(gfl_ptr);
