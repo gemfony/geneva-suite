@@ -265,3 +265,22 @@ TEST_CASE("a resumed plot reads the stream's CSV and draws the whole run", "[die
     CHECK(macro.find("9993.25") != std::string::npos);
     CHECK(macro.find("7770.25") == std::string::npos);
 }
+
+TEST_CASE("a plot added to a stream that another library declares draws it", "[dietrich][record]") {
+    // As a program would draw courtier's end-of-run report, which courtier declares without
+    // knowing dietrich: the plot sink is added by the stream's name beforehand.
+    ScratchDirectory const dir("added_plot");
+    GDataLog layout("End of run", 1, 1);
+    layout.declareSeries(curve("returns", {"requeued", "dropped_returns"}));
+    recorder().addSink("report", std::make_shared<GPlotSink>(layout));
+    {
+        auto s = recorder().stream<std::string, std::uint64_t, std::uint64_t>(
+            "report", {"consumer", "requeued", "dropped_returns"}
+        );
+        s.append("beast", 4321, 8765);
+    }
+    CHECK(std::filesystem::exists(dir / "report.csv"));
+    const std::string macro = contentOf(dir / "report.C");
+    CHECK(macro.find("4321") != std::string::npos);
+    CHECK(macro.find("8765") != std::string::npos);
+}

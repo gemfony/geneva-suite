@@ -144,15 +144,33 @@ public:
     /** @brief Closes every open stream; a failure is reported through the log, not thrown */
     void closeAll();
 
+    /**
+     * @brief Adds a sink to a stream by its name, before the stream is declared -- also a stream
+     * that another part of the program, or another library, declares. The sink joins the next
+     * declaration of that name, beside the sinks the declarer gives (or the default CSV file),
+     * and only that one. A program, for example, draws courtier's end-of-run report:
+     * @code
+     * Gem::Dietrich::GDataLog layout("End of run", 1, 1);
+     * Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_2d);
+     * spec.columns = {"requeued", "dropped_returns"};
+     * layout.declareSeries(spec);
+     * recorder().addSink("courtier", std::make_shared<Gem::Dietrich::GPlotSink>(layout));
+     * @endcode
+     * A stream of that name that is open already is refused: its earlier rows would be missing.
+     */
+    void addSink(std::string const &name, std::shared_ptr<GSink> sink);
+
 private:
     friend class detail::GStreamCore;
     /** @brief Frees the name of a stream that has closed */
     void forget_(detail::GStreamCore const *core);
 
-    mutable std::mutex mutex_; ///< Guards the two members below
+    mutable std::mutex mutex_; ///< Guards the three members below
     std::filesystem::path directory_ = std::filesystem::path(".") / "records"; ///< See setDirectory()
     std::map<std::string, std::shared_ptr<detail::GStreamCore>, std::less<>>
         streams_; ///< The open streams, by name
+    std::map<std::string, std::vector<std::shared_ptr<GSink>>, std::less<>>
+        added_sinks_; ///< Sinks for the next declaration of a name (addSink())
 };
 
 /******************************************************************************/

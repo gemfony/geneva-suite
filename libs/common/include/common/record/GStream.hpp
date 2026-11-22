@@ -56,7 +56,7 @@ namespace Gem::Common::Record {
  * How a stream is declared, beyond its name, its columns and its time column.
  */
 struct GStreamOptions {
-    /** The sinks the rows go to; none: one GCsvSink */
+    /** The sinks the rows go to; none: one GCsvSink. Sinks added by GRecorder::addSink() join them */
     std::vector<std::shared_ptr<GSink>> sinks;
     /** The stream continues a run that was resumed from a checkpoint: a file sink appends to an
      *  existing file whose columns are the stream's, and backs it up and begins a new one otherwise.

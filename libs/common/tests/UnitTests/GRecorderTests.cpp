@@ -381,6 +381,35 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
     );
 }
 
+TEST_CASE("a sink added by name joins the next declaration of that stream", "[common][record]") {
+    // A program adds a sink to a stream that another part of it declares later: the sink joins the
+    // declarer's sinks (here the default CSV file), for that declaration only.
+    ScratchDirectory const dir("added");
+    recorder().addSink("foreign", std::make_shared<GJsonLinesSink>());
+    {
+        auto s = recorder().stream<int>("foreign", {"n"});
+        s.append(1);
+    }
+    CHECK(linesOf(dir / "foreign.csv") == std::vector<std::string>{"n", "1"});
+    CHECK(linesOf(dir / "foreign.jsonl") == std::vector<std::string>{R"({"n":1})"});
+    {
+        auto s = recorder().stream<int>("foreign", {"n"});
+        s.append(2);
+    }
+    CHECK(linesOf(dir / "foreign.jsonl") == std::vector<std::string>{R"({"n":1})"}); // not again
+
+    // A stream that is open already is refused: the sink would miss its earlier rows
+    auto open = recorder().stream<int>("open_already", {"n"});
+    try {
+        recorder().addSink("open_already", std::make_shared<GJsonLinesSink>());
+        FAIL("a sink was added to an open stream");
+    }
+    catch(gem_exception const &e) {
+        CHECK_THAT(e.what(), Catch::Matchers::ContainsSubstring("is open already"));
+    }
+    CHECK_THROWS_AS(recorder().addSink("nothing", nullptr), gem_exception);
+}
+
 TEST_CASE("rows held back reach the file when the stream closes", "[common][record]") {
     ScratchDirectory const dir("flush");
     auto s = recorder().stream<int>("held", {"n"}, withTime::none, GStreamOptions{.flushEvery = 100});

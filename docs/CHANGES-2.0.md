@@ -767,7 +767,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `auto s = recorder().stream<std::uint64_t, double>("progress", {"iteration", "best_fitness"});
   s.append(i, f);`. Columns known only at run time are declared as a list of `GColumn`. The rows
   go to sinks: `GCsvSink` (the default) and `GJsonLinesSink` in common, `GPlotSink` in dietrich
-  (the stream drawn as a `GDataLog` plot at its end, ROOT by default).
+  (the stream drawn as a `GDataLog` plot at its end, ROOT by default). `recorder().addSink(name,
+  sink)` adds a sink to a stream before another part of the program -- or another library --
+  declares it, e.g. a plot of courtier's end-of-run report.
 - **One output rule for every file.** A stream writes `<directory>/<stream name>.<extension>`;
   the directory is `./records`, created when needed, set with `--recordDir` (courtier's launcher)
   or `recorder().setDirectory()`. Two open streams of one name are refused, naming both

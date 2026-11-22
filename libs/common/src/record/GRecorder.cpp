@@ -32,6 +32,7 @@
 // Standard header files go here
 #include <algorithm>
 #include <exception>
+#include <iterator>
 #include <set>
 #include <string_view>
 
@@ -41,6 +42,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/GSingletonT.hpp"
+#include "common/record/GCsvSink.hpp"
 
 namespace Gem::Common {
 
@@ -147,6 +149,10 @@ GStream GRecorder::stream(
         }
     }
 
+    if(options.sinks.empty()) {
+        options.sinks.push_back(std::make_shared<GCsvSink>());
+    }
+
     const std::scoped_lock lk(mutex_);
     if(const auto it = streams_.find(name); it != streams_.end()) {
         refuse(
@@ -156,6 +162,10 @@ GStream GRecorder::stream(
                 ". Two declarers -- also two objects of one class -- need different stream "
                 "names; a name is free again once its stream is closed."
         );
+    }
+    if(const auto added = added_sinks_.find(name); added != added_sinks_.end()) {
+        std::ranges::move(added->second, std::back_inserter(options.sinks));
+        added_sinks_.erase(added);
     }
     auto core = std::make_shared<detail::GStreamCore>(
         GStreamInfo{.name = name, .columns = std::move(columns), .directory = directory_},
@@ -216,6 +226,31 @@ void GRecorder::closeAll() {
                     << GWARNING;
         }
     }
+}
+
+/******************************************************************************/
+/**
+ * Adds a sink to the next declaration of a stream, by its name.
+ *
+ * @param name The name of the stream
+ * @param sink The sink; it is opened, written and closed by that stream alone
+ */
+void GRecorder::addSink(std::string const &name, std::shared_ptr<GSink> sink) {
+    if(not sink) {
+        refuse(name, "addSink() was given no sink");
+    }
+    const std::scoped_lock lk(mutex_);
+    if(const auto it = streams_.find(name); it != streams_.end()) {
+        throw gem_exception(
+            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            << "In GRecorder::addSink(): Error!" << '\n'
+            << "The stream \"" << name << "\" is open already (declared at "
+            << place(it->second->declarer())
+            << "): a sink is added before the stream is declared, so that it gets every row"
+            << '\n'
+        );
+    }
+    added_sinks_[name].push_back(std::move(sink));
 }
 
 /******************************************************************************/

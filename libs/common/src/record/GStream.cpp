@@ -47,8 +47,8 @@ namespace detail {
 
 /******************************************************************************/
 /**
- * A stream as the recorder declared it. Without sinks in the options, its rows go to one
- * GCsvSink.
+ * A stream as the recorder declared it, with its sinks (the recorder adds the default CSV sink
+ * and the sinks of addSink()).
  *
  * @param info Its name, its columns (the time column included), its directory and resume
  * @param time Its time column
@@ -69,9 +69,6 @@ GStreamCore::GStreamCore(
     info_.resume = options.resume;
     info_.resumeColumn = options.resumeColumn;
     info_.resumeAfter = options.resumeAfter;
-    if(sinks_.empty()) {
-        sinks_.push_back(std::make_shared<GCsvSink>());
-    }
     // A plot sink of a resumed stream reads the earlier rows from the stream's own CSV file
     for(auto const &sink : sinks_) {
         if(auto const *csv = dynamic_cast<GCsvSink const *>(sink.get())) {
