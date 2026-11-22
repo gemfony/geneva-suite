@@ -39,11 +39,10 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GArchiveNamed.hpp"               // archive_named (named-member emitter)
-#include "common/GCommonHelperFunctionsT.hpp"     // copyCloneableSmartPointer
 #include "common/GCommonMathHelperFunctionsT.hpp" // grational_sigmoid
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GMemberReflectionT.hpp"       // make_member / serialize_members / g_load_members
 #include "geneva/GOptimizationEnums.hpp"       // maxMode, evaluationPolicy, the sigmoid constants
 #include "geneva/genome/GMultiConstraintT.hpp" // GPreEvaluationValidityCheckT
 
@@ -87,19 +86,30 @@ class GProblemPolicy {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief Serialises the shared policy: the four scalar rules plus the (polymorphic) constraint.
+     * @brief The single declaration of the policy's members -- the four scalar rules plus the
+     * (polymorphic, deep-cloned) constraint -- from which serialize() and the copy are derived.
+     * @return A tuple of named member references
+     */
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(
+            Gem::Common::make_member("maxmode_", self.maxmode_),
+            Gem::Common::make_member("eval_policy_", self.eval_policy_),
+            Gem::Common::make_member("sigmoid_steepness_", self.sigmoid_steepness_),
+            Gem::Common::make_member("sigmoid_extremes_", self.sigmoid_extremes_),
+            Gem::Common::make_cloneable_member("constraint_ptr_", self.constraint_ptr_)
+        );
+    }
+
+    /**
+     * @brief Serialises the shared policy through localMembers_().
      * @tparam archive_type The GArchive codec type
      * @param ar The archive to (de)serialise with
      * @param version The (unused) serialization version number
      */
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        using Gem::Common::archive_named;
-        archive_named(ar, "maxmode_", maxmode_);
-        archive_named(ar, "eval_policy_", eval_policy_);
-        archive_named(ar, "sigmoid_steepness_", sigmoid_steepness_);
-        archive_named(ar, "sigmoid_extremes_", sigmoid_extremes_);
-        archive_named(ar, "constraint_ptr_", constraint_ptr_);
+        Gem::Common::serialize_members(ar, this->localMembers_());
     }
     ///////////////////////////////////////////////////////////////////////
 
