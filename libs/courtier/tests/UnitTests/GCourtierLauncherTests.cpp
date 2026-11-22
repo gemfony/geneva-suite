@@ -756,10 +756,10 @@ TEST_CASE(
     }
     CHECK_THROWS(
         parsedConfig<GWebsocketConfig>(provider, {"--beast_serializationMode", "0"})
-    ); // text archive
+    ); // 0 is no serialization mode
     CHECK_THROWS(
         parsedConfig<GWebsocketConfig>(provider, {"--beast_serializationMode", "2"})
-    ); // binary archive
+    ); // nor is 2
 }
 
 // The defaults of the websocket consumer's options are those of its configuration struct: an

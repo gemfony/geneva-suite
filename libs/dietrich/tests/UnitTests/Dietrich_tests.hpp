@@ -85,7 +85,7 @@ using category_root_t = typename decltype(std::declval<const T &>().clone())::el
 /**
  * Performs the standard tests every Gem::Common::GCommonInterfaceT type should pass:
  * construction, copy / clone / load / assignment equivalence, and (de-)serialization
- * round-trips in all three modes through both the object methods and the external
+ * round-trips in both modes (GEM_BINARY, GEM_JSON) through both the object methods and the external
  * Gem::Common helpers. The (de-)serialization blocks run only when modify_GUnitTests()
  * actually changes the object.
  */
@@ -223,7 +223,7 @@ void StandardTests_no_failure_expected() {
     //---------------------------------------------------------------------------//
     // Check (de-)serialization in different modes through object functions
 
-    { // plain text format
+    { // GEM_BINARY
         std::shared_ptr<T> T_ptr1 = TFactory_GUnitTests<T>();
         REQUIRE(T_ptr1);
         std::shared_ptr<T> T_ptr2 = TFactory_GUnitTests<T>();
@@ -244,7 +244,7 @@ void StandardTests_no_failure_expected() {
         }
     }
 
-    { // XML format
+    { // GEM_JSON
         std::shared_ptr<T> T_ptr1 = TFactory_GUnitTests<T>();
         REQUIRE(T_ptr1);
         std::shared_ptr<T> T_ptr2 = TFactory_GUnitTests<T>();

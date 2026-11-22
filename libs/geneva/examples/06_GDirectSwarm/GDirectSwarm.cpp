@@ -79,7 +79,6 @@ const unsigned short DEFAULTPORT = 10000;
 const std::string DEFAULTIP = "localhost";
 const std::uint16_t DEFAULTNPRODUCERTHREADS = 10;
 const Gem::Common::serializationMode DEFAULTSERMODE = Gem::Common::serializationMode::GEM_BINARY;
-const bool DEFAULTADDLOCALCONSUMER = false;
 const std::uint16_t DEFAULTNEVALUATIONTHREADS = 4;
 const std::uint32_t DEFAULTMAXITERATIONS = 200;
 const std::uint32_t DEFAULTREPORTITERATION = 1;

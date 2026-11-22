@@ -83,7 +83,6 @@ const unsigned short DEFAULTPORT = 10000;
 const std::string DEFAULTIP = "localhost";
 const std::uint16_t DEFAULTNPRODUCERTHREADS = 10;
 const Gem::Common::serializationMode DEFAULTSERMODE = Gem::Common::serializationMode::GEM_BINARY;
-const bool DEFAULTADDLOCALCONSUMER = false;
 const std::uint16_t DEFAULTNEVALUATIONTHREADS = 4;
 const std::size_t DEFAULTPOPULATIONSIZE06 = 100;
 const std::size_t DEFAULTNPARENTS =
@@ -106,7 +105,6 @@ bool parseCommandLine(
     std::string &ip,
     unsigned short &port,
     Gem::Common::serializationMode &serMode,
-    bool &addLocalConsumer,
     std::uint16_t &nProducerThreads,
     std::uint16_t &nEvaluationThreads,
     std::size_t &populationSize,
@@ -148,18 +146,6 @@ bool parseCommandLine(
         serMode,
         DEFAULTSERMODE,
         "Specifies the serialization: " + Gem::Common::serializationModeChoices()
-    );
-
-    gpb.registerCLParameter<bool>(
-        "addLocalConsumer",
-        addLocalConsumer,
-        DEFAULTADDLOCALCONSUMER // Use client mode, if no server option is specified
-        ,
-        "Whether or not a local consumer should be added to networked execution. You can use this "
-        "option with or without arguments.",
-        GCL_IMPLICIT_ALLOWED // Permit implicit values, so that we can say --server instead of --server=true
-        ,
-        true // Use a local consumer if the option --addLocalConsumer was given without arguments
     );
 
     gpb.registerCLParameter<std::uint16_t>(
@@ -247,7 +233,6 @@ int main(int argc, char **argv) {
     std::uint32_t reportIteration = 0;
     duplicationScheme rScheme;
     Gem::Common::serializationMode serMode;
-    bool addLocalConsumer = false;
 
     /****************************************************************************/
     // Initialization of Geneva
@@ -275,7 +260,6 @@ int main(int argc, char **argv) {
            ip,
            port,
            serMode,
-           addLocalConsumer,
            nProducerThreads,
            nEvaluationThreads,
            populationSize,
@@ -368,22 +352,13 @@ int main(int argc, char **argv) {
         break;
 
         //----------------------------------------------------------------------------
-    case PM_NETWORKED: // Networked execution (or a purely local consumer for testing)
-        if(addLocalConsumer) {
-            // "Broker mode" with only a local multi-threaded consumer (testing / benchmarking).
-            buildConsumer<gen::GGenome>(
-                GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)},
-                consumerModules()
-            );
-        }
-        else {
-            // Build a courtier websocket server via the shared factory; the clients started above
-            // (built by buildConsumerClient from the same configuration struct) connect to it.
-            buildConsumer<gen::GGenome>(
-                GWebsocketConsumerConfig{.port = port, .serializationMode = serMode},
-                consumerModules()
-            );
-        }
+    case PM_NETWORKED: // Networked execution
+        // Build a courtier websocket server via the shared factory; the clients started above
+        // (built by buildConsumerClient from the same configuration struct) connect to it.
+        buildConsumer<gen::GGenome>(
+            GWebsocketConsumerConfig{.port = port, .serializationMode = serMode},
+            consumerModules()
+        );
         break;
 
         //----------------------------------------------------------------------------

@@ -102,15 +102,15 @@ int main(int argc, char **argv) {
         "serializationMode,s",
         serMod,
         DEFEXAMPLESERMOD,
-        "The serialization mode: (0) TEXT, (1) XML, (2) BINARY"
+        "The serialization mode: " + Gem::Common::serializationModeChoices()
     );
 
-    // Add an option to print the last (raw and de-de-serialized) work item as XML
+    // Add an option to print the last (raw and de-de-serialized) work item as JSON
     gpb.registerCLParameter<bool>(
         "printLastWorkItem,p",
         printLastWorkItem,
         false,
-        "Whether the last work item should be printed (as XML, before and after submission / "
+        "Whether the last work item should be printed (as JSON, before and after submission / "
         "return)"
     );
 

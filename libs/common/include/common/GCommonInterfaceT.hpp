@@ -269,7 +269,7 @@ public:
 
     /***************************************************************************/
     /**
-     * Returns an XML description of the derivative it is called for
+     * Returns a JSON description of the derivative it is called for
      *
      * @tparam self_type The deduced most-derived type of *this (forwarded to toString)
      * @param self The (deduced) object being described

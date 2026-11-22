@@ -715,7 +715,7 @@ static gen::GenomeData authorFlatGenomeFromSetup(
 /**
  * @brief Queries the external evaluator program for the desired structure of the individuals and builds the flat genome from it.
  *
- * This runs the program with --init then --setup, parses the returned XML, and builds the genome from
+ * This runs the program with --init then --setup, parses the returned JSON, and builds the genome from
  * it. Because the generic factory builds the shared genome exactly once, the (expensive) external query
  * happens once too. The discovered
  * run-id and result count are recorded back into @p c so applyConfig() can hand them to each produced

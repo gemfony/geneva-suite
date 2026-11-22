@@ -247,7 +247,7 @@ TEMPLATE_TEST_CASE(
 // standard test for clone/copy/load/compare, but that test skips the round-trip block
 // (they do not override modify_GUnitTests_), so the serialize path is validated here.
 // ============================================================================
-TEST_CASE("GDoubleSumConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
+TEST_CASE("GDoubleSumConstraint round-trips in BINARY/JSON", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
@@ -267,7 +267,7 @@ TEST_CASE("GDoubleSumConstraint round-trips in TEXT/XML/BINARY", "[geneva][seria
     }
 }
 
-TEST_CASE("GSphereConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
+TEST_CASE("GSphereConstraint round-trips in BINARY/JSON", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
@@ -287,7 +287,7 @@ TEST_CASE("GSphereConstraint round-trips in TEXT/XML/BINARY", "[geneva][serializ
     }
 }
 
-TEST_CASE("GDoubleSumGapConstraint round-trips in TEXT/XML/BINARY", "[geneva][serialization]") {
+TEST_CASE("GDoubleSumGapConstraint round-trips in BINARY/JSON", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
@@ -308,9 +308,9 @@ TEST_CASE("GDoubleSumGapConstraint round-trips in TEXT/XML/BINARY", "[geneva][se
 
 // Regression: GExternalEvaluatorIndividual::serialize() previously omitted run_id_,
 // so it was silently lost on (de)serialization. A non-default run_id_ must survive a
-// round-trip in all three modes.
+// round-trip in both modes.
 TEST_CASE(
-    "GExternalEvaluatorIndividual round-trips run_id_ in TEXT/XML/BINARY",
+    "GExternalEvaluatorIndividual round-trips run_id_ in BINARY/JSON",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -345,8 +345,8 @@ TEST_CASE(
 // after std::filesystem::path gained a free serialization. This test sets several
 // oa::GOptimizationAlgorithmBase members -- in particular cp_directory_path_ (the path that forced the
 // former split) -- to NON-DEFAULT values and verifies they survive a round-trip in
-// all three modes, guarding against silently dropping a member.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (TEXT/XML/BINARY) for oa::GOptimizationAlgorithmBase's members
+// both modes, guarding against silently dropping a member.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (BINARY/JSON) for oa::GOptimizationAlgorithmBase's members
 TEST_CASE(
     "oa::GOptimizationAlgorithmBase (via GEvolutionaryAlgorithm) round-trips its members incl. the "
     "checkpoint path",
@@ -428,7 +428,7 @@ TEST_CASE(
         CHECK(gep.isSimilar(restored, original));
     }
 
-    // --- wire round-trip in all three modes ---
+    // --- wire round-trip in both modes ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         gind::GTestIndividual1 const original = make_original();
         gind::GTestIndividual1 restored; // defaults
@@ -449,9 +449,9 @@ TEST_CASE(
 // sets several of the about-to-be-tied members to NON-DEFAULT values and verifies they
 // survive a wire round-trip AND an in-memory load() (clone path), guarding against the
 // default-value masking that hides a dropped member.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (load() clone path + TEXT/XML/BINARY wire round-trip) for oa::GSwarmAlgorithm's tied members
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (load() clone path + BINARY/JSON wire round-trip) for oa::GSwarmAlgorithm's tied members
 TEST_CASE(
-    "oa::GSwarmAlgorithm round-trips its members in TEXT/XML/BINARY and via load()",
+    "oa::GSwarmAlgorithm round-trips its members in BINARY/JSON and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -499,7 +499,7 @@ TEST_CASE(
         CHECK(gep.isSimilar(restored, original));
     }
 
-    // --- wire round-trip in all three modes ---
+    // --- wire round-trip in both modes ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         oa::GSwarmAlgorithm const original = makeOriginal();
         oa::GSwarmAlgorithm restored;
@@ -525,7 +525,7 @@ TEST_CASE(
 // about-to-be-tied plain members to NON-DEFAULT values and verifies they survive a
 // wire round-trip AND an in-memory load() (clone path).
 TEST_CASE(
-    "oa::GParameterScan round-trips its members in TEXT/XML/BINARY and via load()",
+    "oa::GParameterScan round-trips its members in BINARY/JSON and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -560,7 +560,7 @@ TEST_CASE(
         CHECK(gep.isSimilar(restored, original));
     }
 
-    // --- wire round-trip in all three modes ---
+    // --- wire round-trip in both modes ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         oa::GParameterScan const original = makeOriginal();
         oa::GParameterScan restored;
@@ -582,8 +582,8 @@ TEST_CASE(
 // GDScanPar, GFScanPar) lost their hand-written serialize() and now inherit the GReflectiveInterfaceT-generated
 // one (base_object<GBaseScanParT<T>> plus an empty localMembers()), with clone_() generated by the same
 // mixin. A POPULATED GParameterScan carries one object of every leaf type through its
-// d_cnt_/f_cnt_/int32_cnt_/b_cnt_ vectors, so this pins that all four survive a wire round-trip (TEXT, XML,
-// BINARY) AND an in-memory load() (the generated clone_/load_ path), with their pre-computed grids intact.
+// d_cnt_/f_cnt_/int32_cnt_/b_cnt_ vectors, so this pins that all four survive a wire round-trip (BINARY,
+// JSON) AND an in-memory load() (the generated clone_/load_ path), with their pre-computed grids intact.
 // The preceding test populates none of these vectors, so without this one the fold would be untested.
 TEST_CASE(
     "oa::GParameterScan round-trips its concrete scan parameters (all four leaf types)",
@@ -614,7 +614,7 @@ TEST_CASE(
         CHECK(gep.isSimilar(restored, original));
     }
 
-    // --- wire round-trip in all three modes (polymorphic serialize of every leaf) ---
+    // --- wire round-trip in both modes (polymorphic serialize of every leaf) ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         oa::GParameterScan const original = makeOriginal();
         oa::GParameterScan restored;

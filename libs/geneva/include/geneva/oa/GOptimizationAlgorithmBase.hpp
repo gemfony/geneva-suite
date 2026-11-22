@@ -352,7 +352,7 @@ public:
      */
     std::filesystem::path getCheckpointDirectoryPath() const;
     /**
-     * @brief Determines whether checkpointing should be done in Text-, XML- or Binary-mode.
+     * @brief Determines whether checkpoints are written in the binary or the JSON mode.
      */
     void setCheckpointSerializationMode(Gem::Common::serializationMode cp_ser_mode);
     /**
@@ -1057,7 +1057,7 @@ private:
     mutable std::string cp_last_ = "empty";  ///< The name of the last saved checkpoint
     bool cp_remove_ = true; ///< Whether checkpoint files should be overwritten or kept
     Gem::Common::serializationMode cp_serialization_mode_ =
-        DEFAULTCPSERMODE; ///< Determines whether check-pointing should be done in text-, XML, or binary mode
+        DEFAULTCPSERMODE; ///< Whether checkpoints are written in the binary or the JSON mode
     double quality_threshold_ =
         DEFAULTQUALITYTHRESHOLD; ///< A threshold beyond which optimization is expected to stop
     bool has_quality_threshold_ = false; ///< Specifies whether a quality_threshold has been set

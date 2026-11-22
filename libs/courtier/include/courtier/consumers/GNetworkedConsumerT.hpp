@@ -85,9 +85,9 @@ namespace Gem::Courtier {
  *    submitters make progress together, not one whole batch after another). checkin() matches a
  *    returned (deserialized) result to its slot by id and writes it back.
  *
- * The wire correlation token is `(batch_id, slot)` -- the reincarnation of the old broker's
- * bufferport routing: batch_id selects WHICH submitter's batch a result belongs to (so two concurrent
- * batches' slot 0s never collide), slot the index within that batch. A result whose batch_id is no
+ * The wire correlation token is `(batch_id, slot)`: batch_id selects WHICH submitter's batch a
+ * result belongs to (so two concurrent batches' slot 0s never collide), slot the index within that
+ * batch. A result whose batch_id is no
  * longer active (a late arrival from a batch that already timed out / finished) never reaches a
  * live slot -- this is what makes resubmission and lease-reclaim safe, and replaces the former
  * per-round generation. A batch holds at most maxBatchSize() items (the range of the slot index).

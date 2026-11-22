@@ -607,9 +607,9 @@ void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
     total_iterations_ = 0;
     sorted_ = false;
     for(auto const &[alg_index, alg_ptr] : algorithms_cnt_ | std::views::enumerate) {
-        // No per-algorithm broker injection: every algorithm submits through the one process consumer
-        // (registered in GConsumerRegistry by the launcher). A standalone algorithm with none set
-        // builds the default consumer on first use.
+        // Every algorithm submits through the one process consumer (registered in GConsumerRegistry
+        // by the launcher). A standalone algorithm with none set builds the default consumer on
+        // first use.
 
         // Add the pluggable optimization monitors to the algorithm
         for(auto const &pm_ptr : pluggable_monitors_cnt_) {

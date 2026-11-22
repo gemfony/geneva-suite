@@ -915,7 +915,7 @@ private:
         counts_cache_{}; ///< [channel: d/f/i/b][activity mode: ALL/ACTIVEONLY/INACTIVEONLY]
 
     /***************************************************************************/
-    // ---- Folded in from the former GOptimizableEntity category root ----
+    // ---- Processing, evaluation results, fitness and problem policy ----
 
 public:
     using payload_type = GGenome;

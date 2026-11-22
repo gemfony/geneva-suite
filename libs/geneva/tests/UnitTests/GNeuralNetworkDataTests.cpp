@@ -122,7 +122,7 @@ TEST_CASE("networkData: disk round-trip preserves all data", "[individuals][nn]"
     const networkData n_d = makeSampleData();
 
     const std::string file =
-        (std::filesystem::temp_directory_path() / "geneva-nn-data-roundtrip.xml").string();
+        (std::filesystem::temp_directory_path() / "geneva-nn-data-roundtrip.json").string();
     n_d.saveToDisk(file);
     networkData const loaded(file);
     std::remove(file.c_str());

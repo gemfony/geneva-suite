@@ -341,7 +341,7 @@ void GConjugateGradientDescent::resetToOptimizationStart_() {
 /**
  * The actual business logic to be performed during each iteration.
  *
- * The structure mirrors GGradientDescent: the conjugate-gradient step uses
+ * The conjugate-gradient step uses
  * the difference quotients evaluated in the *previous* iteration (they are
  * still stored on the individuals), then the children are rebuilt around the
  * stepped parents and the whole population is re-evaluated.
@@ -449,7 +449,7 @@ void GConjugateGradientDescent::updateChildParameters() {
  *   d    = -g + beta * d_prev          (with d = -g on the first step or on a restart)
  *
  * and the parameter vector is moved by step_ratio * d, with
- * step_ratio = step_size_ / finite_step_ (identical to GGradientDescent). A
+ * step_ratio = step_size_ / finite_step_. A
  * non-positive / numerically unstable denominator triggers an automatic
  * restart (beta = 0), which keeps the method globally convergent.
  */
