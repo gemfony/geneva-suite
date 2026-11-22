@@ -750,6 +750,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **SIGHUP and SIGUSR1 end a run cleanly** (Slurm: `--signal=USR1@<s>`): after the current
   iteration, with its final checkpoint; SIGTERM still ends it at once. The launcher installs the
   handlers in every process (`common/GStopRequest.hpp`); a program no longer registers one itself.
+- **A malformed JSON checkpoint or archive throws `Gem::Weft::weft_exception`** naming the path
+  of the value in the document and the reason (text that is no JSON, a value of the wrong type, a
+  missing key, an array of the wrong length, a number out of range, a malformed floating-point or
+  hex string), as a malformed binary archive does; no exception of Boost.JSON leaves the codec.
 - **The personality-traits archive layout changed within the 1.99 development series**:
   the position-only traits of CGD / Nelder-Mead / parameter scan / GSA / ACO / PSO2011 and
   the parent-child traits now serialize their population position through the shared
