@@ -36,15 +36,11 @@ namespace Gem::Geneva::Genome {
 
 /******************************************************************************/
 /**
- * @brief The copy constructor. Deep-clones the constraint object.
+ * @brief The copy constructor. Copies the member list (localMembers_()); the constraint is deep-cloned.
  * @param cp The policy to copy from
  */
-GProblemPolicy::GProblemPolicy(GProblemPolicy const &cp)
-  : maxmode_(cp.maxmode_)
-  , eval_policy_(cp.eval_policy_)
-  , sigmoid_steepness_(cp.sigmoid_steepness_)
-  , sigmoid_extremes_(cp.sigmoid_extremes_) {
-    Gem::Common::copyCloneableSmartPointer(cp.constraint_ptr_, constraint_ptr_);
+GProblemPolicy::GProblemPolicy(GProblemPolicy const &cp) {
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
 }
 
 /******************************************************************************/
@@ -54,8 +50,8 @@ GProblemPolicy::GProblemPolicy(GProblemPolicy const &cp)
  * @return A reference to this object
  */
 GProblemPolicy &GProblemPolicy::operator=(GProblemPolicy const &cp) {
-    // Copy-construct (the ONE place the member list is stated, including the constraint deep-clone)
-    // and move-assign the result, so the two copy paths cannot drift apart when a member is added.
+    // Copy-construct (which copies the one member list, including the constraint deep-clone) and
+    // move-assign the result, so the two copy paths cannot drift apart when a member is added.
     if(this != &cp) {
         *this = GProblemPolicy(cp);
     }

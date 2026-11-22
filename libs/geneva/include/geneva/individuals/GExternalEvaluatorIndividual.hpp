@@ -119,7 +119,7 @@ constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
  * (see the shipped evaluator.py reference implementation for the schema). Hence the external
  * program needs to read and write this JSON format.
  */
-class GExternalEvaluatorIndividual // NOLINT(cppcoreguidelines-special-member-functions)
+class GExternalEvaluatorIndividual
   : public gen::GGenomeT<GExternalEvaluatorIndividual>
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
@@ -155,13 +155,6 @@ public:
 
     /** @brief The default constructor */
     GExternalEvaluatorIndividual();
-    /**
-     * @brief A standard copy constructor
-     */
-    GExternalEvaluatorIndividual(const GExternalEvaluatorIndividual &cp);
-
-    /** @brief The standard destructor */
-    ~GExternalEvaluatorIndividual() override;
 
     /**
      * @brief Sets the name of the external evaluation program

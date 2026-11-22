@@ -120,28 +120,24 @@ public:
 	  * @param cp Another GOAFactoryT object whose state (incl. content creator and monitor) is deep-copied
 	  */
     GOAFactoryT(const GOAFactoryT<oa_type> &cp)
-      : Gem::Common::GFactoryT<oa_type>(cp)
-      , max_iteration_cl_(cp.max_iteration_cl_)
-      , max_stall_iteration_cl_(cp.max_stall_iteration_cl_)
-      , max_seconds_cl_(cp.max_seconds_cl_) {
-        if(cp.content_creator_ptr_) {
-            if(content_creator_ptr_) {
-                content_creator_ptr_->load(cp.content_creator_ptr_);
-            }
-            else {
-                content_creator_ptr_ = cp.content_creator_ptr_->clone();
-            }
-        }
-        else {
-            content_creator_ptr_.reset();
-        }
+      : Gem::Common::GFactoryT<oa_type>(cp) {
+        this->copyMembers_(cp);
+    }
 
-        // The pluggable optimization monitor (a std::shared_ptr<GBasePluggableOM>)
-        // must be deep-copied as well; otherwise a copied factory silently
-        // produces algorithms with no monitor.
-        if(cp.pluggable_om_) {
-            pluggable_om_ = cp.pluggable_om_->template clone<GBasePluggableOM>();
+    /***************************************************************************/
+    /**
+	  * The copy assignment. The class is abstract, so it cannot copy-construct a temporary; it assigns
+	  * the base and copies the members as the copy constructor does.
+	  *
+	  * @param cp Another GOAFactoryT object whose state (incl. content creator and monitor) is deep-copied
+	  * @return A reference to this object
+	  */
+    GOAFactoryT &operator=(const GOAFactoryT<oa_type> &cp) {
+        if(this != &cp) {
+            Gem::Common::GFactoryT<oa_type>::operator=(cp);
+            this->copyMembers_(cp);
         }
+        return *this;
     }
 
     /***************************************************************************/
@@ -491,6 +487,33 @@ protected:
         pluggable_om_; // A user-defined means for information retrieval
 
 private:
+    /***************************************************************************/
+    /**
+     * @brief The single declaration of the members the copy operations copy (the monitor is
+     * deep-cloned). The content creator is not in it: a GFactoryT has its own clone(), which no member
+     * policy calls, so copyMembers_() clones it by hand.
+     * @return A tuple of named member references
+     */
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(
+            Gem::Common::make_member("max_iteration_cl_", self.max_iteration_cl_),
+            Gem::Common::make_member("max_stall_iteration_cl_", self.max_stall_iteration_cl_),
+            Gem::Common::make_member("max_seconds_cl_", self.max_seconds_cl_),
+            Gem::Common::make_cloneable_member("pluggable_om_", self.pluggable_om_)
+        );
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Copies the member list and deep-clones the content creator; used by both copy operations
+     * @param cp The factory to copy from
+     */
+    void copyMembers_(const GOAFactoryT<oa_type> &cp) {
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
+        content_creator_ptr_ = cp.content_creator_ptr_ ? cp.content_creator_ptr_->clone() : nullptr;
+    }
+
     /***************************************************************************/
     /**
      * @brief Creates an algorithm object of this type.

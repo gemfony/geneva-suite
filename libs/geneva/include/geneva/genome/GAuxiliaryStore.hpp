@@ -47,8 +47,8 @@
 
 // Geneva headers go here
 #include "common/GArchiveNamed.hpp" // archive_named / archive_named_binary (named member / base emitters)
-#include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GMemberReflectionT.hpp" // make_member / serialize_members / g_load_members
 #include "geneva/GPersonalityTraits.hpp"
 
 namespace Gem::Geneva::Genome {
@@ -152,19 +152,33 @@ inline std::uint32_t auxTypeTag() {
  * the stride is checked on access instead.
  */
 class GAuxiliaryStore {
+    /**
+     * @brief The single declaration of the store's members, from which serialize() and the copy
+     * operations are derived (the personality is deep-cloned)
+     *
+     * @return A tuple of named member references
+     */
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(
+            Gem::Common::make_cloneable_member("personality_", self.personality_),
+            Gem::Common::make_member("pods_", self.pods_),
+            Gem::Common::make_member("n_adaptions_", self.n_adaptions_)
+        );
+    }
+
 public:
     /** @brief The default constructor */
     GAuxiliaryStore() = default;
 
     /**
-     * @brief The copy constructor deep-clones the personality and copies the POD blocks
+     * @brief The copy constructor copies the member list: the personality is deep-cloned, the POD blocks
+     * are copied
      *
      * @param cp A constant reference to another GAuxiliaryStore object to be copied
      */
-    GAuxiliaryStore(const GAuxiliaryStore &cp)
-      : pods_(cp.pods_)
-      , n_adaptions_(cp.n_adaptions_) {
-        Gem::Common::copyCloneableSmartPointer(cp.personality_, personality_);
+    GAuxiliaryStore(const GAuxiliaryStore &cp) {
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
     }
 
     /** @brief The move constructor */
@@ -174,16 +188,16 @@ public:
     ~GAuxiliaryStore() = default;
 
     /**
-     * @brief Copy assignment deep-clones the personality and copies the POD blocks
+     * @brief Copy assignment through the member list. Not copy-and-move: an individual's store is
+     * assigned on every load, and the member list loads a personality of the same type in place
+     * instead of cloning a new one.
      *
      * @param cp A constant reference to another GAuxiliaryStore object to be copied
      * @return A reference to this object
      */
     GAuxiliaryStore &operator=(const GAuxiliaryStore &cp) {
         if(this != &cp) {
-            Gem::Common::copyCloneableSmartPointer(cp.personality_, personality_);
-            pods_ = cp.pods_;
-            n_adaptions_ = cp.n_adaptions_;
+            Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
         }
         return *this;
     }
@@ -334,10 +348,7 @@ private:
      */
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        using Gem::Common::archive_named;
-        archive_named(ar, "personality_", personality_);
-        archive_named(ar, "pods_", pods_);
-        archive_named(ar, "n_adaptions_", n_adaptions_);
+        Gem::Common::serialize_members(ar, this->localMembers_());
     }
 
     /***************************************************************************/

@@ -75,31 +75,6 @@ GExternalEvaluatorIndividual::GExternalEvaluatorIndividual()
 
 /******************************************************************************/
 /**
- * @brief A standard copy constructor.
- *
- * @param cp A constant reference to another GExternalEvaluatorIndividual to be copied
- */
-GExternalEvaluatorIndividual::GExternalEvaluatorIndividual(const GExternalEvaluatorIndividual &cp)
-  : gen::GGenomeT<GExternalEvaluatorIndividual>(
-        cp
-    ) // copies the base genome (value channels + layout)
-  , program_name_(cp.program_name_)
-  , custom_options_(cp.custom_options_)
-  , parameter_file_base_name_(cp.parameter_file_base_name_)
-  , n_results_(cp.n_results_)
-  , run_id_(cp.run_id_)
-  , remove_exec_temporaries_(cp.remove_exec_temporaries_) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * The standard destructor
- */
-GExternalEvaluatorIndividual::~GExternalEvaluatorIndividual() { /* nothing */
-}
-
-/******************************************************************************/
-/**
  * @brief Sets the name of the external evaluation program.
  *
  * @param program_name The path / name of the external evaluation program to invoke

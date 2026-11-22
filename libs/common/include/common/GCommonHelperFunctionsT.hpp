@@ -615,7 +615,7 @@ void copyCloneableSmartPointerContainer(
             copyCloneableSmartPointer(*it_from, *it_to);
         }
         for(auto it = from.begin() + size_to; it != from.end(); ++it) {
-            to.push_back((*it)->T::template clone<T>());
+            copyCloneableSmartPointer(*it, to.emplace_back()); // an empty slot stays empty
         }
     }
     else { // size_from < size_to
@@ -666,7 +666,7 @@ void copyCloneableSmartPointerContainer(
             copyCloneableSmartPointer(*it_from, *it_to);
         }
         for(auto it = from.begin() + size_to; it != from.end(); ++it) {
-            to.push_back((*it)->template clone<T>());
+            copyCloneableSmartPointer(*it, to.emplace_back()); // an empty slot stays empty
         }
     }
     else { // size_from < size_to

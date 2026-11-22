@@ -50,6 +50,7 @@
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GMemberReflectionT.hpp" // make_member / g_load_members / serialize_members
 #include "common/GSerializableFunctionObjectT.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp" // serialization of std::chrono time_point members
 #include "courtier/GCourtierEnums.hpp"
@@ -94,18 +95,29 @@ class GProcessingContainerT : public GProcessable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
 
+    /**
+     * @brief The single declaration of this class's members, from which serialize() and the copy
+     * operations are derived (the pre-/post-processors are deep-cloned on copy).
+     * @return A tuple of named member references
+     */
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(
+            Gem::Common::make_member("pre_processing_disabled_", self.pre_processing_disabled_),
+            Gem::Common::make_member("post_processing_disabled_", self.post_processing_disabled_),
+            Gem::Common::make_cloneable_member("pre_processor_ptr_", self.pre_processor_ptr_),
+            Gem::Common::make_cloneable_member("post_processor_ptr_", self.post_processor_ptr_),
+            Gem::Common::make_member("stored_results_cnt_", self.stored_results_cnt_)
+        );
+    }
+
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        using Gem::Common::archive_named;
         // The non-generic lifecycle state (status, errors, routing ids, timing) is serialised by
         // the GProcessable base; this class adds only the result store and the (typed) pre-/post-
         // processors plus their veto flags.
         Gem::Common::archive_named_base<GProcessable>(ar, "GProcessable", *this);
-        archive_named(ar, "pre_processing_disabled_", pre_processing_disabled_);
-        archive_named(ar, "post_processing_disabled_", post_processing_disabled_);
-        archive_named(ar, "pre_processor_ptr_", pre_processor_ptr_);
-        archive_named(ar, "post_processor_ptr_", post_processor_ptr_);
-        archive_named(ar, "stored_results_cnt_", stored_results_cnt_);
+        Gem::Common::serialize_members(ar, this->localMembers_());
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -135,35 +147,24 @@ public:
     )
       : GProcessable(
             cp
-        ) // copies the non-generic lifecycle state (status, errors, counters, timing)
-      , pre_processing_disabled_(cp.pre_processing_disabled_)
-      , post_processing_disabled_(cp.post_processing_disabled_)
-      , stored_results_cnt_(
-            cp.stored_results_cnt_
-        ) // Note: processing_result_type must be copyable (e.g. it should not contain pointers)
-    {
-        Gem::Common::copyCloneableSmartPointer(cp.pre_processor_ptr_, pre_processor_ptr_);
-        Gem::Common::copyCloneableSmartPointer(cp.post_processor_ptr_, post_processor_ptr_);
+        ) { // copies the non-generic lifecycle state (status, errors, counters, timing)
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
     }
 
     /***************************************************************************/
     /**
-	  * @brief Copy assignment operator
+	  * @brief Copy assignment operator. The class is abstract (process_() is pure), so it cannot
+	  * copy-construct a temporary; it assigns the base and copies the member list, as the copy
+	  * constructor does.
 	  *
 	  * @param cp Another GProcessingContainerT object whose data is copied into this one
 	  * @return A reference to this object
 	  */
     GProcessingContainerT<processable_type, processing_result_type> &
     operator=(GProcessingContainerT<processable_type, processing_result_type> const &cp) {
-        if(this != &cp) { // skip the (pre-/post-processor) re-cloning on self-assignment
+        if(this != &cp) {
             GProcessable::operator=(cp); // the non-generic lifecycle state
-            pre_processing_disabled_ = cp.pre_processing_disabled_;
-            post_processing_disabled_ = cp.post_processing_disabled_;
-            stored_results_cnt_ =
-                cp.stored_results_cnt_; // Note: processing_result_type must be copyable (e.g. it should not contain pointers)
-
-            Gem::Common::copyCloneableSmartPointer(cp.pre_processor_ptr_, pre_processor_ptr_);
-            Gem::Common::copyCloneableSmartPointer(cp.post_processor_ptr_, post_processor_ptr_);
+            Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
         }
         return *this;
     }

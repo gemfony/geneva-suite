@@ -51,6 +51,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <typeinfo>
 
 // Catch2 headers go here
@@ -218,6 +219,24 @@ void StandardTests_no_failure_expected() {
 
         REQUIRE_NOTHROW(T_ptr.reset());
         REQUIRE_NOTHROW(T_ptr_load.reset());
+    }
+
+    // Check copy assignment (operator=). A copy assignment written by hand restates the member list
+    // beside localMembers_(); comparing the assigned object with its source is what catches a member
+    // the assignment forgot. A type without a copy assignment has nothing here to drift.
+    if constexpr(std::is_copy_assignable_v<T>) {
+        std::shared_ptr<T> T_ptr, T_ptr_assign;
+
+        REQUIRE_NOTHROW(T_ptr = TFactory_GUnitTests<T>());
+        REQUIRE(T_ptr);
+
+        REQUIRE_NOTHROW(T_ptr->modify_GUnitTests());
+
+        REQUIRE_NOTHROW(T_ptr_assign = TFactory_GUnitTests<T>());
+        REQUIRE(T_ptr_assign);
+        REQUIRE_NOTHROW(*T_ptr_assign = *T_ptr);
+        CHECK(gep.isEqual(*T_ptr_assign, *T_ptr));
+        CHECK(gep.isSimilar(*T_ptr_assign, *T_ptr));
     }
 
     //---------------------------------------------------------------------------//

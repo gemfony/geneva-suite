@@ -276,7 +276,22 @@ bool GFitnessMonitor::modify_GUnitTests_() {
  */
 GCollectiveMonitor::GCollectiveMonitor(const GCollectiveMonitor &cp)
   : Gem::Common::GReflectiveInterfaceT<GCollectiveMonitor, oa::GBasePluggableOM>(cp) {
-    Gem::Common::copyCloneableSmartPointerContainer(cp.pluggable_monitors_, pluggable_monitors_);
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_()); // monitors deep-cloned
+}
+
+/******************************************************************************/
+/**
+ * @brief The copy assignment. Copy-constructs and move-assigns the result, so it is as deep as the copy
+ * constructor and states no member list of its own (the implicit assignment shared the monitors).
+ *
+ * @param cp The collective monitor to copy from
+ * @return A reference to this object
+ */
+GCollectiveMonitor &GCollectiveMonitor::operator=(const GCollectiveMonitor &cp) {
+    if(this != &cp) {
+        *this = GCollectiveMonitor(cp);
+    }
+    return *this;
 }
 
 /******************************************************************************/

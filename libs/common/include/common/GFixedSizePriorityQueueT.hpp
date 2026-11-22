@@ -200,16 +200,15 @@ public:
     /**
      * @brief The copy constructor
      *
-     * The stored items are deep-copied through the storage policy, so the copy shares
-     * nothing with @p cp -- also for the shared_ptr policy, whose entries are cloned
-     * rather than co-owned.
+     * The members are copied through localMembers_(): the stored items are deep-copied, so the copy
+     * shares nothing with @p cp -- also for the shared_ptr policy, whose entries are cloned rather
+     * than co-owned. worst_admitted_, a cache outside the list, starts at its lenient default and is
+     * refreshed by the next insertion.
      *
      * @param cp A constant reference to another object of the same type that is copied
      */
-    GFixedSizePriorityQueueT(GFixedSizePriorityQueueT const &cp)
-      : max_size_(cp.max_size_)
-      , sort_order_(cp.sort_order_) {
-        storage_policy_type::deepCopy(cp.data_cnt_, data_cnt_);
+    GFixedSizePriorityQueueT(GFixedSizePriorityQueueT const &cp) {
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
     }
 
     /***************************************************************************/
@@ -237,20 +236,16 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Copy assignment operator
+     * @brief Copy assignment operator: copies the member list, as the copy constructor does (the
+     * class is abstract, so it cannot copy-construct a temporary)
      *
      * @param cp A constant reference to another object of the same type that is copied
      * @return A reference to this object
      */
     GFixedSizePriorityQueueT &operator=(GFixedSizePriorityQueueT const &cp) {
-        if(this == &cp) {
-            return *this;
+        if(this != &cp) {
+            Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
         }
-        max_size_ = cp.max_size_;
-        sort_order_ = cp.sort_order_;
-
-        storage_policy_type::deepCopy(cp.data_cnt_, data_cnt_);
-
         return *this;
     }
 

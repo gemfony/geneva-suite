@@ -64,28 +64,6 @@ GDelayIndividual::GDelayIndividual()
 
 /******************************************************************************/
 /**
- * A standard copy constructor
- *
- * @param cp A copy of another GDelayIndividual
- */
-GDelayIndividual::GDelayIndividual(const GDelayIndividual &cp)
-  : gen::GGenomeT<GDelayIndividual>(cp)
-  , fixed_sleep_time_(cp.fixed_sleep_time_)
-  , may_crash_(cp.may_crash_)
-  , throw_likelihood_(cp.throw_likelihood_)
-  , sleep_randomly_(cp.sleep_randomly_)
-  , rand_sleep_boundaries_(cp.rand_sleep_boundaries_) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * The standard destructor
- */
-GDelayIndividual::~GDelayIndividual() { /* nothing */
-}
-
-/******************************************************************************/
-/**
  * @brief The actual fitness calculation takes place here.
  *
  * Sleeps for either a fixed or a random amount of time (to emulate an expensive evaluation),

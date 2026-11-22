@@ -69,7 +69,7 @@ namespace Gem::Geneva::Individuals {
  */
 // clang-format off
 //! [ind-member-list#2]
-class GLineFitIndividual // NOLINT(cppcoreguidelines-special-member-functions)
+class GLineFitIndividual
   : public gen::GGenomeT<GLineFitIndividual>
   , public Gem::Common::GSelfTestable {
     ///////////////////////////////////////////////////////////////////////
@@ -105,13 +105,6 @@ public:
      * stores the (x,y) data points directly, in memory.
      */
     GLineFitIndividual(const std::vector<std::tuple<double, double>> &data_points);
-    /**
-     * @brief The copy constructor.
-     */
-    GLineFitIndividual(const GLineFitIndividual &cp);
-
-    /** @brief The standard destructor */
-    ~GLineFitIndividual() override;
 
     /**
      * @brief Retrieves the tuple (a,b) of the line represented by this object.

@@ -103,25 +103,13 @@ GSwarmAlgorithm::GSwarmAlgorithm(
  * @param cp Another GSwarmAlgorithm object
  */
 GSwarmAlgorithm::GSwarmAlgorithm(const GSwarmAlgorithm &cp)
-  : GOptimizationAlgorithmT<GSwarmAlgorithm>(cp)
-  , n_neighborhoods_(cp.n_neighborhoods_)
-  , default_n_neighborhood_members_(cp.default_n_neighborhood_members_)
-  , n_neighborhood_members_cnt_(cp.n_neighborhood_members_cnt_)
-  , global_best_ptr_(
-        (cp.afterFirstIteration()) ? (cp.global_best_ptr_)->clone<gen::GGenome>()
-                                   : std::shared_ptr<gen::GGenome>()
-    )
-  , neighborhood_bests_cnt_(n_neighborhoods_) // We copy the smart pointers over later
-  , c_personal_(cp.c_personal_)
-  , c_neighborhood_(cp.c_neighborhood_)
-  , c_global_(cp.c_global_)
-  , c_velocity_(cp.c_velocity_)
-  , update_rule_(cp.update_rule_)
-  , random_fill_up_(cp.random_fill_up_)
-  , repulsion_threshold_(cp.repulsion_threshold_)
-  , vel_max_(cp.vel_max_)
-  , n_fp_parms_(cp.n_fp_parms_)
-  , velocity_range_percentage_(cp.velocity_range_percentage_) {
+  : GOptimizationAlgorithmT<GSwarmAlgorithm>(cp) {
+    // The members are copied through localMembers_(); the global and neighborhood bests are deep-cloned
+    // (empty slots stay empty). vel_max_ and n_fp_parms_ are not in the list: init() recomputes them at
+    // the start of every run, so a copy starts with them fresh.
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
+
+    // Not a member of the list: the base's default population size follows the neighborhood geometry.
     // Note that this setting might differ from nCPIndividuals, as it is not guaranteed
     // that cp has, at the time of copying, all individuals present in each neighborhood.
     // Differences might e.g. occur if not all individuals return from their remote
@@ -130,16 +118,6 @@ GSwarmAlgorithm::GSwarmAlgorithm(const GSwarmAlgorithm &cp)
     GOptimizationAlgorithmBase::setDefaultPopulationSize(
         n_neighborhoods_ * default_n_neighborhood_members_
     );
-
-    // Clone cp's best individuals in each neighborhood
-    if(cp.afterFirstIteration()) {
-        for(std::size_t i = 0; i < n_neighborhoods_; i++) {
-            neighborhood_bests_cnt_[i] = cp.neighborhood_bests_cnt_[i]->clone<gen::GGenome>();
-        }
-    }
-
-    // Copying / setting of the optimization algorithm id is done by the parent class. The same
-    // applies to the copying of the optimization monitor.
 }
 
 /******************************************************************************/

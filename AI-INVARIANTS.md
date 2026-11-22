@@ -33,9 +33,10 @@ to it:
   itself; it does not vote on summaries.
 
 *Why:* the tiers fail differently. Haiku is reliable at pattern detection and unreliable at judgment —
-its severity labels are noise and its design/concurrency claims are often confidently wrong; Fable's
-attention is the scarce resource and is spent where wrongness is expensive. Matching work to tier makes
-the sweep both cheap and safe; mismatching it produces either wasted tokens or plausible-but-wrong changes.
+its severity labels are noise and its design/concurrency claims are often confidently wrong; the
+supervisor's attention is the scarce resource and is spent where wrongness is expensive. Matching work to
+tier makes the sweep both cheap and safe; mismatching it produces either wasted tokens or
+plausible-but-wrong changes.
 
 ## AI-2. Scanner findings are evidence, never actions
 

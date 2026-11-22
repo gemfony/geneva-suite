@@ -54,6 +54,7 @@
 #include <sstream>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <typeinfo>
 #include <vector>
 
@@ -112,6 +113,8 @@ void StandardTests_no_failure_expected() {
         "protected "
         "helper if the root is where the perturbation lives)."
     );
+    // The test cases are generated from type lists and named by index; name the type in every failure.
+    INFO("Tested type: " << typeid(T).name());
     // The CRTP category root of the tested type (GGenome for individuals,
     // GPersonalityTraits for personality traits, and so on).
     using root_t = category_root_t<T>;
@@ -271,7 +274,10 @@ void StandardTests_no_failure_expected() {
         REQUIRE_NOTHROW(T_ptr_load.reset());
     }
 
-    { // Check assignment using operator=
+    // Check copy assignment (operator=). A copy assignment written by hand restates the member list
+    // beside localMembers_(); comparing the assigned object with its source is what catches a member
+    // the assignment forgot. A type without a copy assignment has nothing here to drift.
+    if constexpr(std::is_copy_assignable_v<T>) {
         std::shared_ptr<T> T_ptr, T_ptr_assign;
 
         // Default construction
@@ -284,7 +290,7 @@ void StandardTests_no_failure_expected() {
         // Assignment
         REQUIRE_NOTHROW(T_ptr_assign = TFactory_GUnitTests<T>());
         REQUIRE(T_ptr_assign); // must point somewhere
-        REQUIRE_NOTHROW(T_ptr_assign->load(*T_ptr));
+        REQUIRE_NOTHROW(*T_ptr_assign = *T_ptr);
 
         // Check for equivalence and similarity
         CHECK(gep.isEqual(*T_ptr_assign, *T_ptr));
@@ -428,6 +434,7 @@ void StandardTests_failures_expected() {
         std::derived_from<T, Gem::Common::GSelfTestable>,
         "StandardTests_failures_expected<T>: T must opt into the Gem::Common::GSelfTestable facet."
     );
+    INFO("Tested type: " << typeid(T).name());
     // Prepare printing of error messages in object comparisons
     GEqualityPrinter gep(
         "StandardTests_failures_expected",

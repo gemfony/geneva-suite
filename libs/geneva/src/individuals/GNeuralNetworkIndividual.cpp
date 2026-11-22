@@ -604,26 +604,6 @@ GNeuralNetworkIndividual::GNeuralNetworkIndividual(
 
 /******************************************************************************/
 /**
- * A standard copy constructor
- *
- * @param cp A copy of another GNeuralNetworkIndividual object
- */
-GNeuralNetworkIndividual::GNeuralNetworkIndividual(const GNeuralNetworkIndividual &cp)
-  : gen::GGenomeT<GNeuralNetworkIndividual>(cp)
-  , t_f_(cp.t_f_)
-  , n_d_(nnTrainingDataStore()) // We want a single source for the training data
-{                               /* nothing */
-}
-
-/******************************************************************************/
-/**
- * The standard destructor
- */
-GNeuralNetworkIndividual::~GNeuralNetworkIndividual() { /* nothing */
-}
-
-/******************************************************************************/
-/**
  * @brief A function which initializes the individual with a suitable set of network
  * layers, according to user-specifications.
  *

@@ -194,21 +194,16 @@ class GMetaOptimizerIndividualT // NOLINT(cppcoreguidelines-special-member-funct
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
     // the private localMembers_() below (load_/compare_/clone_/name_ are generated from it). serialize()
-    // is kept BY HAND: it also emits ind_factory_, which localMembers_ deliberately omits (the factory is
-    // kept-not-copied on load and ignored by compare) -- an asymmetry serialize_members() cannot express.
+    // emits that list and then ind_factory_, which localMembers_ deliberately omits (the factory is
+    // kept-not-copied on load and ignored by compare).
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     template <class archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        using Gem::Common::archive_named;
         Gem::Common::archive_named_base<gen::GGenome>(ar, "gen::GGenome", *this);
-        archive_named(ar, "n_runs_per_optimization_", n_runs_per_optimization_);
-        archive_named(ar, "fitness_target_", fitness_target_);
-        archive_named(ar, "iteration_threshold_", iteration_threshold_);
-        archive_named(ar, "mo_target_", mo_target_);
-        archive_named(ar, "sub_ea_config_", sub_ea_config_);
-        archive_named(ar, "ind_factory_", ind_factory_);
+        Gem::Common::serialize_members(ar, this->localMembers_());
+        Gem::Common::archive_named(ar, "ind_factory_", ind_factory_);
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -238,21 +233,16 @@ public:
      */
     GMetaOptimizerIndividualT(const GMetaOptimizerIndividualT<ind_type> &cp)
       : gen::GGenomeT<GMetaOptimizerIndividualT<ind_type>>(cp)
-      , n_runs_per_optimization_(cp.n_runs_per_optimization_)
-      , fitness_target_(cp.fitness_target_)
-      , iteration_threshold_(cp.iteration_threshold_)
-      , mo_target_(cp.mo_target_)
-      , sub_ea_config_(cp.sub_ea_config_)
       , ind_factory_(
-            // A default-constructed meta-optimizer has no factory yet; deep-clone
-            // it only when present, otherwise copy the (null) factory as-is. The
-            // previous unconditional (cp.ind_factory_)->clone() dereferenced a null
-            // pointer when copying/cloning a default-constructed object.
+            // Not in the member list (load_() keeps the object's own factory). A copy deep-clones it
+            // through GFactoryT's own clone(), which no member policy calls; a default-constructed
+            // meta-optimizer has no factory yet, so only a present one is cloned.
             cp.ind_factory_ ? Gem::Common::convertSmartPointer<
                                   Gem::Common::GFactoryT<gen::GGenome>,
                                   typename ind_type::FACTORYTYPE>((cp.ind_factory_)->clone())
                             : std::shared_ptr<typename ind_type::FACTORYTYPE>()
-        ) { /* nothing */
+        ) {
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
     }
 
     /***************************************************************************/
@@ -651,8 +641,8 @@ protected:
      * compare_() are derived from it, so the member list lives in one place.
      * Note: ind_factory_ is deliberately NOT listed here -- load_() keeps the
      * object's own factory (see the comment there) and compare_() ignores it, so
-     * it is not part of the copy/compare semantics. serialize() handles it
-     * separately; do not derive serialize() from localMembers() for this class.
+     * it is not part of the load/compare semantics. serialize() and the copy constructor
+     * handle it after the list.
      */
     template <typename self_type>
     auto localMembers_(this self_type &self) {

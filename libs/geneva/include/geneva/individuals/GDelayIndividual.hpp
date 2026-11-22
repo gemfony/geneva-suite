@@ -83,7 +83,7 @@ public:
  * crash with a predefined likelihood. This allows to test the stability of the communication between
  * clients and server.
  */
-class GDelayIndividual // NOLINT(cppcoreguidelines-special-member-functions)
+class GDelayIndividual
   : public gen::GGenomeT<GDelayIndividual>
   , public Gem::Common::GSelfTestable {
     /////////////////////////////////////////////////////////////////////////////
@@ -115,12 +115,6 @@ public:
 
     /** @brief The default constructor */
     GDelayIndividual();
-    /**
-     * @brief A standard copy constructor
-     */
-    GDelayIndividual(const GDelayIndividual &cp);
-    /** @brief The standard destructor */
-    ~GDelayIndividual() override;
 
     /**
      * @brief Sets the sleep-time to a user-defined value
