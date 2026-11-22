@@ -458,7 +458,7 @@ TEST_CASE("the directory is ./records until it is set", "[common][record]") {
 }
 
 /******************************************************************************/
-TEST_CASE("GTextSink: one row per line, the values separated by a space", "[common][record]") {
+TEST_CASE("GTextSink: one row per line with the values separated by a space", "[common][record]") {
     ScratchDirectory const dir("text");
     {
         auto s = recorder().stream<std::uint64_t, double, bool, std::string>(

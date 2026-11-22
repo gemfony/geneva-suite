@@ -815,7 +815,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GRecordLogTarget with a GTextSink: one message per line, time and severity in front",
+    "GRecordLogTarget with a GTextSink: one message per line with time and severity in front",
     "[common][logger][record]"
 ) {
     RecordScratch const dir("text");
