@@ -221,7 +221,7 @@ A human-readable summary table is also printed to stdout at the end of the run.
 ```
 GCUDAOptBenchmarkMain.cpp   (C++23, compiled by GCC)
   main() — parses config, creates GenevaInitializer, builds a
-           Gem::Courtier::GPU::GGPUConsumerT<GOptimizableEntity> + GBenchmarkGPUMarshaller
+           Gem::Courtier::GPU::GGPUConsumerT<GGenome> + GBenchmarkGPUMarshaller
            and registers it as the process consumer (GConsumerRegistry)
            (the SAME unified GPU consumer example 14 uses), runs
            GAlgorithmBenchmarkRunner, writes output via GBenchmarkResultWriter.

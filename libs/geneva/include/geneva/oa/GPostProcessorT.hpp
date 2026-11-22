@@ -199,8 +199,7 @@ public:
     /**************************************************************************/
     /**
      * @brief Initialization with the inner-EA configuration file. The nested refinement always runs
-     * inline on the submitting thread (setInlineEvaluation on the inner EA) -- the former
-     * serial/multi-threaded/broker execution-mode selection no longer exists.
+     * inline on the submitting thread (setInlineEvaluation on the inner EA).
      */
     explicit GEvolutionaryAlgorithmPostOptimizer(const std::string &oa_config_file);
     /**

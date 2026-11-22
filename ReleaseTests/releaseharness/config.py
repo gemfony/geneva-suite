@@ -24,7 +24,7 @@ from .model import BuildType, Compiler, GuestOS
 # Built-in defaults. Mirrors config.yaml so the tool is usable with no file.
 _DEFAULTS: dict[str, Any] = {
     "source_dir": None,  # inferred from this file's location
-    "workdir": "/home/rberlich/Testplan",
+    "workdir": Path.home() / "Testplan",
     "backend": "podman",
     "boost_root": "/opt/boost",
     "jobs": 1,

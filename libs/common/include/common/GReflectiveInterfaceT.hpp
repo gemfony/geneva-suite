@@ -377,11 +377,9 @@ private:
  * would be instantiated into the vtable of an abstract class too, so it is added
  * only here, where a class opting in is asserting it is concrete.
  *
- * clone_() returns the hierarchy root, recovered from parent_type. There was once a third
- * template parameter for a narrower, covariant return type: GGenomeT declared
- * GGenome* while the root was GOptimizableEntity. Folding those two classes together
- * left the parameter with no client, so it is gone -- one fewer knob, and one fewer way
- * for a derivative to disagree with its own hierarchy about what a clone is.
+ * clone_() returns the hierarchy root, recovered from parent_type. There is no parameter
+ * for a narrower, covariant return type, so a derivative cannot disagree with its own
+ * hierarchy about what a clone is.
  *
  * @tparam derived_type The managed (CRTP self) concrete class
  * @tparam parent_type  The class's real base

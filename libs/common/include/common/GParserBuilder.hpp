@@ -41,6 +41,7 @@
 #include <functional>
 #include <iostream>
 #include <limits>
+#include <locale>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -151,6 +152,7 @@ template <typename T>
 T cfgReadWhole(std::string const &s, std::string const &key) {
     T val{};
     std::istringstream iss(s);
+    iss.imbue(std::locale::classic()); // the file's text, not the program's global locale
     bool negative_unsigned = false;
     if constexpr(std::is_unsigned_v<T>) {
         negative_unsigned = (iss >> std::ws).peek() == '-';

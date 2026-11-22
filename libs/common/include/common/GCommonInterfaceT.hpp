@@ -269,7 +269,7 @@ public:
 
     /***************************************************************************/
     /**
-     * Returns an XML description of the derivative it is called for
+     * Returns a JSON description of the derivative it is called for
      *
      * @tparam self_type The deduced most-derived type of *this (forwarded to toString)
      * @param self The (deduced) object being described
@@ -557,6 +557,10 @@ private:
     /***************************************************************************/
     /**
      * @brief Creates a deep clone of this object
+     *
+     * It returns an owning raw pointer, which Invariant 21 otherwise forbids, because the pointer
+     * never leaves this class: clone_() is private, and its only callers, the public clone() and
+     * clone<clone_type>(), wrap the result into a std::unique_ptr at once.
      *
      * @return A raw, owning pointer to a deep clone of this object (caller takes ownership)
      */

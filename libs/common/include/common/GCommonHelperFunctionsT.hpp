@@ -42,6 +42,7 @@
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <locale>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -249,6 +250,9 @@ inline std::string generate_uuid_v4() {
 /**
  * @brief Converts a string to T via stream extraction (replaces boost::lexical_cast).
  *
+ * The stream uses the classic "C" locale, whatever global locale the program has set, so text
+ * written by to_string() reads back everywhere.
+ *
  * @tparam T The target type to extract from the string (must be stream-extractable)
  * @param s The input string to convert
  * @return The value extracted from s; default-constructed/partially-read on extraction failure
@@ -257,6 +261,7 @@ template <typename T>
 T from_string(const std::string &s) {
     T val;
     std::istringstream iss(s);
+    iss.imbue(std::locale::classic());
     iss >> val;
     return val;
 }
@@ -912,7 +917,8 @@ std::string to_string(integral_type val) {
 
 /******************************************************************************/
 /**
- * @brief Converts floating-point values to std::string with full precision.
+ * @brief Converts floating-point values to std::string with full precision, in the classic "C"
+ * locale (a decimal point, no digit grouping) whatever global locale the program has set.
  *
  * @tparam fp_type The floating-point type
  * @param val The value to convert
@@ -921,6 +927,7 @@ std::string to_string(integral_type val) {
 template <std::floating_point fp_type>
 std::string to_string(fp_type val) {
     std::ostringstream oss;
+    oss.imbue(std::locale::classic());
     oss << std::setprecision(std::numeric_limits<fp_type>::max_digits10) << val;
     return oss.str();
 }
@@ -941,7 +948,8 @@ std::string to_string(enum_type val) {
 
 /******************************************************************************/
 /**
- * @brief Converts any remaining (non-enum, non-arithmetic) streamable type to std::string.
+ * @brief Converts any remaining (non-enum, non-arithmetic) streamable type to std::string, in the
+ * classic "C" locale (e.g. a std::chrono::duration as "2.5s", never "2,5s").
  *
  * @tparam default_type The streamable type to convert
  * @param val The value to convert
@@ -951,6 +959,7 @@ template <typename default_type>
     requires (!std::is_enum_v<default_type> && !std::is_arithmetic_v<default_type>)
 std::string to_string(const default_type &val) {
     std::ostringstream oss;
+    oss.imbue(std::locale::classic());
     oss << val;
     return oss.str();
 }

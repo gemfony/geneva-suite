@@ -710,7 +710,6 @@ std::ostream &operator<<(std::ostream &os, const parSet &p_s);
  *
  * In every mode the work is spread across iterations of the configured population size, the best result
  * seen is retained, and the run halts automatically once all combinations / samples have been evaluated.
- * The associated optimization monitor stores all parameters and results in an XML file.
  */
 class GParameterScan // NOLINT(cppcoreguidelines-special-member-functions)
   : public GOptimizationAlgorithmT<GParameterScan>

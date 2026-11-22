@@ -610,7 +610,7 @@ void GGenome::specificTestsNoFailureExpected_GUnitTests_() {
 /******************************************************************************/
 
 /******************************************************************************/
-// ---- Folded in from the former GOptimizableEntity category root ----
+// ---- Processing, evaluation results, fitness and problem policy ----
 
 /******************************************************************************/
 /**

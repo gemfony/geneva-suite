@@ -33,7 +33,7 @@ existing source or build file in the repository.
   Geneva requires Boost >= 1.91. A single per-OS image (Boost built once with
   GCC) serves BOTH the GCC and Clang Geneva builds, since GCC and Clang share
   libstdc++ on Linux.
-* Work area: `/home/rberlich/Testplan` (logs, generated Dockerfiles, reports,
+* Work area: `$HOME/Testplan` (logs, generated Dockerfiles, reports,
   per-job build dirs). Configurable via `--workdir`.
 * Reporting: a pass/fail matrix per `OS x compiler x build-type x features`,
   plus full per-job logs.
@@ -202,7 +202,7 @@ See "GPU passthrough findings" below. The harness:
 Host: Ubuntu 26.04 LTS ("resolute"), Python 3.14.4, PyYAML 6.0.3.
 
 * `podman`: **5.7.0, WORKING rootless** — the default backend. subuid/subgid
-  ranges are configured (`rberlich:100000:65536`). Builds the per-OS images and
+  ranges are configured (`<user>:100000:65536`). Builds the per-OS images and
   runs containers without a daemon or group membership.
 * `docker`: **29.1.3 installed but PERMISSION_DENIED** — the user is not in the
   `docker` group, so `docker info` is refused. `doctor` recommends

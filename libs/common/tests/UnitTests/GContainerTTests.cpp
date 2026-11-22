@@ -1596,7 +1596,7 @@ TEST_CASE("GContainerT: GArchive round-trips", "[GContainerT][serialization]") {
     // by GenevaStandardTests: the optimization algorithms hold their individuals through
     // GUniquePtrContainerT and are exercised by the full serialization suite there.
 
-    SECTION("GPodContainerT<int> — TEXT archive round-trip") {
+    SECTION("GPodContainerT<int> — binary archive round-trip of a filled container") {
         ConcretePodVec src(5, 42);
         src[2] = 99;
         src[4] = -1;
@@ -1620,7 +1620,7 @@ TEST_CASE("GContainerT: GArchive round-trips", "[GContainerT][serialization]") {
         CHECK(loaded[4] == -1);
     }
 
-    SECTION("GPodContainerT<int> — XML archive round-trip") {
+    SECTION("GPodContainerT<int> — JSON archive round-trip") {
         ConcretePodVec src;
         src.assign({10, 20, 30, 40});
 
@@ -1661,7 +1661,7 @@ TEST_CASE("GContainerT: GArchive round-trips", "[GContainerT][serialization]") {
         CHECK(loaded[4] == -100);
     }
 
-    SECTION("GPodContainerT<double> — TEXT archive round-trip") {
+    SECTION("GPodContainerT<double> — binary archive round-trip") {
         ConcretePodVecDouble src(3, 3.14);
         src[1] = 2.718;
 
@@ -1703,7 +1703,7 @@ TEST_CASE("GContainerT: GArchive round-trips", "[GContainerT][serialization]") {
     // SerBase is non-polymorphic (no virtual destructor), so the GArchive codec
     // handles shared_ptr<SerBase> directly (no polymorphic registration needed).
 
-    SECTION("GPtrContainerT<SerBase> — TEXT archive round-trip") {
+    SECTION("GPtrContainerT<SerBase> — binary archive round-trip of three elements") {
         ConcretePtrSerializable src;
         src.push_back_noclone(std::make_shared<SerBase>(10));
         src.push_back_noclone(std::make_shared<SerBase>(20));
@@ -1727,7 +1727,7 @@ TEST_CASE("GContainerT: GArchive round-trips", "[GContainerT][serialization]") {
         CHECK(loaded[0].get() != src[0].get()); // independent objects after round-trip
     }
 
-    SECTION("GPtrContainerT<SerBase> — XML archive round-trip") {
+    SECTION("GPtrContainerT<SerBase> — JSON archive round-trip") {
         ConcretePtrSerializable src;
         src.push_back_noclone(std::make_shared<SerBase>(5));
         src.push_back_noclone(std::make_shared<SerBase>(-5));

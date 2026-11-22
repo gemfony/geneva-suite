@@ -8,7 +8,8 @@
 # source_dir: /path/to/geneva-suite
 
 # Writable scratch area: per-job build dirs, generated Dockerfiles, logs, reports.
-workdir: /home/rberlich/Testplan
+# If omitted, the harness uses $HOME/Testplan.
+# workdir: /path/to/Testplan
 
 # Container backend. Only Podman is supported (rootless: no daemon, no 'docker'
 # group needed). 'auto' resolves to podman.

@@ -30,6 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
+#include <clocale>
 #include <cmath>
 #include <cstdint>
 #include <filesystem>
@@ -159,7 +160,7 @@ TEST_CASE("GJsonArchive: float and double round-trip through text", "[common][ar
 }
 
 // Regression: floating-point values are stored as their exact shortest decimal
-// (%.9g / %.17g), NOT as a boost::json number. boost::json's number serializer is
+// (std::to_chars), NOT as a boost::json number. boost::json's number serializer is
 // not round-trip-exact for every double -- e.g. it renders the double nearest
 // 9.10938e-31 with too few digits, so a re-parse lands one ULP away. These are the
 // exact values that exposed the defect, plus the float/double edges. Every one must
@@ -216,6 +217,83 @@ TEST_CASE(
     CHECK(roundtrip<long double>(a) == a);
     CHECK(roundtrip<long double>(b) == b);
     CHECK(roundtrip<long double>(c) == c);
+}
+
+// A program may set a decimal-comma numeric locale (LC_NUMERIC) for its own output. The codec's
+// text must not follow it: an archive written under such a locale is read under "C" and vice versa
+// (a defect: the codec used snprintf / strtod, which wrote "1,5" and refused it under "C").
+namespace {
+
+/** @brief Sets LC_NUMERIC for its lifetime and restores the previous setting. */
+class GNumericLocale {
+public:
+    explicit GNumericLocale(const char *name)
+      : previous_(std::setlocale(LC_NUMERIC, nullptr))
+      , active_(std::setlocale(LC_NUMERIC, name) != nullptr) {
+    }
+    ~GNumericLocale() {
+        std::setlocale(LC_NUMERIC, previous_.c_str());
+    }
+    GNumericLocale(const GNumericLocale &) = delete;
+    GNumericLocale &operator=(const GNumericLocale &) = delete;
+    GNumericLocale(GNumericLocale &&) = delete;
+    GNumericLocale &operator=(GNumericLocale &&) = delete;
+
+    /** @return Whether the requested locale is installed and in force with a decimal comma. */
+    [[nodiscard]] bool hasDecimalComma() const {
+        return active_ && std::string(std::localeconv()->decimal_point) == ",";
+    }
+
+private:
+    std::string previous_;
+    bool active_;
+};
+
+constexpr const char *COMMALOCALE = "de_DE.UTF-8";
+using fp_values = std::tuple<float, double, long double, std::vector<double>>;
+
+std::string writeFp(const fp_values &v) {
+    GJsonOArchive oa;
+    oa & v;
+    return oa.str();
+}
+
+fp_values readFp(const std::string &text) {
+    GJsonIArchive ia(text);
+    fp_values out{};
+    ia & out;
+    return out;
+}
+
+} // namespace
+
+TEST_CASE(
+    "GJsonArchive: floating-point text does not follow LC_NUMERIC",
+    "[common][archive][json]"
+) {
+    const fp_values values{1.5F, -2.25, 1.0L / 3.0L, {0.1, 1e-300, -12345.678}};
+
+    std::string under_comma;
+    {
+        const GNumericLocale comma(COMMALOCALE);
+        if(not comma.hasDecimalComma()) {
+            SKIP("the decimal-comma locale " << COMMALOCALE << " is not installed");
+        }
+        under_comma = writeFp(values);
+    }
+    {
+        const GNumericLocale c("C");
+        CHECK(readFp(under_comma) == values);
+    }
+
+    std::string under_c;
+    {
+        const GNumericLocale c("C");
+        under_c = writeFp(values);
+    }
+    const GNumericLocale comma(COMMALOCALE);
+    CHECK(readFp(under_c) == values);
+    CHECK(under_c == under_comma);
 }
 
 TEST_CASE("GJsonArchive: string and path round-trip", "[common][archive][json]") {

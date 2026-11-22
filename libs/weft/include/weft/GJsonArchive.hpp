@@ -32,13 +32,13 @@
 // Global checks, defines and includes needed for all of Geneva
 
 // Standard headers go here
+#include <array>
+#include <charconv>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <type_traits>
 #include <vector>
 
@@ -63,9 +63,11 @@ namespace Gem::Weft {
  * becomes a JSON array; @c pair and @c map entries become @c {"first","second"}
  * / @c {"key","value"} objects. Floating-point values are stored as exact,
  * re-parseable strings rather than JSON numbers: @c float / @c double as their
- * shortest round-trip-exact decimal (@c %.9g / @c %.17g, read back with
- * @c strtof / @c strtod), and @c long @c double as an exact hexadecimal float
- * (@c %La). Strings are used because boost::json's number serializer is not
+ * shortest round-trip-exact decimal, and @c long @c double as an exact hexadecimal
+ * float (e.g. @c "a.aaaaaaaaaaaaaabp-5", without a @c 0x prefix). Both are written
+ * with @c std::to_chars and read with @c std::from_chars, which do not follow the
+ * C locale: an archive written after a program set a decimal-comma @c LC_NUMERIC
+ * reads anywhere. Strings are used because boost::json's number serializer is not
  * round-trip-exact for every double, and because a JSON number can hold neither a
  * @c long @c double nor a NaN/Inf; the decimal form stays human-readable.
  *
@@ -137,9 +139,9 @@ public:
      * number serializer is not round-trip-exact for every @c double (it can emit a
      * shortest form that re-parses to an adjacent value, losing a ULP), and a JSON
      * number cannot hold a @c long @c double or a NaN/Inf at all. @c float / @c double
-     * use the shortest round-trip-exact decimal (@c %.9g / @c %.17g), which reads back
-     * bit-exactly via @c strtof / @c strtod and stays human-readable; @c long @c double
-     * uses an exact hexadecimal float (@c %La). @param v The value.
+     * use the shortest round-trip-exact decimal, which stays human-readable;
+     * @c long @c double uses an exact hexadecimal float. Both are locale-independent
+     * (@c std::to_chars). @param v The value.
      */
     template <typename float_type>
     void put_fp(float_type v) {
@@ -239,22 +241,20 @@ private:
         }
     }
 
-    // Formats a floating-point value as an exact, re-parseable decimal (float/double)
-    // or hex-float (long double) string. The precisions %.9g / %.17g are the
-    // round-trip-minimal digit counts for IEEE single / double.
+    // Formats a floating-point value as an exact, re-parseable decimal (float/double:
+    // the shortest form that reads back to the same value) or hex-float (long double)
+    // string, independent of the locale. 64 characters hold every value of the three types.
     template <typename float_type>
     static std::string fp_to_string(float_type v) {
-        char buf[64];
+        std::array<char, 64> buf{};
+        std::to_chars_result r{};
         if constexpr(std::is_same_v<float_type, long double>) {
-            std::snprintf(buf, sizeof(buf), "%La", v); // hex float: exact and re-parseable
-        }
-        else if constexpr(std::is_same_v<float_type, float>) {
-            std::snprintf(buf, sizeof(buf), "%.9g", static_cast<double>(v));
+            r = std::to_chars(buf.data(), buf.data() + buf.size(), v, std::chars_format::hex);
         }
         else {
-            std::snprintf(buf, sizeof(buf), "%.17g", static_cast<double>(v));
+            r = std::to_chars(buf.data(), buf.data() + buf.size(), v);
         }
-        return std::string{buf};
+        return std::string(buf.data(), r.ptr);
     }
 
     boost::json::value root_;
@@ -311,24 +311,22 @@ public:
 
     /**
      * @brief Reads a floating-point value from its exact string form (see
-     * GJsonOArchive::put_fp): @c strtof / @c strtod / @c strtold reproduce the
-     * written value bit-exactly. @param v The value to fill.
+     * GJsonOArchive::put_fp): @c std::from_chars reproduces the written value
+     * bit-exactly, independent of the locale. @param v The value to fill.
      */
     template <typename float_type>
     void get_fp(float_type &v) {
         static_assert(std::is_floating_point_v<float_type>);
         const boost::json::string &s = text(slot(), "a floating-point number as a string");
-        char *end = nullptr;
+        const char *const last = s.data() + s.size();
+        std::from_chars_result r{};
         if constexpr(std::is_same_v<float_type, long double>) {
-            v = std::strtold(s.c_str(), &end);
-        }
-        else if constexpr(std::is_same_v<float_type, float>) {
-            v = std::strtof(s.c_str(), &end);
+            r = std::from_chars(s.data(), last, v, std::chars_format::hex);
         }
         else {
-            v = std::strtod(s.c_str(), &end);
+            r = std::from_chars(s.data(), last, v);
         }
-        if(s.empty() || end != s.c_str() + s.size()) {
+        if(s.empty() || r.ec != std::errc{} || r.ptr != last) {
             fail("\"" + std::string(s.c_str()) + "\" is no floating-point number");
         }
     }

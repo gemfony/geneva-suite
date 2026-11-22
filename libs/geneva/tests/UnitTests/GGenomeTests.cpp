@@ -661,10 +661,10 @@ TEST_CASE("GGenomeBuilder: interned group labels", "[flat]") {
     // Serialize round-trip (through a GGenome) preserves the labels + their resolution.
     Sphere ind;
     ind.setGenome(g);
-    const std::string xml = ind.toString(Gem::Common::serializationMode::GEM_JSON);
+    const std::string json = ind.toString(Gem::Common::serializationMode::GEM_JSON);
 
     Sphere restored;
-    restored.fromString(xml, Gem::Common::serializationMode::GEM_JSON);
+    restored.fromString(json, Gem::Common::serializationMode::GEM_JSON);
 
     std::shared_ptr<const GGenomeLayout> RL = restored.getLayout();
     REQUIRE(RL);
@@ -830,10 +830,10 @@ TEST_CASE("GGenome: serialization round-trip", "[flat]") {
     Sphere ind(5);
     ind.assignValueVector<double>(std::vector<double>{1., -2., 3., -4., 5.});
 
-    const std::string xml = ind.toString(Gem::Common::serializationMode::GEM_JSON);
+    const std::string json = ind.toString(Gem::Common::serializationMode::GEM_JSON);
 
     Sphere restored;
-    restored.fromString(xml, Gem::Common::serializationMode::GEM_JSON);
+    restored.fromString(json, Gem::Common::serializationMode::GEM_JSON);
 
     CHECK_NOTHROW(restored.compare(
         ind,
@@ -1420,9 +1420,9 @@ TEST_CASE("GGenome: mixed flip/bigauss genome serialises round-trip", "[flat][fl
         adapter.adapt(ind);
     }
 
-    const std::string xml = ind.toString(Gem::Common::serializationMode::GEM_JSON);
+    const std::string json = ind.toString(Gem::Common::serializationMode::GEM_JSON);
     Mixed restored;
-    restored.fromString(xml, Gem::Common::serializationMode::GEM_JSON);
+    restored.fromString(json, Gem::Common::serializationMode::GEM_JSON);
 
     CHECK_NOTHROW(restored.compare(
         ind,
@@ -1472,9 +1472,9 @@ TEST_CASE("GGenome: integer Gauss genome serialises round-trip", "[flat][intgaus
         adapter.adapt(ind);
     }
 
-    const std::string xml = ind.toString(Gem::Common::serializationMode::GEM_JSON);
+    const std::string json = ind.toString(Gem::Common::serializationMode::GEM_JSON);
     IntGauss restored;
-    restored.fromString(xml, Gem::Common::serializationMode::GEM_JSON);
+    restored.fromString(json, Gem::Common::serializationMode::GEM_JSON);
 
     CHECK_NOTHROW(restored.compare(
         ind,

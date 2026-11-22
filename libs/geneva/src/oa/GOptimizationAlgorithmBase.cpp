@@ -409,7 +409,7 @@ std::filesystem::path GOptimizationAlgorithmBase::getCheckpointDirectoryPath() c
 
 /******************************************************************************/
 /**
- * Determines whether checkpointing should be done in Text-, XML- or Binary-mode
+ * Determines whether checkpoints are written in the binary or the JSON mode
  *
  * @param cp_ser_mode The desired new checkpointing serialization mode
  */

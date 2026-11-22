@@ -63,8 +63,8 @@ MACRO_EXPANSION        = YES
 EXPAND_ONLY_PREDEF     = NO
 
 # Dot-graph cap: default 50 truncates the "Included by" graphs for hot
-# headers like geneva/GOptimizationEnums.hpp (61 includers) and
-# geneva/par/GParameterSet.hpp (76). 200 covers the largest real graph
+# headers like common/GCommonEnums.hpp (60 includers) and
+# geneva/genome/GGenome.hpp (104). 200 covers the largest real graph
 # in the codebase with headroom; not high enough to produce unreadable
 # wall-of-spaghetti pictures.
 DOT_GRAPH_MAX_NODES    = 200

@@ -53,9 +53,9 @@ namespace Gem::Courtier::Consumers {
 /******************************************************************************/
 /**
  * The client of the MPI consumer (GMPIConsumerT): a GPeerClientT over a GMPIConnector, built on a
- * process whose role in the GMPIEnvironment is CLIENT (Go2 builds it through
- * buildConsumerClient()). It talks to the submitter's rank (RANK_MASTER_NODE) on courtier's
- * communicator.
+ * process whose role in the GMPIEnvironment is CLIENT (courtier's launcher builds it, a program
+ * without one through buildConsumerClient()). It talks to the submitter's rank (RANK_MASTER_NODE)
+ * on courtier's communicator.
  *
  * It opens when the submitter's consumer has started (its greeting), and waits for that as long as
  * clientFirstContactLimit says (0: as long as it runs; a master that never starts MPI leaves it
