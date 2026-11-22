@@ -1,8 +1,8 @@
 # Intended use of the Gemfony Scientific Library Collection
 
 The one home of the collection's intended use (Invariant 20). Invariant 14 measures a generalization
-against it, Invariant 23 measures reviews of public API against it, and the manual's introduction
-reflects it in a box (manual invariant D15). Status: first version of 2026-11-22, to be curated by the
+against it, Invariant 23 measures reviews of public API against it, and the manual reflects it in
+its appendix chapter "Intended Use" (manual invariant D15). Status: first version of 2026-11-22, to be curated by the
 maintainer.
 
 ## Who uses the collection
@@ -61,4 +61,5 @@ demonstrate and check the libraries; they are not its users and do not show the 
   the intended uses are. A use case that this file covers counts as named.
 - **Reviews (Invariant 23):** they judge public API against this file, not against the callers in the
   tree.
-- **The manual's introduction** reflects this file in a box and follows every change.
+- **The manual** reflects this file in its appendix chapter "Intended Use" and follows every change;
+  its introduction points there.
