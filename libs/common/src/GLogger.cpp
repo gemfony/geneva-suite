@@ -164,6 +164,112 @@ void GFileLogger::logWithSource(std::string const &msg, std::string const &exten
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
+namespace {
+// True while THIS thread hands a message to the log targets (GLogger::log(), logWithSource()). A
+// logger call that arrives from inside a target then does not lock the logger's mutex again.
+thread_local bool t_delivering = false;
+
+// Marks this thread as handing a message to the targets, for the life of the object -- so the
+// mark is cleared on every way out, also when a target throws.
+class GDeliveryScope {
+public:
+    GDeliveryScope() {
+        t_delivering = true;
+    }
+    ~GDeliveryScope() {
+        t_delivering = false;
+    }
+    GDeliveryScope(GDeliveryScope const &) = delete;
+    GDeliveryScope(GDeliveryScope &&) = delete;
+    GDeliveryScope &operator=(GDeliveryScope const &) = delete;
+    GDeliveryScope &operator=(GDeliveryScope &&) = delete;
+};
+} // namespace
+
+/******************************************************************************/
+/**
+ * @brief Locks the logger's mutex -- unless this thread is handing a message to the targets
+ * already, where it holds the mutex and locking it again would deadlock.
+ *
+ * @return The lock; one that owns nothing in that case
+ */
+std::unique_lock<std::mutex> GLogger::lock_() const {
+    if(t_delivering) {
+        return std::unique_lock<std::mutex>(logger_mutex_, std::defer_lock);
+    }
+    return std::unique_lock<std::mutex>(logger_mutex_);
+}
+
+/******************************************************************************/
+/**
+ * @brief Hands a message to every registered log target, or to the default target if none
+ * is registered.
+ *
+ * Thread-safe; see deliver_(). Throws if neither a target nor a default target is available.
+ *
+ * @param message The message to be forwarded to the log targets
+ */
+void GLogger::log(std::string const &message) const {
+    this->deliver_(message, nullptr);
+}
+
+/******************************************************************************/
+/**
+ * @brief Hands a message, together with an identifier of its source, to every registered log
+ * target, or to the default target if none is registered.
+ *
+ * Thread-safe; see deliver_(). Throws if neither a target nor a default target is available.
+ *
+ * @param message The message to be forwarded to the log targets
+ * @param extension An identifier of the logging source forwarded alongside the message
+ */
+void GLogger::logWithSource(std::string const &message, std::string const &extension) const {
+    this->deliver_(message, &extension);
+}
+
+/******************************************************************************/
+/**
+ * @brief Calls the targets for log() and logWithSource().
+ *
+ * The targets are called under the logger's mutex, one message at a time, so a target needs no
+ * lock of its own. A call from inside a target, on the same thread, writes the message to
+ * std::cerr instead and returns: it does not lock again and does not reach the targets.
+ *
+ * @param message The message
+ * @param extension The identifier of the message's source; none: the targets' log() is called
+ */
+void GLogger::deliver_(std::string const &message, std::string const *extension) const {
+    if(t_delivering) {
+        std::cerr << message;
+        return;
+    }
+    std::scoped_lock const lk(logger_mutex_);
+    GDeliveryScope const delivering;
+
+    auto const call = [&](GBaseLogTarget const &target) {
+        if(extension != nullptr) {
+            target.logWithSource(message, *extension);
+        }
+        else {
+            target.log(message);
+        }
+    };
+    if(not log_cnt_.empty()) {
+        for(auto const &target : log_cnt_) {
+            call(*target);
+        }
+    }
+    else if(default_logger_) {
+        call(*default_logger_);
+    }
+    else {
+        raiseException("In GLogger::log(): Error!" << '\n' << "No loggers found" << '\n');
+    }
+}
+
+/******************************************************************************/
+////////////////////////////////////////////////////////////////////////////////
+/******************************************************************************/
 /**
  * @brief A constructor that stores both accompanying information and the desired log type
  *

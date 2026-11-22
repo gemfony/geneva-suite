@@ -31,9 +31,11 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <streambuf>
 #include <string>
 #include <vector>
 
@@ -478,4 +480,98 @@ TEST_CASE(
     g.logWithSource("payload\n", "ext");
     REQUIRE(cap->messages.size() == 1);
     CHECK(cap->messages[0] == "[ext] payload\n");
+}
+
+// ---------------------------------------------------------------------------
+// Re-entry: a target whose own path logs again through glogger on the same thread (a record
+// sink's backup warning, a plot emitter's warning). The inner call must not lock the logger's
+// mutex a second time -- a deadlock -- and must not reach the targets; it goes to std::cerr.
+
+namespace {
+
+// Redirects std::cerr into a string for the life of the object
+class CerrCapture {
+public:
+    CerrCapture()
+      : old_(std::cerr.rdbuf(buffer_.rdbuf())) {
+    }
+    ~CerrCapture() {
+        std::cerr.rdbuf(old_);
+    }
+    CerrCapture(CerrCapture const &) = delete;
+    CerrCapture &operator=(CerrCapture const &) = delete;
+    CerrCapture(CerrCapture &&) = delete;
+    CerrCapture &operator=(CerrCapture &&) = delete;
+
+    [[nodiscard]] std::string text() const {
+        return buffer_.str();
+    }
+
+private:
+    std::ostringstream buffer_;
+    std::streambuf *old_;
+};
+
+// A target that logs again through glogger from inside log(), with the given manipulator
+class ReenteringTarget : public GBaseLogTarget {
+public:
+    explicit ReenteringTarget(logType inner)
+      : inner_(inner) {
+    }
+    void log(std::string const &msg) const override {
+        messages.push_back(msg);
+        glogger << "inner message" << '\n' << GManipulator(inner_);
+    }
+    void logWithSource(std::string const &msg, std::string const &src) const override {
+        this->log("[" + src + "] " + msg);
+    }
+    mutable std::vector<std::string> messages;
+
+private:
+    logType inner_;
+};
+
+// Logs twice through a ReenteringTarget: the outer messages reach it, the inner ones std::cerr
+void checkReentry(logType inner) {
+    auto target = std::make_shared<ReenteringTarget>(inner);
+    glogger.addLogTarget(target);
+    std::string err;
+    {
+        CerrCapture const capture;
+        glogger << "outer message" << '\n' << GLOGGING;
+        glogger(std::string("src")) << "outer with source" << '\n' << GWARNING;
+        err = capture.text();
+    }
+    glogger.resetLogTargets();
+
+    REQUIRE(target->messages.size() == 2);
+    CHECK(target->messages[0] == "outer message\n");
+    CHECK(target->messages[1].starts_with("[src] "));
+    CHECK(target->messages[1].contains("outer with source"));
+    auto const first = err.find("inner message");
+    REQUIRE(first != std::string::npos);
+    CHECK(err.find("inner message", first + 1) != std::string::npos);
+}
+
+} // namespace
+
+TEST_CASE(
+    "GLogger: a target that logs again with GLOGGING does not deadlock",
+    "[common][logger][reentry]"
+) {
+    checkReentry(logType::LOGGING);
+}
+
+TEST_CASE(
+    "GLogger: a target that logs again with GWARNING does not deadlock",
+    "[common][logger][reentry]"
+) {
+    checkReentry(logType::WARNING);
+}
+
+TEST_CASE(
+    "GLogger: a target that writes with GSTDERR does not deadlock",
+    "[common][logger][reentry]"
+) {
+    checkReentry(logType::STDERR);
 }
