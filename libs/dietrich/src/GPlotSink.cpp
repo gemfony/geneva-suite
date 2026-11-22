@@ -31,8 +31,11 @@
 
 // Standard header files go here
 #include <algorithm>
+#include <charconv>
 #include <chrono>
+#include <optional>
 #include <set>
+#include <sstream>
 #include <string>
 #include <system_error>
 #include <type_traits>
@@ -43,6 +46,7 @@
 #include "common/GCommonHelperFunctions.hpp" // backupExistingFile(), timeAndPlace()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/record/GCsvSink.hpp"
 #include "dietrich/plotting/GPlotDesigner.hpp"
 
 namespace Gem::Dietrich {
@@ -93,6 +97,42 @@ std::size_t distinctValues(std::vector<std::vector<double>> const &rows, std::si
         }
     }
     return std::max<std::size_t>(values.size(), 1);
+}
+
+/******************************************************************************/
+/**
+ * @brief The value of a field of a CSV row as a number of the plot, read as GCsvSink writes it
+ * @param text The field
+ * @param type The type of its column
+ * @return The number; none if the field cannot be read (text cannot be plotted)
+ */
+std::optional<double> numberOf(std::string const &text, columnType type) {
+    switch(type) {
+    case columnType::BOOLEAN:
+        if(text == "true" || text == "false") {
+            return text == "true" ? 1. : 0.;
+        }
+        return std::nullopt;
+    case columnType::TIMESTAMP: {
+        std::istringstream in(text);
+        std::chrono::sys_time<std::chrono::nanoseconds> stamp;
+        in >> std::chrono::parse("%FT%TZ", stamp);
+        if(in.fail()) {
+            return std::nullopt;
+        }
+        return std::chrono::duration<double>(stamp.time_since_epoch()).count();
+    }
+    case columnType::TEXT:
+        return std::nullopt;
+    default: {
+        double value = 0.;
+        const auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
+        if(ec != std::errc{} || end != text.data() + text.size()) {
+            return std::nullopt;
+        }
+        return value;
+    }
+    }
 }
 
 } /* namespace */
@@ -155,7 +195,54 @@ void GPlotSink::open(GStreamInfo const &info) {
             );
         }
     }
+    if(info.resume && not info.csvFile.empty()) {
+        this->plotEarlierRows_(info);
+    }
     opened_ = true; // a refused stream writes no plot
+}
+
+/******************************************************************************/
+/**
+ * Adds the earlier rows of a resumed stream: those of the stream's CSV file (if it was written
+ * for the same columns) up to the resume value, the rows the CSV sink keeps when it cuts the file
+ * back. A row that cannot be read is left out.
+ *
+ * @param info The stream
+ */
+void GPlotSink::plotEarlierRows_(GStreamInfo const &info) {
+    const auto rows = Gem::Common::Record::GCsvSink::readRows(info.csvFile, info.columns);
+    if(not rows) {
+        return;
+    }
+    std::optional<std::size_t> resume_column;
+    if(not info.resumeColumn.empty()) {
+        const auto it =
+            std::ranges::find(info.columns, info.resumeColumn, &Gem::Common::Record::GColumn::name);
+        resume_column = static_cast<std::size_t>(it - info.columns.begin());
+    }
+    std::vector<double> values;
+    for(auto const &fields : *rows) {
+        if(resume_column) {
+            const auto value = numberOf(fields[*resume_column], info.columns[*resume_column].type);
+            if(not value || *value > info.resumeAfter) {
+                continue;
+            }
+        }
+        for(std::size_t id = 0; id < feeds_.size(); ++id) {
+            if(feeds_[id].empty()) {
+                continue;
+            }
+            values.clear();
+            for(std::size_t const column : feeds_[id]) {
+                if(const auto value = numberOf(fields[column], info.columns[column].type)) {
+                    values.push_back(*value);
+                }
+            }
+            if(values.size() == feeds_[id].size()) {
+                log_.append(id, values);
+            }
+        }
+    }
 }
 
 /******************************************************************************/

@@ -53,7 +53,7 @@ namespace Gem::Common::Record {
  */
 void GFileSink::open(GStreamInfo const &info) {
     stream_columns_ = info.columns;
-    path_ = info.directory / (info.name + this->extension_());
+    path_ = this->fileFor(info);
 
     if(not info.directory.empty()) {
         std::error_code ec;
@@ -169,6 +169,17 @@ void GFileSink::close() {
  */
 std::filesystem::path const &GFileSink::path() const {
     return path_;
+}
+
+/******************************************************************************/
+/**
+ * The file this sink writes for a stream: `<directory>/<stream name><extension>`.
+ *
+ * @param info The stream
+ * @return The path of the file
+ */
+std::filesystem::path GFileSink::fileFor(GStreamInfo const &info) const {
+    return info.directory / (info.name + this->extension_());
 }
 
 /******************************************************************************/

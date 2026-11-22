@@ -72,6 +72,13 @@ GStreamCore::GStreamCore(
     if(sinks_.empty()) {
         sinks_.push_back(std::make_shared<GCsvSink>());
     }
+    // A plot sink of a resumed stream reads the earlier rows from the stream's own CSV file
+    for(auto const &sink : sinks_) {
+        if(auto const *csv = dynamic_cast<GCsvSink const *>(sink.get())) {
+            info_.csvFile = csv->fileFor(info_);
+            break;
+        }
+    }
 }
 
 /******************************************************************************/

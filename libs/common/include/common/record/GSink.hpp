@@ -56,6 +56,7 @@ struct GStreamInfo {
     bool resume = false;             ///< The stream continues a run that was resumed (GStreamOptions)
     std::string resumeColumn; ///< With resume: the column by which a file is cut back (GStreamOptions)
     double resumeAfter = 0.;  ///< With resume: the last value of resumeColumn whose rows are kept
+    std::filesystem::path csvFile; ///< The file of the stream's GCsvSink; empty if it has none
 };
 
 /******************************************************************************/

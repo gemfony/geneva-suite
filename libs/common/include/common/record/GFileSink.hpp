@@ -74,6 +74,8 @@ public:
 
     /** @brief The file, once the sink is open */
     [[nodiscard]] std::filesystem::path const &path() const;
+    /** @brief The file this sink writes for a stream */
+    [[nodiscard]] std::filesystem::path fileFor(GStreamInfo const &info) const;
 
 protected:
     /** @brief The extension of the file, with its dot @return E.g. ".csv" */

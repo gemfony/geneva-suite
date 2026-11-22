@@ -60,9 +60,12 @@ namespace Gem::Dietrich {
  * A histogram series without a bin count for an axis gets one bin per distinct value of that
  * axis at the end, so a histogram over iterations has one bin per recorded iteration.
  *
- * A resuming stream (Gem::Common::Record::GStreamOptions::resume) plots the rows recorded after
- * the resume; the plot of the earlier rows is backed up, not continued (a stream is not read
- * back).
+ * A resuming stream (Gem::Common::Record::GStreamOptions::resume) plots the whole run: when it
+ * opens, the sink reads the earlier rows from the stream's own CSV file
+ * (Gem::Common::Record::GStreamInfo::csvFile) -- only a file written for the same columns, and only
+ * the rows up to the resume value (GStreamOptions::resumeColumn), as the CSV sink cuts it back --
+ * and then adds the new rows. Without a GCsvSink on the stream there is nothing it may read: it
+ * plots the rows after the resume only, and the earlier plot is backed up.
  *
  * The DATA backend is refused: it writes the data rather than a plot, which the stream's
  * GCsvSink or GJsonLinesSink do, and its file would be theirs.
@@ -88,6 +91,9 @@ protected:
     virtual void completeLog_(GDataLog &log);
 
 private:
+    /** @brief Adds the rows of the stream's CSV file that a resumed stream keeps */
+    void plotEarlierRows_(Gem::Common::Record::GStreamInfo const &info);
+
     GDataLog log_;                                ///< The plot
     plotBackend backend_;                         ///< The backend it is written through
     std::vector<std::vector<std::size_t>> feeds_; ///< Per series: the stream columns it is drawn from

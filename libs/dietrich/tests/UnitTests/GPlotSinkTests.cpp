@@ -213,3 +213,55 @@ TEST_CASE("a plot sink refuses text columns and series that are only partly the 
         CHECK_THROWS_AS(s.append(1.), gem_exception);
     }
 }
+
+TEST_CASE("a resumed plot reads the stream's CSV and draws the whole run", "[dietrich][record]") {
+    // The earlier run recorded x = 0..4; the resumed run starts after the checkpoint of x = 2 and
+    // records x = 3. The stream's CSV is cut back to x <= 2 and then holds the new row; the plot
+    // of the resumed stream reads that CSV and draws all of it: 0, 1, 2 of the earlier run and the
+    // new 3 -- not the earlier 3 and 4. Regression: it drew the rows after the resume only.
+    ScratchDirectory const dir("plot_resume");
+    GDataLog layout("Resume", 1, 1);
+    layout.declareSeries(curve("run", {"x", "y"}));
+    auto const declare = [&layout](bool resume, bool with_csv) {
+        std::vector<std::shared_ptr<GSink>> sinks;
+        if(with_csv) {
+            sinks.push_back(std::make_shared<GCsvSink>());
+        }
+        sinks.push_back(std::make_shared<GPlotSink>(layout));
+        return recorder().stream<double, double>(
+            "run",
+            {"x", "y"},
+            withTime::none,
+            GStreamOptions{
+                .sinks = std::move(sinks), .resume = resume, .resumeColumn = "x", .resumeAfter = 2.
+            }
+        );
+    };
+    {
+        auto s = declare(false, true);
+        for(int x = 0; x < 5; ++x) {
+            s.append(x, 7770.25 + x);
+        }
+    }
+    {
+        auto s = declare(true, true);
+        s.append(3., 8883.25);
+    }
+    std::string macro = contentOf(dir / "run.C");
+    for(const char *kept : {"7770.25", "7771.25", "7772.25", "8883.25"}) {
+        CHECK(macro.find(kept) != std::string::npos);
+    }
+    for(const char *dropped : {"7773.25", "7774.25"}) {
+        CHECK(macro.find(dropped) == std::string::npos);
+    }
+
+    // Without a CSV sink on the stream the plot holds the resumed rows only, as it did: the CSV
+    // left in the directory is no file of this stream
+    {
+        auto s = declare(true, false);
+        s.append(3., 9993.25);
+    }
+    macro = contentOf(dir / "run.C");
+    CHECK(macro.find("9993.25") != std::string::npos);
+    CHECK(macro.find("7770.25") == std::string::npos);
+}
