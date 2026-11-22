@@ -43,10 +43,10 @@
 #include <boost/json.hpp>
 
 // Geneva header files go here
-#include "common/GArchiveNamed.hpp" // archive_named (named-member emitter)
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GMemberReflectionT.hpp" // make_member / serialize_members / g_load_members
 #include "common/GParserBuilder.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp" // serialization of std::atomic<T>
 #include "common/concurrency/GLoadOnceCellT.hpp"     // the transient config-parse cache
@@ -68,51 +68,32 @@ class GFactoryT {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief Loads the factory's persistent state from a GArchive codec
-     * @tparam archive_type The input archive type being read from
-     * @param ar The input archive supplying the serialized data
-     * @param version The (unused) class version
+     * @brief The single declaration of the factory's persistent members, from which serialize(), the
+     * copy operations and load() are derived. The mutex and the parse cache are not members of the
+     * list: a copy starts with fresh ones.
+     * @return A tuple of named member references
      */
-    template <typename archive_type>
-    void load(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        std::string configFile{};
-        Gem::Common::archive_named(ar, "configFile", configFile);
-        Gem::Common::archive_named(ar, "initialized_", initialized_);
-        // Transfer the string to the path
-        config_path_ = std::filesystem::path(configFile);
-        // The path was replaced wholesale: a cache filled from the previous one must not survive
-        // (loading into an already-used factory is the case a default member initialiser cannot cover).
-        config_document_cell_.reset();
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(
+            Gem::Common::make_member("configFile", self.config_path_),
+            Gem::Common::make_member("initialized_", self.initialized_)
+        );
     }
 
     /**
-     * @brief Saves the factory's persistent state to a GArchive codec
-     * @tparam archive_type The output archive type being written to
-     * @param ar The output archive receiving the serialized data
-     * @param version The (unused) class version
-     */
-    template <typename archive_type>
-    void save(archive_type &ar, [[maybe_unused]] const unsigned int version) const {
-        // Transfer the path to the string
-        std::string configFile = config_path_.string(); // NOLINT(cppcoreguidelines-init-variables)
-        Gem::Common::archive_named(ar, "configFile", configFile);
-        Gem::Common::archive_named(ar, "initialized_", initialized_);
-    }
-
-    /**
-     * @brief The single (de)serialization entry point, split by direction on the GArchive codec's
-     * compile-time direction, routing to save()/load().
+     * @brief (De)serializes the factory's persistent members
      * @tparam archive_type The GArchive codec type
      * @param ar The archive to read from / write to
-     * @param version The serialization format version, forwarded to the split
+     * @param version The (unused) class version
      */
     template <typename archive_type>
-    void serialize(archive_type &ar, const unsigned int version) {
-        if constexpr(archive_type::is_saving) {
-            save(ar, version);
-        }
-        else {
-            load(ar, version);
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::serialize_members(ar, this->localMembers_());
+        if constexpr(not archive_type::is_saving) {
+            // The path was replaced wholesale: a cache filled from the previous one must not survive
+            // (loading into an already-used factory is the case a default member initialiser cannot cover).
+            config_document_cell_.reset();
         }
     }
 
@@ -130,66 +111,33 @@ public:
     }
 
     /***************************************************************************/
-    // Rule of five. The init_mutex_ data member (added to fix the M10
-    // thread-safety finding) is not copy- or move-constructible, so the
-    // implicitly-defaulted copy/move ops are deleted. We provide user-defined
-    // versions that copy/move every other member and leave init_mutex_ as a
-    // freshly default-constructed instance in the new object — the standard
-    // pattern for classes that carry a synchronisation primitive.
+    // The init_mutex_ and the parse cache are neither copyable nor movable, so the implicit copy and
+    // move operations are deleted. The copy operations below copy the member list (localMembers_())
+    // and leave both fresh; a move copies as well (the two members are cheap).
 
     /**
-     * @brief Copy constructor; copies the config path and initialized flag, and leaves
-     * the new object with a freshly default-constructed synchronisation mutex
+     * @brief Copy constructor; copies the member list, and leaves the new object with a fresh
+     * synchronisation mutex and a cold parse cache
      * @param cp The factory to copy from
      */
-    GFactoryT(const GFactoryT<prod_type> &cp)
-      : config_path_(cp.config_path_)
-      , initialized_(cp.initialized_) {
-    }
-
-    /**
-     * @brief Move constructor; moves the config path and copies the initialized flag, and
-     * leaves the new object with a freshly default-constructed synchronisation mutex
-     * @param cp The factory to move from
-     */
-    GFactoryT(GFactoryT<prod_type> &&cp) noexcept
-      : config_path_(std::move(cp.config_path_))
-      , initialized_(cp.initialized_) {
+    GFactoryT(const GFactoryT<prod_type> &cp) {
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
     }
 
     /** @brief The (virtual, defaulted) destructor */
     virtual ~GFactoryT() = default;
 
     /**
-     * @brief Copy-assignment operator; copies the config path and initialized flag and
-     * invalidates the transient parse cache (the mutex is deliberately not copied)
+     * @brief Copy-assignment operator; copies the member list and invalidates the transient parse
+     * cache (the mutex is deliberately not copied). The class is abstract, so it cannot copy-construct
+     * a temporary.
      * @param cp The factory to copy from
      * @return A reference to this object
      */
     GFactoryT<prod_type> &operator=(GFactoryT<prod_type> const &cp) {
         if(this != &cp) {
-            config_path_ = cp.config_path_;
-            initialized_ = cp.initialized_;
-            // init_mutex_ deliberately not copied: synchronisation primitives
-            // do not carry over with the logical value of the object.
-            // Invalidate the parse cache: config_path_ may have changed.
-            config_document_cell_.reset();
-        }
-        return *this;
-    }
-
-    /**
-     * @brief Move-assignment operator; moves the config path, copies the initialized flag and
-     * invalidates the transient parse cache (the mutex is deliberately not moved)
-     * @param cp The factory to move from
-     * @return A reference to this object
-     */
-    GFactoryT<prod_type> &operator=(GFactoryT<prod_type> &&cp) noexcept {
-        if(this != &cp) {
-            config_path_ = std::move(cp.config_path_);
-            initialized_ = cp.initialized_;
-            // Invalidate the parse cache: config_path_ may have changed.
-            config_document_cell_.reset();
+            Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
+            config_document_cell_.reset(); // config_path_ may have changed
         }
         return *this;
     }
@@ -304,8 +252,7 @@ public:
 	  * @param cp A pointer to the factory whose data (config path and initialized flag) should be loaded
 	  */
     virtual void load(std::shared_ptr<GFactoryT<prod_type>> cp) {
-        config_path_ = cp->config_path_;
-        initialized_ = cp->initialized_;
+        Gem::Common::g_load_members(this->localMembers_(), cp->localMembers_());
     }
 
     /***************************************************************************/

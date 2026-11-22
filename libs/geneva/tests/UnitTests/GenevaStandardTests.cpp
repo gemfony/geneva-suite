@@ -927,6 +927,46 @@ TEST_CASE(
     CHECK(gep.isEqual(assigned, constructed));
 }
 
+namespace {
+/** @brief An EA factory that shows the test the two objects it deep-copies */
+class GEAFactoryProbe : public oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm> {
+public:
+    using oa::GOptimizationAlgorithmFactoryT<
+        oa::GEvolutionaryAlgorithm>::GOptimizationAlgorithmFactoryT;
+
+    /** @return The registered monitor, not owned */
+    [[nodiscard]] oa::GBasePluggableOM const *monitor() const {
+        return this->pluggable_om_.get();
+    }
+    /** @return The registered content creator, not owned */
+    [[nodiscard]] Gem::Common::GFactoryT<gen::GGenome> const *contentCreator() const {
+        return this->content_creator_ptr_.get();
+    }
+};
+} // anonymous namespace
+
+TEST_CASE(
+    "GOAFactoryT: an assigned copy does not share the monitor or the content creator",
+    "[geneva][copy]"
+) {
+    GEAFactoryProbe source(std::filesystem::path("./config/source.json"));
+    source.registerPluggableOM(std::make_shared<GFitnessMonitor>());
+    source.registerContentCreator(
+        std::make_shared<gen::GIndividualFactory<gind::GFunctionIndividual>>(
+            "./config/creator.json"
+        )
+    );
+
+    GEAFactoryProbe assigned(std::filesystem::path("./config/assigned.json"));
+    assigned = source;
+
+    REQUIRE(assigned.monitor());
+    CHECK(assigned.monitor() != source.monitor());
+    REQUIRE(assigned.contentCreator());
+    CHECK(assigned.contentCreator() != source.contentCreator());
+    CHECK(assigned.getConfigFilePath() == source.getConfigFilePath());
+}
+
 // ============================================================================
 // Meta-optimizer: the search genome is built from the EA tunable manifest and
 // read back by name (no MOT_* index math). This pins that the manifest -> genome
