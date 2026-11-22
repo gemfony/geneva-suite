@@ -107,64 +107,30 @@ using Gem::Common::to_string;
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * The copy constructor
+ * The copy constructor. The members are copied through localMembers_(), the list serialize(), load_() and
+ * compare_() use; the secondary plotters are deep-cloned.
  *
  * @param cp A copy of another GBasePlotter object
  */
 GBasePlotter::GBasePlotter(const GBasePlotter &cp)
   : Gem::Common::
-        GReflectiveInterfaceBaseT<GBasePlotter, Gem::Common::GCommonInterfaceT<GBasePlotter>>(cp)
-  , drawing_arguments_(cp.drawing_arguments_)
-  , x_axis_label_(cp.x_axis_label_)
-  , y_axis_label_(cp.y_axis_label_)
-  , z_axis_label_(cp.z_axis_label_)
-  , x_axis_logarithmic_(cp.x_axis_logarithmic_)
-  , y_axis_logarithmic_(cp.y_axis_logarithmic_)
-  , plot_label_(cp.plot_label_)
-  , ds_marker_(cp.ds_marker_)
-  , pad_title_(cp.pad_title_)
-  , legend_position_(cp.legend_position_)
-  , legend_room_(cp.legend_room_)
-  , line_width_(cp.line_width_)
-  , id_(cp.id_) {
-    // Note: Explicit scope needed for name resolution of clone -- compare
-    // https://isocpp.org/wiki/faq/templates#nondependent-name-lookup-members
-
-    // Copy secondary plot data over
-    for(auto const &plotter_ptr : cp.secondary_plotter_) {
-        secondary_plotter_.push_back(plotter_ptr->GCommonInterfaceT<GBasePlotter>::clone());
-    }
+        GReflectiveInterfaceBaseT<GBasePlotter, Gem::Common::GCommonInterfaceT<GBasePlotter>>(cp) {
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
 }
 
 /******************************************************************************/
 /**
- * Assignment operator
+ * Assignment operator. The class is abstract, so it cannot copy-construct a temporary; it assigns the
+ * base and copies the members through localMembers_(), as the copy constructor does.
  *
  * @param cp A constant reference to another GBasePlotter object to copy from
  * @return A reference to this object, to allow chaining
  */
 GBasePlotter &GBasePlotter::operator=(GBasePlotter const &cp) {
-    if(this == &cp) {
-        return *this;
+    if(this != &cp) {
+        GCommonInterfaceT<GBasePlotter>::operator=(cp);
+        Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
     }
-    GCommonInterfaceT<GBasePlotter>::operator=(cp);
-
-    drawing_arguments_ = cp.drawing_arguments_;
-    x_axis_label_ = cp.x_axis_label_;
-    y_axis_label_ = cp.y_axis_label_;
-    z_axis_label_ = cp.z_axis_label_;
-    x_axis_logarithmic_ = cp.x_axis_logarithmic_;
-    y_axis_logarithmic_ = cp.y_axis_logarithmic_;
-    plot_label_ = cp.plot_label_;
-    ds_marker_ = cp.ds_marker_;
-    pad_title_ = cp.pad_title_;
-    legend_position_ = cp.legend_position_;
-    legend_room_ = cp.legend_room_;
-    line_width_ = cp.line_width_;
-    id_ = cp.id_;
-
-    Gem::Common::copyCloneableSmartPointerContainer(cp.secondary_plotter_, secondary_plotter_);
-
     return *this;
 }
 
@@ -969,46 +935,29 @@ GPlotDesigner::GPlotDesigner(
 
 /******************************************************************************/
 /**
- * The copy constructor
+ * The copy constructor. The members are copied through localMembers_() (the plotters are deep-cloned);
+ * the transient backend selection (emitter_) starts fresh.
  *
  * @param cp A constant reference to another GPlotDesigner object to copy from
  */
 GPlotDesigner::GPlotDesigner(const GPlotDesigner &cp)
-  : c_x_div_(cp.c_x_div_)
-  , c_y_div_(cp.c_y_div_)
-  , c_x_dim_(cp.c_x_dim_)
-  , c_y_dim_(cp.c_y_dim_)
-  , canvas_label_(cp.canvas_label_)
-  , add_print_command_(cp.add_print_command_)
-  , show_canvas_label_(cp.show_canvas_label_)
-  , n_indention_spaces_(cp.n_indention_spaces_) {
-    // Copy any secondary plotters over
-    copyCloneableSmartPointerContainer<GBasePlotter>(cp.plotters_cnt_, plotters_cnt_);
+  : Gem::Common::
+        GReflectiveInterfaceT<GPlotDesigner, Gem::Common::GCommonInterfaceT<GPlotDesigner>>(cp) {
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
 }
 
 /******************************************************************************/
 /**
- * The assignment operator
+ * The assignment operator: copy-constructs and move-assigns the result, so it is as deep as the copy
+ * constructor and states no member list of its own.
  *
  * @param cp A constant reference to another GPlotDesigner object to copy from
  * @return A reference to this object, to allow chaining
  */
 GPlotDesigner &GPlotDesigner::operator=(GPlotDesigner const &cp) {
-    if(this == &cp) {
-        return *this;
+    if(this != &cp) {
+        *this = GPlotDesigner(cp);
     }
-    c_x_div_ = cp.c_x_div_;
-    c_y_div_ = cp.c_y_div_;
-    c_x_dim_ = cp.c_x_dim_;
-    c_y_dim_ = cp.c_y_dim_;
-    canvas_label_ = cp.canvas_label_;
-    add_print_command_ = cp.add_print_command_;
-    show_canvas_label_ = cp.show_canvas_label_;
-    n_indention_spaces_ = cp.n_indention_spaces_;
-
-    // Copy any secondary plotters over
-    copyCloneableSmartPointerContainer<GBasePlotter>(cp.plotters_cnt_, plotters_cnt_);
-
     return *this;
 }
 
