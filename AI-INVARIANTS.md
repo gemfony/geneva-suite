@@ -27,9 +27,10 @@ to it:
   hook — a finding whose quote does not match the tree is discarded unread).
 - **Intermediate work → Sonnet or Opus (one fresh agent per phase).** Executing a reviewed design or plan
   phase: gated refactors, implementation, test writing, per-phase handoff documents.
-- **Supervision → Fable (the supervising model).** Design review, ruling preparation for the maintainer,
-  independent gate verification before any push, and — critically — **verification of every load-bearing
-  finding** a lower tier produced. The supervisor reads the code itself; it does not vote on summaries.
+- **Supervision → the strongest model in use (the supervising model).** Design review, ruling
+  preparation for the maintainer, independent gate verification before any push, and — critically —
+  **verification of every load-bearing finding** a lower tier produced. The supervisor reads the code
+  itself; it does not vote on summaries.
 
 *Why:* the tiers fail differently. Haiku is reliable at pattern detection and unreliable at judgment —
 its severity labels are noise and its design/concurrency claims are often confidently wrong; Fable's
