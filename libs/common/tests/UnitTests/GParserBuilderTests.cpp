@@ -97,7 +97,6 @@ private:
     std::streambuf *old_;
 };
 
-
 /** @brief Makes @p name the global C++ locale for its lifetime and restores the previous one. */
 class GGlobalLocale {
 public:
@@ -106,11 +105,14 @@ public:
         try {
             std::locale::global(std::locale(name));
             active_ = true;
-        } catch(const std::runtime_error &) {
+        }
+        catch(const std::runtime_error &) {
             active_ = false; // the locale is not installed
         }
     }
-    ~GGlobalLocale() { std::locale::global(previous_); }
+    ~GGlobalLocale() {
+        std::locale::global(previous_);
+    }
     GGlobalLocale(const GGlobalLocale &) = delete;
     GGlobalLocale &operator=(const GGlobalLocale &) = delete;
     GGlobalLocale(GGlobalLocale &&) = delete;
@@ -184,7 +186,10 @@ TEST_CASE(
 // Regression: a configuration file is read the same whatever global C++ locale the program has set
 // (the read path parsed numbers through a string stream that took the global locale, and a
 // decimal-comma locale read "3.14" wrong or not at all).
-TEST_CASE("GParserBuilder: config numbers do not follow the global locale", "[common][parser-builder]") {
+TEST_CASE(
+    "GParserBuilder: config numbers do not follow the global locale",
+    "[common][parser-builder]"
+) {
     auto cfg = scratch("rt_locale");
     std::filesystem::remove(cfg);
     {

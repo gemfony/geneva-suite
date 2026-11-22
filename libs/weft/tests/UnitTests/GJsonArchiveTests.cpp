@@ -267,7 +267,10 @@ fp_values readFp(const std::string &text) {
 
 } // namespace
 
-TEST_CASE("GJsonArchive: floating-point text does not follow LC_NUMERIC", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: floating-point text does not follow LC_NUMERIC",
+    "[common][archive][json]"
+) {
     const fp_values values{1.5F, -2.25, 1.0L / 3.0L, {0.1, 1e-300, -12345.678}};
 
     std::string under_comma;

@@ -404,7 +404,6 @@ int main(int argc, char **argv) {
             std::cout << "Using plain multi-threaded execution." << std::endl;
             config.nThreads = static_cast<unsigned int>(nEvaluationThreads);
             break;
-
         }
         Gem::Courtier::buildConsumer<gen::GGenome>(config, Gem::Geneva::consumerModules());
     }

@@ -88,11 +88,14 @@ public:
         try {
             std::locale::global(std::locale(name));
             active_ = true;
-        } catch(const std::runtime_error &) {
+        }
+        catch(const std::runtime_error &) {
             active_ = false; // the locale is not installed
         }
     }
-    ~GGlobalLocale() { std::locale::global(previous_); }
+    ~GGlobalLocale() {
+        std::locale::global(previous_);
+    }
     GGlobalLocale(const GGlobalLocale &) = delete;
     GGlobalLocale &operator=(const GGlobalLocale &) = delete;
     GGlobalLocale(GGlobalLocale &&) = delete;
@@ -343,7 +346,10 @@ TEST_CASE("to_string: floating-point types", "[common][helper][to_string]") {
 // A program may make a decimal-comma locale its global C++ locale. The text forms of numbers that
 // go to files (CSV rows, configuration values) must not follow it (a defect: the string streams
 // took the global locale and wrote "1,5" or "1.234.567,5").
-TEST_CASE("to_string / from_string: numbers do not follow the global locale", "[common][helper][to_string]") {
+TEST_CASE(
+    "to_string / from_string: numbers do not follow the global locale",
+    "[common][helper][to_string]"
+) {
     const GGlobalLocale comma(COMMALOCALE);
     if(not comma.hasDecimalComma()) {
         SKIP("the decimal-comma locale " << COMMALOCALE << " is not installed");
