@@ -272,19 +272,9 @@ std::ostream &operator<<(std::ostream &os, const parSet &p_s) {
  * @param cp A constant reference to another GParameterScan object to be copied
  */
 GParameterScan::GParameterScan(const GParameterScan &cp)
-  : GOptimizationAlgorithmT<GParameterScan>(cp)
-  , cycle_logic_halt_(cp.cycle_logic_halt_)
-  , scan_randomly_(cp.scan_randomly_)
-  , simple_scan_items_(cp.simple_scan_items_)
-  , scans_performed_(cp.scans_performed_) {
-    // Copying / setting of the optimization algorithm id is done by the parent class. The same
-    // applies to the copying of the optimization monitor.
-
-    // Deep-copy the scan-parameter objects through the Gemfony common interface.
-    Gem::Common::copyCloneableSmartPointerContainer(cp.b_cnt_, b_cnt_);
-    Gem::Common::copyCloneableSmartPointerContainer(cp.int32_cnt_, int32_cnt_);
-    Gem::Common::copyCloneableSmartPointerContainer(cp.d_cnt_, d_cnt_);
-    Gem::Common::copyCloneableSmartPointerContainer(cp.f_cnt_, f_cnt_);
+  : GOptimizationAlgorithmT<GParameterScan>(cp) {
+    // The members are copied through localMembers_(); the scan parameters are deep-cloned.
+    Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
 }
 
 /******************************************************************************/
