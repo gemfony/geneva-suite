@@ -52,8 +52,8 @@ namespace Gem::Courtier {
 /******************************************************************************/
 /** @brief The mnemonic of the consumer a process falls back to when none was chosen -- the local
  *  thread-pool consumer (GStdThreadConsumerConfig::MNEMONIC). Stated once, here: it is both the
- *  command-line default (Go2's GO2_DEF_CONSUMER binds to it) and the consumer
- *  ensureProcessConsumer() builds for a standalone algorithm that was never given one. */
+ *  launcher's default (GLauncherT: the configuration file's key "consumer", and so --consumer) and
+ *  the consumer ensureProcessConsumer() builds for a standalone algorithm that was never given one. */
 inline constexpr std::string_view GDEFAULTCONSUMERMNEMONIC = "stc";
 
 /******************************************************************************/
@@ -65,7 +65,7 @@ inline constexpr std::string_view GDEFAULTCONSUMERMNEMONIC = "stc";
  * program that knows its consumer when it is compiled does not write a spec: it passes the struct
  * to buildConsumer() or buildConsumerClient() (the overloads for a ConsumerConfig), which cannot
  * pair a struct with the wrong mnemonic. The spec is what a caller keeps when the mnemonic is known
- * only at run time (Go2, from --consumer). A provider reads @c config with configOf(), never with
+ * only at run time (the launcher, from --consumer). A provider reads @c config with configOf(), never with
  * std::any_cast. The header names no item type and no consumer.
  */
 struct ConsumerSpec {

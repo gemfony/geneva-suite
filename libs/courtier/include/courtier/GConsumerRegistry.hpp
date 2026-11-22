@@ -49,9 +49,10 @@ namespace Gem::Courtier {
  * transport-agnostic: it never builds or selects a consumer, it just asks the registry for the one
  * consumer and calls processBatch(), with the guarantee of an intact, fully processed batch on
  * return -- never knowing whether the processing happened locally, on a GPU, or on a remote client.
- * The consumer is established once: by Go2 (from the
- * chosen mnemonic / command-line default), or manually by the user (setConsumer); a standalone algorithm
- * with none set lazily builds a default local thread-pool consumer (ensureConsumer). There is never more
+ * The consumer is established once: by courtier's launcher (GLauncherT, from the consumer chosen on
+ * the command line, in its configuration file or in main()), or manually by the user (setConsumer); a
+ * producer that runs without a launcher and was given none gets the default local thread-pool consumer
+ * from ensureProcessConsumer(), which builds it through ensureConsumer. There is never more
  * than one consumer per process (Geneva's meta-optimization runs its sub-optimizations on a
  * separate orchestration thread pool that is NOT a consumer -- see GMetaEvolutionaryAlgorithm).
  *
@@ -105,7 +106,7 @@ public:
     }
 
     /***************************************************************************/
-    /** @brief Registers (or replaces) the process consumer -- e.g. the one Go2 builds, or a custom one
+    /** @brief Registers (or replaces) the process consumer -- e.g. the one the launcher builds, or a custom one
      *  (a GPU consumer) the user supplies.
      *  @param c The consumer to register as the process's single consumer */
     void setConsumer(consumer_ptr c) {

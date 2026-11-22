@@ -59,9 +59,10 @@ namespace Gem::Courtier::GPU {
  * It is an ordinary courtier LOCAL consumer (it derives from the same Gem::Courtier::GBaseConsumerT
  * that every other consumer -- serial, multi-threaded, beast, mpi -- derives from), so it plugs
  * into the existing span+policy submission path unchanged. It is mnemonic-selectable like every other
- * consumer (`--consumer gpu`): a Go2 program contributes its device marshaller into the marshaller store
- * (Gem::Geneva::registerGPUMarshaller(...)) and Go2 builds + registers this consumer through the normal
- * consumer setup; a Go2-less program can still construct it directly and register it in GConsumerRegistry.
+ * consumer (`--consumer gpu`): a Geneva program contributes its device marshaller into the marshaller
+ * store (Gem::Geneva::registerGPUMarshaller(...)) and courtier's launcher (GLauncherT) builds and
+ * registers this consumer like any other; a program without a launcher can still construct it
+ * directly and register it in GConsumerRegistry.
  * courtier hands dispatch_() the WHOLE round's batch at once, which this consumer evaluates in a single
  * bulk kernel launch.
  *
