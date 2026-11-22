@@ -376,7 +376,7 @@ void check_forged_prefix_throws(std::uint64_t n) {
 } // namespace
 
 TEST_CASE(
-    "GBinaryArchive: a forged string length throws, it does not wrap the bounds check",
+    "GBinaryArchive: a forged string length throws and does not wrap the bounds check",
     "[common][archive][binary]"
 ) {
     constexpr std::uint64_t max = std::numeric_limits<std::uint64_t>::max();
@@ -386,7 +386,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GBinaryArchive: a forged sequence count throws, it is not allocated",
+    "GBinaryArchive: a forged sequence count throws and is not allocated",
     "[common][archive][binary]"
 ) {
     constexpr std::uint64_t count = std::uint64_t{1} << 62;
