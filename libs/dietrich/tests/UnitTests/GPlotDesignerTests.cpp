@@ -248,6 +248,28 @@ TEST_CASE("gnuplot backend emits a multiplot script for a GGraph2D", "[plotting]
 }
 
 /******************************************************************************/
+// A copy, and an assigned designer, emit through the backend of their source. (A defect: the copy
+// constructor left the backend out, so a copy of a gnuplot designer emitted ROOT, and an assigned
+// designer did the same once the assignment went through the copy constructor.)
+TEST_CASE("a copied or assigned designer keeps its source's backend", "[plotting][copy]") {
+    auto g = std::make_shared<GGraph2D>();
+    (*g) & std::tuple<double, double>(1.0, 2.0);
+
+    GPlotDesigner gpd("gnuplot copy", 1, 1);
+    gpd.setPlotBackend(plotBackend::GNUPLOT);
+    gpd.registerPlotter(g);
+    const std::string original = gpd.plot();
+    REQUIRE(original.contains("set multiplot"));
+
+    const GPlotDesigner copied(gpd);
+    CHECK(copied.plot() == original);
+
+    GPlotDesigner assigned("assigned", 1, 1);
+    assigned = gpd;
+    CHECK(assigned.plot() == original);
+}
+
+/******************************************************************************/
 // The gnuplot backend uses splot for a GGraph3D.
 TEST_CASE("gnuplot backend uses splot for a GGraph3D", "[plotting]") {
     auto g = std::make_shared<GGraph3D>();

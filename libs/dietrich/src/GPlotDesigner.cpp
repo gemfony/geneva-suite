@@ -935,14 +935,17 @@ GPlotDesigner::GPlotDesigner(
 
 /******************************************************************************/
 /**
- * The copy constructor. The members are copied through localMembers_() (the plotters are deep-cloned);
- * the transient backend selection (emitter_) starts fresh.
+ * The copy constructor. The members are copied through localMembers_() (the plotters are deep-cloned).
+ * The backend selection (emitter_) is no serialized member, but it is the user's choice: the copy shares
+ * the source's emitter, which is safe because an emitter is a const strategy object with no state of its
+ * own (IPlotEmitter::emitDocument() is const).
  *
  * @param cp A constant reference to another GPlotDesigner object to copy from
  */
 GPlotDesigner::GPlotDesigner(const GPlotDesigner &cp)
   : Gem::Common::
-        GReflectiveInterfaceT<GPlotDesigner, Gem::Common::GCommonInterfaceT<GPlotDesigner>>(cp) {
+        GReflectiveInterfaceT<GPlotDesigner, Gem::Common::GCommonInterfaceT<GPlotDesigner>>(cp)
+  , emitter_(cp.emitter_) {
     Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
 }
 
