@@ -1973,3 +1973,34 @@ TEST_CASE("GContainerT: GUniquePtrContainerT populated container", "[GContainerT
         CHECK(v.size() == 0);
     }
 }
+
+/******************************************************************************/
+// Regression: when the target was shorter than the source, the container deep copy cloned the extra
+// source slots without asking whether they were empty, so an empty slot (a swarm's neighborhood best
+// before its first iteration) was dereferenced.
+TEST_CASE(
+    "copyCloneableSmartPointerContainer copies empty slots as empty when it grows the target",
+    "[GContainerT][ptr]"
+) {
+    std::vector<std::shared_ptr<TestBase>> const shared_from{
+        std::make_shared<TestBase>(1),
+        nullptr
+    };
+    std::vector<std::shared_ptr<TestBase>> shared_to;
+    Gem::Common::copyCloneableSmartPointerContainer(shared_from, shared_to);
+    REQUIRE(shared_to.size() == 2);
+    REQUIRE(shared_to[0]);
+    CHECK(shared_to[0]->val == 1);
+    CHECK(shared_to[0] != shared_from[0]); // deep, not shared
+    CHECK_FALSE(shared_to[1]);
+
+    std::vector<std::unique_ptr<TestBase>> unique_from;
+    unique_from.push_back(std::make_unique<TestBase>(2));
+    unique_from.push_back(nullptr);
+    std::vector<std::unique_ptr<TestBase>> unique_to;
+    Gem::Common::copyCloneableSmartPointerContainer(unique_from, unique_to);
+    REQUIRE(unique_to.size() == 2);
+    REQUIRE(unique_to[0]);
+    CHECK(unique_to[0]->val == 2);
+    CHECK_FALSE(unique_to[1]);
+}
