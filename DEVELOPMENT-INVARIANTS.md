@@ -74,9 +74,14 @@ never build, select or inject one. (Maintainer decision, 2026-11-21.)
 
 ## 6. The genome is pure data; mutation strategy lives on the optimization algorithm
 
-The genome (`GGenome`) carries the problem's parameter values and structure — **not** adaptors or
-optimization-algorithm scratch. Adaption is configured on the OA-owned `GAdaptionConfig`; per-individual OA
-scratch (e.g. self-adaptive σ) lives on OA-owned storage, never on the genome (the "config-strip" model).
+The genome (`GGenome`) carries the problem's parameter values and structure — **not** adaptors, and no
+knowledge of any optimization algorithm. Adaption is configured on the OA-owned `GAdaptionConfig` (the
+"config-strip" model). Per-individual OA scratch (e.g. self-adaptive σ) must travel with the individual --
+it is inherited by clones and restored from a checkpoint -- so it lives in one opaque slot that the OA owns
+(`GAuxiliaryStore`: a personality object of the common base class and byte blocks only the installing OA
+can read). That slot is not part of the individual's compared identity, is not sent on the wire, and is
+cleared when the individual passes to another algorithm. Nothing algorithm-specific is typed into the
+genome. (Maintainer decision, 2026-11-22.)
 
 ## 7. When a test fails during a refactor or major change, triage it before touching code
 
