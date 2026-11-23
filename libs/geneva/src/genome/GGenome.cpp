@@ -845,7 +845,7 @@ void GGenome::processingCore_(
  * @brief Adopts the raw results into the result store -- from a non-empty res_vec, from the
  * evaluation supplied to process(), or from a local evaluate() -- returning the main (index-0) raw
  * result and storing the secondary criteria. Worst-cases the whole surface and rethrows on any
- * failure.
+ * failure. A result that is not a number (NaN) is such a failure: it cannot be ordered.
  * @param res_vec Optional pre-computed raw results
  * @param evaluation The evaluation to call in place of evaluate(), or nullptr
  * @return The main raw result
@@ -855,6 +855,18 @@ double GGenome::adoptRawResults_(
     evaluation_function *evaluation
 ) {
     double main_raw_result = 0.;
+
+    // A result that is not a number cannot be ordered: every sort by fitness would be undefined, and
+    // no comparison would ever replace it. It is an evaluation error, like an exception of evaluate().
+    const auto require_number = [](double value, std::size_t pos) {
+        if(std::isnan(value)) {
+            throw gem_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GGenome::adoptRawResults_(): Error!" << '\n'
+                << "Result " << pos << " of the evaluation is not a number (NaN)." << '\n'
+            );
+        }
+    };
 
     try {
         if(not res_vec.empty()) {
@@ -871,6 +883,7 @@ double GGenome::adoptRawResults_(
 
             std::size_t pos = 0;
             for(const auto &res : res_vec) {
+                require_number(res.rawFitness(), pos);
                 if(pos == 0) {
                     ++pos;
                     continue; // skip the main raw result
@@ -897,6 +910,9 @@ double GGenome::adoptRawResults_(
                     << " returned " << raw.size() << " result(s), but " << '\n'
                     << this->getNStoredResults() << " were expected." << '\n'
                 );
+            }
+            for(std::size_t pos = 0; pos < raw.size(); ++pos) {
+                require_number(raw[pos], pos);
             }
             main_raw_result = raw.front();
             for(std::size_t pos = 1; pos < raw.size(); ++pos) {
