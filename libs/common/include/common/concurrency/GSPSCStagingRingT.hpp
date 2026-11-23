@@ -61,6 +61,14 @@
 // blanket-suppressed. AnnotateBenignRaceSized covers every access (producer
 // write, in-place reader, atomic_ref copy-out) to the named range, which is
 // exactly the pool buffer.
+//
+// Why the race stays (maintainer decision, 2026-11-23): the producer's fill and
+// the in-place reader use plain accesses, chosen for speed (the copy-out's
+// relaxed atomic_ref loads compile to the same plain loads). The accesses are
+// aligned 64-bit words, which the hardware does not tear. By the C++ memory
+// model a data race is nevertheless undefined behaviour; it is accepted here
+// deliberately, and that is why ThreadSanitizer is annotated for the pool
+// storage instead of every access being made atomic.
 #if defined(__SANITIZE_THREAD__) || (defined(__has_feature) && __has_feature(thread_sanitizer))
 extern "C" void AnnotateBenignRaceSized(
     const char *file,
