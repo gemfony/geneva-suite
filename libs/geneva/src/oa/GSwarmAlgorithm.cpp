@@ -1177,6 +1177,21 @@ void GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(maxMode m) {
         std::size_t const first_counter = getFirstNIPos(n);
         std::size_t const last_counter = getLastNIPos(n);
 
+        // A neighborhood all of whose members failed or are missing has nothing to sort and offers
+        // no candidate for its best: the element at first_counter would be the first member of the
+        // next neighborhood, or lie behind the population. adjustNeighborhoods() refills it afterwards.
+        if(first_counter == last_counter) {
+            if(inFirstIteration()) {
+                throw gem_exception(
+                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    << "In GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(): Error!" << '\n'
+                    << "No item of neighborhood " << n
+                    << " returned in the first iteration; cannot seed its best." << '\n'
+                );
+            }
+            continue;
+        }
+
         // Only partially sort the arrays
         std::ranges::sort(
             this->begin() + first_counter,
