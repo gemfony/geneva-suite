@@ -34,6 +34,8 @@
 #   common/src/*.cpp              implementation + the gemfony-common target
 #   common/tests/                 unit + manual tests
 #   common/examples/              standalone examples
+#   common/docprograms/           compiled listings for the manual, each
+#                                 registered as an S-size test
 #   common/benchmarks/            performance benchmarks
 #
 # Tests / examples / benchmarks are gated on the top-level options so a
@@ -53,6 +55,10 @@ IF ( GEM_BUILD_EXAMPLES )
 	ADD_SUBDIRECTORY ( examples )
 ENDIF ()
 
+IF ( GEM_BUILD_TESTS )
+	ADD_SUBDIRECTORY ( docprograms )
+ENDIF ()
+
 IF ( GEM_BUILD_BENCHMARKS )
 	ADD_SUBDIRECTORY ( benchmarks )
 ENDIF ()
@@ -66,10 +72,10 @@ ADD_SUBDIRECTORY ( doc )
 IF ( GEM_BUILD_TESTS )
 	gem_check_link_closure ( CommonProgramsLinkOnlyCommon
 		FORBID "^gemfony-(hap|dietrich|courtier|geneva)"
-		DIRECTORIES tests examples benchmarks tools )
+		DIRECTORIES tests examples docprograms benchmarks tools )
 ENDIF ()
 
 # Self-contained aggregate over EVERYTHING in this lib's subtree (lib +
-# tests + examples + benchmarks). The top-level `gemfony-build-all` depends
+# tests + examples + docprograms + benchmarks). The top-level `gemfony-build-all` depends
 # on this so a plain `make gemfony-build-all` still builds all of common.
 GEM_AGGREGATE_TARGET( "common-all" )
