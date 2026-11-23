@@ -269,7 +269,8 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
     cp.streamline(cp_i);
 
     auto splice = [&](auto &this_vec, auto const &cp_vec) {
-        if(not this_vec.empty() && this_vec.size() == cp_vec.size()) {
+        // A cross-over position lies between two values: a channel with a single value has none
+        if(this_vec.size() > 1 && this_vec.size() == cp_vec.size()) {
             const auto pos = this_cp->getCrossOverPos(1, this_vec.size());
             std::copy(
                 cp_vec.begin() + static_cast<std::ptrdiff_t>(pos),

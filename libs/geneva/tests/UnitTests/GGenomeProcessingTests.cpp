@@ -615,6 +615,60 @@ TEST_CASE("GGenome: a result that is not a number is an evaluation error", "[can
 }
 
 /******************************************************************************/
+/**
+ * Regression: cross-over asked for a position between two values in every channel that was not
+ * empty, and that request throws for a channel with a single value. An individual with one boolean
+ * beside its doubles ended an evolutionary algorithm with amalgamation in the first cross-over.
+ */
+namespace Gem::Tests {
+
+class OneBoolSphere : public GGenomeT<OneBoolSphere> {
+public:
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+public:
+    OneBoolSphere() {
+        GGenomeBuilder b;
+        b.addDoubleGroup(3, -10., 10.).init(1.0);
+        b.addBool(true);
+        this->setGenome(b.build());
+    }
+    OneBoolSphere(const OneBoolSphere &) = default;
+
+protected:
+    std::vector<double> evaluate() override {
+        std::vector<double> v;
+        this->streamline<double>(v);
+        return {(v.at(0) * v.at(0)) + (v.at(1) * v.at(1)) + (v.at(2) * v.at(2))};
+    }
+};
+
+} // namespace Gem::Tests
+
+TEST_CASE("GGenome: cross-over with a single value of one type", "[candidate]") {
+    Gem::Tests::OneBoolSphere a;
+    Gem::Tests::OneBoolSphere b;
+    b.assignValueVector<double>(std::vector<double>{2., 2., 2.});
+    b.assignValueVector<bool>(std::vector<bool>{false});
+
+    std::shared_ptr<Gem::Geneva::Genome::GGenome> child;
+    REQUIRE_NOTHROW(child = a.crossOverWith(b));
+    REQUIRE(child);
+
+    // The doubles are a head of a and a tail of b; the single boolean has no position to cross at
+    // and stays that of a
+    std::vector<double> d;
+    child->streamline<double>(d);
+    REQUIRE(d.size() == 3);
+    CHECK(d.at(0) == 1.);
+    CHECK(d.at(2) == 2.);
+    std::vector<bool> flags;
+    child->streamline<bool>(flags);
+    REQUIRE(flags.size() == 1);
+    CHECK(flags.at(0) == true);
+}
+
+/******************************************************************************/
 // process(evaluation): the evaluation a caller supplies is called where process() would call
 // evaluate(), inside the processing lifecycle (precondition, pre-processing, feasibility gate,
 // timing, exception funneling).
