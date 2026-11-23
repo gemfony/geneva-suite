@@ -29,6 +29,7 @@
 
 // Standard headers
 #include <exception>
+#include <memory>
 #include <type_traits>
 
 // Boost headers go here
@@ -59,15 +60,15 @@ constexpr const char *CUDA_GET_PROC_ADDRESS = "cuGetProcAddress_v2";
  * @return The function table
  */
 GCUDADriver loadDriver_() {
-    // The library is never unloaded: CUDA contexts and device buffers may still be released while the
-    // process shuts down, after any static object holding the handle would have been destroyed. Hence
-    // a deliberately leaked handle rather than a static one.
-    auto *library = new boost::dll::shared_library(); // NOLINT(cppcoreguidelines-owning-memory)
+    // The library is never unloaded once the function table is complete: CUDA contexts and device
+    // buffers may still be released while the process shuts down, after any static object holding the
+    // handle would have been destroyed. Hence a deliberately leaked handle rather than a static one; until
+    // the table is complete, a failure unloads it again.
+    auto library = std::make_unique<boost::dll::shared_library>();
     try {
         library->load(CUDA_DRIVER_LIBRARY, boost::dll::load_mode::search_system_folders);
     }
     catch(const std::exception &e) {
-        delete library; // NOLINT(cppcoreguidelines-owning-memory)
         throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "GCUDADriver: the CUDA driver library " << CUDA_DRIVER_LIBRARY
@@ -119,6 +120,8 @@ GCUDADriver loadDriver_() {
     resolve("cuMemsetD8", driver.memsetD8);
     resolve("cuLaunchKernel", driver.launchKernel);
 
+    // The deliberate process-lifetime leak (see above)
+    (void)library.release();
     return driver;
 }
 
