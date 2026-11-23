@@ -748,6 +748,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **geneva: the build options `GENEVA_ALGO_SA`, `GENEVA_ALGO_SWARM`, `GENEVA_ALGO_CGD`,
   `GENEVA_ALGO_NM` and `GENEVA_ALGO_PS` were removed.** Every algorithm is always built; an
   algorithm of one's own is added as a loadable module.
+- **geneva: `GEndOfPar` was removed** from `GParameterScan.hpp`; nothing threw or caught it.
 
 ## 8. Checkpointing
 
