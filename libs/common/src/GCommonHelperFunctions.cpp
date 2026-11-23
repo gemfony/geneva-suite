@@ -304,23 +304,16 @@ int runExternalCommand(
                         localcommand_output_file_name + std::string(" 2>&1");
     }
 
-    // MOstly for external debugging
-#ifdef GEM_COMMON_PRINT_COMMANDLINE
-    std::cout << "Executing external command \"" << localCommand << "\" ...";
-#endif /* GEM_COMMON_PRINT_COMMANDLINE */
-
     // Assign the full command (mostly needed for external error-evaluation)
     full_command = local_command;
 
     // Run the actual command.
-    // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c) -- deliberate: this IS the external-command runner, invoked from single-threaded orchestration
+    // This runs on worker threads: GExternalEvaluatorIndividual calls it during evaluation. POSIX does not
+    // require system() to be thread-safe; glibc documents it as MT-Safe.
+    // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c) -- deliberate: this IS the external-command runner
     int const error_code = system(local_command.c_str());
 
-#ifdef GEM_COMMON_PRINT_COMMANDLINE
-    std::cout << "... done." << '\n';
-#endif /* GEM_COMMON_PRINT_COMMANDLINE */
-
-    // The error code will be returned as the function valiue
+    // The error code will be returned as the function value
     return error_code;
 }
 
