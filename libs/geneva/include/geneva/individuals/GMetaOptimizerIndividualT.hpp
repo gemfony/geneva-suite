@@ -237,7 +237,7 @@ public:
             // Not in the member list (load_() keeps the object's own factory). A copy deep-clones it
             // through GFactoryT's own clone(), which no member policy calls; a default-constructed
             // meta-optimizer has no factory yet, so only a present one is cloned.
-            cp.ind_factory_ ? Gem::Common::convertSmartPointer<
+            cp.ind_factory_ ? Gem::Common::g_ptr_conversion<
                                   Gem::Common::GFactoryT<gen::GGenome>,
                                   typename ind_type::FACTORYTYPE>((cp.ind_factory_)->clone())
                             : std::shared_ptr<typename ind_type::FACTORYTYPE>()
@@ -574,7 +574,7 @@ public:
             );
         }
 
-        ind_factory_ = Gem::Common::convertSmartPointer<
+        ind_factory_ = Gem::Common::g_ptr_conversion<
             Gem::Common::GFactoryT<gen::GGenome>,
             typename ind_type::FACTORYTYPE>(factory->clone());
     }
@@ -1103,7 +1103,7 @@ public:
             );
         }
 
-        ind_factory_ = Gem::Common::convertSmartPointer<
+        ind_factory_ = Gem::Common::g_ptr_conversion<
             Gem::Common::GFactoryT<gen::GGenome>,
             typename ind_type::FACTORYTYPE>(factory->clone());
     }
@@ -1428,7 +1428,7 @@ protected:
     void postProcess_(std::shared_ptr<gen::GGenome> &p_base) override {
         // Convert the base pointer to our local type
         std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> const p =
-            Gem::Common::convertSmartPointer<gen::GGenome, GMetaOptimizerIndividualT<ind_type>>(
+            Gem::Common::g_ptr_conversion<gen::GGenome, GMetaOptimizerIndividualT<ind_type>>(
                 p_base
             );
 

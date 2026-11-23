@@ -728,41 +728,6 @@ void copyCloneableObjectsContainer(
 
 /******************************************************************************/
 /**
- * @brief Converts a shared_ptr to target_type.
- *
- * In debug builds uses dynamic_pointer_cast and throws on failure or null input;
- * in release builds uses static_pointer_cast.
- *
- * @tparam source_type The source pointee type
- * @tparam target_type The target pointee type
- * @param p_raw The source shared pointer to convert
- * @return p_raw converted to std::shared_ptr<target_type>
- * @throws gem_exception in DEBUG builds on a null input or a failed conversion
- */
-template <typename source_type, typename target_type>
-std::shared_ptr<target_type> convertSmartPointer(const std::shared_ptr<source_type> &p_raw) {
-#ifdef DEBUG
-    if(not p_raw) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In convertSmartPointer(): pointer is empty." << '\n'
-        );
-    }
-    auto p = std::dynamic_pointer_cast<target_type>(p_raw);
-    if(p) {
-        return p;
-    }
-    throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In convertSmartPointer(): invalid conversion to " << typeid(target_type).name() << '\n'
-    );
-#else
-    return std::static_pointer_cast<target_type>(p_raw);
-#endif
-}
-
-/******************************************************************************/
-/**
  * @brief Splits a string into a vector of split_type values using a single separator.
  *
  * @tparam split_type The type each fragment is converted to
@@ -962,34 +927,6 @@ std::string to_string(const default_type &val) {
     oss.imbue(std::locale::classic());
     oss << val;
     return oss.str();
-}
-
-/******************************************************************************/
-/**
- * @brief Erases elements from a standard container matching a predicate.
- *
- * Equivalent to C++20 std::erase_if, kept here for CUDA nvcc compatibility
- * (nvcc does not expose the C++20 standard-library additions).
- *
- * @tparam container_type The node-based / erase-by-iterator container type
- * @tparam predicate_type The unary predicate type invoked on each element
- * @param container The container whose matching elements are erased (modified in place)
- * @param predicate The predicate; elements for which it returns true are erased
- * @return The number of erased elements
- */
-template <typename container_type, typename predicate_type>
-std::size_t erase_if(container_type &container, const predicate_type &predicate) {
-    std::size_t n_erased = 0;
-    for(auto it = container.begin(); it != container.end();) {
-        if(predicate(*it)) {
-            it = container.erase(it);
-            ++n_erased;
-        }
-        else {
-            ++it;
-        }
-    }
-    return n_erased;
 }
 
 /******************************************************************************/

@@ -1207,7 +1207,7 @@ public:
             );
         }
 #endif /* DEBUG */
-        return Gem::Common::convertSmartPointer<GPersonalityTraits, personality_type>(
+        return Gem::Common::g_ptr_conversion<GPersonalityTraits, personality_type>(
             scratch_->personalityRef()
         );
     }

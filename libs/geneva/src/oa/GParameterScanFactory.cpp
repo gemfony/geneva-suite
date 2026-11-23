@@ -105,7 +105,7 @@ void GParameterScanFactory::resetCLParameterSpecs() {
 void GParameterScanFactory::postProcess_(std::shared_ptr<GOptimizationAlgorithmBase> &p_base) {
     if(parameter_spec_cl_ != "empty") {
         std::shared_ptr<GParameterScan> const p =
-            Gem::Common::convertSmartPointer<GOptimizationAlgorithmBase, GParameterScan>(p_base);
+            Gem::Common::g_ptr_conversion<GOptimizationAlgorithmBase, GParameterScan>(p_base);
 
         p->setParameterSpecs(parameter_spec_cl_);
     }

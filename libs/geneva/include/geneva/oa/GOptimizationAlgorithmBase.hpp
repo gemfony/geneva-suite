@@ -599,7 +599,7 @@ public:
         // individual rather than co-owning or cloning it -- the population element outlives the call.
         // Does error checks on the conversion internally.
         std::shared_ptr<gen::GGenome> const view(&(*this->at(pos)), [](gen::GGenome *) {});
-        return Gem::Common::convertSmartPointer<gen::GGenome, target_type>(view);
+        return Gem::Common::g_ptr_conversion<gen::GGenome, target_type>(view);
     }
 
     /***************************************************************************/

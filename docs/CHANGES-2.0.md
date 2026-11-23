@@ -738,6 +738,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   originally-submitted item the state that does not travel on the wire; courtier names it for
   that, not for the use Geneva makes of it. A work-item class that overrides the hook renames
   its override.
+- **common: `convertSmartPointer()` and `Gem::Common::erase_if()` were removed.**
+  `g_ptr_conversion()` is the one pointer conversion (the template arguments in the same order;
+  an empty pointer comes back empty instead of throwing in a Debug build); `std::erase_if`
+  replaces `erase_if`.
 
 ## 8. Checkpointing
 

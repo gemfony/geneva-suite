@@ -174,7 +174,7 @@ public:
 #endif /* DEBUG */
 
         // Does error checks on the conversion internally
-        return Gem::Common::convertSmartPointer<gen::GGenome, parent_type>(
+        return Gem::Common::g_ptr_conversion<gen::GGenome, parent_type>(
             *(this->begin() + parent_id)
         );
     }
