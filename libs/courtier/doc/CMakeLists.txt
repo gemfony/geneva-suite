@@ -35,7 +35,7 @@ IF (NOT DOXYGEN_FOUND)
 ENDIF ()
 
 SET (GEM_DOC_LIB_NAME "courtier")
-SET (GEM_DOC_LIB_DESC "Consumer-based parallelisation framework: "
+STRING (CONCAT GEM_DOC_LIB_DESC "Consumer-based parallelisation framework: "
 		"the process-global GConsumerRegistry, thread-pool / "
 		"Beast-websocket / MPI consumers, command-container protocol, "
 		"processing-container CRTP")
@@ -46,7 +46,7 @@ SET (GEM_DOC_TAGFILES
 		"${CMAKE_BINARY_DIR}/libs/common/doc/common.tag=../../../common/doc/html")
 
 CONFIGURE_FILE (
-	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+	${PROJECT_SOURCE_DIR}/CMakeModules/Doxyfile.in
 	${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
 	@ONLY
 )

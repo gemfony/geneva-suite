@@ -32,13 +32,13 @@ IF (NOT DOXYGEN_FOUND)
 ENDIF ()
 
 SET (GEM_DOC_LIB_NAME "weft")
-SET (GEM_DOC_LIB_DESC "Standalone serialization engine: an intrusive/non-intrusive "
+STRING (CONCAT GEM_DOC_LIB_DESC "Standalone serialization engine: an intrusive/non-intrusive "
 		"serialize contract with binary and JSON value codecs, content-addressed "
 		"polymorphic-pointer dispatch and its own error facility (named for the weft "
 		"thread woven through a fabric)")
 
 CONFIGURE_FILE (
-	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+	${PROJECT_SOURCE_DIR}/CMakeModules/Doxyfile.in
 	${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
 	@ONLY
 )

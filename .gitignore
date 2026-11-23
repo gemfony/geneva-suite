@@ -1,7 +1,4 @@
 /.idea
-/.project
-/.settings
-/.cproject
 .DS_Store
 .com.apple.*
 build/
@@ -40,6 +37,7 @@ CMakeUserPresets.json
 # Local assistant-guidance file, kept on disk but out of version control.
 /CLAUDE.md
 __pycache__/
+*.pyc
 
 # Local clangd configuration (points at a machine-specific build directory)
 .clangd

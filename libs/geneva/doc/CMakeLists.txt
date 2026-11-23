@@ -35,10 +35,8 @@ IF (NOT DOXYGEN_FOUND)
 ENDIF ()
 
 SET (GEM_DOC_LIB_NAME "geneva")
-SET (GEM_DOC_LIB_DESC "Core optimisation: Go2 driver, GGenome "
-		"workflow, seven optimisation algorithms (EA/SA/Swarm/GD/CGD/NM/PS), "
-		"per-category GCommonInterfaceT<Root> CRTP roots, individuals, "
-		"pluggable monitors")
+STRING (CONCAT GEM_DOC_LIB_DESC "Core optimisation: Go2 driver, the flat genome "
+		"(GGenome), the optimisation algorithms, individuals, pluggable monitors")
 # Upstream: common, hap, dietrich, courtier, each built in libs/<lib>/doc of the build tree; the
 # html paths are relative to libs/geneva/doc/html. Joined into one space-separated string (see the
 # courtier counterpart for why it is not a CMake list).
@@ -50,7 +48,7 @@ STRING (JOIN " " GEM_DOC_TAGFILES
 		"${_tag_dir}/courtier/doc/courtier.tag=../../../courtier/doc/html")
 
 CONFIGURE_FILE (
-	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+	${PROJECT_SOURCE_DIR}/CMakeModules/Doxyfile.in
 	${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
 	@ONLY
 )

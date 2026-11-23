@@ -23,7 +23,7 @@ source tree:
 
 ```
 <build>/libs/common/doc/
-    Doxyfile          configured from Doxyfile.in
+    Doxyfile          configured from CMakeModules/Doxyfile.in
     common.tag        Doxygen tag file (consumed by hap/dietrich/courtier/geneva)
     html/             browsable HTML reference
     xml/              XML for downstream tooling (Sphinx + Exhale, etc.)
@@ -33,9 +33,6 @@ No upstream tag files for Common -- it is the foundation library.
 
 ## What lives here
 
-- `Doxyfile.in`     -- per-library Doxygen configuration template
-                       (~50 lines; configured by CMake's `configure_file`
-                       with per-library variables -- see `CMakeLists.txt`)
 - `CMakeLists.txt`  -- registers the `doc-common` target
 - `README.md`       -- this file
 

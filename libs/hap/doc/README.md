@@ -21,7 +21,7 @@ Generated HTML / XML / tag files land in the **build tree**:
 
 ```
 <build>/libs/hap/doc/
-    Doxyfile          configured from Doxyfile.in
+    Doxyfile          configured from CMakeModules/Doxyfile.in
     hap.tag           Doxygen tag file (consumed by geneva)
     html/             browsable HTML reference
     xml/              XML for downstream tooling
@@ -29,7 +29,6 @@ Generated HTML / XML / tag files land in the **build tree**:
 
 ## What lives here
 
-- `Doxyfile.in`     -- per-library Doxygen configuration template
 - `CMakeLists.txt`  -- registers the `doc-hap` target and its `doc-common`
                        dependency
 - `README.md`       -- this file
