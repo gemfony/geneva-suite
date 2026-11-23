@@ -97,42 +97,26 @@ sharedPtrToString(std::shared_ptr<T> gt_ptr, const Gem::Common::serializationMod
  * @param gt_string A string representation of the object to be restored
  * @param ser_mod The corresponding serialization mode (GEM_BINARY or GEM_JSON)
  * @return A shared_ptr to the restored object
+ * @throws Gem::Weft::weft_exception (or another std::exception from the object's serialize()) if
+ *         the string cannot be decoded; the error reaches the caller unchanged, as with sharedPtrToString()
  */
 template <typename T>
 std::shared_ptr<T>
 sharedPtrFromString(const std::string &gt_string, const Gem::Common::serializationMode &ser_mod) {
     std::shared_ptr<T> gt_ptr;
 
-    try {
-        switch(ser_mod) {
-            using enum Gem::Common::serializationMode;
-        case GEM_BINARY: {
-            // GBinaryIArchive holds a string_view over gt_string, which outlives it here.
-            Gem::Weft::GBinaryIArchive ia(gt_string);
-            ia &Gem::Weft::make_nvp("classHierarchyFromT_ptr", gt_ptr);
-        } break;
+    switch(ser_mod) {
+        using enum Gem::Common::serializationMode;
+    case GEM_BINARY: {
+        // GBinaryIArchive holds a string_view over gt_string, which outlives it here.
+        Gem::Weft::GBinaryIArchive ia(gt_string);
+        ia &Gem::Weft::make_nvp("classHierarchyFromT_ptr", gt_ptr);
+    } break;
 
-        case GEM_JSON: {
-            Gem::Weft::GJsonIArchive ia(gt_string);
-            ia &Gem::Weft::make_nvp("classHierarchyFromT_ptr", gt_ptr);
-        } break;
-        }
-    }
-    catch(std::exception &e) {
-        glogger << "In sharedPtrFromString(): Error!" << '\n'
-                << "Caught std::exception with message" << '\n'
-                << e.what() << '\n'
-                << "We will return an empty pointer." << '\n'
-                << GWARNING;
-
-        return std::shared_ptr<T>();
-    }
-    catch(...) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In sharedPtrFromString(): Error!" << '\n'
-            << "Caught unknown exception" << '\n'
-        );
+    case GEM_JSON: {
+        Gem::Weft::GJsonIArchive ia(gt_string);
+        ia &Gem::Weft::make_nvp("classHierarchyFromT_ptr", gt_ptr);
+    } break;
     }
 
     return gt_ptr;

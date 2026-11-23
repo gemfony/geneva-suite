@@ -742,6 +742,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `g_ptr_conversion()` is the one pointer conversion (the template arguments in the same order;
   an empty pointer comes back empty instead of throwing in a Debug build); `std::erase_if`
   replaces `erase_if`.
+- **common: `sharedPtrFromString()` throws on a string it cannot decode.** It returned an empty
+  pointer and logged a warning; the decode error (a `Gem::Weft::weft_exception`, or another
+  `std::exception`) now reaches the caller, as with `sharedPtrToString()`.
 
 ## 8. Checkpointing
 

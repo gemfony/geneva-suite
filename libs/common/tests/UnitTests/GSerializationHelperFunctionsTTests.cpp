@@ -121,13 +121,16 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GSerializationHelperFunctionsT: sharedPtrFromString returns null on garbage input "
-    "rather than throwing through",
+    "GSerializationHelperFunctionsT: sharedPtrFromString throws on garbage input",
     "[common][serialization-helpers]"
 ) {
-    // The implementation catches std::exception, logs, and returns an empty shared_ptr.
-    // (Only unknown-type catches throw a gem_exception.)
-    auto out =
-        sharedPtrFromString<TestPayload>("not-a-valid-archive-blob", serializationMode::GEM_BINARY);
-    CHECK_FALSE(out);
+    // A decode error reaches the caller, as with sharedPtrToString(); there is no empty pointer.
+    CHECK_THROWS_AS(
+        sharedPtrFromString<TestPayload>("not-a-valid-archive-blob", serializationMode::GEM_BINARY),
+        Gem::Weft::weft_exception
+    );
+    CHECK_THROWS_AS(
+        sharedPtrFromString<TestPayload>("not-a-valid-archive-blob", serializationMode::GEM_JSON),
+        std::exception
+    );
 }
