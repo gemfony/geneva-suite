@@ -30,7 +30,6 @@
 #include "geneva/oa/GMonitorStream.hpp"
 
 // Standard header files go here
-#include <algorithm>
 #include <utility>
 
 // Geneva header files go here
@@ -41,22 +40,14 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /******************************************************************************/
 /**
  * Called at INFOINIT. Without an open stream the monitor declares one (a new run, or one after its
- * stream was closed), and the chain iteration starts with the algorithm's own iteration. With an
- * open stream a later algorithm of a Go2 chain begins: its iterations continue the chain's count
- * from the row after the last.
+ * stream was closed). With an open stream a later algorithm of a Go2 chain begins and records into
+ * the same stream.
  *
- * @param goa The algorithm that begins
+ * @param goa The algorithm that begins (unused: the stream alone decides)
  * @return Whether the monitor must declare its stream (declare())
  */
-bool GMonitorStream::beginAlgorithm(GOptimizationAlgorithmBase const &goa) {
-    const std::uint64_t first = goa.getIteration();
-    if(not stream_.isOpen()) {
-        chain_offset_ = 0;
-        next_chain_iteration_ = 0;
-        return true;
-    }
-    chain_offset_ = next_chain_iteration_ > first ? next_chain_iteration_ - first : 0;
-    return false;
+bool GMonitorStream::beginAlgorithm([[maybe_unused]] GOptimizationAlgorithmBase const &goa) {
+    return not stream_.isOpen();
 }
 
 /******************************************************************************/
@@ -65,9 +56,9 @@ bool GMonitorStream::beginAlgorithm(GOptimizationAlgorithmBase const &goa) {
  * monitor's own columns. A run that was resumed from a checkpoint appends to the files of the
  * stream when their columns are the same (the algorithm keeps its resume state until after
  * INFOINIT), after cutting them back to the checkpoint: the rows whose chain_iteration is past the
- * checkpoint's iteration -- the one before the resumed run's first -- are dropped
- * (GStreamOptions::resumeColumn). A resumed process counts the chain from the resumed algorithm's
- * iteration on.
+ * checkpoint's -- the one before the resumed run's first, counted through the chain with the chain
+ * offset the checkpoint holds (GOptimizationAlgorithmBase::getChainOffset()) -- are dropped
+ * (GStreamOptions::resumeColumn).
  *
  * @param name The name of the stream
  * @param columns The monitor's own columns
@@ -96,7 +87,7 @@ void GMonitorStream::declare(
         {.sinks = std::move(sinks),
          .resume = resumed,
          .resumeColumn = resumed ? "chain_iteration" : "",
-         .resumeAfter = static_cast<double>(goa.getIteration()) - 1.}
+         .resumeAfter = static_cast<double>(chainIteration(goa)) - 1.}
     );
 }
 
@@ -108,10 +99,18 @@ void GMonitorStream::declare(
  * @return Its name, its iteration and the iteration counted through the chain
  */
 Gem::Common::Record::GRow GMonitorStream::row(GOptimizationAlgorithmBase const &goa) {
-    const std::uint64_t iteration = goa.getIteration();
-    const std::uint64_t chain_iteration = iteration + chain_offset_;
-    next_chain_iteration_ = std::max(next_chain_iteration_, chain_iteration + 1);
-    return {goa.getAlgorithmName(), iteration, chain_iteration};
+    return {goa.getAlgorithmName(), std::uint64_t{goa.getIteration()}, chainIteration(goa)};
+}
+
+/******************************************************************************/
+/**
+ * The algorithm's current iteration counted through a Go2 chain.
+ *
+ * @param goa The algorithm
+ * @return Its iteration plus the iterations of the chain before it
+ */
+std::uint64_t GMonitorStream::chainIteration(GOptimizationAlgorithmBase const &goa) {
+    return std::uint64_t{goa.getIteration()} + goa.getChainOffset();
 }
 
 /******************************************************************************/

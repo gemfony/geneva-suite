@@ -599,7 +599,9 @@ void Go2::createIndividualsFromContentCreator() {
  * @brief Runs the registered algorithms in sequence, threading the individuals from one algorithm to the next.
  *
  * Only the first algorithm honours the offset (checkpoint resume / user offset); subsequent algorithms
- * start at 0 (full iteration budget).
+ * start at 0 (full iteration budget). Each algorithm is told how many iterations of the chain ran
+ * before it (GOptimizationAlgorithmBase::setChainOffset()), so that it can count its iterations
+ * through the chain.
  *
  * @param first_algorithm_offset The iteration offset at which the first algorithm in the chain should start
  */
@@ -632,6 +634,17 @@ void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
             alg_ptr->setAdaptionConfig(it->second);
         }
 
+        // The iterations of the chain before this algorithm. The first algorithm of a run resumed
+        // from a checkpoint keeps the offset its checkpoint holds: that says where in the earlier
+        // chain it stood. Go2 knows that case by resumedFromCheckpoint(), which loadCheckpoint()
+        // set and which only the algorithm's optimize() clears.
+        if(alg_index == 0 and alg_ptr->resumedFromCheckpoint()) {
+            total_iterations_ = alg_ptr->getChainOffset();
+        }
+        else {
+            alg_ptr->setChainOffset(total_iterations_);
+        }
+
         // Do the actual optimization (see first_algorithm_offset above)
         if(alg_index == 0) {
             alg_ptr->optimize(first_algorithm_offset);
@@ -640,8 +653,9 @@ void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
             alg_ptr->optimize();
         }
 
-        // Accumulate a continuous iteration count for reporting (getIteration_) only,
-        // WITHOUT feeding it back as the next algorithm's start offset.
+        // Count on through the chain: the next algorithm's chain offset, and getIteration_(). An
+        // algorithm ends one past its last iteration, so this is the number of chain iterations
+        // so far. It is not the next algorithm's start iteration, which is 0.
         total_iterations_ += alg_ptr->getIteration();
 
         // Unload the individuals from the last algorithm and store them again in this object
@@ -816,7 +830,7 @@ void Go2::evaluatePopulation_() { /* nothing */
 /**
  * @brief Retrieval of the current iteration.
  *
- * @return The accumulated iteration count across all algorithms run so far (for reporting only)
+ * @return The iterations of the chain so far (in a resumed run including those before its checkpoint)
  */
 uint32_t Go2::getIteration_() const {
     return total_iterations_;

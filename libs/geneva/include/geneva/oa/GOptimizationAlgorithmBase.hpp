@@ -140,6 +140,7 @@ private:
             Gem::Common::make_cloneable_container_member("data_cnt_", self.data_cnt_),
             Gem::Common::make_member("iteration_", self.iteration_),
             Gem::Common::make_member("offset_", self.offset_),
+            Gem::Common::make_member("chain_offset_", self.chain_offset_),
             Gem::Common::make_member("max_iteration_", self.max_iteration_),
             Gem::Common::make_member("min_iteration_", self.min_iteration_),
             Gem::Common::make_member("max_stall_iteration_", self.max_stall_iteration_),
@@ -488,6 +489,11 @@ public:
      * @brief Returns the current offset used to calculate the current iteration.
      */
     std::uint32_t getStartIteration() const;
+
+    /** @brief Sets the number of iterations of a Go2 chain that ran before this algorithm */
+    void setChainOffset(std::uint32_t chain_offset);
+    /** @brief The number of iterations of a Go2 chain that ran before this algorithm */
+    [[nodiscard]] std::uint32_t getChainOffset() const;
 
     /**
      * @brief Sets the number of iterations after which the algorithm should report about its inner state.
@@ -1015,6 +1021,7 @@ private:
     std::uint32_t iteration_ = 0; ///< The current iteration
     std::uint32_t offset_ =
         DEFAULTOFFSET; ///< An iteration offset which can be used, if the optimization starts from a checkpoint file
+    std::uint32_t chain_offset_ = 0; ///< The iterations of a Go2 chain before it (getChainOffset())
     std::uint32_t min_iteration_ = DEFAULTMINIT; ///< The minimum number of iterations
     std::uint32_t max_iteration_ = DEFAULTMAXIT; ///< The maximum number of iterations
     std::uint32_t max_stall_iteration_ =

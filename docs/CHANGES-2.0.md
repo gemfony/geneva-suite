@@ -791,7 +791,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `algorithm`, `iteration` (the algorithm's own) and `chain_iteration` (`GMonitorStream`). In a
   Go2 chain one stream (and one plot) holds every algorithm of the chain; the plots run over
   `chain_iteration`, which counts on through the chain, so they do not jump back when the next
-  algorithm starts at 0. A copy of a monitor has no stream of its own. The default stream
+  algorithm starts at 0. Go2 tells every algorithm how many iterations of the chain ran before
+  it (`setChainOffset()`); a checkpoint carries that number, so a run resumed from a checkpoint
+  of a later algorithm goes on counting where it stood. A copy of a monitor has no stream of its own. The default stream
   names: `GFitnessMonitor` "best_fitness" (it now writes its data), `GProgressPlotterT`
   "progress", `GAllSolutionFileLogger` "all_solutions", `GNAdpationsLogger` "n_adaptions",
   `GAdaptorPropertyLoggerT` "adaptor_properties", `GProcessingTimesLogger` "processing_times",

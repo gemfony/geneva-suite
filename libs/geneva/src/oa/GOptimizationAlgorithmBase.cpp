@@ -502,7 +502,7 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
  * point for all optimization algorithms.
  *
  * @param offset Specifies the iteration number to start with (non-zero when resuming from a
- *   checkpoint file or when chaining algorithms, e.g. in a Go2 chain)
+ *   checkpoint file; the later algorithms of a Go2 chain start at 0, see getChainOffset())
  * @return A constant pointer to this object, after the optimization run has completed
  */
 // NOLINTNEXTLINE(readability-function-size) -- the single top-level optimization lifecycle driver (setup, the init/cycle/checkpoint/halt loop, teardown) shared by every optimization algorithm; splitting the sequenced setup->loop->teardown would scatter one coherent control-flow entry point
@@ -983,10 +983,35 @@ std::uint32_t GOptimizationAlgorithmBase::getIteration_() const {
  * Returns the current offset used to calculate the current iteration. This
  * is identical to the iteration the optimization starts with.
  *
- * @return The starting iteration offset (non-zero when chaining algorithms, e.g. in a Go2 chain)
+ * @return The starting iteration offset (non-zero when resuming from a checkpoint; the later
+ *   algorithms of a Go2 chain start at 0, see getChainOffset())
  */
 std::uint32_t GOptimizationAlgorithmBase::getStartIteration() const {
     return offset_;
+}
+
+/******************************************************************************/
+/**
+ * Sets the number of iterations of a Go2 chain that ran before this algorithm. Go2 sets it before
+ * each algorithm of its chain runs; an algorithm that runs alone keeps 0. It is part of the state
+ * of the run, so a checkpoint carries it: a run resumed from a checkpoint of a later algorithm of a
+ * chain knows where in the chain it stands (GMonitorStream counts its rows through the chain).
+ *
+ * @param chain_offset The iterations of the chain before this algorithm
+ */
+void GOptimizationAlgorithmBase::setChainOffset(std::uint32_t chain_offset) {
+    chain_offset_ = chain_offset;
+}
+
+/******************************************************************************/
+/**
+ * The number of iterations of a Go2 chain that ran before this algorithm (setChainOffset()): its
+ * own iteration plus this number is its iteration counted through the chain.
+ *
+ * @return The iterations of the chain before this algorithm
+ */
+std::uint32_t GOptimizationAlgorithmBase::getChainOffset() const {
+    return chain_offset_;
 }
 
 /******************************************************************************/

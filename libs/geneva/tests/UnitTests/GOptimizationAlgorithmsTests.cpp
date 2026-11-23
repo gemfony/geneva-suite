@@ -1208,6 +1208,121 @@ TEST_CASE("a monitor's stream holds every algorithm of a Go2 chain", "[oa][go2]"
 
 /******************************************************************************/
 
+TEST_CASE(
+    "a Go2 chain resumed from a checkpoint of its second algorithm goes on counting",
+    "[oa][go2]"
+) {
+    // A checkpoint carries the number of chain iterations before its algorithm
+    // (GOptimizationAlgorithmBase::getChainOffset(); Go2 sets it before every algorithm runs).
+    // Regression: the monitor stream of a run resumed from a checkpoint of the second algorithm of
+    // a chain was cut back at that algorithm's own iteration, which dropped rows of the first
+    // algorithm, and the resumed rows counted the chain from there.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    const auto adaption_config = proto.getAdaptionConfig();
+    const fs::path base = fs::temp_directory_path() / "geneva-chain-resume-test";
+    fs::remove_all(base);
+    auto &recorder = Gem::Common::Record::recorder();
+    const fs::path previous_directory = recorder.directory();
+    recorder.setDirectory(base / "records");
+
+    // One job of Go2: the algorithms of the chain, a monitor, and (if given) a checkpoint to resume
+    const auto run_job =
+        [&](std::vector<std::shared_ptr<oa::GOptimizationAlgorithmBase>> const &chain,
+            std::string const &cp_file) {
+            std::vector<std::string> args{"unit-test", "--consumer", "stc"};
+            if(not cp_file.empty()) {
+                args.insert(args.end(), {"--cp_file", cp_file});
+            }
+            std::vector<char *> argv;
+            for(auto &arg : args) {
+                argv.push_back(arg.data());
+            }
+            argv.push_back(nullptr);
+            Gem::Geneva::GOptimizationDescription geneva;
+            Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+                static_cast<int>(argv.size() - 1),
+                argv.data(),
+                base / "Go2.json"
+            );
+            return launcher.run(geneva, {.produce = [&] {
+                                    Gem::Geneva::Go2 go(geneva);
+                                    if(cp_file.empty()) {
+                                        go.push_back(proto.clone());
+                                    }
+                                    go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                                    go.registerAdaptionConfig("PERSONALITY_SA", adaption_config);
+                                    go.registerPluggableOM(
+                                        std::make_shared<Gem::Geneva::GFitnessMonitor>()
+                                    );
+                                    for(auto const &alg : chain) {
+                                        go & alg;
+                                    }
+                                    REQUIRE_NOTHROW(go.optimize());
+                                    return 0;
+                                }});
+        };
+    const auto algorithm = [](auto alg, std::uint32_t max_iteration) {
+        alg->setPopulationSizes(4, 2);
+        alg->setMaxIteration(max_iteration);
+        alg->setReportIteration(1);
+        return alg;
+    };
+
+    // Job 1: EA (iterations 0-2 = chain 0-2), then SA (0-3 = chain 3-6) with a checkpoint each
+    auto sa1 = algorithm(std::make_shared<oa::GSimulatedAnnealing>(), 4);
+    sa1->setCheckpointInterval(1);
+    sa1->setCheckpointBaseName(base.string(), "chain.cp");
+    sa1->setRemoveCheckpointFiles(false);
+    REQUIRE(run_job({algorithm(std::make_shared<oa::GEvolutionaryAlgorithm>(), 3), sa1}, "") == 0);
+    fs::path sa_checkpoint; // the one of SA's iteration 1 = chain iteration 4
+    for(const auto &entry : fs::directory_iterator(base)) {
+        if(entry.path().filename().string().starts_with("checkpoint-PERSONALITY_SA-1-")) {
+            sa_checkpoint = entry.path();
+        }
+    }
+    REQUIRE(not sa_checkpoint.empty());
+
+    // Job 2, a new process: SA resumed from it (iterations 2-3 = chain 5-6), then SA (0-1 = 7-8)
+    REQUIRE(
+        run_job(
+            {algorithm(std::make_shared<oa::GSimulatedAnnealing>(), 4),
+             algorithm(std::make_shared<oa::GSimulatedAnnealing>(), 2)},
+            sa_checkpoint.string()
+        ) == 0
+    );
+
+    // The file keeps job 1's rows up to the checkpoint; job 2's rows go on from there
+    std::ifstream in(base / "records" / "best_fitness.csv");
+    std::vector<std::string> rows;
+    std::string line;
+    std::getline(in, line); // the header
+    while(std::getline(in, line)) {
+        // algorithm, iteration and chain_iteration
+        rows.push_back(line.substr(0, line.find(',', line.find(',', line.find(',') + 1) + 1)));
+    }
+    CHECK(
+        rows == std::vector<std::string>{
+                    "Evolutionary Algorithm,0,0",
+                    "Evolutionary Algorithm,1,1",
+                    "Evolutionary Algorithm,2,2",
+                    "Simulated Annealing,0,3",
+                    "Simulated Annealing,1,4",
+                    "Simulated Annealing,2,5",
+                    "Simulated Annealing,3,6",
+                    "Simulated Annealing,0,7",
+                    "Simulated Annealing,1,8"
+                }
+    );
+
+    recorder.setDirectory(previous_directory);
+    fs::remove_all(base);
+}
+
+/******************************************************************************/
+
 TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[oa]") {
     // The best-so-far record and the stall counter belong to the state of a run, which a
     // checkpoint supplies. Regression (2026-11-20): optimize() reset both at every start, a resume

@@ -311,7 +311,7 @@ private:
     // Internal parameters
     bool sorted_ = false; ///< Indicates whether local individuals have been sorted
     std::uint32_t total_iterations_ =
-        0; ///< Continuous iteration count accumulated across the algorithm chain (for getIteration_ reporting only)
+        0; ///< The iterations of the chain so far: the chain offset of the next algorithm, and getIteration_()
     /// Whether only the best individuals of an algorithm are copied to the next one
     //! [coding-naming-example#3]
     bool copy_best_individuals_only_ = GO2_DEF_COPYBESTINDIVIDUALSONLY;
