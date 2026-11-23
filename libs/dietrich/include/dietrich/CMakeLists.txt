@@ -46,7 +46,6 @@ SET ( DIETRICHPLOTTINGINCLUDES
 	plotting/GPlotEnums.hpp
 	plotting/GPlotSink.hpp
 	plotting/GPlotSpec.hpp
-	plotting/GPlots.hpp
 )
 
 # Library-private plotting headers: shared across the dietrich implementation TUs but NOT part of the

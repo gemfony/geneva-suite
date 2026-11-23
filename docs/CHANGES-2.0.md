@@ -749,6 +749,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GENEVA_ALGO_NM` and `GENEVA_ALGO_PS` were removed.** Every algorithm is always built; an
   algorithm of one's own is added as a loadable module.
 - **geneva: `GEndOfPar` was removed** from `GParameterScan.hpp`; nothing threw or caught it.
+- **dietrich: `dietrich/plotting/GPlots.hpp` was removed.** `dietrich/GPlotDesigner.hpp` is the
+  one umbrella header; a file that needs only some plot types includes `GDataCollectors.hpp`,
+  `GGraphPlots.hpp` or `GHistogramPlots.hpp` from `dietrich/plotting/`.
 
 ## 8. Checkpointing
 

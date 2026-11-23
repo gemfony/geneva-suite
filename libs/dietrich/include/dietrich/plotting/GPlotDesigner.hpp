@@ -33,9 +33,11 @@
 
 #include "common/GReflectiveInterfaceT.hpp"
 #include "common/GSelfTestable.hpp"
+#include "dietrich/plotting/GDataCollectors.hpp"
 #include "dietrich/plotting/GDataLog.hpp"
+#include "dietrich/plotting/GGraphPlots.hpp"
+#include "dietrich/plotting/GHistogramPlots.hpp"
 #include "dietrich/plotting/GPlotEmitter.hpp"
-#include "dietrich/plotting/GPlots.hpp"
 
 namespace Gem::Dietrich {
 

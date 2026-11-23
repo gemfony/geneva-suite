@@ -466,7 +466,7 @@ void GBasePlotter::sortByFirstColumn() { /* nothing */
  * Constructs an empty plotter of the kind described by a GPlotSpec (the inverse of
  * GBasePlotter::plotSpec()), applying the spec's labels, drawing arguments and (for
  * histograms) bin counts. The function plotters cannot be reconstructed from a spec
- * and therefore throw. See the declaration in GPlots.hpp for the full contract.
+ * and therefore throw. See the declaration in GGraphPlots.hpp for the full contract.
  *
  * @param spec The plot specification describing the plotter to build
  * @return A newly-allocated, empty plotter matching the spec
