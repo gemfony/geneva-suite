@@ -65,6 +65,7 @@ SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES}
 		Catch2::Catch2WithMain
+		gem-test-support
 		# These individuals are no longer compiled into the geneva library; the tests construct and serialize
 		# them directly, so they link the individuals' object libraries (which carry their GEM_REGISTER_ARCHIVABLE).
 		GLineFitIndividual-obj

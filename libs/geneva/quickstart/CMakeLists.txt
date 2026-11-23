@@ -192,7 +192,12 @@ IF (Catch2_FOUND AND EXISTS "${GENEVA_TEST_INCLUDE_DIR}/Geneva_tests.hpp" AND GE
 	# CommonGemBuild.cmake when GEM_BUILD_TESTS is on.
 	TARGET_COMPILE_DEFINITIONS(${TESTNAME} PRIVATE GEM_TESTING)
 
-	TARGET_INCLUDE_DIRECTORIES(${TESTNAME} PRIVATE "${GENEVA_TEST_INCLUDE_DIR}")
+	# Geneva_tests.hpp includes GEqualityPrinter.hpp, which the Geneva sources keep in common's test
+	# support (libs/common/tests/support), found from the scaffolding directory.
+	TARGET_INCLUDE_DIRECTORIES(${TESTNAME} PRIVATE
+		"${GENEVA_TEST_INCLUDE_DIR}"
+		"${GENEVA_TEST_INCLUDE_DIR}/../../../common/tests/support"
+	)
 
 	ADD_TEST(NAME ${TESTNAME} COMMAND ${TESTNAME})
 ELSEIF (NOT GENEVA_TESTING)
