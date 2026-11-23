@@ -64,11 +64,12 @@ struct GenomeData {
 
 /******************************************************************************/
 /**
- * A fluent handle to the group of parameters just added to a GGenomeBuilder. It lets the user attach
- * an adaptor and tune the init policy without knowing the storage layout. The handle is a thin view
- * onto the builder's channel + value array; it must not outlive the builder. Returned by the add*
- * methods and meant to be used immediately, e.g.
- *   b.addDouble(0., -10., 10.).gaussAdaptor(0.5, 0.8, 1e-3, 2., 1.);
+ * A fluent handle to the group of parameters just added to a GGenomeBuilder. It lets the user tune the
+ * structure of that group (init policy, perimeter, adaption mode, label) without knowing the storage
+ * layout; adaptors are set on the OA-owned GAdaptionConfig. The handle is a thin view onto the builder's
+ * channel + value array; it must not outlive the builder. Returned by the add* methods and meant to be
+ * used immediately, e.g.
+ *   b.addDouble(0., -10., 10.).adaptionMode(adaptionMode::NEVER);
  */
 template <typename T>
 class ParamHandle {

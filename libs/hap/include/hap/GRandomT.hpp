@@ -328,7 +328,7 @@ private:
  * @brief The default random-number proxy used throughout Geneva.
  *
  * The underlying source is selected at configure time via the HAP_RANDOM_SOURCE
- * CMake option (queue|local|staged), which defines one of the macros below on
+ * CMake option (queue|local|staged|quarantine), which defines one of the macros below on
  * the hap target's public interface. The default (no macro) is QUEUE, so
  * production behaviour is unchanged unless the build explicitly opts into another
  * source.
