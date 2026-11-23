@@ -111,7 +111,7 @@ const std::vector<double> &asDoubleColumn(const GPlotColumn &c) {
  *  @p title is the dataset's key clause: `title "..."` for a series the pad's legend lists,
  *  `notitle` for any other (see keyClause()). */
 std::string datasetSpec(const GBasePlotter &p, scriptKind k, const std::string &title) {
-    EmitStream spec; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream spec;
     // How the series is drawn (GBasePlotter::drawStyle()); gnuplot's key draws its sample from it.
     const GDrawStyle style = p.drawStyle();
     const std::string lines_points =
@@ -176,7 +176,7 @@ std::string gnuplotKeyPosition(legendPosition position) {
 /** @brief A plotter's data rows (one point per line). Used as the body of a gnuplot `$Dn << EOD`
  *  datablock, so it carries no `e`/`EOD` terminator -- the caller adds it. */
 std::string datasetRows(const GBasePlotter &p, scriptKind k, const std::string &indent) {
-    EmitStream rows; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream rows;
     // Columns come back in storage order (see plotSpec().columns); the gnuplot row
     // layout is the same EXCEPT GGraph2ED, whose stored (x, ex, y, ey) is re-ordered
     // to the `x y xdelta ydelta` that the xyerrorbars style expects.
@@ -468,7 +468,7 @@ std::string GnuplotEmitter::emitDocument(const GPlotDesigner &gpd) const {
     const std::size_t rows = gpd.c_y_div_;
     const std::size_t max_plots = cols * rows;
 
-    EmitStream result; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream result;
 
     // Validate ALL plotters (and their secondaries) up front, so a partial script is
     // never produced for an unsupported plotter type (the gnuplot backend supports only

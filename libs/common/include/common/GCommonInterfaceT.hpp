@@ -192,7 +192,7 @@ public:
      */
     template <typename self_type>
     std::string toString(this const self_type &self, Gem::Common::serializationMode ser_mod) {
-        std::ostringstream oarchive_stream; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream oarchive_stream;
         self.toStream(oarchive_stream, ser_mod);
         return oarchive_stream.str();
     }

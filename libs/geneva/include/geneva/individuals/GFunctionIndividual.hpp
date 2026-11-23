@@ -404,7 +404,7 @@ public:
 	  * @return Human-readable name of the function
 	  */
     static std::string getStringRepresentation(const solverFunction &df) {
-        std::string result; // NOLINT(cppcoreguidelines-init-variables)
+        std::string result;
 
         switch(df) {
         case solverFunction::PARABOLA:
@@ -470,7 +470,7 @@ public:
 	  * @return ROOT TFormula string for the 2D (n=2) version of the function
 	  */
     static std::string get2DROOTFunction(const solverFunction &df) {
-        std::string result; // NOLINT(cppcoreguidelines-init-variables)
+        std::string result;
 
         switch(df) {
         case solverFunction::PARABOLA:

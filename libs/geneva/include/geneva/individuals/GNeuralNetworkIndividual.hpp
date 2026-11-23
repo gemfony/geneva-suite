@@ -931,8 +931,8 @@ public:
 
             break;
 
-        default: {                    // Error
-            std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        default: { // Error
+            std::ostringstream error;
             error << "In createDataset(): Error!" << '\n'
                   << "Received invalid data type " << t << '\n';
             throw(gem_exception(error.str()));

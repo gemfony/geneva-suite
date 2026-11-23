@@ -499,7 +499,7 @@ public:
      * @return A human-readable, multi-line description of this individual's parameters
      */
     std::string print(bool with_fitness = true) const {
-        std::ostringstream result; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream result;
         // Retrieve the parameters from the flat genome by name (see readTuned()).
         namespace n = oa::ea_tunable;
         const auto v = readTuned();
@@ -1120,7 +1120,7 @@ protected:
         // Describe our own options
         using namespace Gem::Courtier;
 
-        std::string comment; // NOLINT(cppcoreguidelines-init-variables)
+        std::string comment;
         comment = "";
         comment += "The initial number of parents in a population;";
         gpb.registerFileParameter<std::size_t>(

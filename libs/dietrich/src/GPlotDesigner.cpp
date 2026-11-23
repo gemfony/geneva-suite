@@ -685,7 +685,7 @@ bool GBasePlotter::isCompatible(std::shared_ptr<GBasePlotter> other) const {
  * @return A suffix string built from the parent id (if secondary) and this object's own id
  */
 std::string GBasePlotter::suffix(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
-    std::string result; // NOLINT(cppcoreguidelines-init-variables)
+    std::string result;
 
     if(not is_secondary) {
         result = std::string("_") + to_string(own_id);
@@ -796,7 +796,7 @@ void GBasePlotter::setId(const std::size_t &id) {
  * @return The combined header data of this primary plotter and any secondary plotters
  */
 std::string GBasePlotter::headerData(const std::string &indent) const {
-    EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream header_data;
 
     // Add this plot's data
     header_data << indent << "// Header data for primary plotter" << '\n'
@@ -826,7 +826,7 @@ std::string GBasePlotter::headerData(const std::string &indent) const {
  * @return The combined body data of this primary plotter and any secondary plotters
  */
 std::string GBasePlotter::bodyData(const std::string &indent) const {
-    EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream body_data;
 
     // Add this plot's data
     body_data << indent << "// Body data for primary plotter" << '\n'
@@ -855,7 +855,7 @@ std::string GBasePlotter::bodyData(const std::string &indent) const {
  * @return The combined footer data of this primary plotter and any secondary plotters
  */
 std::string GBasePlotter::footerData(const std::string &indent) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     // Add this plot's data
     footer_data << indent << "// Footer data for primary plotter" << '\n'
@@ -1134,7 +1134,7 @@ std::vector<std::vector<double>> const &GDataLog::rows(SeriesId id) const {
  * @return The ROOT macro source code setting up the canvas, title and graph pad
  */
 std::string GPlotDesigner::staticHeader(const std::string &indent) const {
-    EmitStream result; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream result;
 
     result << indent << "gROOT->Reset();" << '\n'
            << indent << "gStyle->SetCanvasColor(0);" << '\n'

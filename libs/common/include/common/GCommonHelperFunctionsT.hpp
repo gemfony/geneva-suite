@@ -280,7 +280,7 @@ T from_string(const std::string &s) {
  */
 template <typename target_type>
 std::optional<target_type> environmentVariableAs(std::string const &var) {
-    std::string result_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string result_str;
 
     {
         // std::getenv is not thread-safe; serialise access with a local mutex.
@@ -496,7 +496,7 @@ g_convert_and_compare(const base_type &convert_ref, const target_type *compare_p
  */
 template <typename T>
 std::string vecToString(const std::vector<T> &vec) {
-    std::ostringstream result; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream result;
     for(const auto &item : vec) {
         result << item << " ";
     }

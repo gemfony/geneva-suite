@@ -73,7 +73,7 @@ namespace Gem::Common {
  */
 template <typename T>
 std::string g_to_string(const T &t) {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     oss << t;
     return oss.str();
 }

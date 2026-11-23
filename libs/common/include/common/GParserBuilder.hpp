@@ -526,7 +526,7 @@ public:
 	  */
     template <typename T>
     GParsableI &operator<<(T const &t) {
-        std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream oss;
         oss << t;
         comment_.at(cl_) += oss.str();
         return *this;
@@ -1894,7 +1894,7 @@ private:
 	  * @return A human-readable representation of this option's name and value
 	  */
     [[nodiscard]] std::string content() const override {
-        std::ostringstream result; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream result;
         result << this->optionName() << " :\t" << stored_reference_ << "\t"
                << ((stored_reference_ != def_val_) ? "default: " + Gem::Common::to_string(def_val_)
                                                    : std::string());
@@ -2598,7 +2598,7 @@ public:
                 );
             },
             [&values] {
-                std::ostringstream text; // NOLINT(cppcoreguidelines-init-variables)
+                std::ostringstream text;
                 for(auto const &value : values) {
                     text << value << ' ';
                 }

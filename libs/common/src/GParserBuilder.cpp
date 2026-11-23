@@ -208,7 +208,7 @@ std::size_t GParsableI::numberOfOptionNames() const {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<(std::ostream &(*val)(std::ostream &)) {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     oss << val;
     comment_.at(cl_) += oss.str();
     return *this;
@@ -224,7 +224,7 @@ GParsableI &GParsableI::operator<<(std::ostream &(*val)(std::ostream &)) {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<(std::ios &(*val)(std::ios &)) {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     oss << val;
     comment_.at(cl_) += oss.str();
     return *this;
@@ -240,7 +240,7 @@ GParsableI &GParsableI::operator<<(std::ios &(*val)(std::ios &)) {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<(std::ios_base &(*val)(std::ios_base &)) {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     oss << val;
     comment_.at(cl_) += oss.str();
     return *this;
@@ -329,7 +329,7 @@ std::vector<std::string> GParsableI::splitComment(std::string const &comment) {
     if(not comment.empty() && comment != "empty") {
         // Split according to newlines, then break each line into sub-tokens at semicolons
         std::istringstream buffer(comment);
-        std::string line; // NOLINT(cppcoreguidelines-init-variables)
+        std::string line;
         while(std::getline(buffer, line)) {
             for(auto const &t : Gem::Common::splitString(line, ";")) {
                 results.push_back(t);
@@ -1275,7 +1275,7 @@ boost::program_options::variables_map GParserBuilder::parseAgainst_(
 std::string GParserBuilder::helpText_(std::string const &usage_string) const {
     boost::program_options::options_description listed(usage_string);
     describeCLOptions_(listed, false /* show_all */, true /* with_help */);
-    std::ostringstream text; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream text;
     text << listed;
     return text.str();
 }

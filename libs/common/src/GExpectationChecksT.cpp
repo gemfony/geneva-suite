@@ -215,7 +215,7 @@ void GToken::registerErrorMessage(g_expectation_violation const &g) {
  * @return The concatenation of all registered error messages, prefixed with a header line
  */
 std::string GToken::getErrorMessages() const {
-    std::string result; // NOLINT(cppcoreguidelines-init-variables)
+    std::string result;
     result = "Registered errors:\n";
     for(auto const &error : error_messages_) {
         result += error;
@@ -317,7 +317,7 @@ void compare(
     [[maybe_unused]] double limit
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -341,7 +341,7 @@ void compare(
     };
 
     if(not expectation_met) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x << '\n'

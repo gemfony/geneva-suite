@@ -712,7 +712,7 @@ protected:
      */
     template <typename step_fn_type>
     void funnelProcessingStep_(std::string_view context, step_fn_type &&step) {
-        std::ostringstream error_description_stream; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error_description_stream;
 
         try {
             step();

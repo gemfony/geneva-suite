@@ -160,7 +160,7 @@ std::string GGraph2D::headerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream header_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -196,7 +196,7 @@ std::string GGraph2D::bodyData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream body_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -205,7 +205,7 @@ std::string GGraph2D::bodyData_(
     std::string const x_array_name = "x_" + array_base_name;
     std::string const y_array_name = "y_" + array_base_name;
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         body_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -242,7 +242,7 @@ std::string GGraph2D::footerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -253,7 +253,7 @@ std::string GGraph2D::footerData_(
 
     std::string const graph_name = rootLegendObject_(is_secondary, p_id, own_id);
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         footer_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -419,7 +419,7 @@ std::string GGraph2ED::headerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream header_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -461,7 +461,7 @@ std::string GGraph2ED::bodyData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream body_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -472,7 +472,7 @@ std::string GGraph2ED::bodyData_(
     std::string const y_array_name = "y_" + array_base_name;
     std::string const ey_array_name = "ey_" + array_base_name;
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         body_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -515,7 +515,7 @@ std::string GGraph2ED::footerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -528,7 +528,7 @@ std::string GGraph2ED::footerData_(
 
     std::string const graph_name = rootLegendObject_(is_secondary, p_id, own_id);
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         footer_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -743,7 +743,7 @@ std::string GGraph3D::headerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream header_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -782,7 +782,7 @@ std::string GGraph3D::bodyData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream body_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -792,7 +792,7 @@ std::string GGraph3D::bodyData_(
     std::string const y_array_name = "y_" + array_base_name;
     std::string const z_array_name = "z_" + array_base_name;
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         body_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -832,7 +832,7 @@ std::string GGraph3D::footerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     // Set up suitable arrays for the header
     std::string const base_name = suffix(is_secondary, p_id, own_id);
@@ -844,7 +844,7 @@ std::string GGraph3D::footerData_(
 
     std::string const graph_name = std::string("graph_") + base_name;
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         footer_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -963,7 +963,7 @@ std::string GGraph3D::rootFloorShadow_(
     const std::string &indent
 ) const {
     const std::string s = "shadow_" + graph_name;
-    EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream out;
     out << indent << "{" << '\n'
         << indent
         << "   const double z_floor = gPad->GetView() ? gPad->GetView()->GetRmin()[2] : 0.;" << '\n'
@@ -1034,7 +1034,7 @@ std::string GGraph3D::rootProjectedSurface_(
     const double z_min = *z_min_it;
     const double z_max = *z_max_it;
 
-    EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream out;
     out << indent << graph_name << "->SetMinimum(" << z_min << ");" << '\n'
         << indent << graph_name << "->SetMaximum(" << z_max << ");" << '\n';
 
@@ -1295,7 +1295,7 @@ std::string GGraph4D::headerData_(
     [[maybe_unused]] std::size_t own_id,
     [[maybe_unused]] std::string const &indent
 ) const {
-    EmitStream const header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream const header_data;
 
     // nothing
 
@@ -1320,7 +1320,7 @@ std::string GGraph4D::bodyData_(
     [[maybe_unused]] std::size_t own_id,
     [[maybe_unused]] std::string const &indent
 ) const {
-    EmitStream const body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream const body_data;
 
     // nothing
 
@@ -1370,7 +1370,7 @@ GGraph4D::footerData_(
         });
     }
 
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     // Find out about the minimum and maximum values of the data set. This preserves
     // the previous getMinMax(4D) contract, including its requirement of at least two
@@ -1617,7 +1617,7 @@ std::string GFunctionPlotter1D::headerData_(
         );
     }
 
-    EmitStream result; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream result;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -1667,7 +1667,7 @@ std::string GFunctionPlotter1D::footerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -1836,7 +1836,7 @@ std::string GFunctionPlotter2D::headerData_(
         );
     }
 
-    EmitStream result; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream result;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -1887,7 +1887,7 @@ std::string GFunctionPlotter2D::footerData_(
     std::size_t own_id,
     std::string const &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 

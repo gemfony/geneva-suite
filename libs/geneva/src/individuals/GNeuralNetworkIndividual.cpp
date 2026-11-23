@@ -286,7 +286,7 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
     std::ifstream tr_dat(network_data_file.c_str());
 
     if(not tr_dat) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "In networkData::loadFromDisk(const std::string&):" << '\n'
               << "Data file " << network_data_file << " could not be opened for reading." << '\n';
 
@@ -519,7 +519,7 @@ std::vector<std::tuple<double, double>> networkData::getInitRange() const {
  * @return A dash-separated string of the per-layer node counts (e.g. "2-4-4-1")
  */
 std::string networkData::getNetworkGeometryString() const {
-    std::ostringstream result; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream result;
 
     for(std::size_t i = 0; i < this->size() - 1; i++) {
         result << this->at(i) << "-";

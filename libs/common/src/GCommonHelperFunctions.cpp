@@ -220,9 +220,10 @@ std::string loadTextDataFromFile(std::filesystem::path const &p) {
         );
     }
 
-    std::string source_file( // NOLINT(cppcoreguidelines-init-variables)
-			std::istreambuf_iterator<char>(source_file_stream), (std::istreambuf_iterator<char>())
-		);
+    std::string source_file(
+        std::istreambuf_iterator<char>(source_file_stream),
+        (std::istreambuf_iterator<char>())
+    );
     return source_file;
 }
 
@@ -256,7 +257,7 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
         );
     }
 
-    std::string line; // NOLINT(cppcoreguidelines-init-variables)
+    std::string line;
     std::vector<std::string> str_result_vec;
 
     while(std::getline(source_file_stream, line)) {
@@ -545,7 +546,7 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
  * @return The current local time, formatted as a human-readable string
  */
 std::string currentTimeAsString() {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     std::time_t const now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     struct tm timeinfo{};
 
@@ -688,7 +689,7 @@ milliseconds_to_time_point(std::chrono::milliseconds::rep const &val) {
  * @param d The name of the define that was expected to be set ("define")
  */
 void condnotset(std::string const &f, std::string const &d) {
-    std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream error;
     error << '\n'
           << "================================================" << '\n'
           << "In function " << f << " Error!" << '\n'

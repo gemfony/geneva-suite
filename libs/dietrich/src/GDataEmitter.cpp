@@ -176,7 +176,7 @@ std::string csvComment(const std::string &in) {
  *  its `line_width` if set and, if the pad's legend lists it, its `legend_sample`), a
  *  column-name header row, then the data rows. Values are full-precision and locale-independent (EmitStream). */
 std::string emitCsv(const std::vector<dataSeries> &series, const canvasInfo &canvas) {
-    EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream out;
 
     // A leading canvas comment so an external reader can reproduce the pad grid.
     out << "# canvas: \"" << csvComment(canvas.label) << "\" c_x_div=" << canvas.c_x_div

@@ -820,7 +820,7 @@ inline void warnPadOverflow(
  */
 template <typename T>
 std::string bracketedRow(const std::vector<T> &col) {
-    EmitStream out; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream out;
     out << '[';
     for(std::size_t i = 0; i < col.size(); ++i) {
         out << (i == 0 ? "" : ", ") << col[i];
