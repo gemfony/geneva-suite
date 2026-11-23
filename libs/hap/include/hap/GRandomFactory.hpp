@@ -467,7 +467,7 @@ private:
      * Runs in a dedicated producer thread, continuously filling fresh containers
      * (and refilling recycled ones) until a stop is requested.
      */
-    void producer(std::uint32_t seed, std::shared_ptr<GProducerStart> start);
+    void producer(seed_type seed, std::shared_ptr<GProducerStart> start);
 
     std::atomic<std::uint64_t> n_packages_produced_{
         0

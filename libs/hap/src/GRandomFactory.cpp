@@ -49,6 +49,7 @@
 #include <thread>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 namespace Gem::Hap {
 
@@ -197,6 +198,9 @@ std::size_t GRandomFactory::getBufferSize() {
  * batches, each batch from freshly drawn non-deterministic entropy (see below), on
  * first use and once the previous batch has been exhausted.
  *
+ * A seed fills the whole seed type: where that holds 64 bits (Linux), it is made of two of the
+ * 32-bit words std::seed_seq yields, so that an engine seeded with it starts in one of 2^64 states.
+ *
  * @return A seed taken from the current seed batch
  */
 seed_type GRandomFactory::getSeed() {
@@ -219,8 +223,15 @@ seed_type GRandomFactory::getSeed() {
             entropy_word = nondet_rng_();
         }
 
+        // std::seed_seq yields 32-bit words: two of them make one seed
         std::seed_seq seed_seq(entropy.begin(), entropy.end());
-        seed_seq.generate(seed_collection_.begin(), seed_collection_.end());
+        std::vector<std::uint32_t> words(2 * seed_collection_.size());
+        seed_seq.generate(words.begin(), words.end());
+        for(std::size_t i = 0; i < seed_collection_.size(); ++i) {
+            const std::uint64_t seed =
+                (static_cast<std::uint64_t>(words[2 * i]) << 32U) | words[(2 * i) + 1];
+            seed_collection_[i] = static_cast<seed_type>(seed);
+        }
         seed_cit_ = seed_collection_.begin();
         seeding_has_started_.store(true);
     }
@@ -487,7 +498,7 @@ void GRandomFactory::awaitStart(GProducerStart &start) {
  * @param seed A seed for this producer thread's local random number generator
  * @param start The state of the start this producer belongs to; it reports its stages there
  */
-void GRandomFactory::producer(std::uint32_t seed, std::shared_ptr<GProducerStart> start) {
+void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> start) {
     // Reports the stages of this producer's start: that its engine is built, and -- exactly once --
     // that the start has finished: after its first fill, or, through the destructor, on any path that
     // leaves the producer before it (an exception, a closed buffer).
