@@ -338,9 +338,18 @@ void gem_serialize_pointer(archive_type &ar, smart_ptr_type &p) {
         GArchivePointerDispatch<Root>::invoke(tag, *obj, ar);
         ar.leave_object();
         ar.leave_object();
-        // The constructed object is dynamically a T-or-derived; downcast Root* -> T*
-        // and adopt it into the requested smart-pointer flavour.
-        T *raw = static_cast<T *>(obj.release());
+        // The tag comes from the archive and may name any type of the hierarchy: check that the
+        // constructed object is a T before it is adopted into the requested smart-pointer flavour.
+        T *raw = dynamic_cast<T *>(obj.get());
+        if(raw == nullptr) {
+            throw weft_exception(
+                weft_error_streamer()
+                << "In gem_serialize_pointer(): the archive holds an object with the tag \"" << tag
+                << "\" where a pointer to another type of its hierarchy is loaded. "
+                << "Archive of another program, or malformed archive." << '\n'
+            );
+        }
+        static_cast<void>(obj.release()); // p owns the object from here
         p = smart_ptr_type(raw);
     }
 }
