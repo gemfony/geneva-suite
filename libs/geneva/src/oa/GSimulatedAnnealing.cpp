@@ -203,14 +203,16 @@ void GSimulatedAnnealing::populationSanityChecks_() const {
         );
     }
 
-    // We need at least as many children as parents
+    // We need at least as many children as parents: sortSAMode() pairs each parent with one of the
+    // n_parents_ best children
     std::size_t const pop_size = this->getPopulationSize();
-    if(pop_size <= this->n_parents_) {
+    if(pop_size < 2 * this->n_parents_) {
         throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GSimulatedAnnealing::populationSanityChecks() :" << '\n'
             << "Requested size of population is too small :" << pop_size << " " << this->n_parents_
             << '\n'
+            << "Simulated annealing needs at least as many children as parents." << '\n'
         );
     }
 }

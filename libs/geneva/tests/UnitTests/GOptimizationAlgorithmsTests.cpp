@@ -1444,6 +1444,34 @@ TEST_CASE("Simulated annealing optimizes a flat individual", "[flat][oa]") {
 
 /******************************************************************************/
 
+TEST_CASE("Simulated annealing refuses a population with fewer children than parents", "[flat][oa][sa]") {
+    // Regression: the selection pairs every parent with one of the n_parents best children, but the
+    // size check only asked for one child. With 6 parents and 4 children the partial sort of the
+    // children ran past the end of the population.
+    auto pop = std::make_shared<oa::GSimulatedAnnealing>();
+    pop->setPopulationSizes(10, 6);
+    pop->setMaxIteration(3);
+    pop->setReportIteration(100000);
+    SphereOA const src;
+    pop->push_back(src.clone());
+    pop->setAdaptionConfig(src.buildAdaptionConfig());
+    CHECK_THROWS_WITH(
+        pop->optimize(),
+        Catch::Matchers::ContainsSubstring("at least as many children as parents")
+    );
+
+    // As many children as parents is the smallest population that works
+    auto smallest = std::make_shared<oa::GSimulatedAnnealing>();
+    smallest->setPopulationSizes(12, 6);
+    smallest->setMaxIteration(3);
+    smallest->setReportIteration(100000);
+    smallest->push_back(src.clone());
+    smallest->setAdaptionConfig(src.buildAdaptionConfig());
+    CHECK_NOTHROW(smallest->optimize());
+}
+
+/******************************************************************************/
+
 TEST_CASE("Simulated annealing parameter validation and round-trip", "[flat][oa][sa]") {
     auto sa = std::make_shared<oa::GSimulatedAnnealing>();
 
