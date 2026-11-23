@@ -465,26 +465,10 @@ void GParChild::copyParentsIntoChildrenParallel(const std::vector<std::size_t> &
     }
     tp->wait();
 
-    // Consume futures so worker-thread exceptions are surfaced rather than dropped.
+    // Consume futures so worker-thread exceptions are surfaced rather than dropped. get() rethrows
+    // the original exception, so the caller receives it with its type.
     for(auto &f : futures_cnt) {
-        try {
-            f.get();
-        }
-        catch(std::exception &e) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParChild::doRecombine() (parallel) :" << '\n'
-                << "Got error during thread execution with message:" << '\n'
-                << e.what() << '\n'
-            );
-        }
-        catch(...) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParChild::doRecombine() (parallel) :" << '\n'
-                << "Got unknown exception during thread execution" << '\n'
-            );
-        }
+        f.get();
     }
 }
 
@@ -636,26 +620,10 @@ void GParChild::adaptChildren_() {
 
     // Consume futures in all build modes: after wait() they are immediately ready, so this is
     // non-blocking. Without consuming them, exceptions thrown by worker threads are silently
-    // discarded when the futures are destroyed.
+    // discarded when the futures are destroyed. get() rethrows the original exception, so the
+    // caller receives it with its type.
     for(auto &f : futures_cnt) {
-        try {
-            f.get();
-        }
-        catch(std::exception &e) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParChild::adaptChildren_() :" << '\n'
-                << "Got error during thread execution with message:" << '\n'
-                << e.what() << '\n'
-            );
-        }
-        catch(...) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParChild::adaptChildren_() :" << '\n'
-                << "Got unknown exception during thread execution" << '\n'
-            );
-        }
+        f.get();
     }
 }
 

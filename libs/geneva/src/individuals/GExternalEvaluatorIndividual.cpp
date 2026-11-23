@@ -673,8 +673,8 @@ static gen::GenomeData authorFlatGenomeFromSetup(
             }
         }
     }
-    catch(const gem_exception &gec) {
-        throw gec; // Re-throw
+    catch(const gem_exception &) {
+        throw; // Re-throw the original object (a copy would slice a derived type)
     }
     catch(...) {
         throw gem_exception(
