@@ -42,17 +42,23 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <string_view>
+#include <tuple>
 #include <vector>
 
+#include "common/GReflectiveInterfaceT.hpp"
+#include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "geneva/oa/GBasePluggableOM.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
 #include "geneva/oa/GFactoryStore.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
+#include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (the recording monitor)
 
 namespace gen = Gem::Geneva::Genome;
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
@@ -411,4 +417,69 @@ TEST_CASE("ea out-converges the stock EA at n=10000", "[ea][oa][highdim10k]") {
                          << "  best-of-3 ea(SCALED) f=" << best_scaled
     );
     CHECK(best_scaled < f_ea); // (2) the dimension-scaled EA descends below the frozen stock EA
+}
+
+/******************************************************************************/
+
+namespace {
+/** The best fitness of each iteration, as every GBestOfIterationMonitor saw it. */
+std::vector<double> best_of_iteration; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+/** A pluggable monitor that records the best fitness of each iteration. */
+class GBestOfIterationMonitor final
+  : public Gem::Common::GReflectiveInterfaceT<GBestOfIterationMonitor, oa::GBasePluggableOM> {
+    friend struct Gem::Weft::access;
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
+
+public:
+    static constexpr std::string_view class_name = "GBestOfIterationMonitor";
+
+private:
+    void informationFunction_(
+        Gem::Geneva::infoMode im,
+        oa::GOptimizationAlgorithmBase const *const goa
+    ) override {
+        if(im == Gem::Geneva::infoMode::INFOPROCESSING) {
+            best_of_iteration.push_back(std::get<0>(goa->getBestCurrentPrimaryFitness()));
+        }
+    }
+};
+} // namespace
+
+GEM_REGISTER_ARCHIVABLE(GBestOfIterationMonitor) // NOLINT
+
+TEST_CASE("ea MUNU1PRETAIN never loses its best parent", "[ea][oa]") {
+    // In this mode the best parent stays unless a child is better, so the best fitness of an
+    // iteration is never worse than that of the one before: a property of every single run, not a
+    // statistical one. Regression: after each evaluation the population was sorted "parents first"
+    // with an unstable sort, which with 15 parents among 40 individuals reordered the parents; the
+    // selection then took whichever parent stood at position 0 for the best one and dropped the
+    // real best with the rest.
+    best_of_iteration.clear();
+    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    p->setPopulationSizes(40, 15);
+    p->setMaxIteration(80);
+    p->setMaxStallIteration(0);
+    p->setReportIteration(1);
+    p->setEmitTerminationReason(false);
+    p->setSortingScheme(Gem::Geneva::sortingMode::MUNU1PRETAIN_SINGLEEVAL);
+    p->registerPluggableOM(std::make_shared<GBestOfIterationMonitor>());
+    HighDimSphere<5> const src;
+    p->push_back(src.clone());
+    p->setAdaptionConfig(src.buildAdaptionConfig());
+    p->optimize();
+
+    REQUIRE(best_of_iteration.size() == 80);
+    std::size_t n_worse = 0;
+    for(std::size_t i = 1; i < best_of_iteration.size(); ++i) {
+        if(best_of_iteration[i] > best_of_iteration[i - 1]) {
+            ++n_worse;
+        }
+    }
+    CHECK(n_worse == 0);
 }
