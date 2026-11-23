@@ -1118,15 +1118,41 @@ TEST_CASE(
         gpb.registerFileParameter<int>("v", v, 1, VAR_IS_ESSENTIAL, "a value");
         gpb.writeConfigFile(without_ts, "created", true);
     }
-    GParserBuilder::setEmitTimestamp(
-        true
-    ); // restore the global default before any assertion can throw
+    GParserBuilder::resetProcessSettings(); // restore the defaults before any assertion can throw
 
     // With the timestamp on the header has exactly one extra comment line (the creation time).
     CHECK(header_lines(with_ts) == header_lines(without_ts) + 1);
 
     std::filesystem::remove(with_ts);
     std::filesystem::remove(without_ts);
+}
+
+// ---------------------------------------------------------------------------
+// resetProcessSettings(): the four process-wide switches return to their defaults.
+
+TEST_CASE(
+    "GParserBuilder::resetProcessSettings restores the defaults of the process-wide switches",
+    "[common][parser-builder]"
+) {
+    GParserBuilder::resetProcessSettings();
+    CHECK_FALSE(GParserBuilder::updateInPlace());
+    CHECK(GParserBuilder::emitTimestamp());
+    CHECK(GParserBuilder::checkUnknownKeys());
+    CHECK_FALSE(GParserBuilder::unknownKeyIsError());
+
+    GParserBuilder::setUpdateInPlace(true);
+    GParserBuilder::setEmitTimestamp(false);
+    GParserBuilder::setCheckUnknownKeys(false);
+    GParserBuilder::setUnknownKeyIsError(true);
+    const bool all_set = GParserBuilder::updateInPlace() && not GParserBuilder::emitTimestamp() &&
+                         not GParserBuilder::checkUnknownKeys() && GParserBuilder::unknownKeyIsError();
+
+    GParserBuilder::resetProcessSettings();
+    CHECK(all_set);
+    CHECK_FALSE(GParserBuilder::updateInPlace());
+    CHECK(GParserBuilder::emitTimestamp());
+    CHECK(GParserBuilder::checkUnknownKeys());
+    CHECK_FALSE(GParserBuilder::unknownKeyIsError());
 }
 
 // ---------------------------------------------------------------------------

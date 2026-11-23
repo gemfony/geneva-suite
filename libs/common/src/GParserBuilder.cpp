@@ -69,11 +69,19 @@ namespace Gem::Common {
 /**
  * Initialization of static data members
  */
+namespace {
+// The defaults of the four process-wide switches, stated once (initialization and resetProcessSettings())
+constexpr bool DEFAULT_UNKNOWN_KEY_IS_ERROR = false;
+constexpr bool DEFAULT_CHECK_UNKNOWN_KEYS = true;
+constexpr bool DEFAULT_UPDATE_IN_PLACE = false;
+constexpr bool DEFAULT_EMIT_TIMESTAMP = true;
+} // namespace
+
 std::mutex Gem::Common::GParserBuilder::configfile_parser_mutex_;
-bool Gem::Common::GParserBuilder::unknown_key_is_error_ = false;
-bool Gem::Common::GParserBuilder::check_unknown_keys_ = true;
-bool Gem::Common::GParserBuilder::update_in_place_ = false;
-bool Gem::Common::GParserBuilder::emit_timestamp_ = true;
+std::atomic<bool> Gem::Common::GParserBuilder::unknown_key_is_error_{DEFAULT_UNKNOWN_KEY_IS_ERROR};
+std::atomic<bool> Gem::Common::GParserBuilder::check_unknown_keys_{DEFAULT_CHECK_UNKNOWN_KEYS};
+std::atomic<bool> Gem::Common::GParserBuilder::update_in_place_{DEFAULT_UPDATE_IN_PLACE};
+std::atomic<bool> Gem::Common::GParserBuilder::emit_timestamp_{DEFAULT_EMIT_TIMESTAMP};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -1029,6 +1037,19 @@ void GParserBuilder::setUnknownKeyIsError(bool is_error) {
  */
 bool GParserBuilder::unknownKeyIsError() {
     return unknown_key_is_error_;
+}
+
+/******************************************************************************/
+/**
+ * Restores the four process-wide switches to their defaults: update-in-place off, the creation
+ * timestamp on, the unknown-key check on, an unknown key a warning rather than an error. Meant for
+ * tests, which share one process.
+ */
+void GParserBuilder::resetProcessSettings() {
+    unknown_key_is_error_ = DEFAULT_UNKNOWN_KEY_IS_ERROR;
+    check_unknown_keys_ = DEFAULT_CHECK_UNKNOWN_KEYS;
+    update_in_place_ = DEFAULT_UPDATE_IN_PLACE;
+    emit_timestamp_ = DEFAULT_EMIT_TIMESTAMP;
 }
 
 /******************************************************************************/

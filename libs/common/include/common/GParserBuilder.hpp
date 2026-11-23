@@ -35,6 +35,7 @@
 // Standard headers go here
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -2027,6 +2028,10 @@ public:
     static void setUnknownKeyIsError(bool is_error);
     /** @brief Retrieves whether unknown configuration-file keys are treated as an error */
     static bool unknownKeyIsError();
+    /** @brief Restores the four process-wide switches (update-in-place, the creation timestamp, the
+     *  unknown-key check and whether an unknown key is an error) to their defaults. Meant for tests,
+     *  which share one process: a test that sets a switch calls it when it is done. */
+    static void resetProcessSettings();
     /** @brief Provides information on the number of file configuration options stored in this class */
     [[nodiscard]] std::size_t numberOfFileOptions() const;
 
@@ -2732,14 +2737,17 @@ private:
 
     static std::mutex
         configfile_parser_mutex_; ///< Synchronization of access to configuration files (may only happen serially)
-    static bool
-        unknown_key_is_error_; ///< If true, an unknown configuration-file key throws instead of warning (default: false)
-    static bool
-        check_unknown_keys_; ///< If true, a genuine config-file parse warns about keys no registered parameter consumes (default: true; group-aware, runs once per parse)
-    static bool
-        update_in_place_; ///< If true, a successful parseConfigFile() that read an existing file also rewrites it in canonical form (default: false)
-    static bool
-        emit_timestamp_; ///< If true, a generated config's header carries a creation timestamp (default: true; disable for byte-stable, version-controlled output)
+    // The four process-wide switches (see resetProcessSettings() for their defaults). Process-wide by
+    // design: --update-configs, for one, applies to every configuration file of the process. Atomic,
+    // because parsers on several threads read them.
+    static std::atomic<bool>
+        unknown_key_is_error_; ///< If true, an unknown configuration-file key throws instead of warning
+    static std::atomic<bool>
+        check_unknown_keys_; ///< If true, a genuine config-file parse warns about keys no registered parameter consumes (group-aware, runs once per parse)
+    static std::atomic<bool>
+        update_in_place_; ///< If true, a successful parseConfigFile() that read an existing file also rewrites it in canonical form
+    static std::atomic<bool>
+        emit_timestamp_; ///< If true, a generated config's header carries a creation timestamp (disable for byte-stable, version-controlled output)
 };
 
 /******************************************************************************/
