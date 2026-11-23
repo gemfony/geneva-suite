@@ -489,6 +489,8 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
     stall_counter_ = 0; // Counts the number of iterations without improvement
 
     halted_ = true; // Also means: No optimization is currently running
+    resumed_from_checkpoint_ =
+        false; // The state a checkpoint supplied is gone: the next run starts its records anew
 
     worst_known_valids_cnt_
         .clear(); // Stores the worst known valid evaluations up to the current iteration (first entry: raw, second: tranformed)

@@ -1269,6 +1269,60 @@ TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[
 
 /******************************************************************************/
 
+TEST_CASE("a reset after a loaded checkpoint starts a run of its own", "[oa]") {
+    // Regression: resetToOptimizationStart() cleared the population and the records but left the
+    // mark "resumed from a checkpoint". The next optimize() then kept the reset record (0, 0) as the
+    // best fitness known: no fitness of a minimized, positive function is better, so the record
+    // never followed the run and every iteration counted as a stall.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 1.}, {1., 3.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points); // no line fits: the squared error is > 0
+    const auto adaption_config = proto.getAdaptionConfig();
+
+    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    job1->push_back(proto.clone());
+    job1->setPopulationSizes(4, 2);
+    job1->setMaxIteration(2);
+    job1->setReportIteration(0);
+    job1->setAdaptionConfig(adaption_config);
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-reset-after-resume-test";
+    fs::remove_all(cp_dir);
+    job1->setCheckpointInterval(1);
+    job1->setCheckpointBaseName(cp_dir.string(), "reset.cp");
+    job1->optimize();
+    fs::path cp;
+    for(const auto &entry : fs::directory_iterator(cp_dir)) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            cp = entry.path();
+        }
+    }
+    REQUIRE(not cp.empty());
+
+    oa::GEvolutionaryAlgorithm job2;
+    job2.loadCheckpoint(cp);
+    fs::remove_all(cp_dir);
+    REQUIRE(job2.resumedFromCheckpoint());
+    job2.resetToOptimizationStart();
+    CHECK_FALSE(job2.resumedFromCheckpoint());
+
+    job2.push_back(proto.clone());
+    job2.setCheckpointInterval(0);
+    job2.setMaxIteration(3);
+    job2.setMaxStallIteration(0);
+    job2.setReportIteration(0);
+    job2.setAdaptionConfig(adaption_config);
+    job2.optimize();
+
+    const double record = std::get<0>(job2.getBestKnownPrimaryFitness());
+    CHECK(record > 0.); // a fitness of this run, not the reset value
+    const auto best = job2.getBestGlobalIndividual<gind::GLineFitIndividual>();
+    REQUIRE(best);
+    CHECK(record == best->raw_fitness(0));
+}
+
+/******************************************************************************/
+
 TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
     // Regression (2026-11-20): an empty checkpoint file -- left by a job that was killed while it
     // wrote one in place -- was reported as "usually means the individual type ... is not available".
