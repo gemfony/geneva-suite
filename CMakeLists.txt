@@ -828,6 +828,16 @@ IF (GEM_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(LibraryLayersRespected PROPERTIES LABELS "conventions")
 	GEM_TEST_SIZE(LibraryLayersRespected S)
 
+	# The build driver reports a failed configuration by its exit status.
+	ADD_TEST(
+		NAME PrepareBuildFailsWhenCMakeFails
+		COMMAND ${CMAKE_COMMAND} -DSCRIPT=${PROJECT_SOURCE_DIR}/scripts/prepareBuild.sh
+			-DWORK_DIR=${PROJECT_BINARY_DIR}/prepareBuildStatus
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckPrepareBuildStatus.cmake
+	)
+	SET_TESTS_PROPERTIES(PrepareBuildFailsWhenCMakeFails PROPERTIES LABELS "conventions")
+	GEM_TEST_SIZE(PrepareBuildFailsWhenCMakeFails S)
+
 	# Every Catch2 test case can be selected by its full name (no , [ ] " or \ in a name).
 	ADD_TEST(
 		NAME TestCaseNamesSelectable
