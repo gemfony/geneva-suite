@@ -271,6 +271,10 @@ class GJsonIArchive : public GIArchiveT<GJsonIArchive> {
 public:
     /** @brief Parses @p text as JSON to read from; text that is no JSON throws weft_exception.
      *  @param text The JSON document. */
+    /** @brief This archive reports an array of the wrong length itself, with its path (slot() and
+     *  leave_array()), so GIArchiveT does not check the count of a tuple or std::array. */
+    static constexpr bool reports_sequence_length = true;
+
     explicit GJsonIArchive(std::string_view text)
       : root_(parse(text)) {
     }
