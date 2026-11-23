@@ -149,15 +149,7 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
     if(gpd.add_print_command_ && plot_name.string() != "empty" && not(plot_name.string()).empty()) {
         // The picture is named by the macro's file name alone, without its directory, so that the
         // macro works from wherever it lies (and is moved); make sure there are no white spaces
-        std::string plot_name_local = plot_name.filename().string();
-        auto ltrim = plot_name_local.find_first_not_of(" \t\r\n");
-        auto rtrim = plot_name_local.find_last_not_of(" \t\r\n");
-        if(ltrim != std::string::npos) {
-            plot_name_local = plot_name_local.substr(ltrim, rtrim - ltrim + 1);
-        }
-        else {
-            plot_name_local.clear();
-        }
+        std::string const plot_name_local = Gem::Common::trimWhitespace(plot_name.filename().string());
         result << '\n'
                << gpd.indent() << "// Print out the data of this file to a png file" << '\n'
                << gpd.indent() << "cc->Print(\"" << plot_name_local << ".png\");" << '\n';
