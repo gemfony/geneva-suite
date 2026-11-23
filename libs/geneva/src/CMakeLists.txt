@@ -56,6 +56,17 @@ SET ( OPTIMIZATIONSOURCES
     oa/GAntColonyOptimization_PersonalityTraits.cpp
     oa/GGeneralizedSimulatedAnnealing.cpp
     oa/GGeneralizedSimulatedAnnealing_PersonalityTraits.cpp
+    oa/GSimulatedAnnealing.cpp
+    oa/GSimulatedAnnealing_PersonalityTraits.cpp
+    oa/GSwarmAlgorithm.cpp
+    oa/GSwarmAlgorithm_PersonalityTraits.cpp
+    oa/GConjugateGradientDescent.cpp
+    oa/GConjugateGradientDescent_PersonalityTraits.cpp
+    oa/GNelderMead.cpp
+    oa/GNelderMead_PersonalityTraits.cpp
+    oa/GParameterScan.cpp
+    oa/GParameterScanFactory.cpp
+    oa/GParameterScan_PersonalityTraits.cpp
 	GModuleLoader.cpp
 	genome/GParameterPropertyParser.cpp
 	genome/GIndividualProcessingResult.cpp
@@ -143,104 +154,7 @@ IF(GEM_BUILD_TESTS)
 		SOURCES individuals/GTestIndividual3.cpp)
 ENDIF()
 
-
-################################################################################
-#
-# Build-time algorithm selection ("slim core").
-#
-# Each option below gates the three source files of one optimization algorithm.
-# All default to ON, so the stock build is byte-for-byte identical to before:
-# every algorithm is compiled in and its factory is registered with the global
-# optimization-algorithm store. Setting an option to OFF omits that algorithm's
-# sources AND its GENEVA_ALGO_* compile definition, so the single registration
-# translation unit (oa/GBuiltinAlgorithms.cpp) leaves it out too and its
-# mnemonic simply disappears from the runtime selection (the '-a' option).
-#
-# Evolutionary algorithms (EA) are intentionally NOT optional and remain in the
-# core source list above: the EA factory instantiation is referenced directly
-# by the post-processor (GPostProcessorT) and the meta-optimizer individual
-# (GMetaOptimizerIndividualT), both of which are always built. The shared
-# parent-child base (GParChild / GBaseParChildPersonalityTraits, used by EA and
-# SA) likewise stays in core.
-#
-# Consumers are not gated here: the courtier consumers are header-only
-# templates with no .cpp to exclude, and the MPI consumer is already gated by
-# GEM_BUILD_WITH_MPI_CONSUMER. Consumer plugin selection is deferred to a
-# later plugin-architecture phase.
-#
-################################################################################
-
-OPTION(GENEVA_ALGO_SA    "Build the Simulated Annealing algorithm"         ON)
-OPTION(GENEVA_ALGO_SWARM "Build the Swarm algorithm"                       ON)
-OPTION(GENEVA_ALGO_CGD   "Build the Conjugate Gradient Descent algorithm"  ON)
-OPTION(GENEVA_ALGO_NM    "Build the Nelder-Mead algorithm"                 ON)
-OPTION(GENEVA_ALGO_PS    "Build the Parameter Scan algorithm"              ON)
-
-# Slim-core builds and the test suite are mutually exclusive. The in-library
-# unit-test fixtures (notably GTestIndividual1) and the algorithms' own
-# GEM_TESTING self-tests reference the optimization algorithms by type, so a
-# testing-enabled build needs every algorithm compiled in. Disabling any
-# algorithm while GEM_BUILD_TESTS is ON would otherwise fail at link time
-# with a cryptic undefined-reference error; catch it here with a clear message.
-# (Production slim-core builds run with GEM_BUILD_TESTS=OFF anyway.)
-IF (GEM_BUILD_TESTS AND NOT (GENEVA_ALGO_SA AND GENEVA_ALGO_SWARM
-		AND GENEVA_ALGO_CGD AND GENEVA_ALGO_NM
-		AND GENEVA_ALGO_PS))
-	MESSAGE(FATAL_ERROR
-		"GEM_BUILD_TESTS=ON requires all GENEVA_ALGO_* options to be ON: the "
-		"in-library test fixtures reference every optimization algorithm. For a "
-		"slim-core build with an algorithm disabled, configure with "
-		"-DGEM_BUILD_TESTS=OFF.")
-ENDIF ()
-
-IF(GENEVA_ALGO_SA)
-	SET(GENEVA_ALGO_DEFINES ${GENEVA_ALGO_DEFINES} GENEVA_ALGO_SA)
-	SET(OPTIMIZATIONSOURCES
-			${OPTIMIZATIONSOURCES}
-			oa/GSimulatedAnnealing.cpp
-			oa/GSimulatedAnnealing_PersonalityTraits.cpp)
-ENDIF()
-
-IF(GENEVA_ALGO_SWARM)
-	SET(GENEVA_ALGO_DEFINES ${GENEVA_ALGO_DEFINES} GENEVA_ALGO_SWARM)
-	SET(OPTIMIZATIONSOURCES
-			${OPTIMIZATIONSOURCES}
-			oa/GSwarmAlgorithm.cpp
-			oa/GSwarmAlgorithm_PersonalityTraits.cpp)
-ENDIF()
-
-IF(GENEVA_ALGO_CGD)
-	SET(GENEVA_ALGO_DEFINES ${GENEVA_ALGO_DEFINES} GENEVA_ALGO_CGD)
-	SET(OPTIMIZATIONSOURCES
-			${OPTIMIZATIONSOURCES}
-			oa/GConjugateGradientDescent.cpp
-			oa/GConjugateGradientDescent_PersonalityTraits.cpp)
-ENDIF()
-
-IF(GENEVA_ALGO_NM)
-	SET(GENEVA_ALGO_DEFINES ${GENEVA_ALGO_DEFINES} GENEVA_ALGO_NM)
-	SET(OPTIMIZATIONSOURCES
-			${OPTIMIZATIONSOURCES}
-			oa/GNelderMead.cpp
-			oa/GNelderMead_PersonalityTraits.cpp)
-ENDIF()
-
-IF(GENEVA_ALGO_PS)
-	SET(GENEVA_ALGO_DEFINES ${GENEVA_ALGO_DEFINES} GENEVA_ALGO_PS)
-	SET(OPTIMIZATIONSOURCES
-			${OPTIMIZATIONSOURCES}
-			oa/GParameterScan.cpp
-			oa/GParameterScanFactory.cpp
-			oa/GParameterScan_PersonalityTraits.cpp)
-ENDIF()
-
 ADD_LIBRARY ( ${GENEVA_LIBNAME} SHARED ${OPTIMIZATIONSOURCES} )
-
-# The optional algorithms' switches, handed to the compiler. Only the single registration translation
-# unit (oa/GBuiltinAlgorithms.cpp) reads them: it registers exactly the algorithms whose sources the
-# GENEVA_ALGO_* options above put into the library, so a slim-core build cannot reference an algorithm
-# it did not compile.
-TARGET_COMPILE_DEFINITIONS ( ${GENEVA_LIBNAME} PRIVATE ${GENEVA_ALGO_DEFINES} )
 
 SET_TARGET_PROPERTIES(
     ${GENEVA_LIBNAME}

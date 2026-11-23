@@ -745,6 +745,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **common: `sharedPtrFromString()` throws on a string it cannot decode.** It returned an empty
   pointer and logged a warning; the decode error (a `Gem::Weft::weft_exception`, or another
   `std::exception`) now reaches the caller, as with `sharedPtrToString()`.
+- **geneva: the build options `GENEVA_ALGO_SA`, `GENEVA_ALGO_SWARM`, `GENEVA_ALGO_CGD`,
+  `GENEVA_ALGO_NM` and `GENEVA_ALGO_PS` were removed.** Every algorithm is always built; an
+  algorithm of one's own is added as a loadable module.
 
 ## 8. Checkpointing
 
