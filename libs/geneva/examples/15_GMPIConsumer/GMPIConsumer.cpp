@@ -274,6 +274,7 @@ int main(int argc, char **argv) {
         // The submitter's log messages go to records/GMPIConsumer.log, plain text, rather than to
         // the console. Only the submitter: every process has a recorder of its own, and processes
         // sharing a working directory would back up each other's file.
+        //! [arch-common:record-log-target]
         glogger.addLogTarget(
             std::make_shared<GRecordLogTarget>(
                 "GMPIConsumer",
@@ -282,6 +283,7 @@ int main(int argc, char **argv) {
                 }
             )
         );
+        //! [arch-common:record-log-target]
     }
 
     /****************************************************************************/

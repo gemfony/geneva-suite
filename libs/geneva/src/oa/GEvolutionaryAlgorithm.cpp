@@ -350,11 +350,13 @@ void GType::evaluatePopulation_() {
         }
     }
 
-    if(this->size() != this->getDefaultPopulationSize()) {
+    // The population may be larger than its size: the first iteration of a later algorithm of a
+    // Go2 chain holds every individual the one before handed over, and selectBest_() reduces it.
+    if(this->size() < this->getDefaultPopulationSize()) {
         throw gem_exception(
             g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
             << "In GEvolutionaryAlgorithm::evaluatePopulation_(): Error!" << '\n'
-            << "Size of data vector (" << this->size() << ") should be "
+            << "Size of data vector (" << this->size() << ") should be at least "
             << this->getDefaultPopulationSize() << '\n'
         );
     }

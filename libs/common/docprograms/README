@@ -1,0 +1,26 @@
+Documentation programs
+======================
+
+The .cpp files in this directory exist to be QUOTED BY THE GENEVA MANUAL: where
+the real library code is too heavyweight to excerpt honestly, the manual shows a
+small, complete program instead (suite Invariant 27; rule D2 in the manual
+repository's DOCUMENTATION-INVARIANTS.md). Every program here
+
+  * compiles and links against this library's own dependency closure only
+    (common and weft),
+  * runs as an S-size ctest case, so it cannot rot without turning a gate red,
+  * carries //! [anchor] snippet markers that the manual's extraction layer
+    reads (see source/snippets.map in the manual repository),
+  * writes its output to the WORKING DIRECTORY -- never into the source tree.
+
+They are deliberately separate from examples/: an example teaches a user how to
+use the library, a documentation program backs a specific listing in the manual.
+Treat marker pairs like code -- moving or deleting one breaks the manual build,
+which names the affected chapter.
+
+Listings
+--------
+
+record_share_prices   A typed stream of the recorder with a wall-clock time
+                      column (share prices with a time tag), a few rows, the
+                      close; prints records/quotes.csv and checks it.

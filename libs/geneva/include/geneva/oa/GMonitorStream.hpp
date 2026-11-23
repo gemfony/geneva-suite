@@ -60,7 +60,10 @@ class GOptimizationAlgorithmBase;
  *   after it by the earlier run are dropped (declare()).
  * - **The first three columns.** Every row begins with "algorithm" (its name), "iteration" (the
  *   algorithm's own iteration) and "chain_iteration": the iteration counted through a Go2 chain,
- *   so that a plot over it does not jump back when the next algorithm starts at 0 (row()).
+ *   so that a plot over it does not jump back when the next algorithm starts at 0 (row()). The
+ *   algorithm knows how many iterations of the chain ran before it
+ *   (GOptimizationAlgorithmBase::getChainOffset()); a checkpoint carries that number, so a run
+ *   resumed from a checkpoint of a later algorithm of a chain goes on counting where it stood.
  */
 class GMonitorStream {
 public:
@@ -99,9 +102,10 @@ public:
     [[nodiscard]] bool isOpen() const;
 
 private:
+    /** @brief The algorithm's current iteration counted through a Go2 chain */
+    [[nodiscard]] static std::uint64_t chainIteration(GOptimizationAlgorithmBase const &goa);
+
     Gem::Common::Record::GStream stream_; ///< The stream
-    std::uint64_t chain_offset_ = 0;      ///< Added to the current algorithm's iteration
-    std::uint64_t next_chain_iteration_ = 0; ///< The chain iteration after the last row
 };
 
 /******************************************************************************/
