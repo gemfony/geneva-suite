@@ -1323,6 +1323,39 @@ TEST_CASE(
 
 /******************************************************************************/
 
+TEST_CASE(
+    "a later EA of a Go2 chain takes more individuals than its population size",
+    "[oa][go2]"
+) {
+    // Go2 hands an algorithm of a chain the best individuals of the one before -- up to the number
+    // of best individuals that algorithm records, 10 by default -- which may be more than its
+    // population size. The EA evaluates them all in its first iteration and selects down to its
+    // size, as SA does. Regression: the EA of a Debug build demanded its exact population size
+    // before the evaluation and threw.
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual proto(data_points);
+    Gem::Geneva::Go2 go;
+    go.push_back(proto.clone());
+    go.registerAdaptionConfig("PERSONALITY_EA", proto.getAdaptionConfig());
+    go.registerAdaptionConfig("PERSONALITY_SA", proto.getAdaptionConfig());
+    auto sa = std::make_shared<oa::GSimulatedAnnealing>();
+    sa->setPopulationSizes(4, 2);
+    sa->setMaxIteration(3);
+    sa->setReportIteration(0);
+    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    ea->setPopulationSizes(4, 2);
+    ea->setMaxIteration(2);
+    ea->setReportIteration(0);
+    go & sa & ea;
+    REQUIRE_NOTHROW(go.optimize());
+    // The EA was handed more individuals than its population size, and ran to its end
+    CHECK(sa->getBestGlobalIndividuals<gen::GGenome>().size() > ea->getDefaultPopulationSize());
+    CHECK(ea->getIteration() == 2);
+}
+
+/******************************************************************************/
+
 TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[oa]") {
     // The best-so-far record and the stall counter belong to the state of a run, which a
     // checkpoint supplies. Regression (2026-11-20): optimize() reset both at every start, a resume
