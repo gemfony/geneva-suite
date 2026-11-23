@@ -134,10 +134,13 @@ TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
 # merely equal in case count. The two EA convergence cases are ~25 s and ~22 s EACH -- a single
 # TEST_CASE is atomic, so those two set the floor for the whole suite and are shards of their own.
 #
+# The first three are convergence runs (Invariant 22): they carry the label XL and run before a release,
+# not in the per-commit gate. The short GSA check ([gsa-short]) stays in the gate, in the [oa] shard.
+#
 #   spec                    what it selects                                     measured  size
-#   [highdim10k]            one EA convergence case, n = 10000                    ~26 s     L
-#   [highdim]               one EA convergence case, high-dim                     ~22 s     L
-#   [gsa]                   the annealing convergence cases                       ~16 s     L
+#   [highdim10k]            one EA convergence case, n = 10000                    ~26 s     XL
+#   [highdim]               one EA convergence case, high-dim                     ~22 s     XL
+#   [gsa]                   the annealing convergence cases                       ~16 s     XL
 #   [net]                   the cases that really open a loopback socket (own      ~7 s     M
 #                           shard so networked work overlaps CPU-bound work)
 #   [oa]~<the above>        the remaining algorithm-level cases                    ~4 s     M
@@ -150,9 +153,9 @@ TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
 # CheckShardCompleteness.cmake).
 #
 SET(GENEVA_STANDARD_TEST_SHARDS
-	"ea-highdim10k"  L  "[highdim10k]"
-	"ea-highdim"     L  "[highdim]"
-	"gsa"            L  "[gsa]"
+	"ea-highdim10k"  XL "[highdim10k]"
+	"ea-highdim"     XL "[highdim]"
+	"gsa"            XL "[gsa]"
 	"net"            M  "[net]"
 	"oa"             M  "[oa]~[highdim10k]~[highdim]~[gsa]~[net]"
 	"core"           M  "~[oa]~[highdim10k]~[highdim]~[gsa]~[net]")

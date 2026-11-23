@@ -39,7 +39,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <numbers>
 #include <vector>
@@ -148,6 +150,37 @@ double bestRastrigin(const RastriginGSA<N_DIM> &best) {
 
 /******************************************************************************/
 
+TEST_CASE(
+    "Generalized Simulated Annealing runs briefly and improves on its start before it halts",
+    "[oa][gsa-short]"
+) {
+    // The short GSA check of the per-commit gate (the convergence cases below are [gsa], size XL):
+    // a few chains for a few iterations must run, halt at the iteration limit and end below the
+    // f = 5 * 9 = 45 start. Best of three runs (Invariant 18).
+    constexpr std::uint32_t ITER = 50;
+    auto run = []() {
+        auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+        pop->setNChains(4);
+        pop->setMaxIteration(ITER);
+        pop->setMaxStallIteration(0);
+        pop->setReportIteration(100000);
+        pop->push_back(SphereGSA<5>().clone());
+        pop->optimize();
+        CHECK(pop->getIteration() <= ITER);
+        auto best = pop->getBestGlobalIndividual<SphereGSA<5>>();
+        REQUIRE(best);
+        return bestSphere<5>(*best);
+    };
+    double f = run();
+    for(int rerun = 1; rerun < 3 && f >= 45.0; ++rerun) {
+        f = (std::min)(f, run());
+    }
+    INFO("best-of-3 sphere f=" << f);
+    CHECK(f < 45.0);
+}
+
+/******************************************************************************/
+
 TEST_CASE("Generalized Simulated Annealing optimizes a 5-dim flat sphere", "[gsa]") {
     auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
     pop->setNChains(8);
@@ -251,7 +284,7 @@ TEST_CASE(
 
 /******************************************************************************/
 
-TEST_CASE("Generalized Simulated Annealing parameter validation", "[gsa]") {
+TEST_CASE("Generalized Simulated Annealing parameter validation", "[oa][gsa-short]") {
     auto gsa = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
 
     gsa->setNChains(4);
