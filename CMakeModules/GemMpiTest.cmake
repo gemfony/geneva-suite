@@ -32,10 +32,12 @@
 #
 # Registers a CTest entry that starts MPI jobs -- one that runs the MPI launcher, directly or
 # through a driver -- with a bound on its command. Every such entry is registered with it: the entry
-# runs under GemRunMpiTest.sh, which gives it a directory of its own for the files of Open MPI's
-# shared-memory transport (OMPI_MCA_btl_sm_backing_directory) and removes it afterwards, also when
-# the entry fails or reaches its bound. Two entries that run at the same time could otherwise get
-# the same names for these files (the script says why) and crash or hang.
+# runs under GemRunMpiTest.sh, which gives it a directory of its own for the files Open MPI keeps
+# while a job runs (those of its shared-memory transport and the launcher's session directory) and
+# removes it afterwards, also when the entry fails or reaches its bound. Two entries that run at the
+# same time could otherwise get the same names for the shared-memory files and crash or hang, and a
+# job killed earlier could leave a session directory that stops a later launcher (the script says
+# why).
 #
 # TIMEOUT is the bound of <command>: the script ends it then (SIGTERM, SIGKILL ten seconds later).
 # The entry's ctest TIMEOUT is the bound plus GEM_MPI_TEST_MARGIN, the time the script needs to

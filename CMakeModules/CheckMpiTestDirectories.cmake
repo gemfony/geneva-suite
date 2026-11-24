@@ -29,7 +29,7 @@
 #
 # Driver of the test GemMpiTestDirectories: GemRunMpiTest.sh (the runner of every entry
 # registered with GEM_ADD_MPI_TEST) gives each run a directory of its own for Open MPI's
-# shared-memory files and removes it, whichever way the run ends.
+# files and removes it, whichever way the run ends.
 #
 #  1. Two runs at the same time (execute_process starts the commands of a pipeline together);
 #     each writes the directory it was given to a file, if that exists and is writable, and waits
@@ -40,12 +40,17 @@
 #  4. A run sent SIGINT, and one sent SIGTERM, while its command runs (a Ctrl-C at a terminal, the
 #     end of a ctest): the run ends within seconds with 130 or 143, its command is gone, and so is
 #     the directory.
+#  5. Where there is an MPI launcher: a job that was killed has left its session directory
+#     (ompi.<pid> with pmix.<host>.tool, the script says why) in the launcher's default place,
+#     here TMPDIR, and a later launcher gets its pid. It must start all the same. The command
+#     leaves that directory for its own pid and then becomes the launcher (exec keeps the pid).
 #
 # Cases 3 and 4 run twice where coreutils' timeout exists: once with it, once with a PATH that
 # holds only the few programs the runner and the commands need, so that the runner bounds the
 # command without it. Where there is no timeout, they run once, without it.
 #
-# Inputs (via -D): RUNNER (the script), WORK (a directory for the files of the runs).
+# Inputs (via -D): RUNNER (the script), WORK (a directory for the files of the runs), MPIEXEC (the
+# MPI launcher, if there is one).
 #
 ################################################################################
 
@@ -168,6 +173,25 @@ kill -$3 "$(cat "$2")"]=] sh "${_base}.command" "${_base}.runner" ${_signal}
 	MESSAGE(STATUS "A run ${_how} sent SIG${_signal}: ended with ${_code} after ${_took} s, its "
 		"command is gone, ${_interrupted} removed")
 ENDFUNCTION()
+
+# 5. A launcher whose pid a killed job had
+IF(MPIEXEC)
+	FILE(MAKE_DIRECTORY "${WORK}/stale")
+	EXECUTE_PROCESS(
+		COMMAND "${CMAKE_COMMAND}" -E env "TMPDIR=${WORK}/stale" "${RUNNER}" 60
+			sh -c [=[h=$(uname -n)
+mkdir "$TMPDIR/ompi.$$" && : > "$TMPDIR/ompi.$$/pmix.${h%%.*}.tool" && exec "$1" -n 1 true]=]
+			sh "${MPIEXEC}"
+		RESULT_VARIABLE _rc
+		OUTPUT_VARIABLE _out
+		ERROR_VARIABLE _out
+		TIMEOUT 40
+	)
+	IF(NOT _rc EQUAL 0)
+		MESSAGE(FATAL_ERROR "A launcher whose pid a killed job had ended with ${_rc}:\n${_out}")
+	ENDIF()
+	MESSAGE(STATUS "A launcher whose pid a killed job had: started and ended with 0")
+ENDIF()
 
 FIND_PROGRAM(_timeout_program timeout)
 IF(_timeout_program)

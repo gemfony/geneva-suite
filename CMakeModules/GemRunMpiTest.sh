@@ -32,14 +32,23 @@
 # Usage: GemRunMpiTest.sh <bound in seconds> <command> [<argument>...]
 #
 # Runs a ctest entry that starts MPI jobs (GEM_ADD_MPI_TEST, GemMpiTest.cmake) with a
-# directory of its own for the files of Open MPI's shared-memory transport: made below /dev/shm
-# (below TMPDIR where there is none) before <command> starts, named to it and to every MPI job it
-# starts in OMPI_MCA_btl_sm_backing_directory (other MPI libraries ignore it), and removed when
-# the script ends -- also when <command> fails, reaches <bound>, or the script is interrupted.
+# directory of its own for the files Open MPI keeps while a job runs: made below /dev/shm (below
+# TMPDIR where there is none) before <command> starts, named to it and to every MPI job it starts
+# in OMPI_MCA_btl_sm_backing_directory (the files of the shared-memory transport) and in
+# PRTE_MCA_prte_tmpdir_base (the session directory of the launcher; other MPI libraries ignore
+# both), and removed when the script ends -- also when <command> fails, reaches <bound>, or the
+# script is interrupted.
 #
-# Open MPI 5 names these files after the job's id, which it derives from a 16-bit hash. Two jobs
-# that run at the same time -- entries of one "ctest -j", or of two build trees -- can get the same
-# id, and then use each other's memory and crash or hang.
+# Open MPI 5 names the shared-memory files after the job's id, which it derives from a 16-bit hash.
+# Two jobs that run at the same time -- entries of one "ctest -j", or of two build trees -- can get
+# the same id, and then use each other's memory and crash or hang.
+#
+# The launcher (mpiexec) names its session directory after its own pid, ompi.<pid>, below /tmp
+# by default, and takes one that is there already for its own; in it, PMIx then creates the file
+# pmix.<host>.tool, which must not exist yet. A job that was killed leaves its directory behind, and
+# pids are used again (soon, in a sandbox with a pid namespace of its own): a later mpiexec with
+# the same pid ends at once with "The PMIx server's listener thread failed to start" and exit code
+# 213, before any rank runs. In the directory of this script no earlier job can have left one.
 #
 # The bound. At <bound> seconds <command> gets SIGTERM, and SIGKILL ten seconds later if it is still
 # there -- <command> and every process it started, in a process group of their own. Where coreutils'
@@ -74,7 +83,8 @@ fi
 dir=$(mktemp -d "$base/gem-ctest-sm.XXXXXX") || exit 2
 trap 'rm -rf "$dir"' EXIT
 OMPI_MCA_btl_sm_backing_directory=$dir
-export OMPI_MCA_btl_sm_backing_directory
+PRTE_MCA_prte_tmpdir_base=$dir
+export OMPI_MCA_btl_sm_backing_directory PRTE_MCA_prte_tmpdir_base
 
 # An interrupt is noted, and passed on once <command> runs: to timeout, which passes it on to its
 # group, or to <command>'s group
