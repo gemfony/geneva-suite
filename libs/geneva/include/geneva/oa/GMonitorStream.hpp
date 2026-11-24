@@ -53,9 +53,9 @@ class GOptimizationAlgorithmBase;
  * - **Transient.** It is no part of the monitor's configuration (Inv 4): a copy of it is empty,
  *   so a monitor's copy constructor can stay defaulted and a clone has no stream of its own; an
  *   assigned monitor keeps its own stream.
- * - **Declared at INFOINIT.** beginAlgorithm() says whether the monitor must declare (declare()):
- *   at the first INFOINIT, and after the stream was closed. In a Go2 chain the later algorithms
- *   find it open and record into the same stream. A run resumed from a checkpoint appends to the
+ * - **Declared at INFOINIT.** A monitor declares its stream (declare()) at INFOINIT when it is not
+ *   open (isOpen()): at the first INFOINIT, and after the stream was closed. In a Go2 chain the
+ *   later algorithms find it open and record into the same stream. A run resumed from a checkpoint appends to the
  *   files (GStreamOptions::resume), after cutting them back to the checkpoint: the rows recorded
  *   after it by the earlier run are dropped (declare()).
  * - **The first three columns.** Every row begins with "algorithm" (its name), "iteration" (the
@@ -85,8 +85,6 @@ public:
     /** @brief Closes the stream (GStream) */
     ~GMonitorStream() = default;
 
-    /** @brief At INFOINIT: whether the stream must be declared; else a chain goes on */
-    [[nodiscard]] bool beginAlgorithm(GOptimizationAlgorithmBase const &goa);
     /** @brief Declares the stream: the three first columns, then the monitor's own */
     void declare(
         std::string const &name,

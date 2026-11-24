@@ -52,6 +52,7 @@
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <utility>
 #include <vector>
 
 #include "geneva/GOptimizationEnums.hpp"
@@ -532,6 +533,45 @@ TEST_CASE(
     CHECK(out[0] < 7.); // a bounded parameter stays within its range
     CHECK(out[1] >= -2.);
     CHECK(out[1] < 2.); // an unbounded parameter random-inits within its perimeter
+}
+
+/******************************************************************************/
+TEST_CASE(
+    "normalized-genome: int32 ranges as wide as int32 fold and scale in 64 bits",
+    "[normalized-genome]"
+) {
+    // Regression: hi - lo + 1 in the fold and upper - lower in ngScale were computed in int32 and
+    // overflowed for ranges wider than INT32_MAX. They are computed in 64 bits; the values stay int32.
+    constexpr std::int32_t MIN32 = std::numeric_limits<std::int32_t>::min();
+    constexpr std::int32_t MAX32 = std::numeric_limits<std::int32_t>::max();
+    for(auto const &[lo, hi] :
+        {std::pair{0, MAX32},
+         std::pair{-2'000'000'000, 2'000'000'000},
+         std::pair{MIN32, 0},
+         std::pair{MIN32 + 1, MAX32 - 1}}) {
+        std::vector<std::int32_t> xs{MIN32, MIN32 + 1, -1, 0, 1, MAX32 - 1, MAX32};
+        if(lo > MIN32) {
+            xs.push_back(lo - 1);
+        }
+        if(hi < MAX32) {
+            xs.push_back(hi + 1);
+        }
+        for(std::int32_t const x : xs) {
+            const std::int32_t f = foldConstrainedInt<std::int32_t>(x, lo, hi);
+            CHECK(f >= lo);
+            CHECK(f <= hi);
+        }
+    }
+    // The reflection at the bounds: one below the lower bound is the lower bound (closed range)
+    CHECK(foldConstrainedInt<std::int32_t>(-1, 0, MAX32) == 0);
+    CHECK(foldConstrainedInt<std::int32_t>(MIN32, -2'000'000'000, 2'000'000'000) == -1'852'516'353);
+
+    GGenomeBuilder b;
+    b.addInt32Group(1, -2'000'000'000, 2'000'000'000);
+    auto g = b.build();
+    REQUIRE(g.layout);
+    CHECK(ngScale(g.layout->i, 0) == 4'000'000'000LL);
+    CHECK(ngAnchor(g.layout->i, 0) == 0);
 }
 
 /******************************************************************************/

@@ -43,6 +43,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <memory>
 #include <ranges>
 #include <string>
@@ -383,10 +384,17 @@ Go2 const *Go2::optimize_(std::uint32_t offset) {
         );
     }
 
-    // --update-configs: refresh every config this binary owns and end without optimizing.
+    // --update-configs: refresh every config this binary owns and end the process without optimizing.
+    // Go2 is the one place that ends the process on --update-configs: no population exists afterwards,
+    // so the caller's code after optimize() (getBestGlobalIndividual() and its use) could not work, and
+    // a Go2 program needs no special case for this mode. std::exit runs the registered atexit / static
+    // teardown (flushing stdio and the logger, releasing the library's RNG factory guard); nothing
+    // produced by this pass needs a Go2 destructor.
     if(Gem::Common::GParserBuilder::updateInPlace()) {
         this->refreshAllConfigs_();
-        return this;
+        Gem::Common::finishConfigEmission();
+        // NOLINTNEXTLINE(concurrency-mt-unsafe) -- deliberate: a Go2 run under --update-configs ends here
+        std::exit(0);
     }
     this->ensureAlgorithmPresent();
     std::uint32_t const first_algorithm_offset = this->prepareInitialPopulation(offset);
@@ -428,14 +436,6 @@ void Go2::refreshAllConfigs_() {
             glogger << "could not refresh the individual config: " << e.what() << '\n' << GWARNING;
         }
     }
-
-    // --update-configs is a utility mode, not an optimization: finish HERE, via the shared config-emission
-    // facility (log + exit), so the caller's boilerplate (optimize() then getBestGlobalIndividual()) is not
-    // reached -- there is no population, so getBestGlobalIndividual() would have nothing to return. This lets
-    // every example's main() run unchanged. The std::exit inside finishConfigEmission runs the registered
-    // atexit / static teardown (flushing stdio and the logger, releasing the library's RNG factory guard);
-    // nothing produced by this pass needs a Go2 destructor.
-    Gem::Common::finishConfigEmission();
 }
 
 /******************************************************************************/

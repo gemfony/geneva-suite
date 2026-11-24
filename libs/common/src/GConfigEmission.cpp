@@ -75,14 +75,12 @@ void beginConfigEmission() {
 
 /******************************************************************************/
 /**
- * @brief Concludes a configuration-emission run: logs completion and exits the process cleanly.
+ * @brief Concludes a configuration-emission run: logs completion. The caller ends the run.
  */
 void finishConfigEmission() {
     glogger << "Configuration emission complete; configuration files were refreshed in place."
             << '\n'
             << GLOGGING;
-    // NOLINTNEXTLINE(concurrency-mt-unsafe) -- deliberate: a config-emission run ends the process here
-    std::exit(0);
 }
 
 /******************************************************************************/

@@ -356,5 +356,6 @@ int main(int argc, char **argv) {
     // In --update-configs mode the file has now been written: log and exit cleanly.
     if(emit_configs) {
         Gem::Common::finishConfigEmission();
+        return 0;
     }
 }

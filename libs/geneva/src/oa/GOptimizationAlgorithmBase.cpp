@@ -48,6 +48,8 @@
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "geneva/oa/GPostProcessorT.hpp"
+#include "weft/GBinaryArchive.hpp"
+#include "weft/GJsonArchive.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
@@ -61,6 +63,7 @@
 #include <ranges>
 #include <set>
 #include <span>
+#include <string>
 #include <system_error>
 #include <tuple>
 #include <utility>
@@ -97,6 +100,94 @@ GOptimizationAlgorithmBase::GOptimizationAlgorithmBase(const GOptimizationAlgori
     // instead of inheriting a chaining offset from the source.
     offset_ = DEFAULTOFFSET;
 }
+
+/******************************************************************************/
+namespace {
+/**
+ * A checkpoint file: the personality type of the algorithm that wrote it as its first field, then
+ * that algorithm with its population. The type is read from the file, not from its name; the name
+ * ("checkpoint-<personality>-<iteration>-<fitness>-<base name>", checkpoint()) is a convention.
+ *
+ * @tparam algorithm_ptr_type A non-owning shared_ptr when saving, a unique_ptr when loading
+ */
+template <typename algorithm_ptr_type>
+struct GCheckpointFile {
+    std::string personality;       ///< The type of the algorithm that wrote the file
+    algorithm_ptr_type algorithm;  ///< The algorithm; empty when it is not read (serialize())
+    std::string read_algorithm_of; ///< Loading only: the algorithm is read only for this type
+
+    /** @brief (De-)serializes the head and -- when saving, or when the head names
+     *  read_algorithm_of -- the algorithm
+     *  @param ar The archive @param version The archive version (unused) */
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
+        ar &Gem::Weft::make_nvp("personality", personality);
+        if constexpr(not archive_type::is_saving) {
+            if(personality != read_algorithm_of) {
+                return; // the head alone was asked for, or the caller reports the other algorithm
+            }
+        }
+        ar &Gem::Weft::make_nvp("algorithm", algorithm);
+    }
+};
+
+/// A checkpoint file as it is read
+using GCheckpointRead = GCheckpointFile<std::unique_ptr<GOptimizationAlgorithmBase>>;
+
+/**
+ * @brief Reads a checkpoint file: its head and, if the head names cp.read_algorithm_of, the algorithm.
+ *
+ * @param cp_file The checkpoint file
+ * @param ser_mode The serialization mode the file was written in
+ * @param cp Receives what was read
+ */
+void readCheckpointFile(
+    std::filesystem::path const &cp_file,
+    Gem::Common::serializationMode ser_mode,
+    GCheckpointRead &cp
+) {
+    std::string const data = Gem::Common::loadTextDataFromFile(cp_file);
+    if(data.empty()) {
+        throw gem_exception(
+            g_error_streamer() << "Cannot load the checkpoint file " << cp_file << '\n'
+                               << "The file is empty: it holds no checkpoint. Resume from another "
+                               << "checkpoint file." << '\n'
+        );
+    }
+
+    // A checkpoint holds the algorithm AND its polymorphic population, so the concrete individual type
+    // must be registered (compiled in, or loaded from an --individual plugin) before this point --
+    // exactly like the networked wire; otherwise the codec throws deep inside (an unknown archive tag).
+    // Translate that, and a file that is no checkpoint, into actionable guidance.
+    try {
+        if(Gem::Common::serializationMode::GEM_BINARY == ser_mode) {
+            Gem::Weft::GBinaryIArchive ia(data);
+            ia &Gem::Weft::make_nvp("checkpoint", cp);
+        }
+        else {
+            Gem::Weft::GJsonIArchive ia(data);
+            ia &Gem::Weft::make_nvp("checkpoint", cp);
+        }
+    }
+    catch(const std::exception &e) {
+        throw gem_exception(
+            g_error_streamer()
+            << "Failed to read the checkpoint file " << cp_file << '\n'
+            << "Underlying error: " << e.what() << '\n'
+            << (cp.personality.empty()
+                    ? "The file does not begin with the algorithm that wrote it: it is no "
+                      "checkpoint of this Geneva, or it is damaged.\n"
+                    : "Either the file is incomplete or damaged, or the individual "
+                      "(optimization-problem)\n"
+                      "type stored in it is not available. In the second case resume with the "
+                      "SAME individual\n"
+                      "that wrote the checkpoint -- compiled in, or loaded via --individual "
+                      "<path>.so -- built\n"
+                      "against the same Geneva version.\n")
+        );
+    }
+}
+} // namespace
 
 /******************************************************************************/
 /**
@@ -170,18 +261,24 @@ void GOptimizationAlgorithmBase::checkpoint(bool is_better) const {
  * @param cp_file The path to the checkpoint file to be loaded
  */
 void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_file) {
-    // Extract the name of the optimization algorithm used for this file
-    std::string const opt_desc = this->extractOptAlgFromPath(cp_file);
-
-    // Make sure it fits our own algorithm
-    if(opt_desc != this->getAlgorithmPersonalityType()) {
+    // The algorithm that wrote the file is its first field; the rest is read only if it is ours
+    GCheckpointRead cp;
+    cp.read_algorithm_of = this->getAlgorithmPersonalityType();
+    readCheckpointFile(cp_file, this->getCheckpointSerializationMode(), cp);
+    if(cp.personality != cp.read_algorithm_of) {
         throw gem_exception(
-            g_error_streamer() << "Checkpoint file " << cp_file << '\n'
-                               << "seems to belong to another algorithm. Expected "
-                               << this->getAlgorithmPersonalityType() << '\n'
-                               << "but got " << opt_desc << '\n'
+            g_error_streamer() << "The checkpoint file " << cp_file << '\n'
+                               << "was written by the algorithm " << cp.personality
+                               << ", not by this one (" << cp.read_algorithm_of << ")." << '\n'
+                               << "Resume it with the algorithm that wrote it." << '\n'
         );
     }
+    Gem::Common::checkThat(
+        nullptr != cp.algorithm,
+        "The checkpoint file ",
+        cp_file.string(),
+        " holds no algorithm"
+    );
 
     // The job's own settings outlive what the checkpoint says about them (see jobSettings_()).
     auto job_settings = this->jobSettings_();
@@ -189,35 +286,7 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
         [](auto const &...setting) { return std::make_tuple(setting...); },
         job_settings
     );
-
-    // Deserialize the checkpoint. A checkpoint is a GArchive of this algorithm AND its polymorphic
-    // population, so the concrete individual type must be registered (compiled in, or loaded from an
-    // --individual plugin) BEFORE this point -- exactly like the networked wire. If it is not, the codec
-    // throws deep inside deserialization (an unknown archive tag). The file itself may also be empty or
-    // incomplete (written by another program, or by a Geneva that wrote checkpoints in place). Translate
-    // both into actionable guidance rather than an opaque archive error, keeping the original message.
-    try {
-        this->fromFile(cp_file, this->getCheckpointSerializationMode());
-    }
-    catch(const std::exception &e) {
-        std::error_code ec;
-        bool const empty = std::filesystem::file_size(cp_file, ec) == 0 && not ec;
-        throw gem_exception(
-            g_error_streamer()
-            << "Failed to deserialize the checkpoint file " << cp_file << '\n'
-            << "Underlying error: " << e.what() << '\n'
-            << (empty ? "The file is empty: it holds no checkpoint. Resume from another checkpoint "
-                        "file.\n"
-                      : "Either the file is incomplete or damaged, or the individual "
-                        "(optimization-problem)\n"
-                        "type stored in it is not available. In the second case resume with the "
-                        "SAME individual\n"
-                        "that wrote the checkpoint -- compiled in, or loaded via --individual "
-                        "<path>.so -- built\n"
-                        "against the same Geneva version.\n")
-        );
-    }
-
+    this->load_(cp.algorithm.get());
     job_settings = kept;
 
     // A population shares ONE problem policy in memory (optimization direction, evaluation policy,
@@ -233,7 +302,7 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
 
     // The population (with its OA-owned scratch: personality + adaption / swarm / CG POD blocks) has
     // just been restored. Mark the run as resumed so the upcoming setup PRESERVES that scratch instead
-    // of re-seeding it (the flag is set AFTER fromFile, so it is unaffected by deserialization, and is
+    // of re-seeding it (the flag is set AFTER load_(), so it is unaffected by deserialization, and is
     // cleared once setup has consumed it). The genome carries the optimization forward; this keeps the
     // evolved tuning state in place across the resume.
     resumed_from_checkpoint_ = true;
@@ -1453,18 +1522,16 @@ bool GOptimizationAlgorithmBase::afterFirstIteration() const {
 
 /******************************************************************************/
 /**
- * @brief Checks whether a checkpoint-file has the same "personality" as our
- * own algorithm
+ * @brief Checks whether a checkpoint file was written by an algorithm of our own personality type.
+ * The type is read from the file (its first field), not from the file name.
  *
  * @param p The path to the checkpoint file whose algorithm personality is to be checked
  * @return A boolean indicating whether the file's algorithm personality matches this algorithm's
  */
 bool GOptimizationAlgorithmBase::cp_personality_fits(const std::filesystem::path &p) const {
-    // Extract the name of the optimization algorithm used for this file
-    std::string const opt_desc = this->extractOptAlgFromPath(p);
-
-    // Make sure it fits our own algorithm
-    return opt_desc == this->getAlgorithmPersonalityType();
+    GCheckpointRead cp; // no read_algorithm_of: the head alone is read
+    readCheckpointFile(p, this->getCheckpointSerializationMode(), cp);
+    return cp.personality == this->getAlgorithmPersonalityType();
 }
 
 /******************************************************************************/
@@ -1687,42 +1754,40 @@ void GOptimizationAlgorithmBase::retainIntegrableLateReturns(
 
 /******************************************************************************/
 /**
- * @brief Saves the state of the class to disc
+ * @brief Writes a checkpoint: the personality type of this algorithm as the first field, then the
+ * algorithm with its population (see GCheckpointFile). An existing file is replaced as a whole
+ * (Gem::Common::replaceFileAtomically()).
  *
  * @param output_file The path of the file the checkpoint is written to
  */
 void GOptimizationAlgorithmBase::saveCheckpoint(std::filesystem::path const &output_file) const {
-    this->toFile(output_file, this->getCheckpointSerializationMode());
-}
-
-/******************************************************************************/
-/**
- * @brief Extracts the short name of the optimization algorithm (example:
- * "PERSONALITY_EA") from a path which complies to the following
- * scheme: /some/path/word1-PERSONALITY_EA-some-other-information .
- * This is mainly used for checkpointing and associated cross-checks.
- *
- * @param p The checkpoint-file path from whose filename the algorithm personality token is extracted
- * @return The extracted algorithm personality token (the second hyphen-separated token of the filename)
- */
-std::string GOptimizationAlgorithmBase::extractOptAlgFromPath(const std::filesystem::path &p) {
-    // Extract the filename
-    std::string const filename = p.filename().string();
-
-    // Divide the name into tokens
-    std::vector<std::string> tokens = Gem::Common::splitString(filename, "-");
-
-    // Check that the size is at least 2 (i.e. the PERSONALITY_X-part may exist)
-    if(tokens.size() < 2) {
-        throw gem_exception(
-            g_error_streamer()
-            << "Found file name " << filename << " that does not comply to rules." << '\n'
-            << "Expected \"/some/path/word1-PERSONALITY_EA-some-other-information \"" << '\n'
-        );
-    }
-
-    // Let the audience know
-    return tokens[1];
+    // Non-owning, as in GCommonInterfaceT::toStream(): the archive must not delete *this; saving
+    // never mutates, so the const_cast is safe
+    GCheckpointFile<std::shared_ptr<GOptimizationAlgorithmBase>> cp{
+        .personality = this->getAlgorithmPersonalityType(),
+        .algorithm = std::shared_ptr<GOptimizationAlgorithmBase>(
+            const_cast<GOptimizationAlgorithmBase *>(this),
+            [](GOptimizationAlgorithmBase *) { /* nothing: not owned */ }
+        ),
+        .read_algorithm_of = {}
+    };
+    Gem::Common::serializationMode const ser_mode = this->getCheckpointSerializationMode();
+    Gem::Common::replaceFileAtomically(
+        output_file,
+        [&cp, ser_mode](std::ostream &os) {
+            if(Gem::Common::serializationMode::GEM_BINARY == ser_mode) {
+                Gem::Weft::GBinaryOArchive oa;
+                oa &Gem::Weft::make_nvp("checkpoint", cp);
+                os << oa.str();
+            }
+            else {
+                Gem::Weft::GJsonOArchive oa;
+                oa &Gem::Weft::make_nvp("checkpoint", cp);
+                os << oa.str();
+            }
+        },
+        "GOptimizationAlgorithmBase::saveCheckpoint()"
+    );
 }
 
 /******************************************************************************/

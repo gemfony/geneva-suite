@@ -181,7 +181,7 @@ void GFitnessMonitor::informationFunction_(
 
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(stream_.beginAlgorithm(*goa)) {
+        if(not stream_.isOpen()) {
             std::vector<Gem::Common::Record::GColumn> columns;
             columns.push_back({.name = "rank", .type = columnType::UNSIGNED});
             columns.push_back({.name = "global_best", .type = columnType::FLOATING});
@@ -469,7 +469,7 @@ void GAllSolutionFileLogger::informationFunction_(
 ) {
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(stream_.beginAlgorithm(*goa)) {
+        if(not stream_.isOpen()) {
             this->declareStream_(*goa);
         }
         if(print_initial_) {
@@ -695,7 +695,7 @@ void GNAdpationsLogger::informationFunction_(
 
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(stream_.beginAlgorithm(*goa)) {
+        if(not stream_.isOpen()) {
             std::vector<Gem::Common::Record::GColumn> columns;
             columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
             columns.push_back({.name = "n_adaptions", .type = columnType::UNSIGNED});
@@ -896,7 +896,7 @@ void GProcessingTimesLogger::informationFunction_(
 
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
-        if(stream_.beginAlgorithm(*goa)) {
+        if(not stream_.isOpen()) {
             struct Time {
                 const char *column;
                 const char *label;

@@ -34,7 +34,7 @@
  * programs.
  *
  * A test program -- in this tree or in a project built on an installed collection -- includes this
- * header and calls `StandardTests_no_failure_expected<T>()` / `StandardTests_failures_expected<T>()`
+ * header and calls `checkRoundTrips<T>()` / `checkMisuse<T>()`
  * inside a Catch2 test case. The tests construct, copy, clone, load, assign and (de-)serialize objects
  * of `T` and compare the results. No library includes this header: Catch2 is needed by the test program
  * that does, never by a library of the collection.
@@ -85,8 +85,7 @@ namespace Gem::Common::Testing {
  * @return A std::shared_ptr to a newly created T object
  */
 template <typename T>
-std::shared_ptr<T>
-TFactory_GUnitTests() { // NOLINT(readability-identifier-naming): established name
+std::shared_ptr<T> makeTestObject() {
     std::shared_ptr<T> p;
 
     try {
@@ -299,7 +298,7 @@ using category_root_t = decltype(std::declval<const T &>().clone())::element_typ
 /******************************************************************************/
 /**
  * @brief The steps of the standard tests, one function each. A test program calls
- * StandardTests_no_failure_expected() / StandardTests_failures_expected() below; the steps are
+ * checkRoundTrips() / checkMisuse() below; the steps are
  * public so that a program can run one of them on its own.
  */
 
@@ -310,7 +309,7 @@ using category_root_t = decltype(std::declval<const T &>().clone())::element_typ
 template <typename T>
 std::shared_ptr<T> makeChangedForTest() {
     std::shared_ptr<T> t_ptr;
-    REQUIRE_NOTHROW(t_ptr = TFactory_GUnitTests<T>());
+    REQUIRE_NOTHROW(t_ptr = makeTestObject<T>());
     REQUIRE(t_ptr);
     REQUIRE_NOTHROW(modifyForTestIfAvailable(*t_ptr));
     return t_ptr;
@@ -369,7 +368,7 @@ void testCloneToTarget(GEqualityPrinter const &gep) {
 template <typename T>
 void testLoadThroughPointer(GEqualityPrinter const &gep) {
     std::shared_ptr<T> const original = makeChangedForTest<T>();
-    std::shared_ptr<T> const loaded = TFactory_GUnitTests<T>();
+    std::shared_ptr<T> const loaded = makeTestObject<T>();
     REQUIRE(loaded);
     REQUIRE_NOTHROW(loaded->load(original));
     checkCopyOf(gep, loaded, original);
@@ -379,7 +378,7 @@ void testLoadThroughPointer(GEqualityPrinter const &gep) {
 template <typename T>
 void testLoadThroughReference(GEqualityPrinter const &gep) {
     std::shared_ptr<T> const original = makeChangedForTest<T>();
-    std::shared_ptr<T> const loaded = TFactory_GUnitTests<T>();
+    std::shared_ptr<T> const loaded = makeTestObject<T>();
     REQUIRE(loaded);
     REQUIRE_NOTHROW(loaded->load(*original));
     checkCopyOf(gep, loaded, original);
@@ -395,7 +394,7 @@ template <typename T>
 void testCopyAssignment(GEqualityPrinter const &gep) {
     if constexpr(std::is_copy_assignable_v<T>) {
         std::shared_ptr<T> const original = makeChangedForTest<T>();
-        std::shared_ptr<T> const assigned = TFactory_GUnitTests<T>();
+        std::shared_ptr<T> const assigned = makeTestObject<T>();
         REQUIRE(assigned);
         REQUIRE_NOTHROW(*assigned = *original);
         checkCopyOf(gep, assigned, original);
@@ -422,9 +421,9 @@ void reportSkippedRoundTrip(std::string const &way, Gem::Common::serializationMo
  */
 template <typename T>
 void testOwnRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMode mode) {
-    std::shared_ptr<T> const original = TFactory_GUnitTests<T>();
+    std::shared_ptr<T> const original = makeTestObject<T>();
     REQUIRE(original);
-    std::shared_ptr<T> const restored = TFactory_GUnitTests<T>();
+    std::shared_ptr<T> const restored = makeTestObject<T>();
     REQUIRE(restored);
 
     if(not modifyForTestIfAvailable(*original)) {
@@ -443,9 +442,9 @@ void testOwnRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMod
  */
 template <typename T>
 void testHelperRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMode mode) {
-    std::shared_ptr<T> const original = TFactory_GUnitTests<T>();
+    std::shared_ptr<T> const original = makeTestObject<T>();
     REQUIRE(original);
-    std::shared_ptr<T> const fresh = TFactory_GUnitTests<T>();
+    std::shared_ptr<T> const fresh = makeTestObject<T>();
     REQUIRE(fresh);
 
     if(not modifyForTestIfAvailable(*original)) {
@@ -472,14 +471,10 @@ void testHelperRoundTrip(GEqualityPrinter const &gep, Gem::Common::serialization
  * @tparam T The tested type
  */
 template <typename T>
-void StandardTests_no_failure_expected() { // NOLINT(readability-identifier-naming): established name
+void checkRoundTrips() {
     // The test cases are generated from type lists and named by index; name the type in every failure.
     INFO("Tested type: " << typeid(T).name());
-    GEqualityPrinter const gep(
-        "StandardTests_no_failure_expected",
-        std::pow(10, -7),
-        Gem::Common::CE_WITH_MESSAGES
-    );
+    GEqualityPrinter const gep("checkRoundTrips", std::pow(10, -7), Gem::Common::CE_WITH_MESSAGES);
 
     testCopyConstruction<T>(gep);
     testCloneToCategoryRoot<T>(gep);
@@ -503,10 +498,10 @@ void StandardTests_no_failure_expected() { // NOLINT(readability-identifier-nami
  * @tparam T The tested type
  */
 template <typename T>
-void StandardTests_failures_expected() { // NOLINT(readability-identifier-naming): established name
+void checkMisuse() {
     INFO("Tested type: " << typeid(T).name());
 
-    std::shared_ptr<T> const t_ptr = TFactory_GUnitTests<T>();
+    std::shared_ptr<T> const t_ptr = makeTestObject<T>();
     REQUIRE(t_ptr);
     CHECK_THROWS_AS(t_ptr->load(t_ptr), gem_exception);
 }

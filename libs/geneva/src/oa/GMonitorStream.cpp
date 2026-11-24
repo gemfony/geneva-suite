@@ -39,19 +39,6 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
 /**
- * Called at INFOINIT. Without an open stream the monitor declares one (a new run, or one after its
- * stream was closed). With an open stream a later algorithm of a Go2 chain begins and records into
- * the same stream.
- *
- * @param goa The algorithm that begins (unused: the stream alone decides)
- * @return Whether the monitor must declare its stream (declare())
- */
-bool GMonitorStream::beginAlgorithm([[maybe_unused]] GOptimizationAlgorithmBase const &goa) {
-    return not stream_.isOpen();
-}
-
-/******************************************************************************/
-/**
  * Declares the stream in the recorder: "algorithm", "iteration" and "chain_iteration", then the
  * monitor's own columns. A run that was resumed from a checkpoint appends to the files of the
  * stream when their columns are the same (the algorithm keeps its resume state until after

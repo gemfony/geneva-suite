@@ -272,8 +272,8 @@ private:
     /** @brief --update-configs pass: with GParserBuilder in update-in-place mode, produce one object from
      *  each registered algorithm factory and one individual from the content creator, so every algorithm
      *  config and the individual config is parsed and rewritten in canonical form (Go2.json and the
-     *  consumers' files were already refreshed by the launcher), then end the process. Runs no
-     *  optimization. */
+     *  consumers' files were already refreshed by the launcher). Runs no optimization; optimize_()
+     *  ends the process after it. */
     void refreshAllConfigs_();
 
     // --- optimize_ sub-steps (decomposition) ---

@@ -79,7 +79,7 @@ using namespace Gem::Geneva;
 using Gem::Common::Testing::GEqualityPrinter;
 
 // ============================================================================
-// TFactory_GUnitTests specializations for classes without a public default constructor. They must be
+// makeTestObject specializations for classes without a public default constructor. They must be
 // visible where the standard tests are instantiated below.
 // ============================================================================
 
@@ -87,7 +87,7 @@ namespace Gem::Common::Testing {
 
 /** @brief gind::GTestIndividual2 -- public constructor (size, PERFOBJECTTYPE). */
 template <>
-inline std::shared_ptr<gind::GTestIndividual2> TFactory_GUnitTests<gind::GTestIndividual2>() {
+inline std::shared_ptr<gind::GTestIndividual2> makeTestObject<gind::GTestIndividual2>() {
     return std::make_shared<gind::GTestIndividual2>(
         std::size_t(100),
         gind::PERFOBJECTTYPE::PERFGDOUBLEOBJECT
@@ -96,7 +96,7 @@ inline std::shared_ptr<gind::GTestIndividual2> TFactory_GUnitTests<gind::GTestIn
 
 /** @brief gind::GLineFitIndividual -- public constructor taking a vector of {x,y} sample points. */
 template <>
-inline std::shared_ptr<gind::GLineFitIndividual> TFactory_GUnitTests<gind::GLineFitIndividual>() {
+inline std::shared_ptr<gind::GLineFitIndividual> makeTestObject<gind::GLineFitIndividual>() {
     std::vector<std::tuple<double, double>> const
         data_points{{0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}};
     return std::make_shared<gind::GLineFitIndividual>(data_points);
@@ -106,7 +106,7 @@ inline std::shared_ptr<gind::GLineFitIndividual> TFactory_GUnitTests<gind::GLine
  *  is used with the default settings. */
 template <>
 inline std::shared_ptr<gind::GNeuralNetworkIndividual>
-TFactory_GUnitTests<gind::GNeuralNetworkIndividual>() {
+makeTestObject<gind::GNeuralNetworkIndividual>() {
     return std::make_shared<gind::GNeuralNetworkIndividual>(
         gind::GNN_DEF_MINVAR,
         gind::GNN_DEF_MAXVAR,
@@ -271,47 +271,39 @@ TEST_CASE(
 // Standard tests — no failure expected
 // ============================================================================
 
-TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_no_failure_expected — trait types",
-    "[geneva][standard]",
-    trait_types
-) {
-    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
+TEMPLATE_LIST_TEST_CASE("checkRoundTrips — trait types", "[geneva][standard]", trait_types) {
+    Gem::Common::Testing::checkRoundTrips<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_no_failure_expected — individual types",
+    "checkRoundTrips — individual types",
     "[geneva][standard]",
     individual_types
 ) {
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
         provideNeuralNetworkTrainingData();
     }
-    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::checkRoundTrips<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_no_failure_expected — constraint types",
+    "checkRoundTrips — constraint types",
     "[geneva][standard]",
     constraint_types
 ) {
-    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::checkRoundTrips<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_no_failure_expected — algorithm types",
+    "checkRoundTrips — algorithm types",
     "[geneva][standard]",
     algorithm_types
 ) {
-    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::checkRoundTrips<TestType>();
 }
 
-TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_no_failure_expected — monitor types",
-    "[geneva][standard]",
-    monitor_types
-) {
-    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
+TEMPLATE_LIST_TEST_CASE("checkRoundTrips — monitor types", "[geneva][standard]", monitor_types) {
+    Gem::Common::Testing::checkRoundTrips<TestType>();
 }
 
 // ============================================================================
@@ -319,46 +311,46 @@ TEMPLATE_LIST_TEST_CASE(
 // ============================================================================
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_failures_expected — trait types",
+    "checkMisuse — trait types",
     "[geneva][standard][failures-expected]",
     trait_types
 ) {
-    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::checkMisuse<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_failures_expected — individual types",
+    "checkMisuse — individual types",
     "[geneva][standard][failures-expected]",
     individual_types
 ) {
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
         provideNeuralNetworkTrainingData();
     }
-    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::checkMisuse<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_failures_expected — constraint types",
+    "checkMisuse — constraint types",
     "[geneva][standard][failures-expected]",
     constraint_types
 ) {
-    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::checkMisuse<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_failures_expected — algorithm types",
+    "checkMisuse — algorithm types",
     "[geneva][standard][failures-expected]",
     algorithm_types
 ) {
-    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::checkMisuse<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
-    "StandardTests_failures_expected — monitor types",
+    "checkMisuse — monitor types",
     "[geneva][standard][failures-expected]",
     monitor_types
 ) {
-    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::checkMisuse<TestType>();
 }
 
 // ============================================================================

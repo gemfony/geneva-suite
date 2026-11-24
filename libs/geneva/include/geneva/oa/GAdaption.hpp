@@ -228,7 +228,7 @@ inline std::size_t runAdaptionKernels(
             if(not g.has_gauss || not g.active) {
                 continue;
             }
-            const std::int32_t int_range = ngScale(layout_i, g.start);
+            const std::int64_t int_range = ngScale(layout_i, g.start);
             n += adaptGaussIntGroup(
                 g.gauss,
                 states[gi],
