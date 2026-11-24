@@ -49,7 +49,7 @@
 #
 ################################################################################
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.27)
+CMAKE_MINIMUM_REQUIRED(VERSION 4.0)
 
 PROJECT(GStarter CXX)
 

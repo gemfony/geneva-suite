@@ -23,11 +23,8 @@ CMakeUserPresets.json
 /.zshrc
 /.zprofile
 
-# Coverage / profiling artefacts. gcovr writes intermediate .gcov files into
-# its working directory; if invoked from the source tree these land here.
-*.gcov
-*.gcda
-*.gcno
+# Coverage artefacts. An instrumented program writes default.profraw into its working
+# directory when LLVM_PROFILE_FILE is not set; run from the source tree, it would land here.
 *.profraw
 *.profdata
 

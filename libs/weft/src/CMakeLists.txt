@@ -77,23 +77,4 @@ TARGET_LINK_LIBRARIES(
     Boost::json
 )
 
-# Coverage instrumentation: only applied when explicitly enabled (driven by the
-# parent option GEM_BUILD_WITH_COVERAGE). Costly at runtime; do not enable for
-# production builds.
-IF (GEM_BUILD_WITH_COVERAGE)
-    IF (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        TARGET_COMPILE_OPTIONS(${WEFT_LIBNAME} PUBLIC
-            -fprofile-instr-generate -fcoverage-mapping)
-        TARGET_LINK_OPTIONS(${WEFT_LIBNAME} PUBLIC
-            -fprofile-instr-generate -fcoverage-mapping)
-    ELSEIF (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        TARGET_COMPILE_OPTIONS(${WEFT_LIBNAME} PUBLIC --coverage)
-        TARGET_LINK_OPTIONS(${WEFT_LIBNAME} PUBLIC --coverage)
-    ELSE ()
-        MESSAGE(WARNING
-            "GEM_BUILD_WITH_COVERAGE: unsupported compiler "
-            "${CMAKE_CXX_COMPILER_ID}; coverage flags not applied.")
-    ENDIF ()
-ENDIF ()
-
 INSTALL ( TARGETS ${WEFT_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )

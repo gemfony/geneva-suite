@@ -325,7 +325,7 @@ FUNCTION(gip_lane_findgeneva)
 	FILE(MAKE_DIRECTORY "${_fg_src}")
 	SET(_probe_cpp "${SOURCE_DIR}/libs/geneva/tests/OutOfTree/MpiModuleProbe/GenevaMpiModuleProbe.cpp")
 	STRING(CONCAT _fg_lists
-		"cmake_minimum_required(VERSION 3.27)\n"
+		"cmake_minimum_required(VERSION 4.0)\n"
 		"project(FindGenevaProbe CXX)\n"
 		"list(APPEND CMAKE_MODULE_PATH \"${ROOT}/moved/CMakeModules\")\n"
 		"set(GENEVA_ROOT \"${ROOT}/moved\")\n"
@@ -383,7 +383,7 @@ FUNCTION(gip_lane_flags _mode)
 	SET(_flags_src "${ROOT}/flags-${_mode}-src")
 	FILE(MAKE_DIRECTORY "${_flags_src}")
 	STRING(CONCAT _flags_lists
-		"cmake_minimum_required(VERSION 3.27)\n"
+		"cmake_minimum_required(VERSION 4.0)\n"
 		"project(GenevaFlagsProbe CXX)\n"
 		"list(APPEND CMAKE_MODULE_PATH \"${ROOT}/moved/CMakeModules\")\n"
 		"set(GENEVA_ROOT \"${ROOT}/moved\")\n"

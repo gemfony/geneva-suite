@@ -27,114 +27,13 @@
 #
 ################################################################################
 
-SET ( COMMUNICATIONINCLUDES
-    GBaseClientT.hpp
-    GBaseConsumerT.hpp
-    GCommandContainerT.hpp
-    GConsumerPlugin.hpp
-    GConsumerProviderT.hpp
-    GConsumerRegistry.hpp
-    GConsumerSpec.hpp
-    GCourtierEnums.hpp
-    GCourtierHelperFunctions.hpp
-    GLauncherT.hpp
-    GProcessable.hpp
-    GProcessingContainerT.hpp
-    GProcessingOutcome.hpp
-    GServerSessionLogic.hpp
-    GSubmissionPolicy.hpp
-    GSubmissionStatusT.hpp
-    GWireCodec.hpp
-    GWireProtocolT.hpp
-    GWireSerializationContext.hpp
-)
+# The IDE's header target (a workaround for a CLion problem, CPP270 in the JetBrains issue tracker):
+# every header below this directory, found again whenever one is added or removed.
+FILE(GLOB_RECURSE COURTIERINCLUDES CONFIGURE_DEPENDS "*.hpp" "*.cuh")
+ADD_CUSTOM_TARGET(CLION_ALL_COURTIER_HEADERS SOURCES ${COURTIERINCLUDES})
+set_source_files_properties(${COURTIERINCLUDES} PROPERTIES LANGUAGE CXX)
 
-# Consumer classes (namespace Gem::Courtier): the span+policy submission consumers (formerly the
-# courtier2 rework, merged in at Stage E).
-SET ( CONSUMER_INCLUDES
-    consumers/GMPIConsumerConfig.hpp
-    consumers/GMqttConsumerConfig.hpp
-    consumers/GMqttConsumerProviderT.hpp
-    consumers/GMqttConsumerT.hpp
-    consumers/GNetworkedConsumerT.hpp
-    consumers/GNetworkedTimeoutConfig.hpp
-    consumers/GPeerConsumerT.hpp
-    consumers/GStdThreadConsumerConfig.hpp
-    consumers/GStdThreadConsumerProviderT.hpp
-    consumers/GStdThreadConsumerT.hpp
-    consumers/GWebsocketConsumerConfig.hpp
-    consumers/GWebsocketConsumerProviderT.hpp
-    consumers/GWebsocketConsumerT.hpp
-)
-
-# Transport classes (namespace Gem::Courtier::Consumers): the neutral session, client and peer
-# interface, and the websocket, MPI and MQTT transports (ends, listeners, connectors, the MPI poll)
-# that the networked consumers stand on. Named under transport/ so they no
-# longer collide with the consumer headers of the same mnemonic.
-SET ( TRANSPORT_INCLUDES
-    transport/GIoContext.hpp
-    transport/GMPICallsI.hpp
-    transport/GMPIPeerTransport.hpp
-    transport/GMPIPollCore.hpp
-    transport/GMqttPeerTransport.hpp
-    transport/GMqttTransportT.hpp
-    transport/GPeerClientT.hpp
-    transport/GPeerI.hpp
-    transport/GPeerSessionT.hpp
-    transport/GWebsocketPeer.hpp
-    transport/GWebsocketPeerTransport.hpp
-    transport/GWebsocketTransportT.hpp
-)
-
-# GPU consumer framework (namespace Gem::Courtier::GPU): the device-agnostic core, the CUDA backend
-# and the bulk-dispatch consumer. The GPU consumer is DEVICE-ONLY (a CPU run uses the work item's own
-# process() via a CPU consumer such as --consumer stc). Header-only except for the backend .cpp files,
-# which are compiled into gemfony-courtier as an opt-in add-on when GEM_BUILD_WITH_GPU_CONSUMER is ON
-# (see src/gpu/GPUBackends.cmake). The headers are device-toolkit-clean and install unconditionally.
-SET ( GPU_INCLUDES
-    gpu/GCUDABackend.hpp
-    gpu/GGPUBackendFactory.hpp
-    gpu/GGPUConsumer.hpp
-    gpu/GGPUConsumerConfig.hpp
-    gpu/GGPUConsumerProviderT.hpp
-    gpu/GGPUDeviceBackendI.hpp
-    gpu/GGPUEvaluableI.hpp
-    gpu/GGPUKernelSpec.hpp
-    gpu/GGPUMarshallerHandle.hpp
-)
-
-# MPI consumer/transport is optional, only build it when requested
-IF (GEM_BUILD_WITH_MPI_CONSUMER)
-    SET( CONSUMER_INCLUDES
-            ${CONSUMER_INCLUDES}
-            consumers/GMPIConsumerProviderT.hpp
-            consumers/GMPIConsumerT.hpp)
-    SET( TRANSPORT_INCLUDES
-            ${TRANSPORT_INCLUDES}
-            transport/GMPITransportT.hpp)
-    # The headers of courtier's MPI library (libgemfony-courtier-mpi)
-    SET( MPI_INCLUDES
-            mpi/GMPICalls.hpp
-            mpi/GMPICascade.hpp
-            mpi/GMPICascadeConfig.hpp
-            mpi/GMPIEnvironment.hpp
-            mpi/GMPIEnvironmentAccess.hpp
-            mpi/GMPIPolledCalls.hpp)
-ENDIF ()
-
-set_source_files_properties(
-    ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES}
-    ${MPI_INCLUDES}
-    PROPERTIES
-    LANGUAGE CXX
-)
-
-# This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
-ADD_CUSTOM_TARGET(CLION_ALL_COURTIER_HEADERS
-    SOURCES ${COMMUNICATIONINCLUDES} ${CONSUMER_INCLUDES} ${TRANSPORT_INCLUDES} ${GPU_INCLUDES}
-    ${MPI_INCLUDES})
-
-# Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
-# cannot drift. (The SET lists above are retained only for the CLion header target / IDE indexing.)
+# Directory install: ship the whole header tree (Inv 19), so the installed interface is
+# self-contained and cannot drift.
 INSTALL ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION ${INSTALL_PREFIX_INCLUDES}/courtier
 	FILES_MATCHING PATTERN "*.hpp" )

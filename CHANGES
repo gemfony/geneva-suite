@@ -44,7 +44,7 @@ Preconditions (INSTALL has the full details and the build instructions):
   required.
 - A C++23 compiler -- GCC >= 15 or Clang >= 22 -- rejected at configure time otherwise; consumers
   of the Geneva:: CMake targets are compiled as C++23 too. Boost >= 1.91 built from source in
-  C++23 mode, CMake >= 3.27, and Catch2 v3 when building the test code.
+  C++23 mode, CMake >= 4.0, and Catch2 v3 when building the test code.
 - Optional: a CUDA toolkit >= 13.3 with a matching driver, for the GPU consumer and the CUDA
   random-number backend; an MPI implementation, for the MPI consumer; a plotting viewer, to render
   the scripts some examples emit.

@@ -35,7 +35,7 @@ would arise if each run used its own `Go2` instance.
 | Requirement | Version |
 |-------------|---------|
 | Geneva library (built) | ≥ 1.99 |
-| CMake | ≥ 3.27 |
+| CMake | ≥ 4.0 |
 | GCC | ≥ 14 (C++23) |
 | Boost | ≥ 1.91 (program_options, json) |
 

@@ -110,24 +110,4 @@ TARGET_LINK_LIBRARIES(
 # the dynamic loading library, on platforms that have one.
 TARGET_LINK_LIBRARIES(${COMMON_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
 
-# Coverage instrumentation: only applied when explicitly enabled, only to
-# the Common library and its tests (driven by the parent CMakeLists.txt
-# option `GEM_BUILD_WITH_COVERAGE`). Costly at runtime; do not enable
-# for production builds.
-IF (GEM_BUILD_WITH_COVERAGE)
-    IF (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-        TARGET_COMPILE_OPTIONS(${COMMON_LIBNAME} PUBLIC
-            -fprofile-instr-generate -fcoverage-mapping)
-        TARGET_LINK_OPTIONS(${COMMON_LIBNAME} PUBLIC
-            -fprofile-instr-generate -fcoverage-mapping)
-    ELSEIF (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        TARGET_COMPILE_OPTIONS(${COMMON_LIBNAME} PUBLIC --coverage)
-        TARGET_LINK_OPTIONS(${COMMON_LIBNAME} PUBLIC --coverage)
-    ELSE ()
-        MESSAGE(WARNING
-            "GEM_BUILD_WITH_COVERAGE: unsupported compiler "
-            "${CMAKE_CXX_COMPILER_ID}; coverage flags not applied.")
-    ENDIF ()
-ENDIF ()
-
 INSTALL ( TARGETS ${COMMON_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )

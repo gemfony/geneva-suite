@@ -32,93 +32,12 @@
 # encoding rules).
 #
 
-SET ( COMMONINCLUDES
-	GArchiveNamed.hpp
-	GBuildFingerprint.hpp
-	GCommonEnums.hpp
-	GCommonHelperFunctions.hpp
-	GCommonHelperFunctionsT.hpp
-	GCommonInterfaceT.hpp
-	GCommonMathHelperFunctionsT.hpp
-	GConfigEmission.hpp
-	GContainerT.hpp
-	GDefaultValueT.hpp
-	GErrorStreamer.hpp
-	GExceptions.hpp
-	GExpectationChecksT.hpp
-	GFactoryT.hpp
-	GFatalReport.hpp
-	GFixedSizePriorityQueueT.hpp
-	GGemCommit.hpp
-	GGlobalDefines.hpp
-	GGlobalOptionsT.hpp
-	GJsonIO.hpp
-	GLogger.hpp
-	GMemberReflectionT.hpp
-	GModuleLoader.hpp
-	GModuleManifest.hpp
-	GParserBuilder.hpp
-	GProviderStoreT.hpp
-	GProviderT.hpp
-	GRecordLogTarget.hpp
-	GReflectiveInterfaceT.hpp
-	GSerializableFunctionObjectT.hpp
-	GSerializationHelperFunctionsT.hpp
-	GSingletonT.hpp
-	GStopRequest.hpp
-	GTupleIO.hpp
-	GTypeToStringT.hpp
-	GTypeTraitsT.hpp
-)
+# The IDE's header target (a workaround for a CLion problem, CPP270 in the JetBrains issue tracker):
+# every header below this directory, found again whenever one is added or removed.
+FILE(GLOB_RECURSE COMMONINCLUDES CONFIGURE_DEPENDS "*.hpp" "*.cuh")
+ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${COMMONINCLUDES})
 
-# The concurrency facilities (thread pool/group + MPMC queues) live in a distinct
-# sub-module: the common/concurrency/ sub-directory + the Gem::Common::Concurrency
-# namespace, so they are clearly separated and hard to overlook.
-SET ( COMMONCONCURRENCYINCLUDES
-	concurrency/GAgingStoreT.hpp
-	concurrency/GBlockingMPMCQueueT.hpp
-	concurrency/GCompletionLatchT.hpp
-	concurrency/GContentAddressedStoreT.hpp
-	concurrency/GLoadOnceCellT.hpp
-	concurrency/GMPMCQueueT.hpp
-	concurrency/GPreallocatedMPMCQueueT.hpp
-	concurrency/GQueueCommon.hpp
-	concurrency/GSPSCStagingRingT.hpp
-	concurrency/GThreadBudget.hpp
-	concurrency/GThreadGroup.hpp
-	concurrency/GThreadPool.hpp
-	concurrency/GThreadSafeKeyedStoreT.hpp
-	concurrency/GThreadSafeSetT.hpp
-)
-
-# The recording framework (recorder, streams, sinks) is a sub-module of its own as well: the
-# common/record/ sub-directory + the Gem::Common::Record namespace.
-SET ( COMMONRECORDINCLUDES
-	record/GCsvSink.hpp
-	record/GFileSink.hpp
-	record/GJsonLinesSink.hpp
-	record/GRecordTypes.hpp
-	record/GRecorder.hpp
-	record/GSink.hpp
-	record/GStream.hpp
-	record/GTextSink.hpp
-)
-
-# The standard-test harness for Catch2 test programs: the common/testing/ sub-directory + the
-# Gem::Common::Testing namespace. No library includes it; it is installed with the rest of the tree so
-# that a project built on an installed collection tests its own types with it.
-SET ( COMMONTESTINGINCLUDES
-	testing/GStandardTests.hpp
-)
-
-# This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
-ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${COMMONINCLUDES} ${COMMONCONCURRENCYINCLUDES} ${COMMONRECORDINCLUDES} ${COMMONTESTINGINCLUDES})
-
-
-# Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
-# cannot drift. (The SET lists above are retained only for the CLion header target / IDE indexing.)
+# Directory install: ship the whole header tree (Inv 19), so the installed interface is
+# self-contained and cannot drift.
 INSTALL ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION ${INSTALL_PREFIX_INCLUDES}/common
 	FILES_MATCHING PATTERN "*.hpp" )
-
-# The plotting subsystem was extracted into its own first-class library, "dietrich"
-# (dietrich/include/dietrich/...). common no longer ships any plotting headers.
