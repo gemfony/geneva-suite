@@ -241,11 +241,11 @@ private:
      */
     std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const final;
     /**
-     * @brief Retrieves the best individual found in the current iteration.
+     * @brief Retrieves the best individual of the last iteration of the chain's last algorithm.
      */
     std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const final;
     /**
-     * @brief Retrieves a list of the best individuals found in the current iteration.
+     * @brief Retrieves the best individuals of the last iteration of the chain's last algorithm.
      */
     std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const final;
 
@@ -301,6 +301,8 @@ private:
     void sortIndividualsByFitness();
     /** @brief The bests of the whole run, best first, from the archives of the chain's algorithms */
     std::vector<std::unique_ptr<gen::GGenome>> bestsOfRun_() const;
+    /** @brief The last algorithm of the chain; throws if the chain has not run */
+    GOABase const &lastAlgorithm_() const;
 
     /**
      * @brief Resolves a list of algorithm mnemonics against oaFactoryStore() and appends the produced

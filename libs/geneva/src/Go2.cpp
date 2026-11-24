@@ -697,12 +697,7 @@ void Go2::sortIndividualsByFitness() {
  * @return Copies of the best individuals of the run, best first
  */
 std::vector<std::unique_ptr<gen::GGenome>> Go2::bestsOfRun_() const {
-    Gem::Common::checkThat(
-        total_iterations_ > 0,
-        "No optimization has run yet: optimize() comes first"
-    );
-
-    auto last_bests = algorithms_cnt_.back()->getBestGlobalIndividuals<gen::GGenome>();
+    auto last_bests = this->lastAlgorithm_().getBestGlobalIndividuals<gen::GGenome>();
     if(not copy_best_individuals_only_) {
         gen::GGenomeFixedSizePriorityQueue bests(last_bests.size());
         bests.add(std::move(last_bests), false);
@@ -721,6 +716,20 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::bestsOfRun_() const {
         );
     }
     return last_bests;
+}
+
+/******************************************************************************/
+/**
+ * @brief The last algorithm of the chain, once the chain has run.
+ *
+ * @return The algorithm that ran last
+ */
+GOABase const &Go2::lastAlgorithm_() const {
+    Gem::Common::checkThat(
+        total_iterations_ > 0,
+        "No optimization has run yet: optimize() comes first"
+    );
+    return *algorithms_cnt_.back();
 }
 
 /******************************************************************************/
@@ -745,26 +754,22 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() cons
 
 /******************************************************************************/
 /**
- * @brief Retrieves the best individual of the current iteration.
+ * @brief Retrieves the best individual of the last iteration of the chain's last algorithm.
  *
- * This function is not meaningful for the algorithm-combiner Go2 and always throws when called.
- *
- * @return Never returns normally; always throws a gem_exception
+ * @return A copy of the best individual of the last iteration
  */
 std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
-    throw gem_exception(g_error_streamer() << "This function should not be called" << '\n');
+    return this->lastAlgorithm_().getBestIterationIndividual<gen::GGenome>();
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves a list of the best individuals of the current iteration.
+ * @brief Retrieves the best individuals of the last iteration of the chain's last algorithm.
  *
- * This function is not meaningful for the algorithm-combiner Go2 and always throws when called.
- *
- * @return Never returns normally; always throws a gem_exception
+ * @return Copies of the best individuals of the last iteration, best first
  */
 std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestIterationIndividuals_() const {
-    throw gem_exception(g_error_streamer() << "This function should not be called" << '\n');
+    return this->lastAlgorithm_().getBestIterationIndividuals<gen::GGenome>();
 }
 
 /******************************************************************************/

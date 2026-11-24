@@ -1455,6 +1455,39 @@ TEST_CASE("a Go2 chain returns the best found by any of its algorithms", "[oa][g
 
 /******************************************************************************/
 
+TEST_CASE(
+    "Go2's iteration accessors return the last iteration of its last algorithm",
+    "[oa][go2]"
+) {
+    // Regression (N27): both threw "This function should not be called". Before a run there is no
+    // iteration, and both kinds of accessors say so.
+    SphereOA const src;
+    Gem::Geneva::Go2 go;
+    go.push_back(src.clone());
+    go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+    auto first = makeCommaEA();
+    auto second = makeCommaEA();
+    second->setPopulationSizes(6, 2); // two parents: an iteration archive of two
+    go & first & second;
+    CHECK_THROWS(go.getBestIterationIndividual<SphereOA>());
+    CHECK_THROWS(go.getBestGlobalIndividual<SphereOA>());
+    go.optimize();
+
+    CHECK(
+        fitnessOf(*go.getBestIterationIndividual<SphereOA>()) ==
+        std::get<Gem::Geneva::G_TRANSFORMED_FITNESS>(second->getBestCurrentPrimaryFitness())
+    );
+    auto const go_bests = go.getBestIterationIndividuals<SphereOA>();
+    auto const second_bests = second->getBestIterationIndividuals<SphereOA>();
+    REQUIRE(go_bests.size() == 2);
+    REQUIRE(second_bests.size() == 2);
+    for(std::size_t i = 0; i < go_bests.size(); ++i) {
+        CHECK(fitnessOf(*go_bests[i]) == fitnessOf(*second_bests[i]));
+    }
+}
+
+/******************************************************************************/
+
 TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[oa]") {
     // The best-so-far record and the stall counter belong to the state of a run, which a
     // checkpoint supplies. Regression (2026-11-20): optimize() reset both at every start, a resume
