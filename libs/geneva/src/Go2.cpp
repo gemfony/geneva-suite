@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/Go2.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GConfigEmission.hpp"
 #include "common/GExceptions.hpp"
@@ -38,6 +39,7 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/genome/GGenomeFixedSizePriorityQueue.hpp"
 #include "geneva/oa/GFactoryStore.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include <algorithm>
@@ -158,7 +160,9 @@ bool Go2::hasOptimizationMonitors() const {
 
 /******************************************************************************/
 /**
- * @brief Specifies whether only the best individuals of a population should be copied.
+ * @brief Specifies whether only the best individuals of an algorithm go on to the next algorithm of
+ * the chain, or its whole last population. The results do not depend on it:
+ * getBestGlobalIndividual(s)() return the bests of the whole run either way.
  *
  * @param copy_best_individuals_only If true, only the best individuals are carried over between algorithms
  */
@@ -580,7 +584,6 @@ void Go2::createIndividualsFromContentCreator() {
  */
 void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
     total_iterations_ = 0;
-    sorted_ = false;
     for(auto const &[alg_index, alg_ptr] : algorithms_cnt_ | std::views::enumerate) {
         // Every algorithm submits through the one process consumer (registered in GConsumerRegistry
         // by the launcher). A standalone algorithm with none set builds the default consumer on
@@ -672,102 +675,101 @@ void Go2::registerAdaptionConfig(
 
 /******************************************************************************/
 /**
- * @brief Sorts the collected individuals by their (min-only transformed) fitness.
- *
- * Sorting makes the best individuals easy to extract afterwards.
+ * @brief Sorts the collected individuals by their (min-only transformed) fitness, best first, for a
+ * caller that iterates over them after the run.
  */
 void Go2::sortIndividualsByFitness() {
     std::ranges::sort(this->begin(), this->end(), [](const auto &x_ptr, const auto &y_ptr) -> bool {
         return minOnly_transformed_fitness(*x_ptr) < minOnly_transformed_fitness(*y_ptr);
     });
-
-    sorted_ = true;
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the best individual found.
+ * @brief The bests of the whole run, best first, as the algorithms of the chain recorded them in
+ * their global archives.
  *
- * This function returns a base pointer. Conversion is done through the clone<>() template in GCommonInterfaceT.
+ * With copy_best_individuals_only the bests of each algorithm went on into the next one and, before
+ * its first iteration, into its archive (GOptimizationAlgorithmBase::addCleanStoredBests()): the last
+ * algorithm's archive holds the bests of the whole chain. Otherwise each archive holds what its own
+ * algorithm found, and they are merged. Either way as many are returned as the last archive holds.
  *
- * @return The best individual found
+ * @return Copies of the best individuals of the run, best first
+ */
+std::vector<std::unique_ptr<gen::GGenome>> Go2::bestsOfRun_() const {
+    auto last_bests = this->lastAlgorithm_().getBestGlobalIndividuals<gen::GGenome>();
+    if(not copy_best_individuals_only_) {
+        gen::GGenomeFixedSizePriorityQueue bests(last_bests.size());
+        bests.add(std::move(last_bests), false);
+        for(auto const &alg_ptr : algorithms_cnt_ | std::views::take(algorithms_cnt_.size() - 1)) {
+            bests.add(alg_ptr->getBestGlobalIndividuals<gen::GGenome>(), false);
+        }
+        last_bests = bests.cloneToVector();
+    }
+
+    for(auto const &[pos, ind_ptr] : last_bests | std::views::enumerate) {
+        Gem::Common::checkThat(
+            ind_ptr->is_processed(),
+            "Found individual in position ",
+            pos,
+            " which is unprocessed or which has errors"
+        );
+    }
+    return last_bests;
+}
+
+/******************************************************************************/
+/**
+ * @brief The last algorithm of the chain, once the chain has run.
+ *
+ * @return The algorithm that ran last
+ */
+GOABase const &Go2::lastAlgorithm_() const {
+    Gem::Common::checkThat(
+        total_iterations_ > 0,
+        "No optimization has run yet: optimize() comes first"
+    );
+    return *algorithms_cnt_.back();
+}
+
+/******************************************************************************/
+/**
+ * @brief Retrieves the best individual found in the whole run (see bestsOfRun_()).
+ *
+ * @return A copy of the best individual found
  */
 std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
-    // Do some error checking
-    if(this->empty()) {
-        throw gem_exception(g_error_streamer() << "No individuals found" << '\n');
-    }
-
-    if(not sorted_) {
-        throw gem_exception(
-            g_error_streamer() << "Tried to retrieve best individual" << '\n'
-                               << "from an unsorted population." << '\n'
-        );
-    }
-
-    // Check if the best individual is processed
-    if(not this->front()->is_processed() && not this->front()->is_unprocessed()) {
-        throw gem_exception(
-            g_error_streamer() << "Best individual is unprocessed or has errors" << '\n'
-        );
-    }
-
-    // Simply return the best individual. This will result in an implicit downcast
-    return this->front()->clone<gen::GGenome>();
+    return std::move(this->bestsOfRun_().front());
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves a list of the best individuals found.
+ * @brief Retrieves the best individuals found in the whole run (see bestsOfRun_()).
  *
- * This function returns base pointers. Conversion is done through the clone<>() template in GCommonInterfaceT.
- *
- * @return A vector holding the best individuals found
+ * @return Copies of the best individuals found, best first
  */
 std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() const {
-    // Do some error checking
-    if(this->empty()) {
-        throw gem_exception(g_error_streamer() << "No individuals found" << '\n');
-    }
-
-    std::vector<std::unique_ptr<gen::GGenome>> best_individuals;
-    for(auto const &[pos, ind_ptr] : *this | std::views::enumerate) {
-        if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-            throw gem_exception(
-                g_error_streamer() << "Found individual in position " << pos
-                                   << " which is unprocessed or which has errors" << '\n'
-            );
-        }
-
-        // This will result in an implicit downcast
-        best_individuals.push_back(ind_ptr->clone<gen::GGenome>());
-    }
-
-    return best_individuals;
+    return this->bestsOfRun_();
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves the best individual of the current iteration.
+ * @brief Retrieves the best individual of the last iteration of the chain's last algorithm.
  *
- * This function is not meaningful for the algorithm-combiner Go2 and always throws when called.
- *
- * @return Never returns normally; always throws a gem_exception
+ * @return A copy of the best individual of the last iteration
  */
 std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
-    throw gem_exception(g_error_streamer() << "This function should not be called" << '\n');
+    return this->lastAlgorithm_().getBestIterationIndividual<gen::GGenome>();
 }
 
 /******************************************************************************/
 /**
- * @brief Retrieves a list of the best individuals of the current iteration.
+ * @brief Retrieves the best individuals of the last iteration of the chain's last algorithm.
  *
- * This function is not meaningful for the algorithm-combiner Go2 and always throws when called.
- *
- * @return Never returns normally; always throws a gem_exception
+ * @return Copies of the best individuals of the last iteration, best first
  */
 std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestIterationIndividuals_() const {
-    throw gem_exception(g_error_streamer() << "This function should not be called" << '\n');
+    return this->lastAlgorithm_().getBestIterationIndividuals<gen::GGenome>();
 }
 
 /******************************************************************************/

@@ -601,6 +601,27 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   smart-pointer `operator<<` overloads of the example/library individuals take a
   `const std::unique_ptr<T>&`, and `GExternalEvaluatorIndividual::archive()` takes a
   `std::vector<std::unique_ptr<GExternalEvaluatorIndividual>>`.
+- **`Go2::getBestGlobalIndividual(s)()` return the bests of the whole run** (behaviour change):
+  with `copy_best_individuals_only` set to `false` they returned the best of the last algorithm's
+  last population, which with comma selection, annealing or a swarm need not hold the best found.
+  They now read the algorithms' own archives of best individuals, whatever the setting; the setting
+  only says which individuals go on to the next algorithm of a chain.
+  `Go2::getBestIterationIndividual(s)()`, which threw, return the best of the last iteration of
+  the chain's last algorithm.
+- **The EA's iteration accessors describe the last iteration** (behaviour change): in the
+  single-criterion sorting modes `getBestIterationIndividual(s)()` returned the best of all
+  iterations so far, as the global accessors do; the iteration archive is now replaced in every
+  iteration, as in the other algorithms and the Pareto modes.
+- **`n_record_best_individuals` sets the capacity of both archives** (behaviour change): the
+  iteration archive kept 10 whatever the key said, and a run resumed from a checkpoint had 10 as
+  well. `setNRecordBestIndividuals()` / `getNRecordBestIndividuals()` are public, as the setters of
+  the other keys are.
+- **The archives of best individuals hold each candidate once** (behaviour change):
+  `GGenomeFixedSizePriorityQueue` treats individuals with equal parameter values as one entry.
+  Under plus selection a surviving parent was recorded again in every iteration, so
+  `getBestGlobalIndividuals()` could return the same individual several times (and Go2's merge of a
+  chain's archives, too). `GFixedSizePriorityQueueT` has a hook `isSameEntry()` for this, by default
+  the same object, as before.
 - **Several public headers moved to sit with the layer they belong to** (source-breaking
   `#include`-path changes; update the paths). The flat-genome / entity headers moved from
   `geneva/ind/` to `geneva/genome/`; the entity multi-constraint headers (`GMultiConstraintT`,

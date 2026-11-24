@@ -1911,9 +1911,10 @@ void GOptimizationAlgorithmBase::setDefaultPopulationSize(std::size_t def_pop_si
 
 /******************************************************************************/
 /**
- * Set the number of "best" individuals to be recorded in each iteration
+ * Sets the number of "best" individuals recorded: the capacity of the global archive and of the
+ * iteration archive
  *
- * @param n_record_best_individuals The number of "best" individuals to be recorded in each iteration
+ * @param n_record_best_individuals The number of "best" individuals to be recorded in each archive
  */
 void GOptimizationAlgorithmBase::setNRecordBestIndividuals(std::size_t n_record_best_individuals) {
     if(0 == n_record_best_individuals) {
@@ -1925,13 +1926,14 @@ void GOptimizationAlgorithmBase::setNRecordBestIndividuals(std::size_t n_record_
 
     n_recordbest_global_individuals_ = n_record_best_individuals;
     best_global_individuals_pq_.setMaxSize(n_recordbest_global_individuals_);
+    best_iteration_individuals_pq_.setMaxSize(n_recordbest_global_individuals_);
 }
 
 /******************************************************************************/
 /**
- * Retrieve the number of best individuals to be recorded in each iteration
+ * Retrieves the number of best individuals recorded in each archive
  *
- * @return The number of best individuals to be recorded in each iteration
+ * @return The number of best individuals recorded in each archive
  */
 std::size_t GOptimizationAlgorithmBase::getNRecordBestIndividuals() const {
     return n_recordbest_global_individuals_;

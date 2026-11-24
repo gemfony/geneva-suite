@@ -253,6 +253,10 @@ private:
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
+        if constexpr(not archive_type::is_saving) {
+            // The transient iteration archive is not in the archive: it takes the loaded capacity
+            best_iteration_individuals_pq_.setMaxSize(n_recordbest_global_individuals_);
+        }
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -440,6 +444,16 @@ public:
      * @brief Retrieves the currently set minimum number of iterations.
      */
     std::uint32_t getMinIteration() const;
+
+    /**
+     * @brief Sets the number of best individuals recorded: the capacity of the global and of the
+     * iteration archive (the key n_record_best_individuals).
+     */
+    void setNRecordBestIndividuals(std::size_t n_record_best_individuals);
+    /**
+     * @brief Retrieves the number of best individuals recorded in each archive.
+     */
+    std::size_t getNRecordBestIndividuals() const;
 
     /**
      * @brief Sets the maximum number of iterations allowed without improvement of the best individual.
@@ -811,15 +825,6 @@ protected:
      * @brief Adds the individuals of this iteration to the iteration-best priority queue.
      */
     virtual void updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals);
-
-    /**
-     * @brief Set the number of "best" individuals to be recorded in each iteration.
-     */
-    void setNRecordBestIndividuals(std::size_t n_record_best_individuals);
-    /**
-     * @brief Retrieve the number of best individuals to be recorded in each iteration.
-     */
-    std::size_t getNRecordBestIndividuals() const;
 
     /** @brief Allows derived classes to reset the stall counter. */
     void resetStallCounter();

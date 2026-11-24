@@ -65,6 +65,8 @@
 #include "common/GReflectiveInterfaceT.hpp"
 #include "common/record/GRecorder.hpp"
 #include "courtier/GLauncherT.hpp"
+#include "geneva/GOptimizationEnums.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
@@ -1351,6 +1353,197 @@ TEST_CASE(
     // The EA was handed more individuals than its population size, and ran to its end
     CHECK(sa->getBestGlobalIndividuals<gen::GGenome>().size() > ea->getDefaultPopulationSize());
     CHECK(ea->getIteration() == 2);
+}
+
+/******************************************************************************/
+
+namespace {
+/**
+ * A comma-selection EA for SphereOA (see largeFixedStep()): its last iteration is often worse
+ * than the best it found, which tells "the best found" apart from "the best at the end".
+ */
+std::shared_ptr<oa::GEvolutionaryAlgorithm> makeCommaEA() {
+    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    ea->setPopulationSizes(5, 1);
+    ea->setMaxIteration(6);
+    ea->setMaxStallIteration(0);
+    ea->setReportIteration(0);
+    ea->setSortingScheme(Gem::Geneva::sortingMode::MUCOMMANU_SINGLEEVAL);
+    return ea;
+}
+
+/** @brief An adaption config for SphereOA with a large step that does not adapt */
+std::shared_ptr<oa::GAdaptionConfigBase> largeFixedStep(SphereOA const &src) {
+    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+    cfg->groupDouble(0).gauss(0.3, 0., 1e-3, 1., 1.);
+    return cfg;
+}
+
+/** @brief The fitness by which the archives order individuals */
+double fitnessOf(gen::GGenome const &ind) {
+    return Gem::Geneva::minOnly_transformed_fitness(ind);
+}
+} // namespace
+
+TEST_CASE("Go2 returns the best found whatever goes on to the next algorithm", "[oa][go2]") {
+    // copy_best_individuals_only says which individuals go on to the next algorithm of a chain;
+    // getBestGlobalIndividual(s)() return the bests of the whole run either way, as the algorithm
+    // recorded them. Regression (N15): with the setting false Go2 returned the last population.
+    for(bool const copy_best_only : {true, false}) {
+        CAPTURE(copy_best_only);
+        std::size_t n_lost = 0; // runs whose last iteration was worse than the best found
+        for(std::size_t run = 0; run < 20; ++run) {
+            SphereOA const src;
+            Gem::Geneva::Go2 go;
+            go.setCopyBestIndividualsOnly(copy_best_only);
+            go.push_back(src.clone());
+            go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+            auto ea = makeCommaEA();
+            go & ea;
+            go.optimize();
+
+            auto const go_bests = go.getBestGlobalIndividuals<SphereOA>();
+            auto const ea_bests = ea->getBestGlobalIndividuals<SphereOA>();
+            REQUIRE(go_bests.size() == ea_bests.size());
+            for(std::size_t i = 0; i < go_bests.size(); ++i) {
+                CHECK(fitnessOf(*go_bests[i]) == fitnessOf(*ea_bests[i]));
+            }
+            CHECK(fitnessOf(*go.getBestGlobalIndividual<SphereOA>()) == fitnessOf(*ea_bests[0]));
+            if(fitnessOf(*ea->getBestIterationIndividual<SphereOA>()) > fitnessOf(*ea_bests[0])) {
+                ++n_lost;
+            }
+        }
+        // The case that tells the two apart occurred (best of N runs, Invariant 18)
+        CHECK(n_lost > 0);
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE("a Go2 chain returns the best found by any of its algorithms", "[oa][go2]") {
+    // With copy_best_individuals_only the bests of the first algorithm go on into the second and
+    // into its archive; without it the second algorithm starts from the first one's last
+    // population. In both cases Go2 returns the best found by either. Regression (N15): with the
+    // setting false Go2 returned the best of the second algorithm's last population.
+    for(bool const copy_best_only : {true, false}) {
+        CAPTURE(copy_best_only);
+        for(std::size_t run = 0; run < 20; ++run) {
+            SphereOA const src;
+            Gem::Geneva::Go2 go;
+            go.setCopyBestIndividualsOnly(copy_best_only);
+            go.push_back(src.clone());
+            go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+            auto first = makeCommaEA();
+            auto second = makeCommaEA();
+            go & first & second;
+            go.optimize();
+
+            double const best_found = std::min(
+                fitnessOf(*first->getBestGlobalIndividual<SphereOA>()),
+                fitnessOf(*second->getBestGlobalIndividual<SphereOA>())
+            );
+            CHECK(fitnessOf(*go.getBestGlobalIndividual<SphereOA>()) == best_found);
+            auto const go_bests = go.getBestGlobalIndividuals<SphereOA>();
+            REQUIRE(not go_bests.empty());
+            CHECK(fitnessOf(*go_bests[0]) == best_found);
+            CHECK(std::ranges::is_sorted(go_bests, {}, [](auto const &ind) {
+                return fitnessOf(*ind);
+            }));
+            // An individual that went on to the second algorithm is in both archives, but is
+            // returned once (regression: with the setting false the merge returned it twice)
+            std::set<std::vector<double>> seen;
+            for(auto const &ind : go_bests) {
+                std::vector<double> values;
+                ind->streamline<double>(values);
+                CHECK(seen.insert(values).second);
+            }
+        }
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "Go2's iteration accessors return the last iteration of its last algorithm",
+    "[oa][go2]"
+) {
+    // Regression (N27): both threw "This function should not be called". Before a run there is no
+    // iteration, and both kinds of accessors say so.
+    SphereOA const src;
+    Gem::Geneva::Go2 go;
+    go.push_back(src.clone());
+    go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+    auto first = makeCommaEA();
+    auto second = makeCommaEA();
+    second->setPopulationSizes(6, 2); // two parents: an iteration archive of two
+    go & first & second;
+    CHECK_THROWS(go.getBestIterationIndividual<SphereOA>());
+    CHECK_THROWS(go.getBestGlobalIndividual<SphereOA>());
+    go.optimize();
+
+    CHECK(
+        fitnessOf(*go.getBestIterationIndividual<SphereOA>()) ==
+        std::get<Gem::Geneva::G_TRANSFORMED_FITNESS>(second->getBestCurrentPrimaryFitness())
+    );
+    auto const go_bests = go.getBestIterationIndividuals<SphereOA>();
+    auto const second_bests = second->getBestIterationIndividuals<SphereOA>();
+    REQUIRE(go_bests.size() == 2);
+    REQUIRE(second_bests.size() == 2);
+    for(std::size_t i = 0; i < go_bests.size(); ++i) {
+        CHECK(fitnessOf(*go_bests[i]) == fitnessOf(*second_bests[i]));
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE("the iteration archive takes the number of best individuals to record", "[oa]") {
+    // n_record_best_individuals sets the capacity of both archives, also in a copy and in a run
+    // resumed from a checkpoint. An EA with 15 parents offers 15 individuals per iteration.
+    // Regression: setNRecordBestIndividuals() resized the global archive only, and the iteration
+    // archive kept the default of 10; a checkpoint did not hold it, so a resume had 10 as well.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    constexpr std::size_t n_record = Gem::Geneva::DEFNRECORDBESTINDIVIDUALS + 2;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual src(data_points);
+    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    ea->push_back(src.clone());
+    ea->setPopulationSizes(30, 15);
+    ea->setMaxIteration(2);
+    ea->setReportIteration(0);
+    ea->setNRecordBestIndividuals(n_record);
+    ea->setAdaptionConfig(src.getAdaptionConfig());
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-record-capacity-test";
+    fs::remove_all(cp_dir);
+    ea->setCheckpointInterval(1);
+    ea->setCheckpointBaseName(cp_dir.string(), "capacity.cp");
+    ea->optimize();
+    CHECK(ea->getBestIterationIndividuals<gen::GGenome>().size() == n_record);
+    CHECK(ea->getBestGlobalIndividuals<gen::GGenome>().size() == n_record);
+
+    // One more iteration of an algorithm that continues the run
+    auto const one_more_iteration = [&src](oa::GEvolutionaryAlgorithm &alg) {
+        alg.setCheckpointInterval(0);
+        alg.setMaxIteration(alg.getIteration() + 2);
+        alg.setAdaptionConfig(src.getAdaptionConfig());
+        alg.optimize(alg.getIteration() + 1);
+        return alg.getBestIterationIndividuals<gen::GGenome>().size();
+    };
+
+    oa::GEvolutionaryAlgorithm copy(*ea);
+    CHECK(one_more_iteration(copy) == n_record);
+
+    fs::path cp;
+    for(const auto &entry : fs::directory_iterator(cp_dir)) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            cp = entry.path();
+        }
+    }
+    REQUIRE(not cp.empty());
+    oa::GEvolutionaryAlgorithm resumed;
+    resumed.loadCheckpoint(cp);
+    fs::remove_all(cp_dir);
+    CHECK(one_more_iteration(resumed) == n_record);
 }
 
 /******************************************************************************/
