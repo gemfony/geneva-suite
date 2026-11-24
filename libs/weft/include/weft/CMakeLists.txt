@@ -27,21 +27,12 @@
 #
 ################################################################################
 
-SET ( WEFTINCLUDES
-	GArchive.hpp
-	GArchivePolymorphic.hpp
-	GBinaryArchive.hpp
-	GJsonArchive.hpp
-	GPolymorphicRegistry.hpp
-	GWeft.hpp
-	GWeftError.hpp
-)
-
-# This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
+# The IDE's header target (a workaround for a CLion problem, CPP270 in the JetBrains issue tracker):
+# every header below this directory, found again whenever one is added or removed.
+FILE(GLOB_RECURSE WEFTINCLUDES CONFIGURE_DEPENDS "*.hpp" "*.cuh")
 ADD_CUSTOM_TARGET(CLION_ALL_WEFT_HEADERS SOURCES ${WEFTINCLUDES})
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is
-# self-contained and cannot drift. (The SET list above is retained only for the CLion
-# header target / IDE indexing.)
+# self-contained and cannot drift.
 INSTALL ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION ${INSTALL_PREFIX_INCLUDES}/weft
 	FILES_MATCHING PATTERN "*.hpp" )

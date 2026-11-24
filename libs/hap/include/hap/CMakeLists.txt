@@ -27,49 +27,17 @@
 #
 ################################################################################
 
-
-################################################################################
-#
-# This file is part of the Geneva library collection. Apache License 2.0.
-# See the NOTICE file in the top-level directory for contributors/copyright.
-#
-################################################################################
-#
-# Hap: public headers (identical class names in Gem::Hap, include prefix
-# <hap/...>).
-#
-################################################################################
-
 IF(GEM_USE_CUDA_RNG_ENABLED)
 	ENABLE_LANGUAGE(CUDA)
 	# The CUDA device dialect is set centrally in CommonGemBuild.cmake (CMAKE_CUDA_STANDARD).
 ENDIF()
 
-SET ( HAPINCLUDES
-	GHapEnums.hpp
-	GQuarantineSource.hpp
-	GRandomBase.hpp
-	GRandomDefines.hpp
-	GRandomDistributionsT.hpp
-	GRandomFactory.hpp
-	GRandomLeasePool.hpp
-	GRandomT.hpp
-	GStagedSource.hpp
-	GXoshiro256pp.hpp
-	GXoshiro256ppSIMD.hpp
-)
-
-IF(GEM_USE_CUDA_RNG_ENABLED)
-	SET(HAPINCLUDES
-		${HAPINCLUDES}
-		GCUDARng.hpp
-	)
-ENDIF ()
-
-# CLion-visibility helper (mirrors the Hap subtree).
+# The IDE's header target (a workaround for a CLion problem, CPP270 in the JetBrains issue tracker):
+# every header below this directory, found again whenever one is added or removed.
+FILE(GLOB_RECURSE HAPINCLUDES CONFIGURE_DEPENDS "*.hpp" "*.cuh")
 ADD_CUSTOM_TARGET(CLION_ALL_HAP_HEADERS SOURCES ${HAPINCLUDES})
 
-# Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
-# cannot drift. (The SET list above is retained only for the CLion header target / IDE indexing.)
+# Directory install: ship the whole header tree (Inv 19), so the installed interface is
+# self-contained and cannot drift.
 INSTALL ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION ${INSTALL_PREFIX_INCLUDES}/hap
 	FILES_MATCHING PATTERN "*.hpp" )

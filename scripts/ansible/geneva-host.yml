@@ -86,6 +86,7 @@
           - boost_toolset in ["gcc", "clang"]
         fail_msg: "Ubuntu 26.10 or newer is needed, and boost_toolset must be gcc or clang"
 
+    # cmake: Ubuntu 26.10 has 4.3, Geneva needs 4.0 or later (INSTALL)
     - name: Install the compilers and tools
       ansible.builtin.apt:
         name: [ca-certificates, curl, git, make, cmake, g++, clang, catch2, rsync]

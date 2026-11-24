@@ -21,7 +21,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   rejects anything lower, and the exported CMake package advertises `cxx_std_23`, so **downstream
   consumers of the `Geneva::` targets are compiled as C++23 too**. A C++20-only toolchain can no
   longer build or link against Geneva.
-- **Boost ≥ 1.91**, built in C++23 mode; **CMake ≥ 3.27**; **Catch2 v3** for the tests.
+- **Boost ≥ 1.91**, built in C++23 mode; **CMake ≥ 4.0**; **Catch2 v3** for the tests.
 - **CUDA (optional) raised to ≥ 13.3, and now gated on the device too.** CUDA code (the
   CUDA examples/benchmark, the CUDA RNG backend, the GPU consumer) is enabled only when
   *both* the toolkit *and* the installed driver support CUDA ≥ 13.3; otherwise CUDA is
@@ -539,7 +539,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     `GEM_BUILD_TESTS`, `GEM_BUILD_EXAMPLES`, `GEM_BUILD_BENCHMARKS`,
     `GEM_BUILD_WITH_MPI_CONSUMER`, `GEM_BUILD_WITH_GPU_CONSUMER`, `GEM_USE_CUDA_RNG`,
     `GEM_SKIP_CUDA`, `GEM_FORCE_CUDA`, `GEM_MIN_CUDA_VERSION`, `GEM_SANITIZER`,
-    `GEM_BUILD_WITH_COVERAGE`, `GEM_COVERAGE_LINE_THRESHOLD`, `GEM_COVERAGE_BRANCH_THRESHOLD`,
+    `GEM_BUILD_WITH_COVERAGE`,
     `GEM_COMMON_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE`,
     `GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT`,
     `GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE`, `GEM_HAP_FACTORY_QUEUE_PREALLOCATED` (each was

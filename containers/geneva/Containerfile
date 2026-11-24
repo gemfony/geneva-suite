@@ -69,7 +69,8 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # The packages INSTALL names for building Geneva, OpenMPI for the MPI consumer, and the CUDA
 # toolkit from the Ubuntu archive when asked for. Boost comes from source below: the
-# distribution's Boost is older than the 1.91 Geneva needs.
+# distribution's Boost is older than the 1.91 Geneva needs. Geneva needs CMake 4.0 or later
+# (Ubuntu 26.10 has 4.3); another BASE_IMAGE with an older one stops here.
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
         ca-certificates curl bzip2 git make cmake g++ clang catch2 \
@@ -77,7 +78,12 @@ RUN apt-get update \
  && if [ "${WITH_CUDA}" = "1" ]; then \
         apt-get install -y --no-install-recommends "${CUDA_PACKAGE}"; \
     fi \
- && rm -rf /var/lib/apt/lists/*
+ && rm -rf /var/lib/apt/lists/* \
+ && cmake_major=$(cmake --version | sed -n 's/^cmake version \([0-9]*\)\..*/\1/p') \
+ && if [ "${cmake_major:-0}" -lt 4 ]; then \
+        echo "CMake 4.0 or later is needed; the base image has: $(cmake --version | head -n 1)" >&2; \
+        exit 1; \
+    fi
 
 # OpenMPI refuses to run as root unless told otherwise; the image runs as root by default.
 ENV OMPI_ALLOW_RUN_AS_ROOT=1 \

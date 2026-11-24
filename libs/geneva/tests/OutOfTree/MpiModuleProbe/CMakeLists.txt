@@ -36,7 +36,7 @@
 # (which no program links). The normal build compiles, links and runs the same source with the same usage
 # requirements and nothing else (../CMakeLists.txt).
 
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 4.0)
 project(GenevaMpiModuleProbe CXX)
 
 # The package finds MPI itself when Geneva was built with it: Geneva::courtier-mpi carries

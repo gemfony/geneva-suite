@@ -133,7 +133,7 @@ cells). The value is a comma-separated list of CMake build-type names
 (`Debug`, `Release`, `RelWithDebInfo`, `MinSizeRel`, `Sanitize`); matching is
 case-insensitive.
 
-Geneva's requirements are GCC >= 15, Clang >= 22, CMake >= 3.27 and
+Geneva's requirements are GCC >= 15, Clang >= 22, CMake >= 4.0 and
 Boost >= 1.91; at configure time the compiler floor is enforced by
 `CMakeModules/IdentifySystemParameters.cmake`, the Boost floor by the Boost
 search in `CMakeModules/CommonGemBuild.cmake`. Every in-image toolchain meets

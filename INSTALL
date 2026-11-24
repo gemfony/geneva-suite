@@ -54,7 +54,11 @@ when present but are never required:
 Prerequisites
 =============
 
- - CMake, version 3.27 or later (the build system).
+ - CMake, version 4.0 or later (the build system). Ubuntu 26.10 ships 4.3.
+   Where the system's CMake is older, take a current one from PyPI
+   ("python3 -m pip install cmake", e.g. in a virtual environment) or from
+   Kitware (binaries on https://cmake.org/download/, Debian/Ubuntu packages
+   from https://apt.kitware.com/).
 
  - A C++23 compiler: the GNU Compiler Collection (g++) version 15 or later, or
    Clang version 22 or later -- the versions Ubuntu 26.10 ships.
