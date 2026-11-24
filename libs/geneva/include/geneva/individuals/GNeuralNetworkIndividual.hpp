@@ -231,9 +231,13 @@ public:
     std::size_t getNOutputNodes() const;
 
     /**
-     * @brief Saves this data set in ROOT format for visual inspection.
+     * @brief The figure of the training data (two inputs, one output), as a dietrich plot
      */
-    void toROOT(const std::string &output_file, const double &min, const double &max);
+    [[nodiscard]] Gem::Dietrich::GPlotDesigner trainingDataPlot() const;
+    /**
+     * @brief Writes the figure of the training data (trainingDataPlot()) as a ROOT macro
+     */
+    void toROOT(const std::string &output_file) const;
 
     /**
      * @brief Allows to check whether an initialization range has been set.
@@ -893,10 +897,6 @@ public:
                 n_data_sets,
                 0.5 // edge-length
             );
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", -0.5, 0.5);
-
             break;
 
         case Gem::Geneva::Individuals::trainingDataType::HYPERSPHERE:
@@ -905,27 +905,15 @@ public:
                 n_data_sets,
                 0.5 // radius
             );
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", -1., 1.);
-
             break;
 
         case Gem::Geneva::Individuals::trainingDataType::AXISCENTRIC:
             n_d_ptr =
                 GNeuralNetworkIndividual::createAxisCentricNetworkData(architecture, n_data_sets);
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", 0., 1.);
-
             break;
 
         case Gem::Geneva::Individuals::trainingDataType::SINUS:
             n_d_ptr = GNeuralNetworkIndividual::createSinNetworkData(architecture, n_data_sets);
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", -6., 6.);
-
             break;
 
         default: { // Error
@@ -936,8 +924,9 @@ public:
         } // no break: the default case always throws (the trailing break was unreachable)
         }
 
-        // Write distribution to file
+        // Write distribution to file, and its figure as a ROOT macro (see http://root.cern.ch)
         n_d_ptr->saveToDisk(output_file);
+        n_d_ptr->toROOT(output_file + ".C");
     }
 
     /***************************************************************************/

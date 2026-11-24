@@ -35,12 +35,16 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <cctype>
 #include <filesystem>
 #include <mutex>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include <unistd.h> // getpid()
 
+#include "dietrich/plotting/GPlotDesigner.hpp"
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 
 namespace Gem::Geneva::Individuals::Testing {
@@ -65,6 +69,43 @@ inline void provideNeuralNetworkTrainingData() {
         REQUIRE(nnTrainingDataStore()->size() == 3); // loads the file into the singleton
         std::filesystem::remove(file);
     });
+}
+
+/******************************************************************************/
+/** @brief One series of a figure's data description: its header line and its rows of numbers. */
+struct plotSeries {
+    std::string header;                    ///< the "# series ..." line
+    std::vector<std::vector<double>> rows; ///< one row of values per point
+};
+
+/**
+ * The series of a figure as dietrich's DATA backend (CSV) describes them -- the description every
+ * backend draws from -- so a test can check what a figure holds without a plotting program.
+ *
+ * @param gpd The figure
+ * @return Its series, in their order
+ */
+inline std::vector<plotSeries> seriesOf(Gem::Dietrich::GPlotDesigner gpd) {
+    gpd.setDataFormat(Gem::Dietrich::dataFormat::CSV);
+    std::istringstream csv(gpd.plot());
+    std::vector<plotSeries> series;
+    for(std::string line; std::getline(csv, line);) {
+        if(line.starts_with("# series")) {
+            series.push_back({line, {}});
+        }
+        else if(
+            not series.empty() and not line.empty() and
+            (std::isdigit(static_cast<unsigned char>(line.front())) != 0 or line.front() == '-')
+        ) {
+            std::vector<double> row;
+            std::istringstream values(line);
+            for(std::string value; std::getline(values, value, ',');) {
+                row.push_back(std::stod(value));
+            }
+            series.back().rows.push_back(row);
+        }
+    }
+    return series;
 }
 
 /******************************************************************************/

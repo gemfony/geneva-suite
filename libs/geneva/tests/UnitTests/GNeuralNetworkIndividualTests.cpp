@@ -41,14 +41,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <array>
-#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <memory>
 #include <set>
-#include <sstream>
 #include <string>
 #include <vector>
 
@@ -115,35 +113,14 @@ TEST_CASE(
     "[individuals][nn]"
 ) {
     const GNeuralNetworkIndividual ind = makeIndividual();
-    Gem::Dietrich::GPlotDesigner gpd = ind.outputPlot();
-    gpd.setDataFormat(Gem::Dietrich::dataFormat::CSV);
-    std::istringstream csv(gpd.plot());
-
-    // The series headers and the data rows of the description
-    std::vector<std::string> series;
-    std::vector<std::array<double, 3>> rows;
-    for(std::string line; std::getline(csv, line);) {
-        if(line.starts_with("# series")) {
-            series.push_back(line);
-        }
-        else if(
-            not line.empty() and not line.starts_with('#') and
-            (std::isdigit(static_cast<unsigned char>(line.front())) != 0 or line.front() == '-')
-        ) {
-            std::array<double, 3> row{};
-            char comma = 0;
-            std::istringstream values(line);
-            values >> row[0] >> comma >> row[1] >> comma >> row[2];
-            REQUIRE(not values.fail());
-            rows.push_back(row);
-        }
-    }
+    const auto series = gind::Testing::seriesOf(ind.outputPlot());
 
     REQUIRE(series.size() == 1);
-    CHECK(series[0].contains("plotkind=graph_3d"));
-    CHECK(series[0].contains("colour_map"));
+    CHECK(series[0].header.contains("plotkind=graph_3d"));
+    CHECK(series[0].header.contains("colour_map"));
 
     constexpr std::size_t N = GNeuralNetworkIndividual::OUTPUT_PLOT_POINTS_PER_AXIS;
+    const auto &rows = series[0].rows;
     REQUIRE(rows.size() == N * N);
 
     // A grid over the range the training data report (+-0.5 in both inputs for the test's
@@ -151,12 +128,13 @@ TEST_CASE(
     std::set<double> xs;
     std::set<double> ys;
     std::set<std::array<double, 2>> points;
-    for(const auto &[x, y, output] : rows) {
-        xs.insert(x);
-        ys.insert(y);
-        points.insert({x, y});
-        CHECK(output >= 0.); // a sigmoid network's output
-        CHECK(output <= 1.);
+    for(const auto &row : rows) {
+        REQUIRE(row.size() == 3); // x, y and the output
+        xs.insert(row[0]);
+        ys.insert(row[1]);
+        points.insert({row[0], row[1]});
+        CHECK(row[2] >= 0.); // a sigmoid network's output
+        CHECK(row[2] <= 1.);
     }
     const auto range = gind::nnTrainingDataStore()->getInitRange();
     REQUIRE(range.size() == 2);

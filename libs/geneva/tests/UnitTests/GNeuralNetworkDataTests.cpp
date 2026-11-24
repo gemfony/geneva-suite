@@ -42,6 +42,8 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "GNeuralNetworkTestData.hpp"
+#include "common/GExceptions.hpp"
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 #include "weft/GBinaryArchive.hpp"
 #include "weft/GJsonArchive.hpp"
@@ -215,4 +217,39 @@ TEST_CASE("Hyper-sphere data report the range of their inputs", "[individuals][n
             CHECK(t_s.value()->Input[dim] <= std::get<1>(range[dim]));
         }
     }
+}
+
+// toROOT() wrote its ROOT macro by hand, within an axis range its caller passed: for the hyper-sphere
+// data +-1 while the data reach +-1.5, so part of them lay outside the frame. The figure is now drawn
+// through dietrich: its data description holds every training set, one series per side of 0.5 of
+// the desired output, and the frame of a 2-d graph is set by the data.
+TEST_CASE("The figure of the training data holds every training set", "[individuals][nn]") {
+    const auto series =
+        Gem::Geneva::Individuals::Testing::seriesOf(makeSampleData().trainingDataPlot());
+
+    // makeSampleData(): set 1 has the desired output 0.01, sets 0 and 2 have 0.99
+    REQUIRE(series.size() == 2);
+    CHECK(series[0].header.contains("plotkind=graph_2d"));
+    CHECK(series[0].header.contains("desired output < 0.5"));
+    CHECK(series[1].header.contains("desired output >= 0.5"));
+    REQUIRE(series[0].rows.size() == 1);
+    CHECK(series[0].rows[0] == std::vector<double>{1.25, 1.50});
+    REQUIRE(series[1].rows.size() == 2);
+    CHECK(series[1].rows[0] == std::vector<double>{0.25, 0.50});
+    CHECK(series[1].rows[1] == std::vector<double>{2.25, 2.50});
+
+    // A side without training sets is left out instead of drawn empty
+    networkData one_sided(1);
+    one_sided.push_back(2);
+    one_sided.push_back(1);
+    auto t_s = std::make_shared<trainingSet>(2, 1);
+    t_s->Output[0] = 0.99;
+    one_sided.addTrainingSet(t_s, 0);
+    CHECK(Gem::Geneva::Individuals::Testing::seriesOf(one_sided.trainingDataPlot()).size() == 1);
+
+    // Training data of another geometry have no such figure
+    networkData three_inputs(0);
+    three_inputs.push_back(3);
+    three_inputs.push_back(1);
+    CHECK_THROWS_AS(three_inputs.trainingDataPlot(), gem_exception);
 }

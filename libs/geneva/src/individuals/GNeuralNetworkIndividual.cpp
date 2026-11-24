@@ -385,16 +385,68 @@ std::size_t networkData::getNOutputNodes() const {
 
 /******************************************************************************/
 /**
- * @brief Saves this data set in ROOT format for visual inspection. It assumes that the input dimension
- * is 2 and the output dimension is 1. It will generate two distributions that will be coloured
- * differently -- one with output < 0.5, the other with output >= 0.5.
+ * @brief The figure of the training data: the input points of all training sets in the plane of
+ * the two inputs, as two series -- the sets whose desired output is below 0.5, and those at or above
+ * it. A series without points is left out. The frame holds all points. Every dietrich backend can
+ * draw the figure. Training data without exactly two input nodes and one output node have no such
+ * figure and are refused.
  *
- * @param output_file The name of the file the ROOT visualization program should be written to
- * @param min The minimum axis value of the distribution to be displayed
- * @param max The maximum axis value of the distribution to be displayed
+ * @return The figure, to be written through any dietrich backend
  */
-void networkData::toROOT(const std::string &output_file, const double &min, const double &max) {
-    // Check that we have a matching number of input nodes
+Gem::Dietrich::GPlotDesigner networkData::trainingDataPlot() const {
+    Gem::Common::checkThat(
+        getNInputNodes() == 2 and getNOutputNodes() == 1,
+        "The figure of the training data needs two input nodes and one output node; got ",
+        getNInputNodes(),
+        " and ",
+        getNOutputNodes()
+    );
+
+    std::array<std::vector<std::tuple<double, double>>, 2> points; // output < 0.5, output >= 0.5
+    for(const auto &t_s : data_) {
+        if(t_s) { // a slot that holds no training set has nothing to show
+            points.at(t_s->Output[0] < 0.5 ? 0 : 1).emplace_back(t_s->Input[0], t_s->Input[1]);
+        }
+    }
+
+    const std::array<std::string, 2> labels{"desired output < 0.5", "desired output >= 0.5"};
+    std::shared_ptr<Gem::Dietrich::GGraph2D> primary;
+    for(std::size_t i = 0; i < points.size(); ++i) {
+        if(points.at(i).empty()) {
+            continue;
+        }
+        auto series = std::make_shared<Gem::Dietrich::GGraph2D>();
+        series->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
+        series->setPlotLabel(labels.at(i));
+        series->setXAxisLabel("input 1");
+        series->setYAxisLabel("input 2");
+        (*series) & points.at(i);
+        if(primary) {
+            primary->registerSecondaryPlotter(series);
+        }
+        else {
+            primary = series;
+        }
+    }
+    Gem::Common::checkThat(primary != nullptr, "The training data hold no training set");
+    primary->setPadTitle("Training data in the plane of the two inputs");
+    primary->setLegendPosition(Gem::Dietrich::legendPosition::FREEST);
+
+    Gem::Dietrich::GPlotDesigner gpd("Original training data", 1, 1);
+    gpd.setCanvasDimensions(1024, 1024);
+    gpd.registerPlotter(primary);
+    return gpd;
+}
+
+/******************************************************************************/
+/**
+ * @brief Writes the figure of the training data (trainingDataPlot()) as a ROOT macro, for visual
+ * inspection. Training data without two input nodes and one output node have no such figure; the
+ * function then warns and writes nothing.
+ *
+ * @param output_file The name of the file the ROOT macro is written to
+ */
+void networkData::toROOT(const std::string &output_file) const {
     if(getNInputNodes() != 2 || getNOutputNodes() != 1) {
         glogger << "Got inappropriate number of input and/or output nodes: " << getNInputNodes()
                 << "/" << getNOutputNodes() << '\n'
@@ -403,80 +455,9 @@ void networkData::toROOT(const std::string &output_file, const double &min, cons
         return;
     }
 
-    const std::size_t n_sets = data_.size();
-    std::size_t entries1 = 0;
-    std::size_t entries2 = 0;
-    std::ofstream of(output_file);
-
-    of << "{" << '\n'
-       << "  gROOT->Reset();" << '\n'
-       << "  gStyle->SetCanvasColor(0);" << '\n'
-       << "  gStyle->SetStatBorderSize(1);" << '\n'
-       << "  gStyle->SetOptStat(0);" << '\n'
-       << '\n'
-       << R"(  TCanvas *cc = new TCanvas("cc", "cc",0,0,1024,1024);)" << '\n'
-       << '\n'
-       << "  TPaveLabel* canvasTitle = new TPaveLabel(0.1,0.95,0.9,0.99, \"Original training "
-          "data\");"
-       << '\n'
-       << "  canvasTitle->Draw();" << '\n'
-       << '\n'
-       << R"(  TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)" << '\n'
-       << "  graphPad->Draw();" << '\n'
-       << "  graphPad->Divide(1,1);" << '\n'
-       << '\n'
-       << "  double xarr1[" << n_sets << "], yarr1[" << n_sets << "], xarr2[" << n_sets
-       << "], yarr2[" << n_sets << "];" << '\n'
-       << '\n'
-       << "  // Filling the data sets" << '\n';
-
-    for(std::size_t i = 0; i < n_sets; i++) {
-        if(data_[i]->Output[0] < 0.5) {
-            of << "  xarr1[" << entries1 << "] = " << data_[i]->Input[0] << ";" << '\n'
-               << "  yarr1[" << entries1 << "] = " << data_[i]->Input[1] << ";" << '\n';
-            entries1++;
-        }
-        else {
-            of << "  xarr2[" << entries2 << "] = " << data_[i]->Input[0] << ";" << '\n'
-               << "  yarr2[" << entries2 << "] = " << data_[i]->Input[1] << ";" << '\n';
-            entries2++;
-        }
-    }
-
-    of << '\n'
-       << "  // Setting remaining entries to 0" << '\n'
-       << "  for(std::size_t i=" << entries1 << "; i<" << n_sets << "; i++) {" << '\n'
-       << "    xarr1[i] = 0.;" << '\n'
-       << "    yarr1[i] = 0.;" << '\n'
-       << "  }" << '\n'
-       << "  for(std::size_t i=" << entries2 << "; i<" << n_sets << "; i++) {" << '\n'
-       << "    xarr2[i] = 0.;" << '\n'
-       << "    yarr2[i] = 0.;" << '\n'
-       << "  }" << '\n'
-       << '\n'
-       << "  // Creation of suitable TGraph objects" << '\n'
-       << "  TGraph *gr1 = new TGraph(" << entries1 << ", xarr1, yarr1);" << '\n'
-       << "  TGraph *gr2 = new TGraph(" << entries2 << ", xarr2, yarr2);" << '\n'
-       << '\n'
-       << "  gr1->SetMarkerColor(17);" << '\n'
-       << "  gr2->SetMarkerColor(14);" << '\n'
-       << '\n'
-       << "  gr1->SetMarkerStyle(21);" << '\n'
-       << "  gr2->SetMarkerStyle(21);" << '\n'
-       << '\n'
-       << "  gr1->SetMarkerSize(0.35);" << '\n'
-       << "  gr2->SetMarkerSize(0.35);" << '\n'
-       << '\n'
-       << "  gr2->GetXaxis()->SetLimits(" << min << ", " << max << ");" << '\n'
-       << "  gr2->GetYaxis()->SetRangeUser(" << min << ", " << max << ");" << '\n'
-       << '\n'
-       << "  // Do the drawing" << '\n'
-       << "  graphPad->cd(1);" << '\n'
-       << "  gr2->Draw(\"AP\");" << '\n'
-       << "  gr1->Draw(\"P,same\");" << '\n'
-       << "}" << '\n';
-
-    of.close();
+    Gem::Dietrich::GPlotDesigner gpd = this->trainingDataPlot();
+    gpd.setPlotBackend(Gem::Dietrich::plotBackend::ROOT);
+    gpd.writeToFile(output_file);
 }
 
 /******************************************************************************/
