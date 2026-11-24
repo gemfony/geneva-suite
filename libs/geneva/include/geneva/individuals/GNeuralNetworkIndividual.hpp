@@ -324,9 +324,12 @@ using Gem::Common::operator>>;
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// A global singleton giving access to the training data. Process-wide, so that every individual
-// shares one copy of the data (it never travels with an individual; see the definition of
-// TFactory_GSingletonT<Gem::Geneva::Individuals::networkData>, which loads it)
+// The training data, one copy per process. It is process-wide because the individual serializes
+// only its parameters (the weights in its genome) and its transfer function t_f_: the data never
+// travel with it. Every process -- the one that optimizes and every remote worker that evaluates --
+// loads them once, on first use, from the file named by "trainingDataFile" in
+// neuralNetworkOptions() (see TFactory_GSingletonT<networkData> below). Handing the data to each
+// individual instead would break distributed runs or send the whole data set with every individual.
 using GDatStore = Gem::Common::GSingletonT<Gem::Geneva::Individuals::networkData>;
 /**
  * @brief Accessor for the global training-data singleton.
