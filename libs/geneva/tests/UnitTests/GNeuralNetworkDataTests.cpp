@@ -47,6 +47,7 @@
 #include "weft/GJsonArchive.hpp"
 
 using Catch::Approx;
+using Gem::Geneva::Individuals::GNeuralNetworkIndividual;
 using Gem::Geneva::Individuals::networkData;
 using Gem::Geneva::Individuals::trainingSet;
 
@@ -187,5 +188,31 @@ TEST_CASE(
         Gem::Weft::GJsonIArchive ia(oa.str());
         ia &Gem::Weft::make_nvp("nd", loaded);
         verify(loaded);
+    }
+}
+
+// The 2-d hyper-sphere generator set the range of its data point by point, to +-(the radius of the
+// point just drawn): the range kept was the last point's, a random fraction of the data's, and the
+// figure of writeVisualizationFile() showed only a small window of the input space.
+TEST_CASE("Hyper-sphere data report the range of their inputs", "[individuals][nn]") {
+    const double radius = 0.5;
+    const std::size_t n_sets = 200;
+    const auto n_d =
+        GNeuralNetworkIndividual::createHyperSphereNetworkData({2, 4, 1}, n_sets, radius);
+
+    REQUIRE(n_d->initRangeSet());
+    const auto range = n_d->getInitRange();
+    REQUIRE(range.size() == 2);
+    for(const auto &[lower, upper] : range) {
+        CHECK(lower == Approx(-3. * radius));
+        CHECK(upper == Approx(3. * radius));
+    }
+    for(std::size_t pos = 0; pos < n_sets; pos++) {
+        const auto t_s = n_d->getTrainingSet(pos);
+        REQUIRE(t_s.has_value());
+        for(std::size_t dim = 0; dim < 2; dim++) {
+            CHECK(t_s.value()->Input[dim] >= std::get<0>(range[dim]));
+            CHECK(t_s.value()->Input[dim] <= std::get<1>(range[dim]));
+        }
     }
 }

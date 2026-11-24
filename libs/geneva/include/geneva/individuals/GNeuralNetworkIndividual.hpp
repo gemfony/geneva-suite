@@ -447,8 +447,9 @@ namespace detail {
  * @param n_data_sets The number of training sets to create
  * @param where The generator name used in error messages (e.g. "createSinNetworkData")
  * @param required_input_nodes If non-zero, the exact number of input nodes required
- * @param fillSet Fills one training set (and may register an init range on the data object)
- * @param init_range The initialization range to register; empty if fillSet registers it itself
+ * @param fillSet Fills one training set
+ * @param init_range The range of the input data, one (lower, upper) tuple per input dimension, as
+ * the data object reports it (getInitRange()); empty if the generator names none
  * @return The created networkData object, wrapped in a shared_ptr
  */
 inline std::shared_ptr<networkData> createNetworkData(
@@ -456,7 +457,7 @@ inline std::shared_ptr<networkData> createNetworkData(
     std::size_t n_data_sets,
     std::string_view where,
     std::size_t required_input_nodes,
-    const std::function<void(Gem::Hap::GRandom &, networkData &, trainingSet &)> &fillSet,
+    const std::function<void(Gem::Hap::GRandom &, trainingSet &)> &fillSet,
     const std::vector<std::tuple<double, double>> &init_range
 ) {
     // Check the number of supplied layers
@@ -511,12 +512,11 @@ inline std::shared_ptr<networkData> createNetworkData(
     const std::size_t n_output_nodes = architecture.back();
     for(std::size_t dat_counter = 0; dat_counter < n_data_sets; dat_counter++) {
         std::shared_ptr<trainingSet> const t_s(new trainingSet(n_input_nodes, n_output_nodes));
-        fillSet(gr_l, *n_d, *t_s);
+        fillSet(gr_l, *t_s);
         n_d->addTrainingSet(t_s, dat_counter);
     }
 
-    // Make the initialization range known to nD_ (a generator that derives the range from
-    // its drawn data -- the hyper-sphere -- registers it inside fillSet instead).
+    // Make the range of the input data known to the data object
     if(not init_range.empty()) {
         n_d->setInitRange(init_range);
     }
@@ -625,7 +625,7 @@ public:
             n_data_sets,
             "createHyperCubeNetworkData",
             0,
-            [&](Gem::Hap::GRandom &gr_l, networkData &, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 bool outside = false;
                 for(std::size_t i = 0; i < t_s.Input.size(); i++) {
                     double const one_dim_rnd = uniform_real_distribution(
@@ -654,7 +654,7 @@ public:
 	  * this class. It is added here as a means of testing this neural network individual. We create
 	  * a sphere of radius "radius". See http://en.wikipedia.org/wiki/Hypersphere for a description of
 	  * the formulae used.  Areas outside of the sphere get an output value of 0.99, areas inside of the
-	  * sphere get an output value of 0.01. The training data is initialized with a radius of 2*radius.
+	  * sphere get an output value of 0.01. The training data lie within a radius of 3*radius.
 	  *
 	  * @param architecture The desired architecture of the network
 	  * @param n_data_sets The number of training sets to create
@@ -673,7 +673,7 @@ public:
             n_data_sets,
             "createHyperSphereNetworkData",
             0,
-            [&](Gem::Hap::GRandom &gr_l, networkData &n_d, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 const std::size_t n_dim = t_s.Input.size();
 
                 // Declared at first assignment (the former leading `= 1.` initializer was a dead store).
@@ -699,12 +699,6 @@ public:
                     );
                     t_s.Input[0] = local_radius * sin(phi); // x
                     t_s.Input[1] = local_radius * cos(phi); // y
-
-                    // Make the initialization range known to nD_ . We only do this for 2D-data
-                    std::vector<std::tuple<double, double>> init_range;
-                    init_range.emplace_back(-local_radius, local_radius); // x
-                    init_range.emplace_back(-local_radius, local_radius); // y
-                    n_d.setInitRange(init_range);
                 } break;
 
                 default: // dimensions 3 ... inf
@@ -755,7 +749,8 @@ public:
                 } break;
                 }
             },
-            {} // the 2-D case registers its init range from the drawn radius above
+            // x, y: the data lie within 3 * radius of the centre
+            {{-3. * radius, 3. * radius}, {-3. * radius, 3. * radius}}
         );
     }
 
@@ -782,7 +777,7 @@ public:
             n_data_sets,
             "createAxisCentricNetworkData",
             0,
-            [&](Gem::Hap::GRandom &gr_l, networkData &, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 const std::size_t n_dim = t_s.Input.size();
 
                 // Create even distribution across all dimensions
@@ -846,7 +841,7 @@ public:
             n_data_sets,
             "createSinNetworkData",
             2, // this example only accepts two input nodes
-            [&](Gem::Hap::GRandom &gr_l, networkData &, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 // create the two test values
                 t_s.Input[0] = uniform_real_distribution(
                     gr_l,
