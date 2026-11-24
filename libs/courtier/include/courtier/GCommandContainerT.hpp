@@ -656,8 +656,8 @@ std::string container_to_string(
     catch(...) {
         throw gem_exception(
             g_error_streamer() << describeException(std::current_exception()) << '\n'
-                               << "with serializationMode == "
-                               << Gem::Common::serModeToString(serMode) << '\n'
+                               << "with serializationMode == " << Gem::Common::enumName(serMode)
+                               << '\n'
         );
     }
 }

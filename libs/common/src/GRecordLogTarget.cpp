@@ -43,38 +43,6 @@
 
 namespace Gem::Common {
 
-namespace {
-
-/******************************************************************************/
-/**
- * @brief The name of a kind of message, as the column `severity` holds it
- * @param severity The kind of message
- * @return The name of its logType value, e.g. "WARNING"
- */
-std::string_view severityName(logType severity) {
-    switch(severity) { // every value named, so that a new one is a compiler warning (-Wswitch)
-    case logType::ERROR_REPORT:
-        return "ERROR_REPORT";
-    case logType::TERMINATION:
-        return "TERMINATION";
-    case logType::WARNING:
-        return "WARNING";
-    case logType::LOGGING:
-        return "LOGGING";
-    case logType::FILE:
-        return "FILE";
-    case logType::STDOUT:
-        return "STDOUT";
-    case logType::STDERR:
-        return "STDERR";
-    case logType::EXIT:
-        return "EXIT";
-    }
-    return "LOGGING"; // not a logType value
-}
-
-} /* namespace */
-
 /******************************************************************************/
 /**
  * A target that records into the stream of the given name. The stream is declared at the first
@@ -171,7 +139,7 @@ void GRecordLogTarget::record_(
             );
         }
         if(stream_->isOpen()) {
-            stream_->append(Record::GRow{std::string(severityName(severity)), source, message});
+            stream_->append(Record::GRow{std::string(enumName(severity)), source, message});
             return;
         }
     }

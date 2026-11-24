@@ -38,54 +38,20 @@ namespace Gem::Common {
 // The numeric enum stream operators (sortOrder, dimensions, logType,
 // serializationMode, expectation) are supplied by the shared
 // numeric_enum_values_v machinery in GCommonEnums.hpp. Only tribool's textual
-// insertion operator needs a hand-written implementation.
+// insertion operator needs an implementation of its own.
 
 /******************************************************************************/
 /**
- * Puts a Gem::Common::tribool into a stream
+ * Puts a Gem::Common::tribool into a stream, as its name (enum_names_v)
  *
  * @param o The output stream to write to
  * @param x The tribool value to write (True / False / Indeterminate)
  * @return The output stream, to allow chaining
+ * @throws gem_exception for a number cast to tribool that is none of its values
  */
 std::ostream &operator<<(std::ostream &o, Gem::Common::tribool const &x) {
-    switch(x) {
-    case Gem::Common::tribool::True:
-        o << "True";
-        break;
-    case Gem::Common::tribool::False:
-        o << "False";
-        break;
-    case Gem::Common::tribool::Indeterminate:
-        o << "Indeterminate";
-        break;
-    default:
-        // Guard against corrupted-stream deserialisation (>> casts any
-        // ENUMBASETYPE to tribool without validation). Without this arm
-        // the stream would be left untouched, silently producing empty
-        // output instead of a diagnostic.
-        o << "tribool::?(" << std::to_underlying(x) << ")";
-        break;
-    }
+    o << enumName(x);
     return o;
-}
-
-/******************************************************************************/
-/**
- * Converts a serializationMode to a string representation for debugging purposes
- *
- * @param ser_mod The serialization mode to convert
- * @return A string representation of the mode ("GEM_BINARY", "GEM_JSON", or "unknown")
- */
-std::string serModeToString(Gem::Common::serializationMode ser_mod) {
-    switch(ser_mod) {
-    case Gem::Common::serializationMode::GEM_BINARY:
-        return "GEM_BINARY";
-    case Gem::Common::serializationMode::GEM_JSON:
-        return "GEM_JSON";
-    default:
-        return "unknown";
-    }
 }
 
 /******************************************************************************/
@@ -100,7 +66,7 @@ std::string serializationModeChoices() {
         if(m > 0) {
             text += (m + 1 == SERIALIZATIONMODES.size()) ? " or " : ", ";
         }
-        text += serModeToString(SERIALIZATIONMODES.at(m)) + " (" +
+        text += std::string(enumName(SERIALIZATIONMODES.at(m))) + " (" +
                 std::to_string(std::to_underlying(SERIALIZATIONMODES.at(m))) + ")";
     }
     return text;
