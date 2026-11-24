@@ -74,6 +74,10 @@ using Gem::Common::to_string;
 
 namespace {
 
+/** @brief The marker of the points of a 2-d scatter plot: ROOT's small filled circle */
+constexpr int SCATTERMARKERSTYLE = 20;
+/** @brief The size of the marker of a 2-d scatter plot (ROOT's unit: about 8 pixels per 1) */
+constexpr double SCATTERMARKERSIZE = 0.5;
 /** @brief The offset of the x-axis title of a 3-d graph from its axis (ROOT's unit: the title size) */
 constexpr double GRAPH3DXTITLEOFFSET = 2.0;
 /** @brief The offset of the y-axis title of a 3-d graph; its tick labels stand further out */
@@ -392,6 +396,14 @@ void graph2DLook(
     }
     if(s.spec.line_width.has_value()) {
         out << indent << graph << "->SetLineWidth(" << *s.spec.line_width << ");" << '\n';
+    }
+    // The points of a scatter plot are small filled circles. ROOT's own default marker is a dot of
+    // one pixel: a cloud of points came out faint and its legend sample invisible. A draw option of
+    // the plotter's own that names ROOT's star marker ("*") still decides, in shape and size.
+    const GDrawStyle style = s.plotter->drawStyle();
+    if(style.markers and not style.line and not s.spec.drawing_args.contains('*')) {
+        out << indent << graph << "->SetMarkerStyle(" << SCATTERMARKERSTYLE << ");" << '\n'
+            << indent << graph << "->SetMarkerSize(" << SCATTERMARKERSIZE << ");" << '\n';
     }
 }
 

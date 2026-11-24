@@ -2582,3 +2582,43 @@ TEST_CASE("The floor-axis titles of a 3-d graph are centred and clear of the tic
         CHECK(s.contains("->GetYaxis()->SetTitleOffset(2.5);"));
     }
 }
+
+/******************************************************************************/
+// ROOT's own default marker is a dot of one pixel: the points of a scatter plot came out faint and
+// the legend sample, which copies the marker, invisible. A scatter plot -- also one with error bars
+// -- now draws small filled circles; a curve keeps its line without them, and a draw option of the
+// plotter's own that names ROOT's star marker keeps its stars.
+TEST_CASE("A 2-d scatter plot draws visible markers in ROOT", "[plotting]") {
+    const std::string marker = "->SetMarkerStyle(20);";
+    const std::string size = "->SetMarkerSize(0.5);";
+
+    auto scatter = std::make_shared<GGraph2D>();
+    scatter->setPlotMode(graphPlotMode::SCATTER);
+    (*scatter) & std::tuple<double, double>(1.0, 2.0);
+    (*scatter) & std::tuple<double, double>(2.0, 3.0);
+    const std::string s = rootMacroOf(scatter);
+    CHECK(s.contains(marker));
+    CHECK(s.contains(size));
+
+    auto with_errors = std::make_shared<GGraph2ED>();
+    with_errors->setPlotMode(graphPlotMode::SCATTER);
+    (*with_errors) & std::tuple<double, double, double, double>(1.0, 0.1, 2.0, 0.2);
+    (*with_errors) & std::tuple<double, double, double, double>(3.0, 0.3, 4.0, 0.4);
+    const std::string e = rootMacroOf(with_errors);
+    CHECK(e.contains(marker));
+    CHECK(e.contains(size));
+
+    auto curve = std::make_shared<GGraph2D>();
+    curve->setPlotMode(graphPlotMode::CURVE);
+    (*curve) & std::tuple<double, double>(1.0, 2.0);
+    (*curve) & std::tuple<double, double>(2.0, 3.0);
+    CHECK_FALSE(rootMacroOf(curve).contains(size));
+
+    // A draw option of the plotter's own that names ROOT's star marker keeps its stars as they were
+    auto stars = std::make_shared<GGraph2D>();
+    stars->setPlotMode(graphPlotMode::SCATTER);
+    stars->setDrawingArguments("A*");
+    (*stars) & std::tuple<double, double>(1.0, 2.0);
+    (*stars) & std::tuple<double, double>(2.0, 3.0);
+    CHECK_FALSE(rootMacroOf(stars).contains(size));
+}
