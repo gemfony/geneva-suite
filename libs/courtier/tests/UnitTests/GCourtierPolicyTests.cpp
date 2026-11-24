@@ -342,3 +342,116 @@ TEST_CASE(
         CHECK(batch[3]->kind() == "base");
     }
 }
+
+/******************************************************************************/
+// The marks a work item carries for a failed evaluation: a refill is marked as a substitute, and an
+// item its submitter forbids to substitute is evaluated again instead.
+
+TEST_CASE(
+    "courtier: a refilled slot is marked as a substitute until it is submitted again",
+    "[courtier][policy][substitute]"
+) {
+    LocalFixture f;
+    auto batch = make_batch(6, {2, 4}, fault_mode::THROW_PROCESSING);
+
+    f.workOn(batch, GSubmissionPolicy::clone_on_partial_return());
+
+    REQUIRE(count_processed(batch) == 6);
+    for(std::size_t i = 0; i < batch.size(); ++i) {
+        INFO("slot " << i);
+        CHECK(batch[i]->isSubstitute() == (i == 2 || i == 4));
+    }
+
+    // The refills are copies of items that did not fail: submitted again, every slot is evaluated
+    // and none is a substitute any more.
+    f.workOn(batch, GSubmissionPolicy::clone_on_partial_return());
+
+    CHECK(count_processed(batch) == 6);
+    CHECK(std::ranges::none_of(batch, [](const item_ptr &p) { return p->isSubstitute(); }));
+}
+
+namespace {
+
+/** @brief An item that fails its first @p failures evaluations and succeeds afterwards. A local
+ *  consumer evaluates it in place, so the count survives a failed evaluation. */
+class FlakyItem : public GProcessingContainerT<FlakyItem, bool> {
+    ///////////////////////////////////////////////////////////////////////
+    friend struct Gem::Weft::access;
+    template <typename archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
+        Gem::Common::archive_named_base<GProcessingContainerT<FlakyItem, bool>>(
+            ar,
+            "GProcessingContainerT_FlakyItem",
+            *this
+        );
+        Gem::Common::archive_named(ar, "id_", id_);
+        Gem::Common::archive_named(ar, "failures_left_", failures_left_);
+    }
+    ///////////////////////////////////////////////////////////////////////
+
+public:
+    /** @brief An item due for processing
+     *  @param id Identifies the item
+     *  @param failures How many of its evaluations are to fail */
+    FlakyItem(std::size_t id, std::size_t failures)
+      : id_(id)
+      , failures_left_(failures) {
+        this->mark_as_due_for_processing();
+    }
+    /** @brief For deserialization only */
+    FlakyItem() = default;
+
+    /** @brief @return The id given at construction */
+    [[nodiscard]] std::size_t id() const {
+        return id_;
+    }
+
+private:
+    /** @brief Throws while failures are left, registers a result otherwise */
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec = std::vector<bool>()) final {
+        if(failures_left_ > 0) {
+            --failures_left_;
+            throw std::runtime_error("FlakyItem: built to fail");
+        }
+        this->registerResult(0, true);
+    }
+
+    std::size_t id_ = 0;            ///< Identifies the item
+    std::size_t failures_left_ = 0; ///< How many evaluations are still to fail
+};
+
+using flaky_ptr = std::unique_ptr<FlakyItem>;
+
+} // anonymous namespace
+
+// Two items checked slot by slot; the complexity counted is that of Catch2's macros.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+TEST_CASE(
+    "courtier: an item that may not be substituted is evaluated again and not substituted",
+    "[courtier][policy][substitute]"
+) {
+    auto consumer = std::make_shared<GStdThreadConsumerT<FlakyItem>>();
+    std::vector<flaky_ptr> batch;
+    batch.push_back(std::make_unique<FlakyItem>(0, 0));
+    batch.push_back(std::make_unique<FlakyItem>(1, 1));   // fails once, may not be substituted
+    batch.push_back(std::make_unique<FlakyItem>(2, 100)); // keeps failing, may be substituted
+    batch.push_back(std::make_unique<FlakyItem>(3, 0));
+    batch[1]->setSubstitutable(false);
+    const FlakyItem *const kept = batch[1].get();
+
+    auto policy = GSubmissionPolicy::clone_on_partial_return();
+    policy.max_failed_retries = 1;
+    consumer->processBatch(std::span<flaky_ptr>(batch.data(), batch.size()), policy);
+
+    // The item that may not be substituted was evaluated again: the same object, its own result.
+    REQUIRE(batch[1].get() == kept);
+    CHECK(batch[1]->is_processed());
+    CHECK(batch[1]->id() == 1);
+    CHECK_FALSE(batch[1]->isSubstitute());
+    CHECK_FALSE(batch[1]->isSubstitutable()); // the submitter's mark stays until it is set again
+
+    // The one that may be substituted failed beyond its budget and was refilled.
+    CHECK(batch[2]->is_processed());
+    CHECK(batch[2]->isSubstitute());
+    CHECK(batch[2]->id() != 2);
+}

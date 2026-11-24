@@ -40,6 +40,8 @@
  *   fatal-unfixable    -- a deterministically failing slot under full-success-or-fatal: must exit non-zero.
  *   fatal-none-fatal   -- every slot fails under full-success-or-fatal: zero-usable floor, must exit non-zero.
  *   fatal-none-clone   -- every slot fails under clone-on-partial-return: nothing to clone from, must exit non-zero.
+ *   fatal-not-substitutable -- a failing slot that may not be substituted, under clone-on-partial-return:
+ *                         must exit non-zero, as under full-success-or-fatal.
  *   fatal-oversized-batch -- a networked batch one slot larger than a correlation id can address:
  *                         must exit non-zero.
  */
@@ -93,7 +95,7 @@ int main(int argc, char **argv) {
         scenario,
         std::string(""),
         "which fatal path to exercise: ok | fatal-unfixable | fatal-none-fatal | fatal-none-clone"
-        " | fatal-oversized-batch"
+        " | fatal-not-substitutable | fatal-oversized-batch"
     );
     if(gpb.parseCommandLine(argc, argv) == Gem::Common::GCL_HELP_REQUESTED) {
         return 0;
@@ -101,7 +103,7 @@ int main(int argc, char **argv) {
     if(scenario.empty()) {
         std::cerr << "Error: --scenario is required "
                      "(ok | fatal-unfixable | fatal-none-fatal | fatal-none-clone | "
-                     "fatal-oversized-batch)\n";
+                     "fatal-not-substitutable | fatal-oversized-batch)\n";
         return 2;
     }
 
@@ -137,6 +139,17 @@ int main(int argc, char **argv) {
         auto batch = make_batch(8, fault_mode::THROW_PROCESSING);
         workOn(batch, GSubmissionPolicy::clone_on_partial_return());
         std::cout << "fatal-none-clone: ERROR -- returned without terminating\n";
+        return 0; // should be unreachable
+    }
+
+    if(scenario == "fatal-not-substitutable") {
+        // The tolerant policy would refill the failing slot, but its submitter forbids a substitute:
+        // with no retry budget the slot stays unresolved -> FATAL.
+        auto batch = make_batch(8, fault_mode::NONE);
+        batch[3] = std::make_unique<GFaultyContainer>(3, fault_mode::THROW_PROCESSING);
+        batch[3]->setSubstitutable(false);
+        workOn(batch, GSubmissionPolicy::clone_on_partial_return());
+        std::cout << "fatal-not-substitutable: ERROR -- returned without terminating\n";
         return 0; // should be unreachable
     }
 

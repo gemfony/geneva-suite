@@ -67,6 +67,11 @@ enum class on_unresolved : Gem::Common::ENUMBASETYPE {
  * A MISSING item that never returns despite repeated resubmissions (max_resubmissions) is likely a
  * *poison* item that crashes the client; once its resubmission budget is exhausted it becomes
  * unresolved rather than being resubmitted forever (see GBaseConsumerT::processBatch).
+ *
+ * The work item itself tells the submitter what happened: a slot refilled under on_unresolved::clone
+ * holds an item marked as a substitute (GProcessable::isSubstitute()). An item the submitter marks as
+ * not substitutable (GProcessable::setSubstitutable(false)) is never refilled; whatever the policy, it
+ * follows the rule of on_unresolved::fatal within the budgets below.
  */
 //! [courtier-submission-policy#2]
 struct GSubmissionPolicy {
