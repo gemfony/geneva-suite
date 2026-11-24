@@ -74,6 +74,25 @@ TEST_CASE("GHap autoProducerThreadCount is hardware-derived and clamped", "[hap]
 }
 
 // PRE-1: the factory exposes supply-health counters so RNG production/starvation is observable.
+TEST_CASE("GHap seeds carry more than 32 bits", "[hap][standard]") {
+    // Regression: every seed was one 32-bit word of a std::seed_seq, so each engine -- a producer's
+    // or the private one of a LOCAL proxy -- started in one of only 2^32 states, although the seed
+    // type and the engine's seed both hold 64 bits. With many engines two then share a stream. A
+    // 64-bit seed has a high half of zero with probability 2^-32; among 64 seeds that does not
+    // happen for all of them.
+    if(sizeof(Gem::Hap::seed_type) < 8) {
+        SKIP("the seed type of this platform holds 32 bits");
+    }
+    bool high_bits_seen = false;
+    for(int i = 0; i < 64; ++i) {
+        const std::uint64_t seed = Gem::Hap::randomFactory()->getSeed();
+        if((seed >> 32U) != 0U) {
+            high_bits_seen = true;
+        }
+    }
+    CHECK(high_bits_seen);
+}
+
 TEST_CASE("GHap factory exposes supply-health counters", "[hap][standard]") {
     auto factory = Gem::Hap::randomFactory();
 

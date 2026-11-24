@@ -832,6 +832,26 @@ private:
         return static_cast<derived_type &>(*this);
     }
 
+    /** @brief A type of fixed size (std::tuple, std::array) takes exactly its number of elements:
+     *  another count in the archive would leave everything after it to be read from the wrong
+     *  place. An archive that reports a wrong length itself, with the place in its document (the
+     *  JSON archive), declares reports_sequence_length and is left to do so.
+     *  @param found The element count the archive holds
+     *  @param expected The number of elements of the type that is loaded */
+    static void require_count(std::size_t found, std::size_t expected) {
+        if constexpr(requires { requires derived_type::reports_sequence_length; }) {
+            return;
+        }
+        if(found != expected) {
+            throw weft_exception(
+                weft_error_streamer()
+                << "In GIArchiveT: the archive holds a sequence of " << found
+                << " element(s) where a tuple or array of " << expected
+                << " is loaded. Malformed archive, or an archive of another type." << '\n'
+            );
+        }
+    }
+
     template <typename T>
     derived_type &process(T &v) {
         using U = std::remove_cv_t<T>;
@@ -956,7 +976,7 @@ private:
             d().leave_object();
         }
         else if constexpr(detail::is_tuple<U>::value) {
-            d().begin_seq();
+            require_count(d().begin_seq(), std::tuple_size_v<U>);
             std::apply(
                 [&](auto &...elems) { ((d().begin_elem(), process(elems), d().end_elem()), ...); },
                 v
@@ -964,7 +984,7 @@ private:
             d().end_seq();
         }
         else if constexpr(detail::is_std_array<U>::value) {
-            d().begin_seq();
+            require_count(d().begin_seq(), v.size());
             for(auto &e : v) {
                 d().begin_elem();
                 process(e);

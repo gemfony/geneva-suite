@@ -282,6 +282,33 @@ TEST_CASE("GBinaryArchive: pairs and tuples and arrays round-trip", "[common][ar
     CHECK(roundtrip(a) == a);
 }
 
+TEST_CASE(
+    "GBinaryArchive: a tuple or array of another size than the stream holds is refused",
+    "[common][archive][binary]"
+) {
+    // Regression: the element count of a tuple or std::array was read and ignored. Loading a
+    // stream of three elements into a type of two took two and left the cursor in the middle of
+    // the data, so everything after it was read from the wrong place without an error.
+    {
+        GBinaryOArchive oa;
+        std::array<int, 3> three{1, 2, 3};
+        oa & three;
+        const std::string encoded = oa.str();
+        GBinaryIArchive ia(encoded);
+        std::array<int, 2> two{};
+        CHECK_THROWS_AS(ia & two, Gem::Weft::weft_exception);
+    }
+    {
+        GBinaryOArchive oa;
+        std::tuple<int, int, int> three{1, 2, 3};
+        oa & three;
+        const std::string encoded = oa.str();
+        GBinaryIArchive ia(encoded);
+        std::tuple<int, int> two{};
+        CHECK_THROWS_AS(ia & two, Gem::Weft::weft_exception);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // std::atomic.
 
