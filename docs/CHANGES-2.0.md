@@ -621,6 +621,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   by design, the producer-thread count has its own setter, and the singleton's destructor
   joins the threads at static teardown). Access it only through `Gem::Hap::randomFactory()`.
   The generic `Gem::Common::GSingletonT<T>::reset()` is unaffected.
+- **`Gem::Hap::bi_normal_distribution::reset()` has the standard meaning** (behaviour change):
+  it discards cached values, as the standard distributions do, and keeps the parameters.
+  Restoring the parameters of the construction is `restoreParams()`. The class is now
+  assignable. The bi-Gauss adaption's "no change" nudge follows the direction of the step.
 - **The `execMode` enum is gone.** It was the selector of the removed per-algorithm
   broker parallelization model; under the one-consumer model the choice is simply which
   consumer the process registers. The direct-mode examples/benchmark keep their numeric

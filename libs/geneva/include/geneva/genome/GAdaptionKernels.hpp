@@ -643,9 +643,12 @@ std::size_t adaptBiGaussGroup(
     auto bigauss_step = [&](T &v) {
         const T before = v;
         const T s2 = cfg.use_symmetric_sigmas ? st.sigma1 : st.sigma2;
-        v += bi_normal(gr, bn_param(T(0.), st.sigma1, s2, st.delta));
-        if(v == before) {
-            v = std::nextafter(before, std::numeric_limits<T>::max());
+        const T step = bi_normal(gr, bn_param(T(0.), st.sigma1, s2, st.delta));
+        v = before + step;
+        if(v == before) { // the step is lost in the value's precision: one ULP in its direction
+            const T dir =
+                (step < T(0.)) ? std::numeric_limits<T>::lowest() : std::numeric_limits<T>::max();
+            v = std::nextafter(before, dir);
         }
     };
 

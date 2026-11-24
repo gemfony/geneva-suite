@@ -294,6 +294,29 @@ TEST_CASE("adaptBiGaussGroup: mode ALWAYS adapts every value (ULP-guaranteed cha
 }
 
 /******************************************************************************/
+TEST_CASE(
+    "adaptBiGaussGroup: a step too small to change a value nudges it in its own direction",
+    "[kernel]"
+) {
+    // Regression: when a bi-gaussian step was lost in the value's precision, the value was always
+    // moved one ULP upwards; the Gauss kernel moves it in the direction of the step. Both do now.
+    BiGaussConfig<double> cfg;
+    cfg.mode = adaptionMode::ALWAYS;
+    cfg.adaption_threshold = 0; // the widths stay fixed: no self-adaption
+    BiGaussState<double> st;
+    st.sigma1 = 0.1;
+    st.delta = 0.5;
+
+    std::vector<double> v(400, 1e20); // a step of about 0.25 is far below one ULP of 1e20
+    adaptBiGaussGroup<double>(cfg, st, std::span<double>(v), gr);
+    const auto n_down = std::ranges::count_if(v, [](double x) { return x < 1e20; });
+    const auto n_up = std::ranges::count_if(v, [](double x) { return x > 1e20; });
+    CHECK(n_up + n_down == static_cast<std::ptrdiff_t>(v.size()));
+    CHECK(n_down > static_cast<std::ptrdiff_t>(v.size() / 4));
+    CHECK(n_up > static_cast<std::ptrdiff_t>(v.size() / 4));
+}
+
+/******************************************************************************/
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent kernel test: the 200-rep self-adaption loop checks sigma1/sigma2/delta bounds together against the SAME evolving state
 TEST_CASE("adaptBiGaussGroup: sigma1/sigma2/delta self-adapt within their bounds", "[kernel]") {
     BiGaussConfig<double> cfg;
@@ -424,7 +447,13 @@ TEST_CASE(
     st.sigma = 1.;
 
     std::vector<std::int32_t> v(2000, 0);
-    adaptGaussIntGroup(cfg, st, std::span<std::int32_t>(v), std::numeric_limits<std::int32_t>::max(), gr);
+    adaptGaussIntGroup(
+        cfg,
+        st,
+        std::span<std::int32_t>(v),
+        std::numeric_limits<std::int32_t>::max(),
+        gr
+    );
     const auto n_up = std::ranges::count_if(v, [](std::int32_t x) { return x > 0; });
     const auto n_down = std::ranges::count_if(v, [](std::int32_t x) { return x < 0; });
     CHECK(n_up + n_down == static_cast<std::ptrdiff_t>(v.size()));
