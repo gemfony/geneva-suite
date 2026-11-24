@@ -1256,7 +1256,8 @@ std::string GGraph4D::getPlotterName() const {
 
 /******************************************************************************/
 /**
- * Reports this plotter's choice as a GPlotSpec (a 4-d xyzw graph).
+ * Reports this plotter's choice as a GPlotSpec (a 4-d xyzw graph), with its markers' settings where
+ * they differ from the defaults (marker_size, small_w_large_marker, n_best).
  *
  * @return A GPlotSpec describing this GGraph4D
  */
@@ -1265,6 +1266,16 @@ GPlotSpec GGraph4D::plotSpec() const {
     spec.kind = plotKind::graph_4d;
     spec.role = defaultRole(spec.kind);
     spec.columns = {"x", "y", "z", "w"};
+    // The markers' settings appear where they differ from the defaults.
+    if(min_marker_size_ != DEFMINMARKERSIZE or max_marker_size_ != DEFMAXMARKERSIZE) {
+        spec.marker_size = std::make_tuple(min_marker_size_, max_marker_size_);
+    }
+    if(not small_w_large_marker_) {
+        spec.small_w_large_marker = false;
+    }
+    if(n_best_ > 0) {
+        spec.n_best = n_best_;
+    }
     return spec;
 }
 
@@ -1568,7 +1579,8 @@ std::string GFunctionPlotter1D::getPlotterName() const {
 
 /******************************************************************************/
 /**
- * Reports this plotter's choice as a GPlotSpec (a sampled 1-d function plot). A
+ * Reports this plotter's choice as a GPlotSpec (a sampled 1-d function plot): its formula, the
+ * x range it is drawn over (range_x) and the number of points it is sampled at (n_bins_x). A
  * function plotter carries no sampled data columns.
  *
  * @return A GPlotSpec describing this GFunctionPlotter1D
@@ -1577,6 +1589,9 @@ GPlotSpec GFunctionPlotter1D::plotSpec() const {
     GPlotSpec spec = GBasePlotter::plotSpec();
     spec.kind = plotKind::function_1d;
     spec.role = defaultRole(spec.kind);
+    spec.function = function_description_;
+    spec.range_x = x_extremes_;
+    spec.n_bins_x = n_samples_x_;
     return spec;
 }
 
@@ -1776,8 +1791,9 @@ std::string GFunctionPlotter2D::getPlotterName() const {
 
 /******************************************************************************/
 /**
- * Reports this plotter's choice as a GPlotSpec (a sampled 2-d function plot). A
- * function plotter carries no sampled data columns.
+ * Reports this plotter's choice as a GPlotSpec (a sampled 2-d function plot): its formula, the
+ * ranges it is drawn over (range_x, range_y) and the number of points it is sampled at along each
+ * axis (n_bins_x, n_bins_y). A function plotter carries no sampled data columns.
  *
  * @return A GPlotSpec describing this GFunctionPlotter2D
  */
@@ -1785,6 +1801,11 @@ GPlotSpec GFunctionPlotter2D::plotSpec() const {
     GPlotSpec spec = GBasePlotter::plotSpec();
     spec.kind = plotKind::function_2d;
     spec.role = defaultRole(spec.kind);
+    spec.function = function_description_;
+    spec.range_x = x_extremes_;
+    spec.range_y = y_extremes_;
+    spec.n_bins_x = n_samples_x_;
+    spec.n_bins_y = n_samples_y_;
     return spec;
 }
 

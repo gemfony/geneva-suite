@@ -140,98 +140,243 @@ void markerLine(std::ostream &out, const rootSeries &s) {
     }
 }
 
+/**
+ * @param s A 3-d graph
+ * @return true if a line joins its points
+ */
+bool curveOf(const rootSeries &s) {
+    return s.spec.plot_mode == graphPlotMode::CURVE and pointsOf(s) >= 2;
+}
+
+/**
+ * The number of columns ROOT reads for a plot kind; a plotter that reports fewer cannot be drawn.
+ *
+ * @param kind A plot kind
+ * @return The number of data columns its series needs
+ */
+std::size_t columnsNeeded(plotKind kind) {
+    switch(kind) {
+    case plotKind::graph_2d:
+    case plotKind::hist_2d:
+        return 2;
+    case plotKind::graph_2d_err:
+    case plotKind::graph_4d:
+        return 4;
+    case plotKind::graph_3d:
+        return 3;
+    case plotKind::hist_1d:
+    case plotKind::hist_1i:
+        return 1;
+    case plotKind::function_1d:
+    case plotKind::function_2d:
+        return 0;
+    }
+    return 0;
+}
+
+/**
+ * The automatic range of a histogram axis: from the smallest value to one bin width above the
+ * largest, since ROOT's upper edge is exclusive -- a range that ended at the largest value would put
+ * every entry equal to it into the overflow bin, which is not drawn. One value alone gets the range
+ * [value - 0.5, value + 0.5].
+ *
+ * @param column The values of the axis (not empty)
+ * @param n_bins The number of bins of the axis
+ * @return The lower and the upper edge
+ */
+std::tuple<double, double> rangeHolding(const GPlotColumn &column, std::size_t n_bins) {
+    const auto [lo, hi] = columnRange(column);
+    if(hi <= lo) {
+        return {lo - 0.5, hi + 0.5};
+    }
+    return {lo, hi + ((hi - lo) / static_cast<double>(std::max<std::size_t>(n_bins, 1)))};
+}
+
+/**
+ * Refuses a histogram without data whose range is to come from its data.
+ *
+ * @param s A histogram
+ */
+void requireData(const rootSeries &s) {
+    if(pointsOf(s) == 0) {
+        throw gem_exception(
+            g_error_streamer() << "Cannot determine the data range of the empty histogram \""
+                               << s.spec.name << "\"; give it a range or data" << '\n'
+        );
+    }
+}
+
 /******************************************************************************/
 /**
- * The name of the object in the macro whose look the legend sample of a series copies: the graph
- * its footer draws.
+ * The name of the object in the macro whose look the legend sample of a series copies: the graph,
+ * histogram or function its footer draws (a 4-d graph: one of its markers; a 3-d curve: a sample
+ * object of its own, never drawn).
  *
  * @param s The series
  * @return The name of the object
  */
 std::string legendObjectOf(const rootSeries &s) {
+    const std::string suffix = suffixOf(s);
     switch(s.spec.kind) {
     case plotKind::graph_2d:
-        return "graph" + suffixOf(s);
-    default:
-        break;
+        return "graph" + suffix;
+    case plotKind::graph_2d_err:
+        return "graph_" + suffix;
+    case plotKind::graph_3d:
+        // A curve through the points has a sample object of its own (see graph3DFooter()).
+        return (curveOf(s) ? "legend_graph_" : "graph_") + suffix;
+    case plotKind::graph_4d:
+        // A 4-d graph draws one marker per point, the best one larger and blue; an ordinary point
+        // is the sample, unless only the best one is drawn.
+        return "pm3d_" + suffix + (s.spec.n_best.value_or(0) == 1 ? "_0" : "_1");
+    case plotKind::hist_1d:
+        return "histD" + suffix;
+    case plotKind::hist_1i:
+        return "histI" + suffix;
+    case plotKind::hist_2d:
+        return "hist2D" + suffix;
+    case plotKind::function_1d:
+        return "func1D" + suffix;
+    case plotKind::function_2d:
+        return "func2D" + suffix;
     }
-    throw gem_exception(
-        g_error_streamer() << "GRootEmitter: a plot of kind \"" << to_string(s.spec.kind)
-                           << "\" is not yet drawn from its plot spec" << '\n'
-    );
+    return {};
 }
 
 /**
  * ROOT's draw option of a series: the plotter's own drawing arguments, or one made from its draw
- * style, with "same" for an overlay.
+ * style or its kind, with "same" for an overlay where ROOT needs it.
  *
  * @param s The series
  * @return The draw option
  */
 std::string drawOptionOf(const rootSeries &s) {
     const std::string &own = s.spec.drawing_args;
-    if(not own.empty()) {
-        return own;
+    switch(s.spec.kind) {
+    case plotKind::graph_2d:
+    case plotKind::graph_2d_err: {
+        if(not own.empty()) {
+            return own;
+        }
+        // Markers, and a line through them for a curve, as the series' draw style says.
+        const GDrawStyle style = s.plotter->drawStyle();
+        const std::string d_a = std::string(style.markers ? "P" : "") + (style.line ? "L" : "");
+        return s.secondary ? d_a + ",same" : "A" + d_a;
     }
-    // Markers, and a line through them for a curve, as the series' draw style says.
-    const GDrawStyle style = s.plotter->drawStyle();
-    const std::string d_a = std::string(style.markers ? "P" : "") + (style.line ? "L" : "");
-    return s.secondary ? d_a + ",same" : "A" + d_a;
+    case plotKind::graph_3d:
+        if(not own.empty()) {
+            return own;
+        }
+        return s.secondary ? "P,same" : "P";
+    case plotKind::graph_4d:
+        return {}; // drawn marker by marker
+    case plotKind::hist_1d:
+    case plotKind::hist_1i:
+        if(not own.empty()) {
+            return own;
+        }
+        return s.secondary ? "same" : "";
+    case plotKind::hist_2d:
+        // The spec reports a set2DOpt() choice as the drawing arguments: such a choice is laid over
+        // the pad's primary with "same"; arguments of the plotter's own are taken as they are.
+        if(own.empty() or GHistogram2D::drawingOptionNamed(own).has_value()) {
+            return s.secondary ? own + ",same" : own;
+        }
+        return own;
+    case plotKind::function_1d:
+    case plotKind::function_2d:
+        if(not s.secondary) {
+            return own;
+        }
+        return own.empty() ? "same" : own + ",same";
+    }
+    return own;
 }
 
 /******************************************************************************/
-// The three sections of a series: its header declares what holds its data, its body fills it, and
-// its footer draws it.
+// The graphs: their data are declared and filled as arrays, one per column.
 
 /**
- * @param s The series
- * @param indent The indentation of every line
- * @return The declarations of the series' data
+ * @param s A graph
+ * @return The names of the arrays of its columns, in the order of the columns
  */
-std::string headerOf(const rootSeries &s, const std::string &indent) {
-    EmitStream out;
-    const std::string array = "_array_" + suffixOf(s);
-    const std::size_t n = pointsOf(s);
-    out << indent << "double x" << array << "[" << to_string(n) << "];"
-        << dsMarkerComment(s.plotter->dsMarker()) << '\n'
-        << indent << "double y" << array << "[" << to_string(n) << "];" << '\n'
-        << '\n';
-    return out.str();
+std::vector<std::string> arraysOf(const rootSeries &s) {
+    std::vector<std::string> names;
+    switch(s.spec.kind) {
+    case plotKind::graph_2d:
+        names = {"x", "y"};
+        break;
+    case plotKind::graph_2d_err:
+        names = {"x", "ex", "y", "ey"};
+        break;
+    case plotKind::graph_3d:
+        names = {"x", "y", "z"};
+        break;
+    default:
+        break;
+    }
+    for(auto &name : names) {
+        name += "_array_" + suffixOf(s);
+    }
+    return names;
 }
 
 /**
- * @param s The series
+ * @param s A graph
  * @param indent The indentation of every line
- * @return The statements that fill the series' data
+ * @return The declarations of its arrays, the first carrying the data-structure marker
  */
-std::string bodyOf(const rootSeries &s, const std::string &indent) {
+std::string graphHeader(const rootSeries &s, const std::string &indent) {
     EmitStream out;
-    const std::string array = "_array_" + suffixOf(s);
-    markerLine(out, s);
-    const auto &x = doublesOf(s, 0);
-    const auto &y = doublesOf(s, 1);
-    for(std::size_t i = 0; i < x.size(); ++i) {
-        out << indent << "x" << array << "[" << i << "] = " << x[i] << ";"
-            << "\t" << "y" << array << "[" << i << "] = " << y[i] << ";" << '\n';
+    const std::string n = to_string(pointsOf(s));
+    for(const auto &[c, name] : arraysOf(s) | std::views::enumerate) {
+        out << indent << "double " << name << "[" << n << "];"
+            << (c == 0 ? dsMarkerComment(s.plotter->dsMarker()) : std::string{}) << '\n';
     }
     out << '\n';
     return out.str();
 }
 
 /**
- * @param s The series
+ * @param s A graph
  * @param indent The indentation of every line
- * @return The statements that draw the series
+ * @return The statements that fill its arrays: a point per line (a graph with errors: a value per
+ *         line)
  */
-std::string footerOf(const rootSeries &s, const std::string &indent) {
+std::string graphBody(const rootSeries &s, const std::string &indent) {
     EmitStream out;
-    const std::string array = "_array_" + suffixOf(s);
-    const std::string graph = legendObjectOf(s);
-    const std::size_t n = pointsOf(s);
     markerLine(out, s);
-    out << indent << "TGraph *" << graph << " = new TGraph(" << n << ", x" << array << ", y"
-        << array << ");" << '\n'
-        << indent << graph << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label) << "\");"
+    const auto names = arraysOf(s);
+    const bool point_per_line = s.spec.kind != plotKind::graph_2d_err;
+    for(std::size_t i = 0; i < pointsOf(s); ++i) {
+        for(const auto &[c, name] : names | std::views::enumerate) {
+            const auto column = static_cast<std::size_t>(c);
+            out << ((point_per_line and column > 0) ? std::string("\t") : indent) << name << "["
+                << i << "] = " << doublesOf(s, column)[i] << ";" << (point_per_line ? "" : "\n");
+        }
+        if(point_per_line) {
+            out << '\n';
+        }
+    }
+    out << '\n';
+    return out.str();
+}
+
+/**
+ * The axis titles, the plot title, the colour of the series in a shared pad and its line width.
+ *
+ * @param out The macro text
+ * @param s A 2-d graph
+ * @param graph The name of its graph
+ * @param indent The indentation of every line
+ */
+void graph2DLook(
+    std::ostream &out,
+    const rootSeries &s,
+    const std::string &graph,
+    const std::string &indent
+) {
+    out << indent << graph << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label) << "\");"
         << '\n'
         << indent << graph << "->GetYaxis()->SetTitle(\"" << rootEscape(s.spec.y_label) << "\");"
         << '\n';
@@ -243,6 +388,22 @@ std::string footerOf(const rootSeries &s, const std::string &indent) {
     if(s.spec.line_width.has_value()) {
         out << indent << graph << "->SetLineWidth(" << *s.spec.line_width << ");" << '\n';
     }
+}
+
+/**
+ * @param s A 2-d graph
+ * @param indent The indentation of every line
+ * @return The statements that draw it, with arrows between its points if it has them
+ */
+std::string graph2DFooter(const rootSeries &s, const std::string &indent) {
+    EmitStream out;
+    const auto arrays = arraysOf(s);
+    const std::string graph = legendObjectOf(s);
+    const std::size_t n = pointsOf(s);
+    markerLine(out, s);
+    out << indent << "TGraph *" << graph << " = new TGraph(" << n << ", " << arrays[0] << ", "
+        << arrays[1] << ");" << '\n';
+    graph2DLook(out, s, graph, indent);
     out << indent << graph << "->Draw(\"" << drawOptionOf(s) << "\");" << '\n' << '\n';
     if(s.spec.arrows.value_or(false) and n >= 2) {
         const auto &x = doublesOf(s, 0);
@@ -259,6 +420,639 @@ std::string footerOf(const rootSeries &s, const std::string &indent) {
     }
     out << '\n';
     return out.str();
+}
+
+/**
+ * @param s A 2-d graph with errors
+ * @param indent The indentation of every line
+ * @return The statements that draw it
+ */
+std::string graph2EDFooter(const rootSeries &s, const std::string &indent) {
+    EmitStream out;
+    const auto arrays = arraysOf(s); // x, ex, y, ey
+    const std::string graph = legendObjectOf(s);
+    markerLine(out, s);
+    out << indent << "TGraphErrors *" << graph << " = new TGraphErrors(" << pointsOf(s) << ", "
+        << arrays[0] << ", " << arrays[2] << ", " << arrays[1] << " ," << arrays[3] << ");" << '\n';
+    graph2DLook(out, s, graph, indent);
+    out << indent << graph << "->Draw(\"" << drawOptionOf(s) << "\");" << '\n' << '\n';
+    return out.str();
+}
+
+/**
+ * The points' shadows: every point again, small and grey, at the floor of the plot box, which the
+ * 3-d view of the pad already in place defines.
+ *
+ * @param s A 3-d graph
+ * @param graph The name of its graph
+ * @param indent The indentation of every line
+ * @return The statements that draw the shadows
+ */
+std::string floorShadow(const rootSeries &s, const std::string &graph, const std::string &indent) {
+    const auto arrays = arraysOf(s);
+    const std::string shadow = "shadow_" + graph;
+    EmitStream out;
+    out << indent << "{" << '\n'
+        << indent
+        << "   const double z_floor = gPad->GetView() ? gPad->GetView()->GetRmin()[2] : 0.;" << '\n'
+        << indent << "   TPolyMarker3D *" << shadow << " = new TPolyMarker3D(" << pointsOf(s)
+        << ");" << '\n'
+        << indent << "   for(int k = 0; k < " << pointsOf(s) << "; ++k) {" << '\n'
+        << indent << "      " << shadow << "->SetPoint(k, " << arrays[0] << "[k], " << arrays[1]
+        << "[k], z_floor);" << '\n'
+        << indent << "   }" << '\n'
+        << indent << "   " << shadow << "->SetMarkerStyle(20);" << '\n'
+        << indent << "   " << shadow << "->SetMarkerSize(0.35);" << '\n'
+        << indent << "   " << shadow << "->SetMarkerColor(kGray + 1);" << '\n'
+        << indent << "   " << shadow << "->Draw();" << '\n'
+        << indent << "}" << '\n';
+    return out.str();
+}
+
+/**
+ * A projected surface: the data as a colour-mapped surface, and its colour map on the ceiling
+ * (ROOT's own SURF3 option) or on the floor of the plot box.
+ *
+ * ROOT has no floor counterpart of SURF3, so the floor map is drawn here: once the surface has been
+ * painted and the 3-d view exists, every cell of the surface's interpolated histogram is projected
+ * onto the floor plane through the view and filled with the palette colour of its value. The surface
+ * is then painted again on top, so it hides the parts of the map that lie behind it.
+ *
+ * The z range of the box is pinned to the data's own minimum and maximum, so that the map lies at
+ * exactly those heights and an overlay drawn there sits on it.
+ *
+ * @param s A 3-d graph with a projection (the primary of its pad)
+ * @param graph The name of its graph
+ * @param indent The indentation of every line
+ * @return The statements that draw the projected surface
+ */
+std::string
+projectedSurface(const rootSeries &s, const std::string &graph, const std::string &indent) {
+    if(s.secondary) {
+        throw gem_exception(
+            g_error_streamer()
+            << "a surface projection was requested for an overlay -- only the primary plot of a "
+               "pad "
+            << "can be drawn as a projected surface" << '\n'
+        );
+    }
+    if(not s.spec.drawing_args.empty()) {
+        throw gem_exception(
+            g_error_streamer()
+            << "a surface projection decides the drawing itself and cannot be combined with the "
+            << "custom drawing arguments \"" << s.spec.drawing_args << "\"" << '\n'
+        );
+    }
+    if(pointsOf(s) < 3) {
+        throw gem_exception(
+            g_error_streamer() << "a surface needs at least three points, got " << pointsOf(s)
+                               << '\n'
+        );
+    }
+
+    const auto [z_min_it, z_max_it] = std::ranges::minmax_element(doublesOf(s, 2));
+    const double z_min = *z_min_it;
+    const double z_max = *z_max_it;
+    const surfaceProjection projection = s.spec.projection.value_or(surfaceProjection::NONE);
+    const bool surface = s.spec.surface.value_or(true);
+
+    EmitStream out;
+    out << indent << graph << "->SetMinimum(" << z_min << ");" << '\n'
+        << indent << graph << "->SetMaximum(" << z_max << ");" << '\n';
+
+    if(projection == surfaceProjection::CEILING && surface) {
+        out << indent << graph << "->Draw(\"SURF3Z\");" << '\n';
+        return out.str();
+    }
+
+    // The map is drawn cell by cell onto the floor (or, without the surface, the ceiling): paint once
+    // to obtain the view, draw the map, and paint the surface again on top if it is wanted. Without
+    // the surface, the first paint draws invisible markers only -- it sets up the box and the view
+    // without a surface and without the colour scale that comes with one.
+    const double plane = (projection == surfaceProjection::CEILING) ? z_max : z_min;
+    const std::string h = "h_" + graph;
+    const std::string v = "v_" + graph;
+    if(surface) {
+        out << indent << graph << "->Draw(\"SURF1Z\");" << '\n';
+    }
+    else {
+        out << indent << graph << "->SetMarkerSize(0);" << '\n'
+            << indent << graph << "->Draw(\"P\");" << '\n';
+    }
+    out << indent << "gPad->Update();" << '\n'
+        << indent << "{" << '\n'
+        << indent << "   TH2 *" << h << " = " << graph << "->GetHistogram();" << '\n'
+        << indent << "   TView *" << v << " = gPad->GetView();" << '\n'
+        << indent << "   const int n_colours = gStyle->GetNumberOfColors();" << '\n'
+        << indent << "   const double z_lo = " << z_min << ";" << '\n'
+        << indent << "   const double z_hi = " << z_max << ";" << '\n'
+        << indent << "   for(int i = 1; i <= " << h << "->GetNbinsX(); ++i) {" << '\n'
+        << indent << "      for(int j = 1; j <= " << h << "->GetNbinsY(); ++j) {" << '\n'
+        << indent << "         const double x0 = " << h << "->GetXaxis()->GetBinLowEdge(i);" << '\n'
+        << indent << "         const double x1 = " << h << "->GetXaxis()->GetBinUpEdge(i);" << '\n'
+        << indent << "         const double y0 = " << h << "->GetYaxis()->GetBinLowEdge(j);" << '\n'
+        << indent << "         const double y1 = " << h << "->GetYaxis()->GetBinUpEdge(j);" << '\n'
+        << indent << "         const double z_p = " << plane << ";" << '\n'
+        << indent
+        << "         const double corners[4][3] = {{x0, y0, z_p}, {x1, y0, z_p}, {x1, y1, z_p}, "
+           "{x0, y1, z_p}};"
+        << '\n'
+        << indent << "         double px[5];" << '\n'
+        << indent << "         double py[5];" << '\n'
+        << indent << "         for(int k = 0; k < 4; ++k) {" << '\n'
+        << indent << "            double ndc[3];" << '\n'
+        << indent << "            " << v << "->WCtoNDC(corners[k], ndc);" << '\n'
+        << indent << "            px[k] = ndc[0];" << '\n'
+        << indent << "            py[k] = ndc[1];" << '\n'
+        << indent << "         }" << '\n'
+        << indent << "         px[4] = px[0];" << '\n'
+        << indent << "         py[4] = py[0];" << '\n'
+        << indent << "         double frac = (" << h
+        << "->GetBinContent(i, j) - z_lo) / (z_hi - z_lo);" << '\n'
+        << indent << "         frac = frac < 0. ? 0. : (frac > 1. ? 1. : frac);" << '\n'
+        << indent
+        << "         const int colour = gStyle->GetColorPalette(int(frac * (n_colours - 1)));"
+        << '\n'
+        << indent << "         TPolyLine *cell = new TPolyLine(5, px, py);" << '\n'
+        << indent << "         cell->SetFillColor(colour);" << '\n'
+        << indent << "         cell->SetLineColor(colour);" << '\n'
+        << indent << "         cell->Draw(\"f\");" << '\n'
+        << indent << "      }" << '\n'
+        << indent << "   }" << '\n'
+        << indent << "}" << '\n';
+    if(surface) {
+        out << indent << graph << "->Draw(\"SURF1 same\");" << '\n';
+    }
+    return out.str();
+}
+
+/**
+ * @param s A 3-d graph
+ * @param indent The indentation of every line
+ * @return The statements that draw it: its points, their shadows, a projected surface, a line
+ *         through the points
+ */
+std::string graph3DFooter(const rootSeries &s, const std::string &indent) {
+    EmitStream out;
+    const auto arrays = arraysOf(s);
+    const std::string graph = "graph_" + suffixOf(s);
+    const std::size_t n = pointsOf(s);
+    const bool shadow = s.spec.floor_shadow.value_or(false);
+    markerLine(out, s);
+    out << indent << "TGraph2D *" << graph << " = new TGraph2D(" << n << ", " << arrays[0] << ", "
+        << arrays[1] << ", " << arrays[2] << ");" << '\n'
+        << indent << graph << "->SetMarkerStyle(20);" << '\n'
+        << indent << graph << "->SetMarkerSize(1);" << '\n'
+        << indent << graph << "->SetMarkerColor(2);" << '\n';
+    emitRootTitle(out, indent, graph, s.spec.name);
+
+    // The draw, then a pad update, then the axis titles -- and that order is load-bearing. A
+    // TGraph2D owns no axes of its own: GetXaxis() reaches into an internal histogram that ROOT
+    // REBUILDS when the graph is painted with a surface or colour-map option (SURF*, COLZ, TRI*).
+    // Titles set before the painting are discarded with the old histogram, which left every
+    // scanned landscape with unlabelled axes. Update() forces the painting to happen here, so the
+    // titles below land on the histogram that is finally drawn -- for every drawing option, plain
+    // point clouds included.
+    // A shadow is drawn under the points: an overlay's shadow before its points (the primary has
+    // made the 3-d view already); a primary's after it has painted itself and the view exists, with
+    // the points painted again on top.
+    if(s.spec.projection.value_or(surfaceProjection::NONE) == surfaceProjection::NONE) {
+        if(shadow and s.secondary) {
+            out << floorShadow(s, graph, indent);
+        }
+        out << indent << graph << "->Draw(\"" << drawOptionOf(s) << "\");" << '\n';
+        if(shadow and not s.secondary) {
+            out << indent << "gPad->Update();" << '\n'
+                << floorShadow(s, graph, indent) << indent << graph << "->Draw(\"P,same\");"
+                << '\n';
+        }
+    }
+    else {
+        out << projectedSurface(s, graph, indent);
+    }
+    out << indent << "gPad->Update();" << '\n'
+        << indent << graph << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label) << "\");"
+        << '\n'
+        << indent << graph << "->GetXaxis()->SetTitleOffset(1.5);" << '\n'
+        << indent << graph << "->GetYaxis()->SetTitle(\"" << rootEscape(s.spec.y_label) << "\");"
+        << '\n'
+        << indent << graph << "->GetYaxis()->SetTitleOffset(1.5);" << '\n'
+        << indent << graph << "->GetZaxis()->SetTitle(\"" << rootEscape(s.spec.z_label) << "\");"
+        << '\n'
+        << indent << graph << "->GetZaxis()->SetTitleOffset(1.5);" << '\n'
+        << '\n';
+
+    if(curveOf(s)) {
+        const auto &x = doublesOf(s, 0);
+        const auto &y = doublesOf(s, 1);
+        const auto &z = doublesOf(s, 2);
+        const std::string lines = "lines_" + graph;
+        const std::string sample = legendObjectOf(s);
+        out << indent << "TPolyLine3D *" << lines << " = new TPolyLine3D(" << n << ");" << '\n'
+            << '\n';
+        for(std::size_t i = 0; i < n; ++i) {
+            out << indent << lines << "->SetPoint(" << i << ", " << x[i] << ", " << y[i] << ", "
+                << z[i] << ");";
+        }
+        // The legend's sample of a curve: the graph's markers and the poly-line's line, in an
+        // object of its own that is never drawn, so that the drawn objects stay as they are.
+        out << '\n'
+            << indent << lines << "->SetLineWidth(3);" << '\n'
+            << indent << lines << "->Draw();" << '\n'
+            << indent << "TGraph *" << sample << " = new TGraph();" << '\n'
+            << indent << sample << "->SetMarkerStyle(" << graph << "->GetMarkerStyle());" << '\n'
+            << indent << sample << "->SetMarkerSize(" << graph << "->GetMarkerSize());" << '\n'
+            << indent << sample << "->SetMarkerColor(" << graph << "->GetMarkerColor());" << '\n'
+            << indent << sample << "->SetLineColor(" << lines << "->GetLineColor());" << '\n'
+            << indent << sample << "->SetLineWidth(" << lines << "->GetLineWidth());" << '\n'
+            << '\n';
+    }
+    return out.str();
+}
+
+/**
+ * A 4-d graph: a marker per point in a 3-d frame, sized by the point's w value. The points are taken
+ * in the order of their w (an index permutation; the columns stay put), the best one first, larger
+ * and blue; with n_best only that many are drawn.
+ *
+ * @param s A 4-d graph
+ * @param pad The series of its pad (the frame of the primary holds the points of its overlays)
+ * @param indent The indentation of every line
+ * @return The statements that draw it
+ */
+std::string
+graph4DFooter(const rootSeries &s, const std::vector<rootSeries> &pad, const std::string &indent) {
+    const auto &x_col = doublesOf(s, 0);
+    const auto &y_col = doublesOf(s, 1);
+    const auto &z_col = doublesOf(s, 2);
+    const auto &w_col = doublesOf(s, 3);
+    const std::size_t data_size = pointsOf(s);
+    const auto [min_marker_size, max_marker_size] =
+        s.spec.marker_size.value_or(std::make_tuple(DEFMINMARKERSIZE, DEFMAXMARKERSIZE));
+    const bool small_w_large_marker = s.spec.small_w_large_marker.value_or(true);
+    const std::size_t n_best = s.spec.n_best.value_or(0);
+    const std::string suffix = suffixOf(s);
+
+    // The w-ordered index permutation, so that the n best are the first
+    std::vector<std::size_t> order =
+        std::views::iota(0uz, data_size) | std::ranges::to<std::vector<std::size_t>>();
+    if(small_w_large_marker) {
+        std::ranges::sort(order, [&w_col](std::size_t a, std::size_t b) -> bool {
+            return (w_col[a] < w_col[b]);
+        });
+    }
+    else {
+        std::ranges::sort(order, [&w_col](std::size_t a, std::size_t b) -> bool {
+            return (w_col[a] > w_col[b]);
+        });
+    }
+
+    if(data_size < static_cast<std::size_t>(2)) {
+        throw gem_exception(
+            g_error_streamer() << "Got vector of invalid size " << data_size << '\n'
+        );
+    }
+    const auto [w_min_it, w_max_it] = std::ranges::minmax_element(w_col);
+    const double w_min = *w_min_it;
+    const double w_max = *w_max_it;
+
+    EmitStream out;
+
+    // The frame of a pad's primary holds the points of every 4-d graph laid over it: an overlay
+    // draws no frame of its own, and its points outside the primary's would lie outside the box.
+    if(not s.secondary) {
+        auto [x_lo, x_hi] = columnRange(s.columns[0]);
+        auto [y_lo, y_hi] = columnRange(s.columns[1]);
+        auto [z_lo, z_hi] = columnRange(s.columns[2]);
+        for(const auto &overlay : pad | std::views::drop(1)) {
+            if(overlay.columns.size() != 4) {
+                continue;
+            }
+            const auto [sx_lo, sx_hi] = columnRange(overlay.columns[0]);
+            const auto [sy_lo, sy_hi] = columnRange(overlay.columns[1]);
+            const auto [sz_lo, sz_hi] = columnRange(overlay.columns[2]);
+            x_lo = std::min(x_lo, sx_lo);
+            x_hi = std::max(x_hi, sx_hi);
+            y_lo = std::min(y_lo, sy_lo);
+            y_hi = std::max(y_hi, sy_hi);
+            z_lo = std::min(z_lo, sz_lo);
+            z_hi = std::max(z_hi, sz_hi);
+        }
+        // The frame's name carries the plot's suffix, so two 4-d plots on one canvas do not collide.
+        const std::string frame = "fr_" + suffix;
+        out << indent << "TH3F *" << frame << " = new TH3F(\"" << frame << "\",\"" << frame << "\","
+            << "10, " << x_lo << ", " << x_hi << ", "
+            << "10, " << y_lo << ", " << y_hi << ", "
+            << "10, " << z_lo << ", " << z_hi << ");" << '\n'
+            << indent << frame << "->SetTitle(\" \");" << '\n'
+            << indent << frame << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label)
+            << "\");" << '\n'
+            << indent << frame << "->GetXaxis()->SetTitleOffset(1.6);" << '\n'
+            << indent << frame << "->GetYaxis()->SetTitle(\"" << rootEscape(s.spec.y_label)
+            << "\");" << '\n'
+            << indent << frame << "->GetYaxis()->SetTitleOffset(1.6);" << '\n'
+            << indent << frame << "->GetZaxis()->SetTitle(\"" << rootEscape(s.spec.z_label)
+            << "\");" << '\n'
+            << indent << frame << "->GetZaxis()->SetTitleOffset(1.6);" << '\n'
+            << '\n'
+            << indent << frame << "->Draw();" << '\n';
+    }
+
+    const double w_range = w_max - w_min;
+    std::size_t pos = 0;
+    for(std::size_t const idx : order) {
+        const std::string marker = "pm3d_" + suffix + "_" + to_string(pos);
+        const double w = w_col[idx];
+
+        // The w value as a marker size: by default, the smallest w gets the largest marker
+        double marker_size = 0.;
+        if(0 == pos) {
+            marker_size = 2 * max_marker_size;
+        }
+        else if(small_w_large_marker) {
+            marker_size = min_marker_size + ((max_marker_size - min_marker_size) *
+                                             std::pow((1. - ((w - w_min) / w_range)), 8.));
+        }
+        else {
+            marker_size = min_marker_size + ((max_marker_size - min_marker_size) *
+                                             std::pow(((w - w_min) / w_range), 8));
+        }
+
+        // The marker's only point: a TPolyMarker3D(1) given point n > 0 grows to n + 1 points, the
+        // ones before at the origin, which every marker after the first painted there.
+        out << indent << "TPolyMarker3D *" << marker << " = new TPolyMarker3D(1);" << '\n'
+            << indent << marker << "->SetPoint(0, " << x_col[idx] << ", " << y_col[idx] << ", "
+            << z_col[idx] << "); // w = " << w << '\n'
+            << indent << marker << "->SetMarkerSize(" << marker_size << ");" << '\n'
+            << indent << marker << "->SetMarkerColor(" << (0 == pos ? 4 : 2) << ");" << '\n'
+            << indent << marker << "->SetMarkerStyle(8);" << '\n'
+            << indent << marker << "->Draw();" << '\n'
+            << '\n';
+
+        pos++;
+        if(n_best > 0 and pos >= n_best) {
+            break;
+        }
+    }
+    out << '\n';
+    return out.str();
+}
+
+/******************************************************************************/
+// The histograms: declared with their bins and range, filled entry by entry.
+
+/**
+ * @param s A histogram
+ * @param indent The indentation of every line
+ * @return The declaration of the histogram: its bins over its fixed range, or over the range of
+ *         its data
+ */
+std::string histogramHeader(const rootSeries &s, const std::string &indent) {
+    EmitStream out;
+    const std::string hist = legendObjectOf(s);
+    const std::string comment = dsMarkerComment(s.plotter->dsMarker());
+    const std::size_t n_x = s.spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD);
+    const auto range = [&s](
+                           const std::optional<std::tuple<double, double>> &fixed,
+                           std::size_t column,
+                           std::size_t n_bins
+                       ) {
+        if(fixed.has_value()) {
+            return *fixed;
+        }
+        requireData(s);
+        return rangeHolding(s.columns[column], n_bins);
+    };
+    if(s.spec.kind == plotKind::hist_2d) {
+        const std::size_t n_y = s.spec.n_bins_y.value_or(Gem::Common::DEFAULTNBINSGPD);
+        // A fixed range needs both axes; otherwise both come from the data.
+        const bool fixed = s.spec.range_x.has_value() and s.spec.range_y.has_value();
+        const auto [lo_x, hi_x] = range(fixed ? s.spec.range_x : std::nullopt, 0, n_x);
+        const auto [lo_y, hi_y] = range(fixed ? s.spec.range_y : std::nullopt, 1, n_y);
+        out << indent << "TH2D *" << hist << " = new TH2D(\"" << hist << "\", \"" << hist << "\","
+            << n_x << ", " << lo_x << ", " << hi_x << "," << n_y << ", " << lo_y << ", " << hi_y
+            << ");" << comment << '\n'
+            << '\n';
+    }
+    else {
+        const auto [lo_x, hi_x] = range(s.spec.range_x, 0, n_x);
+        out << indent << (s.spec.kind == plotKind::hist_1i ? "TH1I *" : "TH1D *") << hist
+            << " = new " << (s.spec.kind == plotKind::hist_1i ? "TH1I" : "TH1D") << "(\"" << hist
+            << "\", \"" << hist << "\"," << n_x << ", " << lo_x << ", " << hi_x << ");" << comment
+            << '\n'
+            << '\n';
+    }
+    return out.str();
+}
+
+/**
+ * @param s A histogram
+ * @param indent The indentation of every line
+ * @return The statements that fill it, an entry per line, the first carrying the data-structure
+ *         marker
+ */
+std::string histogramBody(const rootSeries &s, const std::string &indent) {
+    EmitStream out;
+    const std::string hist = legendObjectOf(s);
+    const std::string comment = dsMarkerComment(s.plotter->dsMarker());
+    for(std::size_t i = 0; i < pointsOf(s); ++i) {
+        out << indent << hist << "->Fill(";
+        switch(s.spec.kind) {
+        case plotKind::hist_1i:
+            std::visit([&out, i](const auto *values) { out << (*values)[i]; }, s.columns[0]);
+            break;
+        case plotKind::hist_2d:
+            out << std::showpoint << doublesOf(s, 0)[i] << ", " << doublesOf(s, 1)[i];
+            break;
+        default:
+            out << std::showpoint << doublesOf(s, 0)[i];
+            break;
+        }
+        out << ");" << (i == 0 ? comment : std::string{}) << '\n';
+    }
+    out << '\n';
+    return out.str();
+}
+
+/**
+ * @param s A histogram
+ * @param indent The indentation of every line
+ * @return The statements that draw it
+ */
+std::string histogramFooter(const rootSeries &s, const std::string &indent) {
+    EmitStream out;
+    const std::string hist = legendObjectOf(s);
+    emitRootTitle(out, indent, hist, s.spec.name);
+    markerLine(out, s);
+    out << indent << hist << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label) << "\");"
+        << '\n'
+        << indent << hist << "->GetYaxis()->SetTitle(\"" << rootEscape(s.spec.y_label) << "\");"
+        << '\n'
+        << indent << hist << "->Draw(\"" << drawOptionOf(s) << "\");" << '\n'
+        << '\n';
+    return out.str();
+}
+
+/******************************************************************************/
+// The functions: ROOT samples their formula itself.
+
+/**
+ * @param s A function
+ * @param indent The indentation of every line
+ * @return The declaration of the function over its range
+ */
+std::string functionHeader(const rootSeries &s, const std::string &indent) {
+    const bool two_d = s.spec.kind == plotKind::function_2d;
+    if(s.spec.function.empty() or not s.spec.range_x.has_value() or
+       (two_d and not s.spec.range_y.has_value())) {
+        throw gem_exception(
+            g_error_streamer() << "GRootEmitter: the function \"" << s.spec.name
+                               << "\" reports no formula or no range to draw it over" << '\n'
+        );
+    }
+    const auto [lo_x, hi_x] = *s.spec.range_x;
+    if(lo_x >= hi_x) {
+        throw gem_exception(
+            g_error_streamer() << "lower boundary" << (two_d ? "(x)" : "") << " >= upper boundary"
+                               << (two_d ? "(x)" : "") << ": " << lo_x << " / " << hi_x << '\n'
+        );
+    }
+    EmitStream out;
+    const std::string function = legendObjectOf(s);
+    out << indent << (two_d ? "TF2 *" : "TF1 *") << function << " = new " << (two_d ? "TF2" : "TF1")
+        << "(\"" << function << "\", \"" << rootEscape(s.spec.function) << "\"," << lo_x << ", "
+        << hi_x;
+    if(two_d) {
+        const auto [lo_y, hi_y] = *s.spec.range_y;
+        if(lo_y >= hi_y) {
+            throw gem_exception(
+                g_error_streamer()
+                << "lower boundary(y) >= upper boundary(y): " << lo_y << " / " << hi_y << '\n'
+            );
+        }
+        out << ", " << lo_y << ", " << hi_y;
+    }
+    out << ");" << dsMarkerComment(s.plotter->dsMarker()) << '\n';
+    return out.str();
+}
+
+/**
+ * @param s A function
+ * @param indent The indentation of every line
+ * @return The statements that draw it
+ */
+std::string functionFooter(const rootSeries &s, const std::string &indent) {
+    EmitStream out;
+    const bool two_d = s.spec.kind == plotKind::function_2d;
+    const std::string function = legendObjectOf(s);
+    const std::string comment = dsMarkerComment(s.plotter->dsMarker());
+    out << indent << function << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label) << "\");"
+        << '\n'
+        << indent << function << "->GetYaxis()->SetTitle(\"" << rootEscape(s.spec.y_label) << "\");"
+        << '\n';
+    if(two_d) {
+        out << indent << function << "->GetZaxis()->SetTitle(\"" << rootEscape(s.spec.z_label)
+            << "\");" << '\n';
+    }
+    out << indent << function << "->SetNpx(" << s.spec.n_bins_x.value_or(DEFNSAMPLES) << ");"
+        << '\n';
+    if(two_d) {
+        out << indent << function << "->SetNpy(" << s.spec.n_bins_y.value_or(DEFNSAMPLES) << ");"
+            << '\n';
+    }
+    emitRootTitle(out, indent, function, s.spec.name);
+    out << indent << function << "->Draw(\"" << drawOptionOf(s) << "\");" << comment << '\n'
+        << '\n';
+    return out.str();
+}
+
+/******************************************************************************/
+// The three sections of a series: its header declares what holds its data, its body fills it, and
+// its footer draws it.
+
+/**
+ * @param s The series
+ * @param pad The series of its pad
+ * @param indent The indentation of every line
+ * @return The declarations of the series' data
+ */
+std::string headerOf(
+    const rootSeries &s,
+    [[maybe_unused]] const std::vector<rootSeries> &pad,
+    const std::string &indent
+) {
+    switch(s.spec.kind) {
+    case plotKind::graph_2d:
+    case plotKind::graph_2d_err:
+    case plotKind::graph_3d:
+        return graphHeader(s, indent);
+    case plotKind::graph_4d:
+        return {}; // drawn point by point in the footer
+    case plotKind::hist_1d:
+    case plotKind::hist_1i:
+    case plotKind::hist_2d:
+        return histogramHeader(s, indent);
+    case plotKind::function_1d:
+    case plotKind::function_2d:
+        return functionHeader(s, indent);
+    }
+    return {};
+}
+
+/**
+ * @param s The series
+ * @param pad The series of its pad
+ * @param indent The indentation of every line
+ * @return The statements that fill the series' data
+ */
+std::string bodyOf(
+    const rootSeries &s,
+    [[maybe_unused]] const std::vector<rootSeries> &pad,
+    const std::string &indent
+) {
+    switch(s.spec.kind) {
+    case plotKind::graph_2d:
+    case plotKind::graph_2d_err:
+    case plotKind::graph_3d:
+        return graphBody(s, indent);
+    case plotKind::hist_1d:
+    case plotKind::hist_1i:
+    case plotKind::hist_2d:
+        return histogramBody(s, indent);
+    case plotKind::graph_4d:
+    case plotKind::function_1d:
+    case plotKind::function_2d:
+        return {}; // a 4-d graph is drawn point by point; ROOT samples a function itself
+    }
+    return {};
+}
+
+/**
+ * @param s The series
+ * @param pad The series of its pad
+ * @param indent The indentation of every line
+ * @return The statements that draw the series
+ */
+std::string
+footerOf(const rootSeries &s, const std::vector<rootSeries> &pad, const std::string &indent) {
+    switch(s.spec.kind) {
+    case plotKind::graph_2d:
+        return graph2DFooter(s, indent);
+    case plotKind::graph_2d_err:
+        return graph2EDFooter(s, indent);
+    case plotKind::graph_3d:
+        return graph3DFooter(s, indent);
+    case plotKind::graph_4d:
+        return graph4DFooter(s, pad, indent);
+    case plotKind::hist_1d:
+    case plotKind::hist_1i:
+    case plotKind::hist_2d:
+        return histogramFooter(s, indent);
+    case plotKind::function_1d:
+    case plotKind::function_2d:
+        return functionFooter(s, indent);
+    }
+    return {};
 }
 
 /******************************************************************************/
@@ -291,6 +1085,16 @@ std::vector<rootSeries> padOf(const GBasePlotter &primary) {
              .shares_pad = true}
         );
     }
+    for(const auto &s : pad) {
+        if(s.columns.size() < columnsNeeded(s.spec.kind)) {
+            throw gem_exception(
+                g_error_streamer()
+                << "GRootEmitter: " << s.plotter->getPlotterName() << " reports "
+                << s.columns.size() << " data columns; a plot of kind \"" << to_string(s.spec.kind)
+                << "\" needs " << columnsNeeded(s.spec.kind) << '\n'
+            );
+        }
+    }
     return pad;
 }
 
@@ -307,15 +1111,16 @@ std::vector<rootSeries> padOf(const GBasePlotter &primary) {
 std::string padSection(
     const std::vector<rootSeries> &pad,
     const std::string &section,
-    std::string (*of)(const rootSeries &, const std::string &),
+    std::string (*of)(const rootSeries &, const std::vector<rootSeries> &, const std::string &),
     const std::string &indent
 ) {
     EmitStream out;
-    out << indent << "// " << section << " data for primary plotter" << '\n' << of(pad[0], indent);
+    out << indent << "// " << section << " data for primary plotter" << '\n'
+        << of(pad[0], pad, indent);
     for(const auto &s : pad | std::views::drop(1)) {
         out << indent << "// " << section << " data for secondary plotter " << s.own_id << " of "
             << pad[0].plotter->getPlotterName() << '\n'
-            << of(s, indent) << '\n';
+            << of(s, pad, indent) << '\n';
     }
     return out.str();
 }
@@ -369,14 +1174,6 @@ std::string padFinish(const std::vector<rootSeries> &pad, const std::string &ind
     return out.str();
 }
 
-/**
- * @param primary The primary plotter of a pad
- * @return true if the pad is drawn from the plot specs of its series
- */
-bool drawnFromSpec(const GBasePlotter &primary) {
-    return primary.plotSpec().kind == plotKind::graph_2d;
-}
-
 } // anonymous namespace
 
 /******************************************************************************/
@@ -414,49 +1211,39 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
 
     std::vector<std::vector<rootSeries>> pads;
     for(const auto &p : gpd.plotters_cnt_ | std::views::take(max_plots)) {
-        pads.push_back(drawnFromSpec(*p) ? padOf(*p) : std::vector<rootSeries>{});
+        pads.push_back(padOf(*p));
     }
 
     result << "{" << '\n' << gpd.staticHeader(indent) << '\n';
 
     result << indent << "//===================  Header Section ====================" << '\n'
            << '\n';
-    for(const auto &[idx, p] :
-        gpd.plotters_cnt_ | std::views::enumerate | std::views::take(max_plots)) {
-        const auto &pad = pads[static_cast<std::size_t>(idx)];
-        result << (pad.empty() ? p->headerData(indent)
-                               : padSection(pad, "Header", headerOf, indent))
-               << '\n';
+    for(const auto &pad : pads) {
+        result << padSection(pad, "Header", headerOf, indent) << '\n';
     }
 
     result << indent << "//===================  Data Section ======================" << '\n'
            << '\n';
-    for(const auto &[idx, p] :
-        gpd.plotters_cnt_ | std::views::enumerate | std::views::take(max_plots)) {
-        const auto &pad = pads[static_cast<std::size_t>(idx)];
-        result << (pad.empty() ? p->bodyData(indent) : padSection(pad, "Body", bodyOf, indent))
-               << '\n';
+    for(const auto &pad : pads) {
+        result << padSection(pad, "Body", bodyOf, indent) << '\n';
     }
 
     result << indent << "//===================  Plot Section ======================" << '\n'
            << '\n';
-    for(const auto &[idx, p] :
-        gpd.plotters_cnt_ | std::views::enumerate | std::views::take(max_plots)) {
-        const auto &pad = pads[static_cast<std::size_t>(idx)];
+    for(const auto &[idx, pad] : pads | std::views::enumerate) {
+        const GPlotSpec &spec = pad[0].spec;
         result << indent << "graphPad->cd(" << static_cast<std::size_t>(idx) + 1 << ");"
                << '\n'; /* cd starts at 1 */
         // The scale of an axis belongs to the pad and is set before anything is drawn into it.
-        if(p->xAxisLogarithmic()) {
+        if(spec.x_log) {
             result << indent << "gPad->SetLogx(1);" << '\n';
         }
-        if(p->yAxisLogarithmic()) {
+        if(spec.y_log) {
             result << indent << "gPad->SetLogy(1);" << '\n';
         }
-        result
-            << (pad.empty() ? p->footerData(indent)
-                            : padSection(pad, "Footer", footerOf, indent) + padFinish(pad, indent));
+        result << padSection(pad, "Footer", footerOf, indent) << padFinish(pad, indent);
         // The labels of such an axis can only be arranged once the pad knows its range.
-        if(p->xAxisLogarithmic() || p->yAxisLogarithmic()) {
+        if(spec.x_log or spec.y_log) {
             emitRootLogAxisLabels(result, indent);
         }
         result << '\n';

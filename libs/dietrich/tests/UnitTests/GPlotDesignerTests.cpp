@@ -708,12 +708,289 @@ TEST_CASE("makePlotter reconstructs a plotter from its GPlotSpec", "[plotting]")
         CHECK(h->getMaxX() == 10.0);
     }
 
-    SECTION("function and range-less integer-histogram kinds cannot be rebuilt from a spec") {
+    SECTION("a function without formula and a range-less integer histogram cannot be rebuilt") {
         GPlotSpec const fspec(plotKind::function_1d);
         CHECK_THROWS(makePlotter(fspec));
         // hist_1i with no range still cannot be reconstructed (no auto-range form).
         GPlotSpec const ispec(plotKind::hist_1i);
         CHECK_THROWS(makePlotter(ispec));
+    }
+}
+
+/******************************************************************************/
+// A function and a 4-d graph report in their GPlotSpec what ROOT draws them from -- the formula,
+// its range and sampling; the markers' sizes, order and number -- and makePlotter() rebuilds them
+// from it.
+TEST_CASE("functions and 4-d graphs report their drawing in the GPlotSpec", "[plotting]") {
+    SECTION("a 1-d function") {
+        GFunctionPlotter1D f("sin(x)", std::make_tuple(-2., 3.));
+        f.setNSamplesX(42);
+        const GPlotSpec spec = f.plotSpec();
+        CHECK(spec.function == "sin(x)");
+        REQUIRE(spec.range_x.has_value());
+        CHECK(*spec.range_x == std::make_tuple(-2., 3.));
+        CHECK(spec.n_bins_x == 42);
+        CHECK(spec.toJson().contains("\"function\": \"sin(x)\""));
+        const GPlotSpec rebuilt = makePlotter(spec)->plotSpec();
+        CHECK(rebuilt.toJson() == spec.toJson());
+    }
+    SECTION("a 2-d function") {
+        GFunctionPlotter2D f("x*y", std::make_tuple(-1., 1.), std::make_tuple(0., 2.));
+        f.setNSamplesX(20);
+        f.setNSamplesY(30);
+        const GPlotSpec spec = f.plotSpec();
+        CHECK(spec.function == "x*y");
+        REQUIRE(spec.range_y.has_value());
+        CHECK(*spec.range_y == std::make_tuple(0., 2.));
+        CHECK(spec.n_bins_x == 20);
+        CHECK(spec.n_bins_y == 30);
+        const GPlotSpec rebuilt = makePlotter(spec)->plotSpec();
+        CHECK(rebuilt.toJson() == spec.toJson());
+    }
+    SECTION("a 4-d graph: its markers where they differ from the defaults") {
+        GGraph4D plain;
+        const GPlotSpec plain_spec = plain.plotSpec();
+        CHECK_FALSE(plain_spec.marker_size.has_value());
+        CHECK_FALSE(plain_spec.small_w_large_marker.has_value());
+        CHECK_FALSE(plain_spec.n_best.has_value());
+        CHECK_FALSE(plain_spec.toJson().contains("marker"));
+
+        GGraph4D g;
+        g.setMinMarkerSize(0.25);
+        g.setMaxMarkerSize(2.5);
+        g.setSmallWLargeMarker(false);
+        g.setNBest(3);
+        const GPlotSpec spec = g.plotSpec();
+        REQUIRE(spec.marker_size.has_value());
+        CHECK(*spec.marker_size == std::make_tuple(0.25, 2.5));
+        CHECK(spec.small_w_large_marker == false);
+        CHECK(spec.n_best == 3);
+        CHECK(spec.toJson().contains("\"n_best\": 3"));
+        CHECK(spec.toJson().contains("\"small_w_large_marker\": false"));
+        const auto rebuilt = makePlotter(spec);
+        const auto *g4 = dynamic_cast<const GGraph4D *>(rebuilt.get());
+        REQUIRE(g4 != nullptr);
+        CHECK(g4->getMinMarkerSize() == 0.25);
+        CHECK(g4->getMaxMarkerSize() == 2.5);
+        CHECK_FALSE(g4->getSmallWLargeMarker());
+        CHECK(g4->getNBest() == 3);
+    }
+}
+
+/******************************************************************************/
+namespace {
+/**
+ * The ROOT macro of one pad that holds @p p (and its overlays).
+ * @param p The pad's primary plotter
+ * @return The macro
+ */
+std::string rootMacroOf(const std::shared_ptr<GBasePlotter> &p) {
+    GPlotDesigner gpd("one pad", 1, 1);
+    gpd.registerPlotter(p);
+    return gpd.plot();
+}
+
+/**
+ * A plotter built from a plot spec (makePlotter()), with rows of data.
+ * @param spec The spec
+ * @param rows Its data, a row per point
+ * @return The plotter
+ */
+std::shared_ptr<GBasePlotter>
+fromSpec(const GPlotSpec &spec, const std::vector<std::vector<double>> &rows) {
+    std::shared_ptr<GBasePlotter> p = makePlotter(spec);
+    for(const auto &row : rows) {
+        p->appendRow(row);
+    }
+    return p;
+}
+
+/**
+ * @param text A text
+ * @param what A piece of it
+ * @return How often the piece occurs in the text
+ */
+std::size_t occurrences(const std::string &text, const std::string &what) {
+    std::size_t n = 0;
+    for(auto at = text.find(what); at != std::string::npos; at = text.find(what, at + 1)) {
+        ++n;
+    }
+    return n;
+}
+} // namespace
+
+// Every plot kind is drawn by the ROOT emitter from what its plot spec and its data say: a plotter
+// built from a spec (makePlotter()) gets the objects of its kind, with the spec's labels, bins,
+// ranges, formula and markers.
+TEST_CASE("ROOT draws every plot kind from its GPlotSpec", "[plotting]") {
+    const std::vector<std::vector<double>> xy{{0., 1.}, {1., 3.}, {2., 2.}};
+    SECTION("2-d graph") {
+        GPlotSpec spec(plotKind::graph_2d);
+        spec.name = "a graph";
+        spec.x_label = "the x";
+        spec.plot_mode = graphPlotMode::CURVE;
+        spec.arrows = true;
+        const std::string m = rootMacroOf(fromSpec(spec, xy));
+        CHECK(m.contains("TGraph *graph_0 = new TGraph(3, x_array__0, y_array__0);"));
+        CHECK(m.contains("y_array__0[1] = 3;"));
+        CHECK(m.contains("graph_0->GetXaxis()->SetTitle(\"the x\");"));
+        CHECK(m.contains("graph_0->SetTitle(\"a graph\");"));
+        CHECK(occurrences(m, "new TArrow(") == 2); // between neighbouring points
+    }
+    SECTION("2-d graph with errors") {
+        GPlotSpec spec(plotKind::graph_2d_err);
+        spec.plot_mode = graphPlotMode::SCATTER;
+        const std::string m = rootMacroOf(fromSpec(spec, {{0., 0.1, 1., 0.2}, {1., 0.1, 2., 0.3}}));
+        CHECK(m.contains("new TGraphErrors(2, x_array__0, y_array__0, ex_array__0 ,ey_array__0);"));
+        CHECK(m.contains("ey_array__0[1] = 0.29999999999999999;"));
+        CHECK(m.contains("graph__0->Draw(\"AP\");"));
+    }
+    SECTION("3-d graph") {
+        GPlotSpec spec(plotKind::graph_3d);
+        spec.plot_mode = graphPlotMode::CURVE;
+        spec.floor_shadow = true;
+        const std::string m =
+            rootMacroOf(fromSpec(spec, {{0., 0., 1.}, {1., 0., 2.}, {0., 1., 3.}}));
+        CHECK(m.contains("TGraph2D *graph__0 = new TGraph2D(3,"));
+        CHECK(m.contains("TPolyLine3D *lines_graph__0"));
+        CHECK(m.contains("shadow_graph__0"));
+    }
+    SECTION("4-d graph: its markers from the spec") {
+        GPlotSpec spec(plotKind::graph_4d);
+        spec.n_best = 2;
+        spec.marker_size = std::make_tuple(0.5, 1.5);
+        const std::string m = rootMacroOf(
+            fromSpec(spec, {{0., 0., 0., 3.}, {1., 0., 1., 1.}, {0., 1., 2., 2.}, {1., 1., 3., 4.}})
+        );
+        CHECK(m.contains("TH3F *fr__0"));
+        CHECK(occurrences(m, "new TPolyMarker3D(1);") == 2); // the two best only
+        CHECK(m.contains("pm3d__0_0->SetMarkerSize(3);"));   // the best: twice the largest
+        CHECK(m.contains("pm3d__0_0->SetPoint(0, 1, 0, 1); // w = 1"));
+    }
+    SECTION("1-d histograms, fixed and automatic range") {
+        GPlotSpec spec(plotKind::hist_1d);
+        spec.n_bins_x = 4;
+        spec.range_x = std::make_tuple(-1., 1.);
+        CHECK(rootMacroOf(fromSpec(spec, {{0.5}}))
+                  .contains("TH1D *histD_0 = new TH1D(\"histD_0\", \"histD_0\",4, -1, 1);"));
+        spec.range_x.reset();
+        const std::string m = rootMacroOf(fromSpec(spec, {{1.}, {3.}}));
+        CHECK(m.contains("new TH1D(\"histD_0\", \"histD_0\",4, 1, 3.5);")); // a bin above
+        CHECK(m.contains("histD_0->Fill(3.0000000000000000);"));
+        spec.n_bins_x = 4;
+        CHECK_THROWS(rootMacroOf(fromSpec(spec, {}))); // no data to take the range from
+    }
+    SECTION("1-d integer histogram") {
+        GPlotSpec spec(plotKind::hist_1i);
+        spec.n_bins_x = 5;
+        spec.range_x = std::make_tuple(0., 5.);
+        const std::string m = rootMacroOf(fromSpec(spec, {{1.}, {4.}}));
+        CHECK(m.contains("TH1I *histI_0 = new TH1I(\"histI_0\", \"histI_0\",5, 0, 5);"));
+        CHECK(m.contains("histI_0->Fill(4);"));
+    }
+    SECTION("2-d histogram") {
+        GPlotSpec spec(plotKind::hist_2d);
+        spec.n_bins_x = 3;
+        spec.n_bins_y = 6;
+        spec.range_x = std::make_tuple(0., 3.);
+        spec.range_y = std::make_tuple(0., 6.);
+        spec.drawing_args = "LEGO";
+        const std::string m = rootMacroOf(fromSpec(spec, xy));
+        CHECK(m.contains("new TH2D(\"hist2D_0\", \"hist2D_0\",3, 0, 3,6, 0, 6);"));
+        CHECK(m.contains("hist2D_0->Draw(\"LEGO\");"));
+    }
+    SECTION("functions") {
+        GPlotSpec spec(plotKind::function_1d);
+        spec.function = "x*x";
+        spec.range_x = std::make_tuple(0., 2.);
+        spec.n_bins_x = 17;
+        const std::string m = rootMacroOf(makePlotter(spec));
+        CHECK(m.contains("TF1 *func1D_0 = new TF1(\"func1D_0\", \"x*x\",0, 2);"));
+        CHECK(m.contains("func1D_0->SetNpx(17);"));
+        GPlotSpec spec2(plotKind::function_2d);
+        spec2.function = "x+y";
+        spec2.range_x = std::make_tuple(0., 1.);
+        spec2.range_y = std::make_tuple(-1., 1.);
+        spec2.n_bins_y = 9;
+        const std::string m2 = rootMacroOf(makePlotter(spec2));
+        CHECK(m2.contains("TF2 *func2D_0 = new TF2(\"func2D_0\", \"x+y\",0, 1, -1, 1);"));
+        CHECK(m2.contains("func2D_0->SetNpy(9);"));
+        spec2.range_y = std::make_tuple(1., -1.);
+        CHECK_THROWS(rootMacroOf(makePlotter(spec2))); // an empty range
+    }
+}
+
+/******************************************************************************/
+// One plot spec, two backends: ROOT and gnuplot draw the same series -- the same values in the same
+// order -- with the same axis labels and the same legend.
+TEST_CASE("ROOT and gnuplot draw the same content from one GPlotSpec", "[plotting]") {
+    GPlotSpec spec(plotKind::graph_2d);
+    spec.name = "series one";
+    spec.x_label = "the x";
+    spec.y_label = "the y";
+    spec.plot_mode = graphPlotMode::CURVE;
+    GPlotSpec spec2 = spec;
+    spec2.name = "series two";
+    std::vector<std::vector<double>> rows;
+    std::vector<std::vector<double>> rows2;
+    for(int i = 0; i < 6; ++i) {
+        rows.push_back({0.5 * i, (i * i) + (1. / 3.)});
+        rows2.push_back({0.5 * i, 2. - (0.1 * i)});
+    }
+    const auto primary = fromSpec(spec, rows);
+    primary->registerSecondaryPlotter(fromSpec(spec2, rows2));
+
+    GPlotDesigner root_gpd("one spec", 1, 1);
+    root_gpd.registerPlotter(primary);
+    const std::string root = root_gpd.plot();
+    GPlotDesigner gp_gpd("one spec", 1, 1);
+    gp_gpd.setPlotBackend(plotBackend::GNUPLOT);
+    gp_gpd.registerPlotter(primary);
+    const std::string gp = gp_gpd.plot();
+
+    // The series as each backend states them: ROOT's arrays, gnuplot's datablocks.
+    const auto root_series = [&root](const std::string &suffix, std::size_t n) {
+        std::vector<std::vector<double>> values;
+        for(std::size_t i = 0; i < n; ++i) {
+            std::vector<double> row;
+            for(const std::string axis : {"x", "y"}) {
+                const std::string key =
+                    axis + "_array_" + suffix + "[" + std::to_string(i) + "] = ";
+                const auto at = root.find(key);
+                REQUIRE(at != std::string::npos);
+                row.push_back(std::stod(root.substr(at + key.size())));
+            }
+            values.push_back(row);
+        }
+        return values;
+    };
+    const auto gnuplot_series = [&gp](const std::string &block) {
+        std::vector<std::vector<double>> values;
+        const auto at = gp.find(block + " << EOD\n");
+        REQUIRE(at != std::string::npos);
+        std::istringstream lines(gp.substr(at + block.size() + 8));
+        for(std::string line; std::getline(lines, line) and line != "EOD";) {
+            std::istringstream fields(line);
+            double x = 0.;
+            double y = 0.;
+            fields >> x >> y;
+            values.push_back({x, y});
+        }
+        return values;
+    };
+    CHECK(root_series("_0", rows.size()) == rows);
+    CHECK(gnuplot_series("$D0") == rows);
+    CHECK(root_series("_0_0", rows2.size()) == rows2);
+    CHECK(gnuplot_series("$D1") == rows2);
+
+    // The labels and the legend.
+    CHECK(root.contains("->GetXaxis()->SetTitle(\"the x\");"));
+    CHECK(gp.contains("set xlabel \"the x\""));
+    CHECK(root.contains("->GetYaxis()->SetTitle(\"the y\");"));
+    CHECK(gp.contains("set ylabel \"the y\""));
+    for(const std::string label : {"series one", "series two"}) {
+        CHECK(root.contains(", \"" + label + "\", \"lp\");")); // legend->AddEntry(...)
+        CHECK(gp.contains("title \"" + label + "\""));
     }
 }
 

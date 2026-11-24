@@ -881,9 +881,8 @@ private:
  * the groundwork for monitors that declare a GPlotSpec instead of hard-coding a
  * concrete plotter type.
  *
- * The function plotters (function_1d / function_2d) cannot be reconstructed from a
- * spec -- their formula and sampling range are not part of the GPlotSpec value -- so
- * those kinds throw a gem_exception.
+ * A function plotter (function_1d / function_2d) is built from the spec's formula, ranges
+ * and sampling; a spec of a function without its formula or range throws a gem_exception.
  */
 [[nodiscard]] std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec);
 

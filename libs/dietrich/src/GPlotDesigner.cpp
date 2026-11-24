@@ -462,9 +462,9 @@ void GBasePlotter::sortByFirstColumn() { /* nothing */
 /******************************************************************************/
 /**
  * Constructs an empty plotter of the kind described by a GPlotSpec (the inverse of
- * GBasePlotter::plotSpec()), applying the spec's labels, drawing arguments and (for
- * histograms) bin counts. The function plotters cannot be reconstructed from a spec
- * and therefore throw. See the declaration in GGraphPlots.hpp for the full contract.
+ * GBasePlotter::plotSpec()), applying the spec's labels, drawing arguments, (for
+ * histograms) bin counts, (for functions) formula, ranges and sampling, and (for 4-d
+ * graphs) markers. See the declaration in GGraphPlots.hpp for the full contract.
  *
  * @param spec The plot specification describing the plotter to build
  * @return A newly-allocated, empty plotter matching the spec
@@ -527,12 +527,30 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         }
         break;
     case plotKind::function_1d:
-    case plotKind::function_2d:
-        throw gem_exception(
-            g_error_streamer() << "a function plotter (kind \"" << to_string(spec.kind)
-                               << "\") cannot be reconstructed from a GPlotSpec -- its formula and "
-                               << "sampling range are not part of the spec." << '\n'
-        );
+    case plotKind::function_2d: {
+        // A function needs its formula and the range it is drawn over.
+        const bool two_d = spec.kind == plotKind::function_2d;
+        if(spec.function.empty() or not spec.range_x.has_value() or
+           (two_d and not spec.range_y.has_value())) {
+            throw gem_exception(
+                g_error_streamer() << "a function plotter (kind \"" << to_string(spec.kind)
+                                   << "\") cannot be reconstructed from a GPlotSpec without its "
+                                   << "formula and the range it is drawn over." << '\n'
+            );
+        }
+        if(two_d) {
+            auto f =
+                std::make_unique<GFunctionPlotter2D>(spec.function, *spec.range_x, *spec.range_y);
+            f->setNSamplesX(spec.n_bins_x.value_or(DEFNSAMPLES));
+            f->setNSamplesY(spec.n_bins_y.value_or(DEFNSAMPLES));
+            p = std::move(f);
+        }
+        else {
+            auto f = std::make_unique<GFunctionPlotter1D>(spec.function, *spec.range_x);
+            f->setNSamplesX(spec.n_bins_x.value_or(DEFNSAMPLES));
+            p = std::move(f);
+        }
+    } break;
     }
 
     p->setPlotLabel(spec.name);
@@ -569,6 +587,16 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             // For a 3-d graph a curve is a line through the points, in the plot box's own frame.
             g3d->setDrawLines(*spec.plot_mode == graphPlotMode::CURVE);
         }
+    }
+
+    // The markers of a 4-d graph.
+    if(auto *g4d = dynamic_cast<GGraph4D *>(p.get())) {
+        const auto [min_size, max_size] =
+            spec.marker_size.value_or(std::make_tuple(DEFMINMARKERSIZE, DEFMAXMARKERSIZE));
+        g4d->setMinMarkerSize(min_size);
+        g4d->setMaxMarkerSize(max_size);
+        g4d->setSmallWLargeMarker(spec.small_w_large_marker.value_or(true));
+        g4d->setNBest(spec.n_best.value_or(0));
     }
 
     // A surface projection is a 3-d-graph render choice; on any other kind it would silently mean
