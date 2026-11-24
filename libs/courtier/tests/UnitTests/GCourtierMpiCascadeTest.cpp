@@ -107,19 +107,6 @@ int launcherRank() {
     return -1;
 }
 
-/** @brief The name of a role, for messages @param role The role @return Its name */
-std::string_view roleText(processRole role) {
-    switch(role) {
-    case processRole::SUBMITTER:
-        return "SUBMITTER";
-    case processRole::CLIENT:
-        return "CLIENT";
-    case processRole::BYSTANDER:
-        return "BYSTANDER";
-    }
-    return "UNKNOWN";
-}
-
 /******************************************************************************/
 /**
  * The OK and FAIL lines of one rank, and the count of its failures. Lines may come from several
@@ -632,20 +619,20 @@ void checkLayout(
             "world rank {} (base rank {}) has role {}, expected {}",
             report.rank(),
             base_rank,
-            roleText(cascade.role()),
-            roleText(expected)
+            Gem::Common::enumName(cascade.role()),
+            Gem::Common::enumName(expected)
         );
     }
     const processRole environment = Courtier::mpiProcessRole();
     if(roles_as_environment && environment != cascade.role()) {
         report.fail(
             "role() is {}, mpiProcessRole() {}",
-            roleText(cascade.role()),
-            roleText(environment)
+            Gem::Common::enumName(cascade.role()),
+            Gem::Common::enumName(environment)
         );
     }
     if(not roles_as_environment && environment != processRole::BYSTANDER) {
-        report.fail("mpiProcessRole() is {}, not BYSTANDER", roleText(environment));
+        report.fail("mpiProcessRole() is {}, not BYSTANDER", Gem::Common::enumName(environment));
     }
     const int group_size = expectedGroupSize(base_rank, base_size, layout, g);
     if(group_size == 0) {
@@ -1077,7 +1064,7 @@ int requireRoleScenario(Report &report, GMPICascadeLayout layout) {
             }
             const std::string what = std::format(
                 "requireRole({}) on {}",
-                roleText(wrong),
+                Gem::Common::enumName(wrong),
                 cascade.role() == processRole::CLIENT ? "a lead" : "the submitter"
             );
             report.expectThrow(what, layout_name, [&] { cascade.requireRole(wrong); });

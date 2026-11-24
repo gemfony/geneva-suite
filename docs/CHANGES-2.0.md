@@ -695,6 +695,18 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   user-defined enum opts into the same machinery by specializing `numeric_enum_values_v`
   with the list of its values (`numeric_enum_range<FIRST, LAST>()` for a contiguous enum);
   the reader fails on a number that is none of them.
+- **The names of an enum's values are written once, in a table next to the enum**
+  (`Gem::Common::enum_names_v` in `GCommonEnums.hpp`), and read by `enumName(value)` and
+  `enumFromName<E>(text)`; the per-enum functions that spelled the names out again are gone.
+  The printed names are unchanged. Removed: `Gem::Common::serModeToString()`,
+  `Gem::Common::Record::to_string(columnType)`, courtier's `psToStr()`, `fkToStr()` and
+  `GPU::toString(BackendKind)`, dietrich's `to_string(plotKind)` and `to_string(legendSample)`,
+  and the meta-optimizer's protected `getClearTextMOT()` -- call `Gem::Common::enumName()`
+  instead. A number cast to an
+  enum that is none of its values prints as `<invalid value N>`. A user-defined enum gets names
+  by specializing `enum_names_v` with its value/name pairs; where it also lists its values in
+  `numeric_enum_values_v`, a table that misses one does not compile. A test pins the names with
+  `Gem::Common::Testing::checkEnumNames<E>()` (`common/testing/GStandardTests.hpp`).
 - **dietrich: `project<I>()`/`projectX..W()` on a non-all-double collector is now a
   compile-time error** (it used to compile and throw at run time), and the projections
   are available for every axis of every all-double collector arity.

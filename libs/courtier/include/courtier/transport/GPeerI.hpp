@@ -155,6 +155,30 @@ enum class GPeerClose : Gem::Common::ENUMBASETYPE {
     RUN_ENDED = 2 ///< The run has ended; the other end need not come back
 };
 
+} /* namespace Gem::Courtier::Consumers */
+
+namespace Gem::Common {
+/** @brief The names of the ends of a connection (see enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::Consumers::GPeerEnd> =
+    std::to_array<std::pair<Gem::Courtier::Consumers::GPeerEnd, std::string_view>>(
+        {{Gem::Courtier::Consumers::GPeerEnd::CLOSED_HERE, "CLOSED_HERE"},
+         {Gem::Courtier::Consumers::GPeerEnd::CLOSED_THERE, "CLOSED_THERE"},
+         {Gem::Courtier::Consumers::GPeerEnd::SILENT, "SILENT"},
+         {Gem::Courtier::Consumers::GPeerEnd::FAILED, "FAILED"}}
+    );
+/** @brief The names of what a close says (see enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::Consumers::GPeerClose> =
+    std::to_array<std::pair<Gem::Courtier::Consumers::GPeerClose, std::string_view>>(
+        {{Gem::Courtier::Consumers::GPeerClose::NORMAL, "NORMAL"},
+         {Gem::Courtier::Consumers::GPeerClose::ERROR, "ERROR"},
+         {Gem::Courtier::Consumers::GPeerClose::RUN_ENDED, "RUN_ENDED"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Courtier::Consumers {
+
 /******************************************************************************/
 /**
  * What a role (the server's session, or the client) wants to be told by its peer. All three are

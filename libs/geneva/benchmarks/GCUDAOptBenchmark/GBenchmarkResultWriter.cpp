@@ -95,7 +95,7 @@ void GBenchmarkResultWriter::writeRawCSV(
             r.finalFitness,
             r.iterationsConsumed,
             r.wallTimeSeconds,
-            terminationReasonToString(r.terminationReason),
+            Gem::Common::enumName(r.terminationReason),
             r.targetReached ? "1" : "0"
         );
     }

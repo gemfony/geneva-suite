@@ -68,7 +68,6 @@ using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
 using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GPeerI;
-using Gem::Courtier::Tests::endName;
 using Gem::Courtier::Tests::GTcpRelay;
 using Gem::Courtier::Tests::JoinableIo;
 using Gem::Courtier::Tests::makeRole;
@@ -354,7 +353,7 @@ TEST_CASE(
     });
     REQUIRE(client_ended.wait_for(10s) == std::future_status::ready);
     const Ended client = client_ended.get();
-    CHECK(endName(client.end) == "FAILED");
+    CHECK(Gem::Common::enumName(client.end) == "FAILED");
     CHECK(client.detail.find(std::to_string(limit + 1) + " bytes") != std::string::npos);
     CHECK(client.detail.find(std::to_string(limit) + " bytes") != std::string::npos);
 

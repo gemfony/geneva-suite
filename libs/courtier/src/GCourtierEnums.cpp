@@ -38,40 +38,19 @@ namespace Gem::Courtier {
 /******************************************************************************/
 // The numeric enum stream operators (GFrameKind,
 // consumerType) are supplied by the shared numeric_enum_values_v machinery in
-// GCommonEnums.hpp. Only processingStatus needs hand-written operators (its
-// insertion operator prints the enumerator name for diagnostics).
+// GCommonEnums.hpp. Only processingStatus needs operators of its own (its
+// insertion operator prints the value's name, see enum_names_v, for diagnostics).
 
 /******************************************************************************/
 /**
- * Puts a Gem::Courtier::processingStatus item into a stream
+ * Puts a Gem::Courtier::processingStatus item into a stream, as "processingStatus::" and its name
  *
  * @param o The ostream the item should be added to
  * @param srm the item to be added to the stream
  * @return The std::ostream object used to add the item to
  */
 std::ostream &operator<<(std::ostream &o, const Gem::Courtier::processingStatus &srm) {
-    switch(srm) {
-        using enum Gem::Courtier::processingStatus;
-    case UNPROCESSED:
-        o << "processingStatus::UNPROCESSED";
-        break;
-    case DO_PROCESS:
-        o << "processingStatus::DO_PROCESS";
-        break;
-    case PROCESSED:
-        o << "processingStatus::PROCESSED";
-        break;
-    case EXCEPTION_CAUGHT:
-        o << "processingStatus::EXCEPTION_CAUGHT";
-        break;
-    case ERROR_FLAGGED:
-        o << "processingStatus::ERROR_FLAGGED";
-        break;
-    default:
-        o << "UNKNOWN processing status";
-        break;
-    }
-
+    o << "processingStatus::" << Gem::Common::enumName(srm);
     return o;
 }
 

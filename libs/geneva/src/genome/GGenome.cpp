@@ -410,17 +410,7 @@ boost::json::object GGenome::toJSON() const {
     emit(b_data, "bool");
     body["vars"] = std::move(vars);
 
-    switch(this->getEvaluationPolicy()) {
-    case evaluationPolicy::USESIMPLEEVALUATION:
-        body["transformationPolicy"] = "USESIMPLEEVALUATION";
-        break;
-    case evaluationPolicy::USESIGMOID:
-        body["transformationPolicy"] = "USESIGMOID";
-        break;
-    case evaluationPolicy::USEWORSTCASEFORINVALID:
-        body["transformationPolicy"] = "USEWORSTCASEFORINVALID";
-        break;
-    }
+    body["transformationPolicy"] = Gem::Common::enumName(this->getEvaluationPolicy());
 
     body["n_results"] = this->getNStoredResults();
     json::array results;

@@ -68,9 +68,6 @@ namespace Gem::Dietrich {
 // exception types, make_member, EmitStream, ...); make them visible here without
 // per-name qualification. This affects lookup only within Gem::Dietrich.
 using namespace Gem::Common;
-// Dietrich declares its own to_string(plotKind), which would otherwise shadow common's
-// numeric to_string(...) for unqualified calls; merge common's overloads back in.
-using Gem::Common::to_string;
 
 namespace {
 
@@ -130,8 +127,8 @@ const std::vector<double> &doublesOf(const rootSeries &s, std::size_t i) {
         throw gem_exception(
             g_error_streamer() << "GRootEmitter: column " << i << " of "
                                << s.plotter->getPlotterName() << " (kind \""
-                               << to_string(s.spec.kind) << "\") is missing or holds no doubles"
-                               << '\n'
+                               << Gem::Common::enumName(s.spec.kind)
+                               << "\") is missing or holds no doubles" << '\n'
         );
     }
     return *std::get<const std::vector<double> *>(s.columns[i]);
@@ -1110,10 +1107,10 @@ std::vector<rootSeries> padOf(const GBasePlotter &primary) {
     for(const auto &s : pad) {
         if(s.columns.size() < columnsNeeded(s.spec.kind)) {
             throw gem_exception(
-                g_error_streamer()
-                << "GRootEmitter: " << s.plotter->getPlotterName() << " reports "
-                << s.columns.size() << " data columns; a plot of kind \"" << to_string(s.spec.kind)
-                << "\" needs " << columnsNeeded(s.spec.kind) << '\n'
+                g_error_streamer() << "GRootEmitter: " << s.plotter->getPlotterName() << " reports "
+                                   << s.columns.size() << " data columns; a plot of kind \""
+                                   << Gem::Common::enumName(s.spec.kind) << "\" needs "
+                                   << columnsNeeded(s.spec.kind) << '\n'
             );
         }
     }

@@ -88,6 +88,17 @@ inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::metaOptimi
     numeric_enum_range<
         Gem::Geneva::Individuals::metaOptimizationTarget::BESTFITNESS,
         Gem::Geneva::Individuals::metaOptimizationTarget::MC_MINSOLVER_BESTFITNESS>();
+/** @brief The names of the meta-optimization targets, in words, as the report of the best
+ *  settings names them (see enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Geneva::Individuals::metaOptimizationTarget> =
+    std::to_array<std::pair<Gem::Geneva::Individuals::metaOptimizationTarget, std::string_view>>(
+        {{Gem::Geneva::Individuals::metaOptimizationTarget::BESTFITNESS, "best fitness"},
+         {Gem::Geneva::Individuals::metaOptimizationTarget::MINSOLVERCALLS,
+          "minimum number of solver calls"},
+         {Gem::Geneva::Individuals::metaOptimizationTarget::MC_MINSOLVER_BESTFITNESS,
+          "multi-criterion target with best fitness, minimum number of solver calls"}}
+    );
 } /* namespace Gem::Common */
 namespace Gem::Geneva::Individuals {
 
@@ -523,7 +534,7 @@ public:
                    << (unprocessed ? " // unprocessed or error" : "") << '\n';
         }
 
-        result << "Optimization target: " << getClearTextMOT(mo_target_) << '\n'
+        result << "Optimization target: \"" << Gem::Common::enumName(mo_target_) << "\"" << '\n'
                << '\n'
                << "population::population size = " << npar + nch << '\n'
                << "population::n_parents = " << npar << '\n'
@@ -902,31 +913,6 @@ protected:
             return {evaluation, std::get<0>(sd)};
         }
         return {evaluation};
-    }
-
-    /***************************************************************************/
-    /**
-     * Retrieves a clear-text description of the optimization target
-     *
-     * @param mot The meta-optimization target to describe
-     * @return A human-readable description of the target
-     */
-    std::string getClearTextMOT(const metaOptimizationTarget &mot) const {
-        switch(mot) {
-        case metaOptimizationTarget::BESTFITNESS:
-            return std::string("\"best fitness\"");
-
-        case metaOptimizationTarget::MINSOLVERCALLS:
-            return std::string("\"minimum number of solver calls\"");
-
-        case metaOptimizationTarget::MC_MINSOLVER_BESTFITNESS:
-            return std::string(
-                "\"multi-criterion target with best fitness, minimum number of solver calls\""
-            );
-        }
-
-        // Make the compiler happy
-        return {};
     }
 
     /***************************************************************************/

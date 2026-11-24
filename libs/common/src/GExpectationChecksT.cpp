@@ -148,25 +148,10 @@ Gem::Common::expectation GToken::getExpectation() const {
 /**
  * @brief Allows to retrieve the expectation token as a string
  *
- * @return The expectation as a string ("FP_SIMILARITY", "EQUALITY", "INEQUALITY", or "unknown")
+ * @return The name of the expectation ("FP_SIMILARITY", "EQUALITY" or "INEQUALITY")
  */
 std::string GToken::getExpectationStr() const {
-    switch(e_) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-        return "FP_SIMILARITY";
-        break;
-
-    case Gem::Common::expectation::EQUALITY:
-        return "EQUALITY";
-        break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        return "INEQUALITY";
-        break;
-    default:
-        return "unknown";
-        break;
-    }
+    return enumName(e_);
 }
 
 /******************************************************************************/
@@ -226,21 +211,7 @@ std::string GToken::getErrorMessages() const {
  * @return A human-readable description of whether the expectation was met, plus any failure details
  */
 std::string GToken::toString() const {
-    std::string result = "Expectation of ";
-
-    switch(e_) {
-    case Gem::Common::expectation::FP_SIMILARITY: {
-        result += std::string("FP_SIMILARITY was ");
-    } break;
-
-    case Gem::Common::expectation::EQUALITY: {
-        result += std::string("EQUALITY was ");
-    } break;
-
-    case Gem::Common::expectation::INEQUALITY: {
-        result += std::string("INEQUALITY was ");
-    } break;
-    }
+    std::string result = "Expectation of " + this->getExpectationStr() + " was ";
 
     if(this->expectationMet()) {
         result += std::string("met in ") + caller_ + std::string("\n");

@@ -285,4 +285,54 @@ template <>
 inline constexpr auto numeric_enum_values_v<Gem::Dietrich::legendPosition> = numeric_enum_range<
     Gem::Dietrich::legendPosition::AUTO,
     Gem::Dietrich::legendPosition::FREEST>();
+
+// The names of the values, as a plot spec's JSON and the data export carry them (see enum_names_v
+// in GCommonEnums.hpp)
+template <>
+inline constexpr auto enum_names_v<Gem::Dietrich::graphPlotMode> =
+    std::to_array<std::pair<Gem::Dietrich::graphPlotMode, std::string_view>>(
+        {{Gem::Dietrich::graphPlotMode::SCATTER, "scatter"},
+         {Gem::Dietrich::graphPlotMode::CURVE, "curve"}}
+    );
+template <>
+inline constexpr auto enum_names_v<Gem::Dietrich::surfaceProjection> =
+    std::to_array<std::pair<Gem::Dietrich::surfaceProjection, std::string_view>>(
+        {{Gem::Dietrich::surfaceProjection::NONE, "none"},
+         {Gem::Dietrich::surfaceProjection::FLOOR, "floor"},
+         {Gem::Dietrich::surfaceProjection::CEILING, "ceiling"}}
+    );
+template <>
+inline constexpr auto enum_names_v<Gem::Dietrich::legendPosition> =
+    std::to_array<std::pair<Gem::Dietrich::legendPosition, std::string_view>>(
+        {{Gem::Dietrich::legendPosition::AUTO, "auto"},
+         {Gem::Dietrich::legendPosition::TOP_LEFT, "top_left"},
+         {Gem::Dietrich::legendPosition::TOP_RIGHT, "top_right"},
+         {Gem::Dietrich::legendPosition::BOTTOM_LEFT, "bottom_left"},
+         {Gem::Dietrich::legendPosition::BOTTOM_RIGHT, "bottom_right"},
+         {Gem::Dietrich::legendPosition::CENTER_RIGHT, "center_right"},
+         {Gem::Dietrich::legendPosition::FREEST, "freest"}}
+    );
+/** @brief The names of the 2-d drawing options: ROOT's draw options ("" for TDEMPTY) */
+template <>
+inline constexpr auto enum_names_v<Gem::Dietrich::tddropt> =
+    std::to_array<std::pair<Gem::Dietrich::tddropt, std::string_view>>(
+        {{Gem::Dietrich::tddropt::TDEMPTY, ""},
+         {Gem::Dietrich::tddropt::SURFONE, "SURF1"},
+         {Gem::Dietrich::tddropt::SURFTWOZ, "SURF2Z"},
+         {Gem::Dietrich::tddropt::SURFTHREE, "SURF3"},
+         {Gem::Dietrich::tddropt::SURFFOUR, "SURF4"},
+         {Gem::Dietrich::tddropt::CONTZ, "CONTZ"},
+         {Gem::Dietrich::tddropt::CONTONE, "CONT1"},
+         {Gem::Dietrich::tddropt::CONTTWO, "CONT2"},
+         {Gem::Dietrich::tddropt::CONTTHREE, "CONT3"},
+         {Gem::Dietrich::tddropt::TEXT, "TEXT"},
+         {Gem::Dietrich::tddropt::SCAT, "SCAT"},
+         {Gem::Dietrich::tddropt::BOX, "BOX"},
+         {Gem::Dietrich::tddropt::ARR, "ARR"},
+         {Gem::Dietrich::tddropt::COLZ, "COLZ"},
+         {Gem::Dietrich::tddropt::LEGO, "LEGO"},
+         {Gem::Dietrich::tddropt::LEGOONE, "LEGO1"},
+         {Gem::Dietrich::tddropt::SURFONEPOL, "SURF1POL"},
+         {Gem::Dietrich::tddropt::SURFONECYL, "SURF1CYL"}}
+    );
 } /* namespace Gem::Common */

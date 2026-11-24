@@ -59,7 +59,7 @@
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp" // fkToStr, describeException()
+#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GWireCodec.hpp"               // scope-wrapped (de)serialization, HELLO
 #include "courtier/GWireSerializationContext.hpp"
 #include "courtier/transport/GPeerI.hpp" // the connection and how to get one
@@ -501,8 +501,9 @@ private:
         if(not decoded.head_read || (kind != GFrameKind::WORK && kind != GFrameKind::HELLO)) {
             if(current) {
                 this->protocolError_(
-                    decoded.head_read ? "a frame of a kind a server does not send: " + fkToStr(kind)
-                                      : decoded.error
+                    decoded.head_read
+                        ? "a frame of a kind a server does not send: " + Gem::Common::enumName(kind)
+                        : decoded.error
                 );
             }
         }

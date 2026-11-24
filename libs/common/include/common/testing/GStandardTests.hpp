@@ -35,7 +35,7 @@
  *
  * A test program -- in this tree or in a project built on an installed collection -- includes this
  * header and calls `checkRoundTrips<T>()` / `checkMisuse<T>()`
- * inside a Catch2 test case. The tests construct, copy, clone, load, assign and (de-)serialize objects
+ * inside a Catch2 test case (and `checkEnumNames<E>()` for an enum's name table). The tests construct, copy, clone, load, assign and (de-)serialize objects
  * of `T` and compare the results. No library includes this header: Catch2 is needed by the test program
  * that does, never by a library of the collection.
  *
@@ -52,9 +52,11 @@
 // Standard header files go here
 #include <cmath>
 #include <concepts>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <typeinfo>
 #include <utility>
@@ -504,6 +506,25 @@ void checkMisuse() {
     std::shared_ptr<T> const t_ptr = makeTestObject<T>();
     REQUIRE(t_ptr);
     CHECK_THROWS_AS(t_ptr->load(t_ptr), gem_exception);
+}
+
+/******************************************************************************/
+/**
+ * @brief Checks that an enum's name table (Gem::Common::enum_names_v) holds exactly the expected
+ * names: as many entries, each value printing as its name and each name leading back to its value.
+ * Names are quoted by files, scripts and manuals, so a test pins every one with this check.
+ *
+ * @tparam enum_type The enum
+ * @param expected Every value of the enum with its expected name
+ */
+template <typename enum_type>
+void checkEnumNames(std::initializer_list<std::pair<enum_type, std::string_view>> expected) {
+    INFO("Tested enum: " << typeid(enum_type).name());
+    REQUIRE(Gem::Common::enum_names_v<enum_type>.size() == expected.size());
+    for(auto const &[value, name] : expected) {
+        CHECK(Gem::Common::enumName(value) == name);
+        CHECK(Gem::Common::enumFromName<enum_type>(name) == value);
+    }
 }
 
 /******************************************************************************/

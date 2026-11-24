@@ -33,17 +33,20 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <vector>
 
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GCommonEnums.hpp"
 
 /******************************************************************************/
 /**
@@ -72,13 +75,31 @@ enum class withTime { // NOLINT(readability-identifier-naming) -- the names the 
  * The type of a column. The order is that of the alternatives of GValue.
  */
 enum class columnType {
-    INTEGER,   ///< A signed integer (std::int64_t)
-    UNSIGNED,  ///< An unsigned integer (std::uint64_t)
-    FLOATING,  ///< A floating-point value (double)
-    BOOLEAN,   ///< A bool
-    TEXT,      ///< A string
-    TIMESTAMP  ///< A point in time of the wall clock (GTimeStamp)
+    INTEGER,  ///< A signed integer (std::int64_t)
+    UNSIGNED, ///< An unsigned integer (std::uint64_t)
+    FLOATING, ///< A floating-point value (double)
+    BOOLEAN,  ///< A bool
+    TEXT,     ///< A string
+    TIMESTAMP ///< A point in time of the wall clock (GTimeStamp)
 };
+
+} /* namespace Gem::Common::Record */
+
+namespace Gem::Common {
+/** @brief The names of the column types, for messages */
+template <>
+inline constexpr auto enum_names_v<Record::columnType> =
+    std::to_array<std::pair<Record::columnType, std::string_view>>(
+        {{Record::columnType::INTEGER, "integer"},
+         {Record::columnType::UNSIGNED, "unsigned"},
+         {Record::columnType::FLOATING, "floating"},
+         {Record::columnType::BOOLEAN, "boolean"},
+         {Record::columnType::TEXT, "text"},
+         {Record::columnType::TIMESTAMP, "timestamp"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Common::Record {
 
 /** @brief A time stamp: a point in time of the wall clock */
 using GTimeStamp = std::chrono::system_clock::time_point;
@@ -110,12 +131,6 @@ struct GColumn {
 [[nodiscard]] inline columnType typeOf(GValue const &value) {
     return static_cast<columnType>(value.index());
 }
-
-/******************************************************************************/
-/**
- * @brief The name of a column type, for messages
- */
-[[nodiscard]] std::string to_string(columnType type);
 
 /******************************************************************************/
 /**

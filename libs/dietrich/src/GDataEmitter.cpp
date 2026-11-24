@@ -66,9 +66,6 @@ namespace Gem::Dietrich {
 // exception types, make_member, EmitStream, ...); make them visible here without
 // per-name qualification. This affects lookup only within Gem::Dietrich.
 using namespace Gem::Common;
-// Dietrich declares its own to_string(plotKind), which would otherwise shadow common's
-// numeric to_string(...) for unqualified calls; merge common's overloads back in.
-using Gem::Common::to_string;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +190,7 @@ std::string emitCsv(const std::vector<dataSeries> &series, const canvasInfo &can
             s.column_names | std::views::join_with(',') | std::ranges::to<std::string>();
 
         out << "# series " << si << ": \"" << csvComment(s.name) << "\" kind=" << s.kind
-            << " plotkind=" << to_string(s.spec.kind) << " role=" << s.spec.role
+            << " plotkind=" << Gem::Common::enumName(s.spec.kind) << " role=" << s.spec.role
             << " columns=" << col_list << " pad=" << s.pad
             << " secondary=" << (s.secondary ? 1 : 0);
         // How the series is drawn (scriptStyle()), and whether and with which sample the pad's
@@ -203,7 +200,7 @@ std::string emitCsv(const std::vector<dataSeries> &series, const canvasInfo &can
             out << " line_width=" << s.style.line_width;
         }
         if(s.legend.has_value()) {
-            out << " legend_sample=" << to_string(*s.legend);
+            out << " legend_sample=" << Gem::Common::enumName(*s.legend);
         }
         out << '\n';
 
@@ -443,7 +440,7 @@ std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &can
         // GBasePlotter::legendEntries(): an external renderer draws the same legend.
         spec_json += ", \"draw_style\": \"" + styleTokens(s.style) + "\"";
         if(s.legend.has_value()) {
-            spec_json += ", \"legend_sample\": \"" + to_string(*s.legend) + "\"";
+            spec_json += ", \"legend_sample\": \"" + Gem::Common::enumName(*s.legend) + "\"";
         }
         spec_json += "}";
         manifest += "    " + spec_json;

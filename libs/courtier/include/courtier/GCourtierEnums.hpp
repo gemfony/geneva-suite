@@ -323,13 +323,13 @@ using SUBMISSION_UUID_TYPE = std::array<std::uint64_t, 2>;
 // GFrameKind, consumerType and processRole stream as their underlying
 // numeric values through the shared machinery in GCommonEnums.hpp (marker
 // specializations after the namespace end). Re-export the operators so ADL
-// finds them for this namespace's enums. processingStatus keeps a hand-written
-// pair: its insertion operator deliberately prints the enumerator NAME for
-// diagnostics.
+// finds them for this namespace's enums. processingStatus keeps a pair of its
+// own: its insertion operator prints "processingStatus::" and the value's name
+// (enum_names_v) for diagnostics.
 using Gem::Common::operator<<;
 using Gem::Common::operator>>;
 
-/** @brief Puts a Gem::Courtier::processingStatus into a stream. Needed for streaming / Gem::Common::fromString<> */
+/** @brief Puts a Gem::Courtier::processingStatus into a stream, as "processingStatus::" and its name */
 std::ostream &operator<<(std::ostream &o, const Gem::Courtier::processingStatus &srm);
 /** @brief Reads a Gem::Courtier::processingStatus item from a stream. Needed for streaming / Gem::Common::fromString<> */
 std::istream &operator>>(std::istream &i, Gem::Courtier::processingStatus &srm);
@@ -357,4 +357,38 @@ template <>
 inline constexpr auto numeric_enum_values_v<Gem::Courtier::processRole> = numeric_enum_range<
     Gem::Courtier::processRole::SUBMITTER,
     Gem::Courtier::processRole::BYSTANDER>();
+
+// The names of the values (see enum_names_v in GCommonEnums.hpp)
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::run_state> =
+    std::to_array<std::pair<Gem::Courtier::run_state, std::string_view>>(
+        {{Gem::Courtier::run_state::INIT, "INIT"},
+         {Gem::Courtier::run_state::RUN, "RUN"},
+         {Gem::Courtier::run_state::FINALLY, "FINALLY"}}
+    );
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::GFrameKind> =
+    std::to_array<std::pair<Gem::Courtier::GFrameKind, std::string_view>>(
+        {{Gem::Courtier::GFrameKind::NONE, "NONE"},
+         {Gem::Courtier::GFrameKind::PULL, "PULL"},
+         {Gem::Courtier::GFrameKind::WORK, "WORK"},
+         {Gem::Courtier::GFrameKind::RESULT, "RESULT"},
+         {Gem::Courtier::GFrameKind::HELLO, "HELLO"}}
+    );
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::processRole> =
+    std::to_array<std::pair<Gem::Courtier::processRole, std::string_view>>(
+        {{Gem::Courtier::processRole::SUBMITTER, "SUBMITTER"},
+         {Gem::Courtier::processRole::CLIENT, "CLIENT"},
+         {Gem::Courtier::processRole::BYSTANDER, "BYSTANDER"}}
+    );
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::processingStatus> =
+    std::to_array<std::pair<Gem::Courtier::processingStatus, std::string_view>>(
+        {{Gem::Courtier::processingStatus::UNPROCESSED, "UNPROCESSED"},
+         {Gem::Courtier::processingStatus::DO_PROCESS, "DO_PROCESS"},
+         {Gem::Courtier::processingStatus::PROCESSED, "PROCESSED"},
+         {Gem::Courtier::processingStatus::EXCEPTION_CAUGHT, "EXCEPTION_CAUGHT"},
+         {Gem::Courtier::processingStatus::ERROR_FLAGGED, "ERROR_FLAGGED"}}
+    );
 } /* namespace Gem::Common */

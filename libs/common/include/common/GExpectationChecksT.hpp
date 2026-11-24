@@ -574,23 +574,20 @@ void compare(
     double limit = CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str;
+    std::string const expectation_str{Gem::Common::enumName(e)};
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
-        expectation_str = "FP_SIMILARITY";
         if(std::abs(x - y) < Gem::Common::narrow<fp_type>(limit)) {
             expectation_met = true;
         }
         break;
     case Gem::Common::expectation::EQUALITY:
-        expectation_str = "EQUALITY";
         if(x == y) {
             expectation_met = true;
         }
         break;
     case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
         if(x != y) {
             expectation_met = true;
         }
@@ -809,20 +806,13 @@ void compare(
     double limit = CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str;
+    std::string const expectation_str{Gem::Common::enumName(e)};
     std::size_t deviation_pos = 0;
     std::ostringstream error;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
     case Gem::Common::expectation::EQUALITY: {
-        if(Gem::Common::expectation::FP_SIMILARITY == e) {
-            expectation_str = "FP_SIMILARITY";
-        }
-        else { // May only be FP_SIMILARITY or EQUALITY in this case
-            expectation_str = "EQUALITY";
-        }
-
         if(x.size() != y.size()) {
             error << "Different vector-sizes found : " << x_name << ".size() = " << x.size() << '\n'
                   << y_name << ".size() = " << y.size() << '\n';
@@ -868,7 +858,6 @@ void compare(
     } break;
 
     case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
         if(x != y) {
             expectation_met = true;
         }
@@ -909,20 +898,13 @@ void compare(
     double limit = CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str;
+    std::string const expectation_str{Gem::Common::enumName(e)};
     std::size_t deviation_pos = 0;
     std::ostringstream error;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
     case Gem::Common::expectation::EQUALITY: {
-        if(Gem::Common::expectation::FP_SIMILARITY == e) {
-            expectation_str = "FP_SIMILARITY";
-        }
-        else { // May only be FP_SIMILARITY or EQUALITY in this case
-            expectation_str = "EQUALITY";
-        }
-
         if(x.size() != y.size()) {
             error << "Different vector-sizes found : " << x_name << ".size() = " << x.size() << '\n'
                   << y_name << ".size() = " << y.size() << '\n';
@@ -968,7 +950,6 @@ void compare(
     } break;
 
     case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
         if(x != y) {
             expectation_met = true;
         }

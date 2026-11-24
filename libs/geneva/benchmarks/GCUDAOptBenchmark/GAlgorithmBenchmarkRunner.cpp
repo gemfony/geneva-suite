@@ -43,6 +43,7 @@
 #include <tuple>
 #include <vector>
 
+#include "common/GCommonEnums.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 
 namespace Gem::Geneva::Benchmarks {
@@ -52,49 +53,23 @@ namespace {
 /******************************************************************************/
 /**
  * @brief Maps a benchmark-function name (e.g. "PARABOLA", "ackley_canonical") to the corresponding
- * GFunctionIndividual demo function. The names match the solverFunction enum identifiers (and the
- * Gem::Geneva::Benchmarks::FUNC_* ids, 0..14). A plain integer id is also accepted. An unrecognised
- * value is a fatal config error.
+ * GFunctionIndividual demo function. The names are solverFunction's names (its enum_names_v: the
+ * identifiers, and the Gem::Geneva::Benchmarks::FUNC_* ids, 0..14), in any case. A plain integer id
+ * is also accepted. An unrecognised value is a fatal config error.
  */
 gind::solverFunction parseBenchmarkFunction(const std::string &name) {
-    static const char *const kNames[] = {
-        "PARABOLA",
-        "NOISYPARABOLA",
-        "ROSENBROCK",
-        "ACKLEY",
-        "RASTRIGIN",
-        "SCHWEFEL",
-        "SALOMON",
-        "NEGPARABOLA",
-        "ACKLEY_CANONICAL",
-        "GRIEWANK",
-        "LEVY",
-        "STYBLINSKI_TANG",
-        "ELLIPSOID",
-        "MICHALEWICZ",
-        "ZAKHAROV"
-    };
-    constexpr int kCount = static_cast<int>(sizeof(kNames) / sizeof(kNames[0]));
-
     std::string up = name;
     std::transform(up.begin(), up.end(), up.begin(), [](unsigned char c) {
         return static_cast<char>(std::toupper(c));
     });
-    for(int i = 0; i < kCount; ++i) {
-        if(up == kNames[i]) {
-            return static_cast<gind::solverFunction>(i);
-        }
+    if(const auto function = Gem::Common::enumFromName<gind::solverFunction>(up)) {
+        return *function;
     }
-    // Integer fallback: accept "0".."14" as well.
-    try {
-        std::size_t pos = 0;
-        const int v = std::stoi(name, &pos);
-        if(pos == name.size() && v >= 0 && v < kCount) {
-            return static_cast<gind::solverFunction>(v);
-        }
-    }
-    catch(...) {
-        /* fall through to the throw below */
+    // Integer fallback: accept the numbers of the functions as well.
+    std::istringstream number(name);
+    gind::solverFunction function{};
+    if(number >> function && number.peek() == std::char_traits<char>::eof()) {
+        return function;
     }
     throw std::invalid_argument(
         "GAlgorithmBenchmarkRunner: unknown benchmarkFunction '" + name + "'"
@@ -145,7 +120,7 @@ std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
             std::cout << "  run " << r << "  fitness=" << result.finalFitness
                       << "  iter=" << result.iterationsConsumed << "  t=" << result.wallTimeSeconds
                       << "s"
-                      << "  reason=" << terminationReasonToString(result.terminationReason)
+                      << "  reason=" << Gem::Common::enumName(result.terminationReason)
                       << std::endl;
             rawRuns.push_back(std::move(result));
         }

@@ -99,8 +99,8 @@ void GStreamCore::append(GRow row) {
             throw gem_exception(
                 g_error_streamer()
                 << "The column \"" << column.name << "\" of the stream \"" << info_.name
-                << "\" holds " << to_string(column.type) << " values, but a "
-                << to_string(typeOf(row[i])) << " value was appended" << '\n'
+                << "\" holds " << enumName(column.type) << " values, but a "
+                << enumName(typeOf(row[i])) << " value was appended" << '\n'
             );
         }
     }

@@ -41,7 +41,11 @@
 #include "common/GExceptions.hpp"
 #include "common/record/GCsvSink.hpp"
 #include "common/record/GRecorder.hpp"
+#include "common/testing/GStandardTests.hpp"
+#include "dietrich/plotting/GPlotEmitter.hpp"
+#include "dietrich/plotting/GPlotEnums.hpp"
 #include "dietrich/plotting/GPlotSink.hpp"
+#include "dietrich/plotting/GPlotSpec.hpp"
 
 using namespace Gem::Common::Record;
 using namespace Gem::Dietrich;
@@ -54,7 +58,8 @@ public:
     explicit ScratchDirectory(std::string const &tag)
       : dir_(
             std::filesystem::temp_directory_path() / "gem_plot_sink_tests" /
-            (tag + "_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))
+            (tag + "_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))
         ) {
         recorder().setDirectory(dir_);
     }
@@ -107,7 +112,10 @@ private:
 
 /******************************************************************************/
 
-TEST_CASE("a plot sink draws its series from the stream's columns and writes at the end", "[dietrich][record]") {
+TEST_CASE(
+    "a plot sink draws its series from the stream's columns and writes at the end",
+    "[dietrich][record]"
+) {
     ScratchDirectory const dir("plot");
     GDataLog layout("Progress", 1, 1);
     layout.declareSeries(curve("best", {"iteration", "fitness"}));
@@ -117,7 +125,9 @@ TEST_CASE("a plot sink draws its series from the stream's columns and writes at 
             "progress",
             {"iteration", "fitness", "algorithm"},
             withTime::none,
-            GStreamOptions{.sinks = {std::make_shared<GCsvSink>(), std::make_shared<GPlotSink>(layout)}}
+            GStreamOptions{
+                .sinks = {std::make_shared<GCsvSink>(), std::make_shared<GPlotSink>(layout)}
+            }
         );
         s.append(1, 123.25, "EA");
         s.append(2, 99.5, "EA");
@@ -151,7 +161,10 @@ TEST_CASE("the backend is chosen per sink and names the extension", "[dietrich][
     CHECK_THROWS_AS(GPlotSink(layout, plotBackend::DATA), gem_exception);
 }
 
-TEST_CASE("a histogram without bins gets one per distinct value; a derived sink completes the plot", "[dietrich][record]") {
+TEST_CASE(
+    "a histogram without bins gets one per distinct value; a derived sink completes the plot",
+    "[dietrich][record]"
+) {
     ScratchDirectory const dir("hist");
     GDataLog layout("Adaptions", 3, 1);
     auto const own = layout.declareSeries(curve("own", {"a", "b"}));
@@ -165,7 +178,10 @@ TEST_CASE("a histogram without bins gets one per distinct value; a derived sink 
     sink->own_series = own;
     {
         auto s = recorder().stream<std::uint64_t, std::int64_t>(
-            "adaptions", {"iteration", "n"}, withTime::none, GStreamOptions{.sinks = {sink}}
+            "adaptions",
+            {"iteration", "n"},
+            withTime::none,
+            GStreamOptions{.sinks = {sink}}
         );
         for(std::uint64_t it = 0; it < 4; ++it) {
             s.append(it, 1);
@@ -182,7 +198,9 @@ TEST_CASE("a histogram without bins gets one per distinct value; a derived sink 
     // put into the overflow bin -- the last iteration and the largest count were not drawn. The
     // range now holds every value: the upper edges lie above 3 (the last iteration) and 7.
     std::smatch m;
-    const std::regex th2d(R"re(new TH2D\("[^"]*", "[^"]*",(\d+), ([^,]+), ([^,]+),(\d+), ([^,]+), ([^)]+)\))re");
+    const std::regex th2d(
+        R"re(new TH2D\("[^"]*", "[^"]*",(\d+), ([^,]+), ([^,]+),(\d+), ([^,]+), ([^)]+)\))re"
+    );
     REQUIRE(std::regex_search(macro, m, th2d));
     CHECK(std::stod(m[2].str()) <= 0.);
     CHECK(std::stod(m[3].str()) > 3.);
@@ -194,13 +212,19 @@ TEST_CASE("a histogram without bins gets one per distinct value; a derived sink 
     CHECK(std::stod(m[3].str()) > 7.);
 }
 
-TEST_CASE("a plot sink refuses text columns and series that are only partly the stream's", "[dietrich][record]") {
+TEST_CASE(
+    "a plot sink refuses text columns and series that are only partly the stream's",
+    "[dietrich][record]"
+) {
     ScratchDirectory const dir("refuse");
     {
         GDataLog layout("Text", 1, 1);
         layout.declareSeries(curve("t", {"x", "name"}));
         auto s = recorder().stream<double, std::string>(
-            "text", {"x", "name"}, withTime::none, GStreamOptions{.sinks = {std::make_shared<GPlotSink>(layout)}}
+            "text",
+            {"x", "name"},
+            withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<GPlotSink>(layout)}}
         );
         CHECK_THROWS_AS(s.append(1., "a"), gem_exception);
     }
@@ -208,7 +232,10 @@ TEST_CASE("a plot sink refuses text columns and series that are only partly the 
         GDataLog layout("Partly", 1, 1);
         layout.declareSeries(curve("p", {"x", "missing"}));
         auto s = recorder().stream<double>(
-            "partly", {"x"}, withTime::none, GStreamOptions{.sinks = {std::make_shared<GPlotSink>(layout)}}
+            "partly",
+            {"x"},
+            withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<GPlotSink>(layout)}}
         );
         CHECK_THROWS_AS(s.append(1.), gem_exception);
     }
@@ -233,7 +260,10 @@ TEST_CASE("a resumed plot reads the stream's CSV and draws the whole run", "[die
             {"x", "y"},
             withTime::none,
             GStreamOptions{
-                .sinks = std::move(sinks), .resume = resume, .resumeColumn = "x", .resumeAfter = 2.
+                .sinks = std::move(sinks),
+                .resume = resume,
+                .resumeColumn = "x",
+                .resumeAfter = 2.
             }
         );
     };
@@ -275,7 +305,8 @@ TEST_CASE("a plot added to a stream that another library declares draws it", "[d
     recorder().addSink("report", std::make_shared<GPlotSink>(layout));
     {
         auto s = recorder().stream<std::string, std::uint64_t, std::uint64_t>(
-            "report", {"consumer", "requeued", "dropped_returns"}
+            "report",
+            {"consumer", "requeued", "dropped_returns"}
         );
         s.append("beast", 4321, 8765);
     }
@@ -283,4 +314,84 @@ TEST_CASE("a plot added to a stream that another library declares draws it", "[d
     const std::string macro = contentOf(dir / "report.C");
     CHECK(macro.find("4321") != std::string::npos);
     CHECK(macro.find("8765") != std::string::npos);
+}
+
+/******************************************************************************/
+// The names of dietrich's enums (enum_names_v): every name is pinned, as the plot specs' JSON, the
+// data export, scripts and the manual quote them, and each name leads back to its value.
+TEST_CASE("dietrich's enums: every value has its name", "[dietrich][names]") {
+    using Gem::Common::Testing::checkEnumNames;
+    checkEnumNames<plotKind>(
+        {{plotKind::graph_2d, "graph_2d"},
+         {plotKind::graph_2d_err, "graph_2d_err"},
+         {plotKind::graph_3d, "graph_3d"},
+         {plotKind::graph_4d, "graph_4d"},
+         {plotKind::hist_1d, "hist_1d"},
+         {plotKind::hist_1i, "hist_1i"},
+         {plotKind::hist_2d, "hist_2d"},
+         {plotKind::function_1d, "function_1d"},
+         {plotKind::function_2d, "function_2d"}}
+    );
+    checkEnumNames<legendSample>(
+        {{legendSample::LINE, "line"},
+         {legendSample::MARKER, "marker"},
+         {legendSample::LINE_AND_MARKER, "line_and_marker"},
+         {legendSample::FILL, "fill"},
+         {legendSample::COLOUR_MAP, "colour_map"}}
+    );
+    checkEnumNames<graphPlotMode>(
+        {{graphPlotMode::SCATTER, "scatter"}, {graphPlotMode::CURVE, "curve"}}
+    );
+    checkEnumNames<surfaceProjection>(
+        {{surfaceProjection::NONE, "none"},
+         {surfaceProjection::FLOOR, "floor"},
+         {surfaceProjection::CEILING, "ceiling"}}
+    );
+    checkEnumNames<legendPosition>(
+        {{legendPosition::AUTO, "auto"},
+         {legendPosition::TOP_LEFT, "top_left"},
+         {legendPosition::TOP_RIGHT, "top_right"},
+         {legendPosition::BOTTOM_LEFT, "bottom_left"},
+         {legendPosition::BOTTOM_RIGHT, "bottom_right"},
+         {legendPosition::CENTER_RIGHT, "center_right"},
+         {legendPosition::FREEST, "freest"}}
+    );
+    checkEnumNames<tddropt>(
+        {{tddropt::TDEMPTY, ""},
+         {tddropt::SURFONE, "SURF1"},
+         {tddropt::SURFTWOZ, "SURF2Z"},
+         {tddropt::SURFTHREE, "SURF3"},
+         {tddropt::SURFFOUR, "SURF4"},
+         {tddropt::CONTZ, "CONTZ"},
+         {tddropt::CONTONE, "CONT1"},
+         {tddropt::CONTTWO, "CONT2"},
+         {tddropt::CONTTHREE, "CONT3"},
+         {tddropt::TEXT, "TEXT"},
+         {tddropt::SCAT, "SCAT"},
+         {tddropt::BOX, "BOX"},
+         {tddropt::ARR, "ARR"},
+         {tddropt::COLZ, "COLZ"},
+         {tddropt::LEGO, "LEGO"},
+         {tddropt::LEGOONE, "LEGO1"},
+         {tddropt::SURFONEPOL, "SURF1POL"},
+         {tddropt::SURFONECYL, "SURF1CYL"}}
+    );
+    checkEnumNames<plotBackend>(
+        {{plotBackend::ROOT, "root"},
+         {plotBackend::GNUPLOT, "gnuplot"},
+         {plotBackend::MATPLOTLIB, "matplotlib"},
+         {plotBackend::OCTAVE, "octave"},
+         {plotBackend::DATA, "data"}}
+    );
+
+    // A spec's JSON carries the names
+    GPlotSpec spec(plotKind::graph_3d);
+    spec.plot_mode = graphPlotMode::CURVE;
+    spec.projection = surfaceProjection::CEILING;
+    spec.legend = legendPosition::BOTTOM_LEFT;
+    const std::string json = spec.toJson();
+    CHECK(json.contains("\"kind\": \"graph_3d\""));
+    CHECK(json.contains("\"plot_mode\": \"curve\""));
+    CHECK(json.contains("\"projection\": \"ceiling\""));
+    CHECK(json.contains("\"legend\": \"bottom_left\""));
 }

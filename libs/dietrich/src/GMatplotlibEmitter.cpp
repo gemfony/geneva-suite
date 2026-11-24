@@ -66,9 +66,6 @@ namespace Gem::Dietrich {
 // exception types, make_member, EmitStream, ...); make them visible here without
 // per-name qualification. This affects lookup only within Gem::Dietrich.
 using namespace Gem::Common;
-// Dietrich declares its own to_string(plotKind), which would otherwise shadow common's
-// numeric to_string(...) for unqualified calls; merge common's overloads back in.
-using Gem::Common::to_string;
 
 /******************************************************************************/
 /**
@@ -373,7 +370,7 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
             result << "ax.legend(handles=[";
             for(const auto &[i, e] : entries | std::views::enumerate) {
                 result << (i == 0 ? "" : ", ") << "_legend_sample(_colours[" << e.series << "], \""
-                       << to_string(e.sample) << "\", " << e.line_width << ")";
+                       << Gem::Common::enumName(e.sample) << "\", " << e.line_width << ")";
             }
             result << "], labels=[";
             for(const auto &[i, e] : entries | std::views::enumerate) {

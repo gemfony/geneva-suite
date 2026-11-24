@@ -618,7 +618,7 @@ void framePayloadFromString(
     }
     catch(...) {
         throw gem_exception(
-            g_error_streamer() << "The payload of a " << fkToStr(container.kind())
+            g_error_streamer() << "The payload of a " << Gem::Common::enumName(container.kind())
                                << " cannot be read: " << describeException(std::current_exception())
                                << '\n'
         );
@@ -656,8 +656,8 @@ std::string container_to_string(
     catch(...) {
         throw gem_exception(
             g_error_streamer() << describeException(std::current_exception()) << '\n'
-                               << "with serializationMode == "
-                               << Gem::Common::serModeToString(serMode) << '\n'
+                               << "with serializationMode == " << Gem::Common::enumName(serMode)
+                               << '\n'
         );
     }
 }
