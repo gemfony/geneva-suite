@@ -88,3 +88,56 @@ TEST_CASE(
     retention.setSubmissionUuid(a.getSubmissionUuid());
     CHECK(retention.getSubmissionUuid() == a.getSubmissionUuid());
 }
+
+/******************************************************************************/
+/**
+ * The marks of a failed evaluation (detail::SubmissionMarks) belong to the object they were set on --
+ * the slot of a batch -- like the lineage id: a copy is a new item and carries none, an assignment
+ * (a load) and an absorbed return keep the target's own, and they are not serialized. A networked
+ * consumer absorbs a deserialized return into the slot, so the submitter's mark must survive that.
+ */
+TEST_CASE(
+    "GProcessable marks: none on a copy and kept on assign and absorb but not serialized",
+    "[proc][id][substitute]"
+) {
+    GSimpleContainer a(42);
+    REQUIRE(a.isSubstitutable());
+    REQUIRE_FALSE(a.isSubstitute());
+    a.setSubstitutable(false);
+    REQUIRE_FALSE(a.isSubstitutable());
+
+    // COPY CONSTRUCTION -> a new item without marks.
+    GSimpleContainer const copy(a);
+    CHECK(copy.isSubstitutable());
+
+    // COPY ASSIGNMENT (load) -> the target keeps its own marks, in both directions.
+    GSimpleContainer b(43);
+    b = a;
+    CHECK(b.isSubstitutable());
+    GSimpleContainer c(44);
+    c.setSubstitutable(false);
+    c = copy;
+    CHECK_FALSE(c.isSubstitutable());
+
+    // An ABSORBED return (the networked consumer's check-in) keeps the slot's mark.
+    c.absorbResultsFrom(GSimpleContainer(45));
+    CHECK_FALSE(c.isSubstitutable());
+
+    // SERIALIZED ROUND-TRIP -> the marks do not travel.
+    std::string blob;
+    {
+        Gem::Weft::GBinaryOArchive oa;
+        oa &Gem::Weft::make_nvp("item", a);
+        blob = oa.str();
+    }
+    GSimpleContainer restored(0);
+    {
+        Gem::Weft::GBinaryIArchive ia(blob);
+        ia &Gem::Weft::make_nvp("item", restored);
+    }
+    CHECK(restored.isSubstitutable());
+
+    // The submitter sets the mark again.
+    a.setSubstitutable(true);
+    CHECK(a.isSubstitutable());
+}

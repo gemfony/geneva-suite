@@ -851,8 +851,8 @@ private:
 
     /***************************************************************************/
 
-    /** @brief The evaluation a candidate must beat once the queue is full; a transient
-     *  scratch value derived from data_cnt_, so it is neither serialized nor compared. */
+    /** @brief transient: the evaluation a candidate must beat once the queue is full, a scratch
+     *  value derived from data_cnt_, so it is neither serialized nor compared. */
     double worst_admitted_{Gem::Common::getWorstCase<double>(GFSPQ_DEF_SORT_ORDER)};
 };
 

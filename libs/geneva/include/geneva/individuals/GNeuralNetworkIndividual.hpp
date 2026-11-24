@@ -1039,9 +1039,10 @@ private:
     /***************************************************************************/
     // Local variables
     transferFunction t_f_;             ///< The transfer function to be used for the training
-    std::shared_ptr<networkData> n_d_; ///< Holds the training data
-    mutable std::shared_ptr<const GNeuralNetworkArchitecture>
-        nn_arch_; ///< Cached semantic architecture (transient; rebuilt from n_d_ on demand)
+    /// transient: the training data, shared from the process-wide store (nnTrainingDataStore())
+    std::shared_ptr<networkData> n_d_;
+    /// transient: the cached semantic architecture, rebuilt from n_d_ on demand
+    mutable std::shared_ptr<const GNeuralNetworkArchitecture> nn_arch_;
 };
 
 /******************************************************************************/

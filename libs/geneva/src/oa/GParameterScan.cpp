@@ -670,6 +670,14 @@ void GParameterScan::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) 
       << '\n'
       << "(1) or on a grid (0)";
 
+    gpb.registerFileParameter<std::size_t>(
+        "max_failed_retries",
+        0,
+        [this](std::size_t r) { this->setMaxFailedRetries(r); }
+    ) << "How often a failed evaluation is evaluated again before the run ends"
+      << '\n'
+      << "(0: the first failure ends the run)";
+
     // Override the default value of max_stall_iteration, as the parent
     // default does not make sense for us (we do not need stall iterations)
     gpb.resetFileParameterDefaults("max_stall_iteration", DEFAULTMAXPARSCANSTALLIT);
@@ -695,10 +703,9 @@ void GParameterScan::evaluatePopulation_() {
     //--------------------------------------------------------------------------------
     // Submit all work items and wait for their return
 
-    auto status = this->workOnPopulation(0, this->data_cnt_.size());
-
-    // An incomplete or errored return cannot be accepted in a parameter scan.
-    this->requireCompleteEvaluation_(status, "GParameterScan::evaluatePopulation_()");
+    // An incomplete or errored return cannot be accepted in a parameter scan: the strict submission
+    // policy (getSubmissionPolicy_()) ends the run then.
+    this->workOnPopulation(0, this->data_cnt_.size());
 }
 
 /******************************************************************************/
@@ -865,6 +872,28 @@ void GParameterScan::setScanRandomly(bool scan_randomly) {
  */
 bool GParameterScan::getScanRandomly() const {
     return scan_randomly_;
+}
+
+/******************************************************************************/
+/**
+ * @brief Sets how often a failed evaluation is evaluated again before the run ends. A transient
+ * failure (an external program that fails now and then) is ridden out so; a deterministic one fails
+ * again. The default 0 ends the run at the first failure.
+ *
+ * @param max_failed_retries The number of further evaluations of an item whose evaluation failed
+ */
+void GParameterScan::setMaxFailedRetries(std::size_t max_failed_retries) {
+    max_failed_retries_ = max_failed_retries;
+}
+
+/******************************************************************************/
+/**
+ * @brief Retrieves how often a failed evaluation is evaluated again before the run ends.
+ *
+ * @return The number of further evaluations of an item whose evaluation failed (0: none)
+ */
+std::size_t GParameterScan::getMaxFailedRetries() const {
+    return max_failed_retries_;
 }
 
 /******************************************************************************/

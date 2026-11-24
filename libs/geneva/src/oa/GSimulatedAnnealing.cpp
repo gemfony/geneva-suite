@@ -237,15 +237,12 @@ void GSimulatedAnnealing::evaluatePopulation_() {
 
     //--------------------------------------------------------------------------------
     // Submit the [start, end) evaluation range and wait for results. courtier marks the span
-    // DO_PROCESS and reconciles it in place -- no per-item flagging needed.
-    auto status = this->workOnPopulation(std::get<0>(range), std::get<1>(range));
+    // DO_PROCESS and reconciles it in place -- no per-item flagging needed; a failed evaluation
+    // comes back as a marked substitute.
+    this->workOnPopulation(std::get<0>(range), std::get<1>(range));
 
     //--------------------------------------------------------------------------------
-    // Take care of unprocessed items, if these exist. We simply remove them and continue.
-    this->discardUnusableItems_(status);
-
-    //--------------------------------------------------------------------------------
-    // Now fix the population -- it may be smaller than its nominal size
+    // Now admit late returns and re-mark parents and children
     fixAfterJobSubmission();
 }
 

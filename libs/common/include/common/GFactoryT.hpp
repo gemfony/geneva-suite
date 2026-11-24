@@ -396,10 +396,11 @@ private:
 
     std::filesystem::path config_path_; ///< The name and path of the configuration file
     bool initialized_ = false; ///< Indicates whether the initialization work has already been done
-    mutable std::mutex init_mutex_; ///< Serialises concurrent first calls to globalInit()
+    /// transient: a lock that orders concurrent first calls of globalInit()
+    mutable std::mutex init_mutex_;
 
-    /** @brief Transient parse cache: the configuration file is read and parsed on the first get_(),
-     *  and every later call re-applies this document (NOT serialized). It is the sanctioned load-once
+    /** @brief transient: a parse cache -- the configuration file is read and parsed on the first
+     *  get_(), and every later call re-applies this document. It is the sanctioned load-once
      *  cell rather than a hand-rolled mutex+value+flag triple -- unlike the neighbouring initialized_
      *  flag, which IS serialized and therefore genuinely cannot be one (see globalInit()). A copy or
      *  move starts with a fresh, cold cell; assignment and deserialize-into re-key the factory and

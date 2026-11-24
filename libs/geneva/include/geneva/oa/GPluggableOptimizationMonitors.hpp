@@ -217,7 +217,7 @@ private:
         DEFNMONITORINDS; ///< The number of individuals that should be monitored
     std::string stream_name_ = "best_fitness"; ///< The name of the stream
 
-    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
+    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -1036,9 +1036,9 @@ private:
         variable_names_; ///< axis names of the profiled variables, in profile order
     std::size_t landscape_resolution_ = 0; ///< grid points per axis of the 2-d landscape (0: none)
 
-    // Transient, not copied: the stream, declared at the first INFOINIT, and the plot sink that
-    // draws the landscape, if one is asked for
+    /// transient: the stream, declared at the first INFOINIT; a copy has none
     oa::GMonitorStream stream_;
+    /// transient: the plot sink that draws the landscape, if one is asked for; a copy has none
     std::shared_ptr<detail::GLandscapePlotSink> landscape_sink_;
 };
 
@@ -1208,7 +1208,7 @@ private:
     bool print_initial_ = false; ///< Indicates whether the initial population should be recorded
     bool fitness_only_ = false;  ///< Records the individual and its fitness values only
 
-    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
+    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -1334,7 +1334,7 @@ private:
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
 
-    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
+    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -1686,7 +1686,7 @@ private:
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
 
-    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
+    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -1816,7 +1816,7 @@ private:
     std::size_t n_bins_y_ =
         Gem::Common::DEFAULTNBINSGPD; ///< The number of bins in the histograms in y-direction
 
-    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
+    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/

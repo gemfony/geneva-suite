@@ -378,14 +378,18 @@ private:
     /***************************************************************************/
     // Internal per-chain state (transient; rebuilt in init(), excluded from serialize/compare)
 
-    std::size_t n_fp_parms_ = 0; ///< The number of active floating point parameters (set in init())
+    /// transient: the number of active floating point parameters, set in init()
+    std::size_t n_fp_parms_ = 0;
 
-    double t0_effective_ = 0.; ///< The visiting temperature actually used (== t0_ or derived)
+    /// transient: the visiting temperature actually used (== t0_ or derived), set in init()
+    double t0_effective_ = 0.;
 
-    std::vector<std::uint32_t>
-        chain_step_; ///< Per-chain cooling-clock step index t (reset on reanneal)
-    std::vector<double> chain_best_energy_;  ///< Per-chain best energy seen so far
-    std::vector<std::uint32_t> chain_stall_; ///< Per-chain steps since the last improvement
+    /// transient: the per-chain cooling-clock step index t (reset on reanneal), rebuilt in init()
+    std::vector<std::uint32_t> chain_step_;
+    /// transient: the per-chain best energy seen so far, rebuilt in init()
+    std::vector<double> chain_best_energy_;
+    /// transient: the per-chain steps since the last improvement, rebuilt in init()
+    std::vector<std::uint32_t> chain_stall_;
 };
 
 /******************************************************************************/

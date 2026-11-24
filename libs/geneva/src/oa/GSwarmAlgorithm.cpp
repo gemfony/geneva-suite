@@ -566,8 +566,9 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
         }
         else { // n_neighborhood_members_cnt_[n] < default_n_neighborhood_members_
             // The number of missing items. This covers an entirely empty neighborhood
-            // (n_neighborhood_members_cnt_[n] == 0, e.g. when every work item of this neighborhood
-            // timed out on a networked transport): n_missing == default_n_neighborhood_members_, and
+            // (n_neighborhood_members_cnt_[n] == 0, when the evaluation of every member of this
+            // neighborhood failed or went missing and the consumer refilled the slots with
+            // substitutes from other neighborhoods): n_missing == default_n_neighborhood_members_, and
             // the backfill below restores the whole neighborhood. Because the preceding neighborhoods
             // were already repaired to the default size, first_ni_pos == n * default_n_neighborhood_members_,
             // which aligns with neighborhood n in the (full, default-sized) last-iteration snapshot, so
@@ -588,17 +589,12 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
                 }
             }
             else { // first iteration
-                // At least one individual must have returned: the first-iteration backfill seeds missing
-                // slots from this->front(), so a completely empty population is unrecoverable. Guard it,
-                // otherwise this->front() below is undefined behaviour when every first-iteration work
-                // item failed to return.
-                if(this->empty()) {
-                    throw gem_exception(
-                        g_error_streamer()
-                        << "No items returned in the first iteration; cannot seed the swarm."
-                        << '\n'
-                    );
-                }
+                // The first-iteration backfill seeds missing slots from this->front(). The population
+                // cannot be empty: the consumer ends the run when no evaluation succeeded at all.
+                checkThat(
+                    not this->empty(),
+                    "No items returned in the first iteration; cannot seed the swarm."
+                );
 
                 // Fill up with random items.
                 for(std::size_t n_m = 0; n_m < n_missing; n_m++) {
@@ -947,13 +943,14 @@ void GSwarmAlgorithm::evaluatePopulation_() {
     using namespace Gem::Courtier;
 
     //--------------------------------------------------------------------------------
-    // Submit work items and wait for results (courtier marks + reconciles the whole population).
-    auto status = this->workOnPopulation(0, this->data_cnt_.size());
+    // Submit work items and wait for results (courtier marks + reconciles the whole population). A
+    // failed evaluation comes back as a marked substitute: a copy of a member that may belong to
+    // another neighborhood, so the neighborhoods are counted again below.
+    this->workOnPopulation(0, this->data_cnt_.size());
 
     // Retrieve a vector of old work items. getOldWorkItems() has already applied the universal gate:
     // only clean successes survive and each lineage (submission UUID) appears at most once, de-duplicated
-    // against the live population -- so the errored/unprocessed sweep below only ever acts on the FRESH
-    // batch, never on these late returns.
+    // against the live population.
     auto old_work_items = this->getOldWorkItems();
 
     // Update the iteration of older individuals (they will keep their old neighborhood id)
@@ -963,10 +960,6 @@ void GSwarmAlgorithm::evaluatePopulation_() {
         this->push_back(std::move(item_ptr));
     }
     old_work_items.clear();
-
-    //--------------------------------------------------------------------------------
-    // Take care of unprocessed items, if these exist
-    this->discardUnusableItems_(status);
 
     //--------------------------------------------------------------------------------
     // Sort according to the individuals' neighborhoods
@@ -1050,9 +1043,10 @@ void GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(maxMode m) {
         std::size_t const first_counter = getFirstNIPos(n);
         std::size_t const last_counter = getLastNIPos(n);
 
-        // A neighborhood all of whose members failed or are missing has nothing to sort and offers
-        // no candidate for its best: the element at first_counter would be the first member of the
-        // next neighborhood, or lie behind the population. adjustNeighborhoods() refills it afterwards.
+        // A neighborhood all of whose members failed or are missing (their slots hold substitutes
+        // from other neighborhoods) has nothing to sort and offers no candidate for its best: the
+        // element at first_counter would be the first member of the next neighborhood, or lie behind
+        // the population. adjustNeighborhoods() refills it afterwards.
         if(first_counter == last_counter) {
             if(inFirstIteration()) {
                 throw gem_exception(

@@ -270,9 +270,11 @@ private:
 
     // --- Backend selection (transient; not part of the serialized / compared state) ---
 
-    /** @brief The emitter plot() delegates to (lazily defaulted to a GRootEmitter) */
+    /** @brief transient: the emitter plot() delegates to, a choice of the running program (lazily
+     *  defaulted to a GRootEmitter) */
     std::shared_ptr<IPlotEmitter> emitter_;
-    /** @brief The plot name threaded from plot() to the emitter for the print command */
+    /** @brief transient: the plot name threaded from plot() to the emitter for the print command,
+     *  valid during one plot() */
     mutable std::filesystem::path pending_plot_name_ = std::filesystem::path("empty");
 };
 

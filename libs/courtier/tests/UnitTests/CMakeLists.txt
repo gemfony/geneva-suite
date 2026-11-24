@@ -263,6 +263,14 @@ FOREACH(scenario fatal-unfixable fatal-none-fatal fatal-none-clone fatal-oversiz
 	GEM_TEST_SIZE(GCourtierFatal_${scenario} S)
 ENDFOREACH()
 
+# An item that may not be substituted ends the run under the tolerant policy as well; the message
+# proves that it ends for this reason (an expression decides, so the exit status is not looked at).
+ADD_TEST(NAME GCourtierFatal_fatal-not-substitutable
+		COMMAND GCourtierFatalExerciser --scenario=fatal-not-substitutable)
+SET_TESTS_PROPERTIES(GCourtierFatal_fatal-not-substitutable PROPERTIES LABELS "courtier"
+		PASS_REGULAR_EXPRESSION "FATAL: processBatch\\(\\): a work item that may not be substituted")
+GEM_TEST_SIZE(GCourtierFatal_fatal-not-substitutable S)
+
 # The MPI consumer fixes its rank layout at launch, so it is exercised as a multi-process program
 # under mpirun (1 master + 2 workers, unless an entry says otherwise) rather than as an in-process
 # Catch2 test. Every entry runs the items without a time limit (the default): an item that is lost

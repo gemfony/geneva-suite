@@ -258,9 +258,8 @@ std::shared_ptr<GPersonalityTraits> GStandardPSO2011::getPersonalityTraits_() co
  * EA's submission path (workOnPopulation reconciles the range in place).
  */
 void GStandardPSO2011::evaluatePopulation_() {
-    auto status = this->workOnPopulation(0, this->size());
-
-    this->requireCompleteEvaluation_(status, "GStandardPSO2011::evaluatePopulation_()");
+    // The consumer returns every slot evaluated (a failed one refilled with a marked substitute).
+    this->workOnPopulation(0, this->size());
 }
 
 /******************************************************************************/

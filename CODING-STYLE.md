@@ -165,6 +165,16 @@ bool GExample::operator==(const GExample &cp) const {
 }
 ```
 
+A data member that is **not serialized** says so in its comment, beginning with `transient:` and the reason
+(`///< transient: <why>` after the member, or `/// transient: <why>` above it), so a reader sees at once what
+a checkpoint or the wire does not carry. Where the class has a member list (`localMembers_()`), that list
+stays the one source of what is serialized, loaded and compared (Invariant 4); the comment explains a
+member's absence from it, it does not replace it.
+
+```cpp
+std::unique_ptr<GThreadPool> pool_; ///< transient: a run-time resource, built on first use
+```
+
 An empty body — common for an intentionally empty constructor — is marked as such rather than left blank, so
 the emptiness reads as deliberate:
 

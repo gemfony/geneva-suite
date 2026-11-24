@@ -659,10 +659,11 @@ protected:
     /***************************************************************************/
     // Some data
 
-    Gem::Hap::GRandom
-        gr_; ///< A random number generator (follows the HAP_RANDOM_SOURCE-selected backend). The actual calculation is done in a random number proxy / factory
-    std::uniform_real_distribution<double>
-        uniform_real_distribution_; ///< Access to uniformly distributed double random values
+    /// transient: a random number generator (follows the HAP_RANDOM_SOURCE-selected backend); the
+    /// numbers come from a proxy of the process-wide factory
+    Gem::Hap::GRandom gr_;
+    /// transient: access to uniformly distributed double random values, stateless between draws
+    std::uniform_real_distribution<double> uniform_real_distribution_;
 
     /***************************************************************************/
     // Overridden or virtual protected functions
@@ -703,7 +704,7 @@ protected:
 
     /***************************************************************************/
     /**
-     * A thread pool shared by all optimization algorithms for parallel per-individual
+     * transient: a thread pool shared by all optimization algorithms for parallel per-individual
      * "organizational" work (e.g. EA adaption and recombination, SA adaption). It is
      * created in init() (sized by n_threads_) and released in finalize(), so it only
      * lives for the duration of a run and is neither serialized nor cloned.
@@ -734,20 +735,12 @@ protected:
     Gem::Courtier::submission_status_t workOnPopulation(std::size_t start, std::size_t end);
 
     /**
-     * @brief Enforces the "need-all" evaluation policy after a submission: throws if the returned
-     * status is incomplete or carries errors. The strict counterpart of discardUnusableItems_() --
-     * together the two helpers state the strict/tolerant split exactly once, mirroring the
-     * per-algorithm submission policy (getSubmissionPolicy_()).
-     */
-    void requireCompleteEvaluation_(
-        const Gem::Courtier::submission_status_t &status,
-        const std::string &caller
-    ) const;
-
-    /**
-     * @brief Applies the "tolerant" evaluation policy after a submission: erases the individuals a
-     * partial or errored return left unusable (still due for processing, or error-flagged), so the
-     * population continues with evaluated individuals only. See requireCompleteEvaluation_().
+     * @brief Erases the individuals an evaluation outside courtier left unusable (still due for
+     * processing, or error-flagged), so the population continues with evaluated individuals only. A
+     * submission through workOn() needs none of this: the consumer reconciles the batch by the
+     * algorithm's submission policy (getSubmissionPolicy_()) and returns only evaluated items, a
+     * substitute marked as such. An algorithm that evaluates on its own (the meta-EA runs its
+     * individuals on a pool of its own) reports what it got in @p status.
      */
     void discardUnusableItems_(const Gem::Courtier::submission_status_t &status);
 
@@ -851,7 +844,8 @@ public:
     }
 
 protected:
-    bool resumed_from_checkpoint_ = false; ///< See resumedFromCheckpoint()
+    bool resumed_from_checkpoint_ =
+        false; ///< transient: set by the loading of a checkpoint (see resumedFromCheckpoint())
 
 private:
     /***************************************************************************/
@@ -1076,10 +1070,11 @@ private:
     std::chrono::duration<double> min_duration_ = Gem::Common::duration_from_string(
         DEFAULTMINDURATION
     ); ///< Minimum time-frame for the optimization
-    mutable std::chrono::system_clock::time_point
-        start_time_; ///< Used to store the start time of the optimization. Declared mutable so the halt criteria can be const
-    mutable std::filesystem::file_time_type
-        file_start_time_; ///< Used for the touchHalt-feature, as system_clock file_time may not be comparable
+    /// transient: the start time of this run (mutable so the halt criteria can be const)
+    mutable std::chrono::system_clock::time_point start_time_;
+    /// transient: the start time of this run for the touchHalt feature, as system_clock and
+    /// file_time may not be comparable
+    mutable std::filesystem::file_time_type file_start_time_;
     std::string termination_file_ =
         DEFAULTTERMINATIONFILE; ///< The name of a file which, when modified after the start of the optimization run, will cause termination of the run
     bool terminate_on_file_modification_ = false;

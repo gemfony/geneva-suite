@@ -223,5 +223,13 @@
         ],
         "default": 0,
         "value": 0
+    },
+    "max_failed_retries": {
+        "comment": [
+            "How often a failed evaluation is evaluated again before the run ends",
+            "(0: the first failure ends the run)"
+        ],
+        "default": 0,
+        "value": 0
     }
 }

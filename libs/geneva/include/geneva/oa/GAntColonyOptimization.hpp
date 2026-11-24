@@ -411,12 +411,14 @@ private:
     /***************************************************************************/
     // Internal archive state (transient; rebuilt in init(), excluded from serialize/compare)
 
-    std::size_t n_fp_parms_ = 0; ///< The number of active floating point parameters (set in init())
+    /// transient: the number of active floating point parameters, set in init()
+    std::size_t n_fp_parms_ = 0;
 
-    GACOSolutionArchive
-        archive_; ///< The k archived solutions (the pheromone), ranked best-first; sized in init()
+    /// transient: the k archived solutions (the pheromone), ranked best-first; sized in init()
+    GACOSolutionArchive archive_;
 
-    std::vector<double> selection_probabilities_; ///< Cached roulette-wheel probabilities p_l
+    /// transient: the cached roulette-wheel probabilities p_l, computed from the archive
+    std::vector<double> selection_probabilities_;
 };
 
 /******************************************************************************/

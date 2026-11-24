@@ -37,6 +37,7 @@
  */
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cmath>
 #include <cstddef>
@@ -55,6 +56,9 @@
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
+#include "geneva/oa/GAdaption.hpp" // makeAdaptionConfig
+#include "geneva/oa/GAdaptionConfig.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
@@ -154,6 +158,35 @@ private:
     std::size_t neighborhood_;
     std::uint32_t iteration_;
     std::atomic<std::size_t> n_failed_{0};
+};
+
+/** @brief An injector that fails nothing and counts, per iteration, the evaluated individuals and
+ *  those that may not be replaced by a substitute. */
+class SubstitutableCounter : public GFaultInjector {
+public:
+    Fault evaluate(const GGenome &item, Gem::Hap::GRandomBase & /*gr*/) override {
+        const std::size_t it = std::min<std::size_t>(item.getAssignedIteration(), N_ITERATIONS - 1);
+        evaluated_.at(it).fetch_add(1);
+        if(not item.isSubstitutable()) {
+            not_substitutable_.at(it).fetch_add(1);
+        }
+        return Fault::NONE;
+    }
+    /** @param it An iteration @return How many individuals were evaluated in it */
+    [[nodiscard]] std::size_t evaluated(std::size_t it) const {
+        return evaluated_.at(it).load();
+    }
+    /** @param it An iteration @return How many of them may not be substituted */
+    [[nodiscard]] std::size_t notSubstitutable(std::size_t it) const {
+        return not_substitutable_.at(it).load();
+    }
+
+    /// Iterations counted; later ones count as the last
+    static constexpr std::size_t N_ITERATIONS = 3;
+
+private:
+    std::array<std::atomic<std::size_t>, N_ITERATIONS> evaluated_{};
+    std::array<std::atomic<std::size_t>, N_ITERATIONS> not_substitutable_{};
 };
 
 } // namespace Gem::Tests
@@ -297,4 +330,34 @@ TEST_CASE("the swarm survives the failure of a whole neighborhood", "[faultinj][
         );
         GFaultInjectorRegistry::clear();
     }
+}
+
+TEST_CASE("the EA forbids a substitute for its parents only", "[faultinj][oa]") {
+    // A failed evaluation of a parent may not be replaced by a copy of another individual: the EA
+    // marks the parents it submits (in the first iteration) as not substitutable, every child as
+    // substitutable.
+    namespace oa = Gem::Geneva::OptimizationAlgorithms;
+    auto injector = std::make_unique<SubstitutableCounter>();
+    const SubstitutableCounter *const watch = injector.get();
+    GFaultInjectorRegistry::set(std::move(injector));
+
+    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    pop->setPopulationSizes(8, 2);
+    pop->setMaxIteration(2); // iterations 0 and 1
+    pop->setMaxStallIteration(0);
+    pop->setReportIteration(100000);
+    pop->setEmitTerminationReason(false);
+    FISphere const src;
+    pop->push_back(src.clone());
+    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+    cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
+    pop->setAdaptionConfig(cfg);
+    CHECK_NOTHROW(pop->optimize());
+
+    // Read before clearing: the registry owns the injector
+    CHECK(watch->evaluated(0) == 8);
+    CHECK(watch->notSubstitutable(0) == 2);
+    CHECK(watch->evaluated(1) == 6);
+    CHECK(watch->notSubstitutable(1) == 0);
+    GFaultInjectorRegistry::clear();
 }
