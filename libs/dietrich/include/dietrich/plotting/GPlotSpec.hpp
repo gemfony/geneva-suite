@@ -66,37 +66,27 @@ enum class plotKind {
     function_2d   ///< a sampled 2-d function plot (GFunctionPlotter2D)
 };
 
-/******************************************************************************/
-/**
- * Converts a plotKind to its stable string name (used in the manifest JSON and the
- * CSV section header).
- *
- * @param k The plot kind to convert
- * @return A stable, lower-snake-case string name for the kind
- */
-[[nodiscard]] inline std::string to_string(plotKind k) {
-    switch(k) {
-    case plotKind::graph_2d:
-        return "graph_2d";
-    case plotKind::graph_2d_err:
-        return "graph_2d_err";
-    case plotKind::graph_3d:
-        return "graph_3d";
-    case plotKind::graph_4d:
-        return "graph_4d";
-    case plotKind::hist_1d:
-        return "hist_1d";
-    case plotKind::hist_1i:
-        return "hist_1i";
-    case plotKind::hist_2d:
-        return "hist_2d";
-    case plotKind::function_1d:
-        return "function_1d";
-    case plotKind::function_2d:
-        return "function_2d";
-    }
-    return "unknown";
-}
+} /* namespace Gem::Dietrich */
+
+namespace Gem::Common {
+/** @brief The stable names of the plot kinds, used in the manifest JSON and the CSV section
+ *  header (see enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Dietrich::plotKind> =
+    std::to_array<std::pair<Gem::Dietrich::plotKind, std::string_view>>(
+        {{Gem::Dietrich::plotKind::graph_2d, "graph_2d"},
+         {Gem::Dietrich::plotKind::graph_2d_err, "graph_2d_err"},
+         {Gem::Dietrich::plotKind::graph_3d, "graph_3d"},
+         {Gem::Dietrich::plotKind::graph_4d, "graph_4d"},
+         {Gem::Dietrich::plotKind::hist_1d, "hist_1d"},
+         {Gem::Dietrich::plotKind::hist_1i, "hist_1i"},
+         {Gem::Dietrich::plotKind::hist_2d, "hist_2d"},
+         {Gem::Dietrich::plotKind::function_1d, "function_1d"},
+         {Gem::Dietrich::plotKind::function_2d, "function_2d"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Dietrich {
 
 /******************************************************************************/
 /**
@@ -232,7 +222,7 @@ struct GPlotSpec {
      */
     [[nodiscard]] std::string toJson() const {
         std::string out = "{";
-        out += "\"kind\": \"" + jsonEscape(to_string(kind)) + "\"";
+        out += "\"kind\": \"" + jsonEscape(Gem::Common::enumName(kind)) + "\"";
         out += ", \"role\": \"" + jsonEscape(role) + "\"";
         out += ", \"name\": \"" + jsonEscape(name) + "\"";
         out += ", \"x_label\": \"" + jsonEscape(x_label) + "\"";
@@ -285,22 +275,12 @@ struct GPlotSpec {
         }
         if(plot_mode.has_value()) {
             out += ", \"plot_mode\": \"";
-            out += (*plot_mode == graphPlotMode::SCATTER ? "scatter" : "curve");
+            out += Gem::Common::enumName(*plot_mode);
             out += "\"";
         }
         if(projection.has_value()) {
             out += ", \"projection\": \"";
-            switch(*projection) {
-            case surfaceProjection::NONE:
-                out += "none";
-                break;
-            case surfaceProjection::FLOOR:
-                out += "floor";
-                break;
-            case surfaceProjection::CEILING:
-                out += "ceiling";
-                break;
-            }
+            out += Gem::Common::enumName(*projection);
             out += "\"";
         }
         if(surface.has_value()) {
@@ -316,29 +296,7 @@ struct GPlotSpec {
         }
         if(legend.has_value()) {
             out += ", \"legend\": \"";
-            switch(*legend) {
-            case legendPosition::AUTO:
-                out += "auto";
-                break;
-            case legendPosition::TOP_LEFT:
-                out += "top_left";
-                break;
-            case legendPosition::TOP_RIGHT:
-                out += "top_right";
-                break;
-            case legendPosition::BOTTOM_LEFT:
-                out += "bottom_left";
-                break;
-            case legendPosition::BOTTOM_RIGHT:
-                out += "bottom_right";
-                break;
-            case legendPosition::CENTER_RIGHT:
-                out += "center_right";
-                break;
-            case legendPosition::FREEST:
-                out += "freest";
-                break;
-            }
+            out += Gem::Common::enumName(*legend);
             out += "\"";
         }
         if(line_width.has_value()) {
@@ -400,26 +358,23 @@ enum class legendSample {
     COLOUR_MAP       ///< a box in the middle colour of the colour map (a surface, a map)
 };
 
-/**
- * @param sample A legend sample
- * @return Its stable name ("line", "marker", "line_and_marker", "fill", "colour_map"), as the data
- *         export's manifest carries it
- */
-[[nodiscard]] inline std::string to_string(legendSample sample) {
-    switch(sample) {
-    case legendSample::LINE:
-        return "line";
-    case legendSample::MARKER:
-        return "marker";
-    case legendSample::LINE_AND_MARKER:
-        return "line_and_marker";
-    case legendSample::FILL:
-        return "fill";
-    case legendSample::COLOUR_MAP:
-        return "colour_map";
-    }
-    return "line";
-}
+} /* namespace Gem::Dietrich */
+
+namespace Gem::Common {
+/** @brief The stable names of the legend samples, as the data export's manifest carries them
+ *  (see enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Dietrich::legendSample> =
+    std::to_array<std::pair<Gem::Dietrich::legendSample, std::string_view>>(
+        {{Gem::Dietrich::legendSample::LINE, "line"},
+         {Gem::Dietrich::legendSample::MARKER, "marker"},
+         {Gem::Dietrich::legendSample::LINE_AND_MARKER, "line_and_marker"},
+         {Gem::Dietrich::legendSample::FILL, "fill"},
+         {Gem::Dietrich::legendSample::COLOUR_MAP, "colour_map"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Dietrich {
 
 /**
  * One entry of a pad's legend, as every backend draws it (GBasePlotter::legendEntries()).

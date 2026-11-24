@@ -201,17 +201,10 @@ std::pair<std::string, std::string> splitLabel(const std::string &argument) {
  * @return The dietrich backend
  */
 plotBackend backendFromName(const std::string &name) {
-    if(name == "root") {
-        return plotBackend::ROOT;
-    }
-    if(name == "gnuplot") {
-        return plotBackend::GNUPLOT;
-    }
-    if(name == "matplotlib") {
-        return plotBackend::MATPLOTLIB;
-    }
-    if(name == "octave") {
-        return plotBackend::OCTAVE;
+    // The data export is not a figure
+    if(const auto backend = Gem::Common::enumFromName<plotBackend>(name);
+       backend && *backend != plotBackend::DATA) {
+        return *backend;
     }
     throw std::runtime_error(
         "GSpeedupFigure: unknown backend \"" + name + "\" (root, gnuplot, matplotlib, octave)"
@@ -229,20 +222,10 @@ std::optional<legendPosition> legendFromName(const std::string &name) {
     if(name == "free") {
         return std::nullopt;
     }
-    if(name == "bottom_right") {
-        return legendPosition::BOTTOM_RIGHT;
-    }
-    if(name == "top_left") {
-        return legendPosition::TOP_LEFT;
-    }
-    if(name == "bottom_left") {
-        return legendPosition::BOTTOM_LEFT;
-    }
-    if(name == "top_right") {
-        return legendPosition::TOP_RIGHT;
-    }
-    if(name == "center_right") {
-        return legendPosition::CENTER_RIGHT;
+    // A corner or the middle of the right side; the option offers "free" instead of AUTO and FREEST
+    if(const auto position = Gem::Common::enumFromName<legendPosition>(name);
+       position && *position != legendPosition::AUTO && *position != legendPosition::FREEST) {
+        return *position;
     }
     throw std::runtime_error("GSpeedupFigure: unknown legend position \"" + name + "\"");
 }

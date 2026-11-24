@@ -314,7 +314,7 @@ inline void emitRootLegend(
         }
         // What the description gives the entry, for a reader of the script that checks what ROOT
         // drew (the validity test of the plotting library).
-        s << indent << "   // legend entry: " << to_string(e.sample) << " "
+        s << indent << "   // legend entry: " << Gem::Common::enumName(e.sample) << " "
           << ((e.sample == legendSample::COLOUR_MAP or e.object.empty()) ? std::string("sample")
                                                                          : e.object)
           << '\n';

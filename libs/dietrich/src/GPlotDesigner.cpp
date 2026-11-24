@@ -28,11 +28,11 @@
  ********************************************************************************/
 
 #include "dietrich/GPlotDesigner.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
-#include "common/GChecks.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -94,9 +94,6 @@ namespace Gem::Dietrich {
 // exception types, make_member, EmitStream, ...); make them visible here without
 // per-name qualification. This affects lookup only within Gem::Dietrich.
 using namespace Gem::Common;
-// Dietrich declares its own to_string(plotKind), which would otherwise shadow common's
-// numeric to_string(...) for unqualified calls; merge common's overloads back in.
-using Gem::Common::to_string;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -521,7 +518,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         else {
             throw gem_exception(
                 g_error_streamer()
-                << "an integer histogram (kind \"" << to_string(spec.kind)
+                << "an integer histogram (kind \"" << Gem::Common::enumName(spec.kind)
                 << "\") without a fixed value range cannot be reconstructed from a "
                 << "GPlotSpec -- an integer histogram has no auto-range form." << '\n'
             );
@@ -534,9 +531,10 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         if(spec.function.empty() or not spec.range_x.has_value() or
            (two_d and not spec.range_y.has_value())) {
             throw gem_exception(
-                g_error_streamer() << "a function plotter (kind \"" << to_string(spec.kind)
-                                   << "\") cannot be reconstructed from a GPlotSpec without its "
-                                   << "formula and the range it is drawn over." << '\n'
+                g_error_streamer()
+                << "a function plotter (kind \"" << Gem::Common::enumName(spec.kind)
+                << "\") cannot be reconstructed from a GPlotSpec without its "
+                << "formula and the range it is drawn over." << '\n'
             );
         }
         if(two_d) {
@@ -610,7 +608,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             throw gem_exception(
                 g_error_streamer()
                 << "a surface projection was requested for a plot of kind \""
-                << to_string(spec.kind)
+                << Gem::Common::enumName(spec.kind)
                 << "\" -- only a 3-d graph (graph_3d) can be drawn as a projected surface." << '\n'
             );
         }
@@ -623,7 +621,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
             throw gem_exception(
                 g_error_streamer()
                 << "\"surface\" or \"floor_shadow\" was given for a plot of kind \""
-                << to_string(spec.kind)
+                << Gem::Common::enumName(spec.kind)
                 << "\" -- only a 3-d graph (graph_3d) has a surface or a floor." << '\n'
             );
         }
