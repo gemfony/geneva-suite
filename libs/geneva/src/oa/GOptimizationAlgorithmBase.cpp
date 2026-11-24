@@ -56,14 +56,12 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
-#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <limits>
 #include <memory>
 #include <ranges>
 #include <set>
-#include <sstream>
 #include <span>
 #include <string>
 #include <system_error>
@@ -148,15 +146,7 @@ void readCheckpointFile(
     Gem::Common::serializationMode ser_mode,
     GCheckpointRead &cp
 ) {
-    std::ifstream in(cp_file, std::ios::binary);
-    if(not in) {
-        throw gem_exception(
-            g_error_streamer() << "Could not open the checkpoint file " << cp_file << '\n'
-        );
-    }
-    std::ostringstream content;
-    content << in.rdbuf();
-    std::string const data = content.str();
+    std::string const data = Gem::Common::loadTextDataFromFile(cp_file);
     if(data.empty()) {
         throw gem_exception(
             g_error_streamer() << "Cannot load the checkpoint file " << cp_file << '\n'
