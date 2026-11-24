@@ -668,8 +668,9 @@ ENDIF ()
 # Self-contained per-library subtrees under libs/; the legacy split-by-kind
 # include/, src/, tests/, examples/, benchmarks/ trees no longer exist. The
 # layers: weft (the standalone serialization engine) at the bottom, common on
-# weft, dietrich, hap and courtier each on common only (three peers), geneva on
-# all of them. A library is added after the ones it builds on, so that their
+# weft, dietrich, hap and courtier each on common and so on weft (three peers),
+# geneva on all of them; a library may include everything below it, also
+# transitively. A library is added after the ones it builds on, so that their
 # targets exist when it configures.
 ADD_SUBDIRECTORY (libs/weft)
 ADD_SUBDIRECTORY (libs/common)

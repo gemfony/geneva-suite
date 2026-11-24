@@ -461,7 +461,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   installed Geneva library now links only `libboost_json` and `libboost_program_options` (Boost
   headers are still needed at build time, e.g. Boost.Asio/Beast for the networked consumers and
   Boost.DLL for module loading).
-- **courtier depends on common only.** `gemfony-courtier` no longer links `gemfony-hap`, so
+- **courtier depends on common (and so on weft) only.** `gemfony-courtier` no longer links `gemfony-hap`, so
   `Geneva::courtier` no longer brings `Geneva::hap` with it: a program that used hap through
   courtier links `Geneva::hap` itself. `Geneva::geneva` links hap directly and brings it as
   before. The demo work items `GSimpleContainer`, `GRandomNumberContainer` and `GFaultyContainer`
