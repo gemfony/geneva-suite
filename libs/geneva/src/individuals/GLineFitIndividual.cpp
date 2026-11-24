@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/individuals/GLineFitIndividual.hpp"
+#include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
@@ -178,8 +179,8 @@ void GLineFitIndividual::applyConfig(GLineFitIndividual &ind, const Config &c) {
     std::string line;
     while(std::getline(in, line)) {
         // Skip blank lines and '#' comments.
-        const std::size_t first = line.find_first_not_of(" \t\r\n");
-        if(first == std::string::npos or line[first] == '#') {
+        const std::string trimmed = Gem::Common::trimWhitespace(line);
+        if(trimmed.empty() or trimmed.front() == '#') {
             continue;
         }
         std::istringstream iss(line);

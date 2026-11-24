@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/genome/GParameterPropertyParser.hpp"
+#include "common/GCommonHelperFunctions.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 
@@ -36,6 +37,7 @@
 #include <cstdint>
 #include <ranges>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -62,42 +64,27 @@ constexpr std::size_t GPP_DEF_NSTEPS = 100; // The default number of steps for a
 namespace {
 
 /**
- * @brief Strips leading and trailing whitespace (space, tab, newline, carriage return) from a string.
- *
- * @param s The string to trim
- * @return A copy of @p s with surrounding whitespace removed, or an empty string if @p s is all whitespace
- */
-std::string trim(const std::string &s) {
-    std::size_t const b = s.find_first_not_of(" \t\n\r");
-    if(b == std::string::npos) {
-        return std::string{};
-    }
-    std::size_t const e = s.find_last_not_of(" \t\n\r");
-    return s.substr(b, e - b + 1);
-}
-
-/**
  * @brief Splits a string on commas, trimming whitespace from each resulting token.
  *
  * An empty input yields a single empty token; a trailing comma yields a trailing empty token.
+ * Gem::Common::splitString() is not used: it drops empty fields, and a spec such as "d(0,,1)" must be
+ * refused instead of being read as "d(0,1)". Trimming is common's (the same characters).
  *
  * @param s The string to split (the comma-separated argument list of a spec)
  * @return The list of trimmed tokens between commas, in order
  */
 std::vector<std::string> splitOnComma(const std::string &s) {
     std::vector<std::string> out;
-    std::string cur;
-    for(char const c : s) {
-        if(c == ',') {
-            out.push_back(trim(cur));
-            cur.clear();
+    std::string_view const sv{s};
+    std::string_view::size_type start = 0;
+    for(;;) {
+        auto const pos = sv.find(',', start);
+        out.push_back(Gem::Common::trimWhitespace(sv.substr(start, pos - start)));
+        if(pos == std::string_view::npos) {
+            return out;
         }
-        else {
-            cur.push_back(c);
-        }
+        start = pos + 1;
     }
-    out.push_back(trim(cur));
-    return out;
 }
 
 /**

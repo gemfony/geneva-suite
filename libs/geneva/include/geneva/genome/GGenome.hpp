@@ -85,18 +85,18 @@ namespace Gem::Geneva::Genome {
  * The flat-genome representation layer of the individual hierarchy and the non-template concrete cast /
  * signature target the optimization algorithms operate on.
  *
- * GGenome derives the genome-agnostic GGenome and adds the parameter STORAGE: four
- * contiguous, type-homogeneous value arrays (double / float / int32 / bool) plus a handle to a shared,
- * immutable GGenomeLayout that describes their bounds, grouping and adaption configuration. The
- * per-individual, per-group adaption state (Gauss sigma, ...) lives in the OA-owned slot scratch, not in
+ * GGenome holds the parameter STORAGE: four contiguous, type-homogeneous value arrays (double / float /
+ * int32 / bool) plus a handle to a shared, immutable GGenomeLayout that describes their bounds and
+ * grouping. The layout is structure only: the adaption configuration lives on the OA-owned
+ * GAdaptionConfig. The per-individual, per-group adaption state (Gauss sigma, ...) lives in the OA-owned slot scratch, not in
  * the genome. Because all genome state is generic, a concrete individual adds no extra members and only
  * supplies a constructor (building its genome with GGenomeBuilder + setGenome()) and evaluate();
  * the clone/load/compare/serialize machinery is provided here and reused unchanged via GGenomeT.
  *
- * Value access is genome-agnostic: GGenome implements the per-type value-channel virtuals declared on
- * GGenome (streamline_ / assignValueVector_ / countParametersX_ / boundaries_ and the FP /
- * internal views), so the algorithms read and write parameter values through the base's templated surface
- * without a downcast. A floating-point parameter is stored in the NORMALIZED INTERNAL coordinate (magnitude
+ * Value access is genome-agnostic: the public per-type templates (streamline<T>() and its siblings)
+ * dispatch to per-type channel functions declared and implemented in this class (streamline_ /
+ * assignValueVector_ / countParametersX_ / boundaries_ and the FP internal views), so the algorithms read
+ * and write parameter values without knowing the storage layout. A floating-point parameter is stored in the NORMALIZED INTERNAL coordinate (magnitude
  * ~ 1, confined to [-0.5, 0.5) for a bounded parameter); the user-facing EXTERNAL value is its affine
  * image (normalized-genome architecture, §2). This realizes the two-reader split: the OAs read/write the
  * raw internal value (streamlineInternal_/assignValueVectorInternal_), while the objective function, GPU
@@ -374,7 +374,7 @@ public:
     }
 
     /***************************************************************************/
-    // Algorithm-facing genome operations (the flat-genome overrides of the GGenome virtuals).
+    // Algorithm-facing genome operations.
 
     /** @brief Transformation of the individual's parameters into a JSON object. */
     virtual boost::json::object toJSON() const;
@@ -797,8 +797,9 @@ private:
     bool randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr);
 
     /***************************************************************************/
-    // The §2 per-type virtual overrides of the GGenome value-channel dispatch targets (forward
-    // to the templated helpers above). The algorithms reach these through the base's streamline<T>() etc.
+    // The per-type value channels (normalized-genome architecture, §2): the dispatch targets of the public
+    // streamline<T>() etc., forwarding to the templated helpers above. They are declared virtual, but no
+    // class overrides them.
 
     /** @brief Streamlines the double channel into v. @param v Output value vector. @param am Activity mode. */
     virtual void streamline_(std::vector<double> &v, activityMode const &am) const {
@@ -1206,7 +1207,7 @@ public:
             );
         }
 #endif /* DEBUG */
-        return Gem::Common::convertSmartPointer<GPersonalityTraits, personality_type>(
+        return Gem::Common::g_ptr_conversion<GPersonalityTraits, personality_type>(
             scratch_->personalityRef()
         );
     }
@@ -1255,10 +1256,9 @@ public:
 
     /***************************************************************************/
     // Genome value channels (genome-agnostic). The public per-type templates are the ergonomic surface the
-    // optimization algorithms use; each dispatches to a non-template virtual that the flat genome
-    // (GGenome) implements. The algorithms therefore read and write parameter values without knowing
-    // the storage layout -- no downcast. "Read my parameters as a vector" is a universal optimization
-    // operation; only the storage is genome-specific, so the base declares it and the flat impl overrides.
+    // optimization algorithms use; each dispatches to a non-template per-type channel function of this
+    // class. The algorithms therefore read and write parameter values without knowing the storage
+    // layout.
 
     /**
      * @brief Streamlines all parameters of type par_type into a vector (cleared first).
@@ -1639,15 +1639,6 @@ private:
     [[nodiscard]] std::vector<double> transformed_fitness_vec_() const final;
 
     /***************************************************************************/
-    // Per-type genome value channels -- the non-template dispatch targets of the public
-    // streamline<T>/assignValueVector<T>/countParameters<T>/boundaries<T> templates (and the getVarVal<T>
-    // template). Implemented by the concrete flat genome. These are the entire seam that makes value
-    // access genome-agnostic; each overload takes the per-type value/boundary vector(s) and the
-    // activityMode controlling which parameters participate.
-
-    // The INTERNAL (normalized) FP channels (§2.3): only double/float have an internal/external
-    // distinction (int / bool are not normalized).
-
     /** @brief Re-attaches the OA-owned scratch from @p original onto this individual (the wire omits the
      *  scratch, so a networked return arrives without it; the consumer grafts it back from the retained
      *  original -- see Gem::Courtier::GProcessable::graftRetainedStateFrom()).

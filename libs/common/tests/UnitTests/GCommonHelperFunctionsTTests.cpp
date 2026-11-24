@@ -210,31 +210,14 @@ TEST_CASE(
     REQUIRE(result == nullptr);
 }
 
-// --- convertSmartPointer -------------------------------------------------
-
-TEST_CASE("convertSmartPointer: valid downcast succeeds", "[common][helper][convertSmartPointer]") {
-    auto sp = std::make_shared<TDerived>();
-    auto base_sp = std::static_pointer_cast<TBase>(sp);
-    auto derived_sp = Gem::Common::convertSmartPointer<TBase, TDerived>(base_sp);
-    REQUIRE(derived_sp != nullptr);
-}
-
 #ifdef DEBUG
 TEST_CASE(
-    "convertSmartPointer: null input throws in DEBUG",
-    "[common][helper][convertSmartPointer]"
-) {
-    std::shared_ptr<TBase> null_sp;
-    REQUIRE_THROWS_AS((Gem::Common::convertSmartPointer<TBase, TDerived>(null_sp)), gem_exception);
-}
-
-TEST_CASE(
-    "convertSmartPointer: wrong dynamic type throws in DEBUG",
-    "[common][helper][convertSmartPointer]"
+    "g_ptr_conversion shared_ptr: wrong dynamic type throws in DEBUG",
+    "[common][helper][g_ptr_conversion]"
 ) {
     auto sp = std::make_shared<TOther>();
     auto base_sp = std::static_pointer_cast<TBase>(sp);
-    REQUIRE_THROWS_AS((Gem::Common::convertSmartPointer<TBase, TDerived>(base_sp)), gem_exception);
+    REQUIRE_THROWS_AS((Gem::Common::g_ptr_conversion<TBase, TDerived>(base_sp)), gem_exception);
 }
 #endif
 
@@ -365,39 +348,6 @@ TEST_CASE("to_string: scoped enum yields its underlying integer", "[common][help
     REQUIRE(Gem::Common::to_string(ScopedColor::Red) == "0");
     REQUIRE(Gem::Common::to_string(ScopedColor::Green) == "1");
     REQUIRE(Gem::Common::to_string(ScopedColor::Blue) == "2");
-}
-
-// --- erase_if ------------------------------------------------------------
-
-TEST_CASE("erase_if: removes matching elements and returns count", "[common][helper][erase_if]") {
-    std::vector<int> v{1, 2, 3, 4, 5, 6};
-    std::size_t const n = Gem::Common::erase_if(v, [](int x) { return x % 2 == 0; });
-    REQUIRE(n == 3);
-    REQUIRE(v == std::vector<int>{1, 3, 5});
-}
-
-TEST_CASE(
-    "erase_if: nothing matches returns 0 and leaves container unchanged",
-    "[common][helper][erase_if]"
-) {
-    std::vector<int> v{1, 3, 5};
-    std::size_t const n = Gem::Common::erase_if(v, [](int x) { return x % 2 == 0; });
-    REQUIRE(n == 0);
-    REQUIRE(v == std::vector<int>{1, 3, 5});
-}
-
-TEST_CASE("erase_if: empty container is a no-op", "[common][helper][erase_if]") {
-    std::vector<int> v;
-    std::size_t const n = Gem::Common::erase_if(v, [](int) { return true; });
-    REQUIRE(n == 0);
-    REQUIRE(v.empty());
-}
-
-TEST_CASE("erase_if: all elements match clears the container", "[common][helper][erase_if]") {
-    std::vector<int> v{2, 4, 6};
-    std::size_t const n = Gem::Common::erase_if(v, [](int) { return true; });
-    REQUIRE(n == 3);
-    REQUIRE(v.empty());
 }
 
 // --- environmentVariableAs -----------------------------------------------

@@ -400,7 +400,7 @@ void compare(
     [[maybe_unused]] double limit = 0.
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -420,7 +420,7 @@ void compare(
     };
 
     if(not expectation_met) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x << '\n'
@@ -460,7 +460,7 @@ void compare(
     [[maybe_unused]] double limit = 0.
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -480,7 +480,7 @@ void compare(
     };
 
     if(not expectation_met) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x.time_since_epoch().count() << '\n'
@@ -520,7 +520,7 @@ void compare(
     [[maybe_unused]] double limit = 0.
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -540,7 +540,7 @@ void compare(
     };
 
     if(not expectation_met) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
               << x_name << " = " << x.count() << '\n'
@@ -574,7 +574,7 @@ void compare(
     double limit = CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -598,7 +598,7 @@ void compare(
     };
 
     if(not expectation_met) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
 
         error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
               << "[" << '\n'
@@ -640,7 +640,7 @@ void compare(
     [[maybe_unused]] double limit = 0.
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -660,7 +660,7 @@ void compare(
     };
 
     if(not expectation_met) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "Expectation of " << expectation_str << " was violated for parameters " << x_name
               << " and " << y_name << "!" << '\n';
 
@@ -727,7 +727,7 @@ void compare(
     [[maybe_unused]] double limit = 0.
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -747,7 +747,7 @@ void compare(
     };
 
     if(not expectation_met) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "Expectation of " << expectation_str << " was violated for parameters " << x_name
               << " and " << y_name << "!" << '\n';
 
@@ -809,9 +809,9 @@ void compare(
     double limit = CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
     std::size_t deviation_pos = 0;
-    std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream error;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -909,9 +909,9 @@ void compare(
     double limit = CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
     std::size_t deviation_pos = 0;
-    std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream error;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -1008,8 +1008,8 @@ void compare(
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
-    std::ostringstream error;    // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
+    std::ostringstream error;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -1083,8 +1083,8 @@ void compare(
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
-    std::ostringstream error;    // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
+    std::ostringstream error;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:
@@ -1226,8 +1226,8 @@ void compare(
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
 ) {
     bool expectation_met = false;
-    std::string expectation_str; // NOLINT(cppcoreguidelines-init-variables)
-    std::ostringstream error;    // NOLINT(cppcoreguidelines-init-variables)
+    std::string expectation_str;
+    std::ostringstream error;
 
     switch(e) {
     case Gem::Common::expectation::FP_SIMILARITY:

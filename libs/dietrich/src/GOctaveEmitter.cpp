@@ -154,7 +154,7 @@ std::string octaveFormat(const GDrawStyle &style) {
  *  is built from samples of its own (with the gnuplot toolkit a named object would enter the
  *  key a second time). */
 std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
-    EmitStream call; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream call;
     // Columns in storage order (see plotSpec().columns). GGraph2ED's stored order is
     // (x, ex, y, ey).
     const auto cols = p.dataColumns();
@@ -301,7 +301,7 @@ std::string OctaveEmitter::emitDocument(const GPlotDesigner &gpd) const {
     const std::size_t rows = gpd.c_y_div_;
     const std::size_t max_plots = cols * rows;
 
-    EmitStream result; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream result;
 
     // Validate ALL plotters (and their secondaries) up front, so a partial script is
     // never produced for an unsupported plotter type; a 2-d and a 3-d plotter cannot

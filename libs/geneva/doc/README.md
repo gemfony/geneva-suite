@@ -24,7 +24,7 @@ Generated HTML / XML / tag files land in the **build tree**:
 
 ```
 <build>/libs/geneva/doc/
-    Doxyfile         configured from Doxyfile.in
+    Doxyfile         configured from CMakeModules/Doxyfile.in
     geneva.tag       Doxygen tag file (no downstream consumer in-tree;
                      handy for external projects that build against the
                      installed Geneva and want cross-refs into the docs)
@@ -34,7 +34,6 @@ Generated HTML / XML / tag files land in the **build tree**:
 
 ## What lives here
 
-- `Doxyfile.in`     -- per-library Doxygen configuration template
 - `CMakeLists.txt`  -- registers the `doc-geneva` target and its
                        `doc-common` + `doc-hap` + `doc-dietrich` +
                        `doc-courtier` dependencies

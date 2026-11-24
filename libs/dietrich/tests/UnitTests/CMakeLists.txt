@@ -48,7 +48,8 @@ FUNCTION(gem_dietrich_test name size)
 	ADD_EXECUTABLE(${name} ${ARGN})
 
 	TARGET_LINK_LIBRARIES(${name}
-		${DIETRICH_LIBNAME} ${COMMON_LIBNAME} ${Boost_LIBRARIES} Catch2::Catch2WithMain)
+		${DIETRICH_LIBNAME} ${COMMON_LIBNAME} ${Boost_LIBRARIES} Catch2::Catch2WithMain
+		gem-test-support)
 
 	ADD_TEST(${name} ${name})
 	SET_TESTS_PROPERTIES(${name} PROPERTIES LABELS "dietrich")

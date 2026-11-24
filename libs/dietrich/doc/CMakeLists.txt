@@ -24,7 +24,7 @@
 #
 # Per-library Doxygen target for the Dietrich plotting library.
 #
-# Configures Doxyfile.in from this directory with per-library values and
+# Configures the shared CMakeModules/Doxyfile.in with per-library values and
 # registers `doc-dietrich` as a top-level target. Output (HTML + XML + tag
 # file) lands in this lib's build dir, NOT in the source tree.
 
@@ -33,7 +33,7 @@ IF (NOT DOXYGEN_FOUND)
 ENDIF ()
 
 SET (GEM_DOC_LIB_NAME "dietrich")
-SET (GEM_DOC_LIB_DESC "Plotting library: ROOT macros, gnuplot / matplotlib "
+STRING (CONCAT GEM_DOC_LIB_DESC "Plotting library: ROOT macros, gnuplot / matplotlib "
 		"scripts, CSV / .npz data exports and a self-describing manifest for an "
 		"external renderer (named for the painter C. W. E. Dietrich)")
 # Dietrich depends on common; reference its tag file for cross-links (built in libs/common/doc;
@@ -41,7 +41,7 @@ SET (GEM_DOC_LIB_DESC "Plotting library: ROOT macros, gnuplot / matplotlib "
 SET (GEM_DOC_TAGFILES "${CMAKE_BINARY_DIR}/libs/common/doc/common.tag=../../../common/doc/html")
 
 CONFIGURE_FILE (
-	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+	${PROJECT_SOURCE_DIR}/CMakeModules/Doxyfile.in
 	${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
 	@ONLY
 )

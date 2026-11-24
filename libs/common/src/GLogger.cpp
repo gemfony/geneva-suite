@@ -535,7 +535,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         // A deliberate, clean exit with a chosen return code -- NOT a crash, so no "please file a
         // bug" framing. Record the message in the normal log, then print it and exit cleanly
         // (std::exit, no core dump).
-        std::ostringstream msg; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream msg;
         msg << oss_.str() << '\n';
 
         if(this->hasExtension()) {

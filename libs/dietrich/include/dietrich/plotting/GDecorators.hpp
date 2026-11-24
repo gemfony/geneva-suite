@@ -215,7 +215,7 @@ public:
 	  */
     [[nodiscard]] std::string
     decoratorData(const std::string &indent, const std::size_t &pos) const override {
-        std::ostringstream data; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream data;
 
         data << indent << "TMarker * tm_" << pos << " = new TMarker("
              << Gem::Common::narrow<double>(std::get<0>(coordinates_)) << ", "
@@ -506,7 +506,7 @@ public:
 	  * @return The concatenated plotting code of all contained decorators
 	  */
     [[nodiscard]] virtual std::string decoratorData(const std::string &indent) const {
-        std::string result; // NOLINT(cppcoreguidelines-init-variables)
+        std::string result;
 
         std::size_t pos = 0;
         for(auto const &decorator_ptr : *this) {
@@ -534,7 +534,7 @@ public:
         const std::tuple<coordinate_type, coordinate_type> &y_axis_range,
         const std::string &indent
     ) const {
-        std::string result; // NOLINT(cppcoreguidelines-init-variables)
+        std::string result;
 
         std::size_t pos = 0;
         for(auto const &decorator_ptr : *this) {
@@ -695,7 +695,7 @@ public:
 	  * @return The concatenated plotting code of all contained decorators
 	  */
     [[nodiscard]] virtual std::string decoratorData(const std::string &indent) const {
-        std::string result; // NOLINT(cppcoreguidelines-init-variables)
+        std::string result;
 
         std::size_t pos = 0;
         for(auto const &decorator_ptr : *this) {
@@ -725,7 +725,7 @@ public:
         const std::tuple<coordinate_type, coordinate_type> &z_axis_range,
         const std::string &indent
     ) const {
-        std::string result; // NOLINT(cppcoreguidelines-init-variables)
+        std::string result;
 
         std::size_t pos = 0;
         for(auto const &decorator_ptr : *this) {

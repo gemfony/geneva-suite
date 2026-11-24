@@ -220,9 +220,10 @@ std::string loadTextDataFromFile(std::filesystem::path const &p) {
         );
     }
 
-    std::string source_file( // NOLINT(cppcoreguidelines-init-variables)
-			std::istreambuf_iterator<char>(source_file_stream), (std::istreambuf_iterator<char>())
-		);
+    std::string source_file(
+        std::istreambuf_iterator<char>(source_file_stream),
+        (std::istreambuf_iterator<char>())
+    );
     return source_file;
 }
 
@@ -256,7 +257,7 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
         );
     }
 
-    std::string line; // NOLINT(cppcoreguidelines-init-variables)
+    std::string line;
     std::vector<std::string> str_result_vec;
 
     while(std::getline(source_file_stream, line)) {
@@ -304,23 +305,16 @@ int runExternalCommand(
                         localcommand_output_file_name + std::string(" 2>&1");
     }
 
-    // MOstly for external debugging
-#ifdef GEM_COMMON_PRINT_COMMANDLINE
-    std::cout << "Executing external command \"" << localCommand << "\" ...";
-#endif /* GEM_COMMON_PRINT_COMMANDLINE */
-
     // Assign the full command (mostly needed for external error-evaluation)
     full_command = local_command;
 
     // Run the actual command.
-    // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c) -- deliberate: this IS the external-command runner, invoked from single-threaded orchestration
+    // This runs on worker threads: GExternalEvaluatorIndividual calls it during evaluation. POSIX does not
+    // require system() to be thread-safe; glibc documents it as MT-Safe.
+    // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c) -- deliberate: this IS the external-command runner
     int const error_code = system(local_command.c_str());
 
-#ifdef GEM_COMMON_PRINT_COMMANDLINE
-    std::cout << "... done." << '\n';
-#endif /* GEM_COMMON_PRINT_COMMANDLINE */
-
-    // The error code will be returned as the function valiue
+    // The error code will be returned as the function value
     return error_code;
 }
 
@@ -552,7 +546,7 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
  * @return The current local time, formatted as a human-readable string
  */
 std::string currentTimeAsString() {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     std::time_t const now = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
     struct tm timeinfo{};
 
@@ -695,7 +689,7 @@ milliseconds_to_time_point(std::chrono::milliseconds::rep const &val) {
  * @param d The name of the define that was expected to be set ("define")
  */
 void condnotset(std::string const &f, std::string const &d) {
-    std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream error;
     error << '\n'
           << "================================================" << '\n'
           << "In function " << f << " Error!" << '\n'

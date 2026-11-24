@@ -188,16 +188,22 @@ public:
     /***************************************************************************/
     /**
 	  * Triggers the creation of objects of the desired type and converts them
-	  * to a given target type. Will throw if conversion is unsuccessful.
+	  * to a given target type. Throws if production yields nothing; in DEBUG
+	  * builds also if the conversion is unsuccessful.
 	  *
 	  * @tparam target_type The type the produced algorithm should be converted to
 	  * @return A converted copy of the desired production type
 	  */
     template <typename target_type>
     std::shared_ptr<target_type> get() {
-        return Gem::Common::convertSmartPointer<oa_type, target_type>(
-            Gem::Common::GFactoryT<oa_type>::get()
-        );
+        std::shared_ptr<oa_type> const p = Gem::Common::GFactoryT<oa_type>::get();
+        if(not p) {
+            throw gem_exception(
+                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                << "In GOAFactoryT<>::get<target_type>(): the factory produced no algorithm" << '\n'
+            );
+        }
+        return Gem::Common::g_ptr_conversion<oa_type, target_type>(p);
     }
 
     /***************************************************************************/

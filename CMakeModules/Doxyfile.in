@@ -5,10 +5,9 @@
 # enumerating every key we avoid the "obsolete tag" warnings that plagued
 # the legacy top-level Doxyfile.in.
 #
-# Per-library values (PROJECT_NAME, INPUT, OUTPUT_DIRECTORY, GENERATE_TAGFILE,
-# TAGFILES, ...) are substituted by CMake's configure_file from the
-# corresponding <lib>/doc/CMakeLists.txt; everything below is shared across
-# all four libraries.
+# The one template for all six libraries: each libs/<lib>/doc/CMakeLists.txt
+# configures it (configure_file) with its own values (GEM_DOC_LIB_NAME,
+# GEM_DOC_LIB_DESC, GEM_DOC_TAGFILES); everything else is shared.
 
 PROJECT_NAME           = "Geneva -- @GEM_DOC_LIB_NAME@ library"
 PROJECT_NUMBER         = "@GEM_VERSION_FULL@"

@@ -624,7 +624,7 @@ private:
 	  * @return A string representing the current time and date
 	  */
     static std::string currentTimeAsString() {
-        std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream oss;
         std::time_t const now =
             std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
         struct tm time_info{};

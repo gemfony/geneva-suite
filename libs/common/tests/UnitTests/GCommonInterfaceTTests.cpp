@@ -144,10 +144,10 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GCommonInterfaceT::clone<T>: returns shared_ptr<T> when T derives from Self",
+    "GCommonInterfaceT::clone<T>: returns unique_ptr<T> when T derives from Self",
     "[common][interface][clone]"
 ) {
-    // clone<Self>() also works — it forwards through convertSmartPointer.
+    // clone<Self>() also works -- the clone is converted with a checked dynamic_cast.
     TestObj const src(11);
     auto cp = src.clone<TestObj>();
     REQUIRE(cp);

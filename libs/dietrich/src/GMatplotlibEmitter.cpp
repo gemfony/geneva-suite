@@ -136,7 +136,7 @@ std::string matplotlibLegendLocation(legendPosition position) {
  *  column 0 -- Python is whitespace-sensitive, so no indentation is applied. */
 std::string
 mplPlotCall(const GBasePlotter &p, scriptKind k, const std::string &ax, const std::string &fig) {
-    EmitStream call; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream call;
     const std::string label = backslashEscape(p.plotLabel());
     // Columns in storage order (see plotSpec().columns); histogram bin counts come
     // from the same spec. GGraph2ED's stored order is (x, ex, y, ey) -> errorbar wants
@@ -273,7 +273,7 @@ std::string MatplotlibEmitter::emitDocument(const GPlotDesigner &gpd) const {
     const std::size_t rows = gpd.c_y_div_;
     const std::size_t max_plots = cols * rows;
 
-    EmitStream result; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream result;
 
     // Validate ALL plotters (and their secondaries) up front, so a partial script is
     // never produced for an unsupported plotter type; a 2-d and a 3-d plotter cannot

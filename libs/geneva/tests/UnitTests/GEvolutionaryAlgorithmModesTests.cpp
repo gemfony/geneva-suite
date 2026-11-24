@@ -44,8 +44,10 @@
 #include <memory>
 #include <vector>
 
+#include "common/GParserBuilder.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
+#include "geneva/genome/GGenomeMultiConstraint.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
@@ -187,6 +189,30 @@ double runEAmode(
     }
     return s;
 }
+
+/******************************************************************************/
+/**
+ * A constraint whose check throws a GCommandLineError (a type derived from gem_exception, carrying
+ * state of its own). The EA checks constraints in its parallel adaption (GParChild::adaptChildren_()),
+ * on the threads of its pool; the exception has to reach the caller of optimize() with its type.
+ */
+class ThrowingConstraint
+  : public Gem::Common::GReflectiveInterfaceT<ThrowingConstraint, gen::GGenomeConstraint> {
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &) {
+        return std::make_tuple();
+    }
+
+public:
+    static constexpr std::string_view class_name = "ThrowingConstraint";
+
+protected:
+    double check_(const gen::GGenome *) const override {
+        throw Gem::Common::GCommandLineError("thrown by ThrowingConstraint", "typed state");
+    }
+};
 
 } /* anonymous namespace */
 
@@ -411,4 +437,32 @@ TEST_CASE("ea out-converges the stock EA at n=10000", "[ea][oa][highdim10k]") {
                          << "  best-of-3 ea(SCALED) f=" << best_scaled
     );
     CHECK(best_scaled < f_ea); // (2) the dimension-scaled EA descends below the frozen stock EA
+}
+
+/******************************************************************************/
+
+TEST_CASE("ea passes a worker-thread exception to the caller with its type", "[ea][oa]") {
+    // Regression: GParChild consumed the futures of its pool tasks inside catch blocks that rewrapped
+    // every exception into a plain gem_exception string, so a typed error lost its type and its state.
+    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    p->setPopulationSizes(6, 2);
+    p->setMaxIteration(2);
+    p->setReportIteration(100000);
+    HighDimSphere<2> src;
+    src.registerConstraint(std::make_shared<ThrowingConstraint>());
+    p->push_back(src.clone());
+    p->setAdaptionConfig(src.buildAdaptionConfig());
+
+    bool caught_typed = false;
+    try {
+        p->optimize();
+    }
+    catch(Gem::Common::GCommandLineError const &e) {
+        caught_typed = (e.usage() == "typed state");
+    }
+    catch(std::exception const &e) {
+        INFO("arrived as an untyped exception: " << e.what());
+        CHECK(false);
+    }
+    CHECK(caught_typed);
 }

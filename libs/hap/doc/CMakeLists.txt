@@ -36,7 +36,7 @@ IF (NOT DOXYGEN_FOUND)
 ENDIF ()
 
 SET (GEM_DOC_LIB_NAME "hap")
-SET (GEM_DOC_LIB_DESC "Random-number library: GRandomT, GRandomFactory, "
+STRING (CONCAT GEM_DOC_LIB_DESC "Random-number library: GRandomT, GRandomFactory, "
 		"distribution wrappers, xoshiro256++ "
 		"engine with optional SIMD bulk-refill")
 # Upstream: common -- the tag file where common's doc is built (libs/common/doc in the build
@@ -45,7 +45,7 @@ SET (GEM_DOC_TAGFILES
 		"${CMAKE_BINARY_DIR}/libs/common/doc/common.tag=../../../common/doc/html")
 
 CONFIGURE_FILE (
-	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+	${PROJECT_SOURCE_DIR}/CMakeModules/Doxyfile.in
 	${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
 	@ONLY
 )

@@ -37,7 +37,6 @@
 #include <string_view>
 
 // Geneva headers go here
-#include "common/GCommonHelperFunctions.hpp" // Gem::Common::condnotset
 #include "common/GReflectiveInterfaceT.hpp"  // Gem::Common::GReflectiveInterfaceT
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
@@ -49,8 +48,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * repeats by hand. The generic quartet -- clone_(), name_(), load_(), compare_() plus the folded
  * serialize() -- comes from Gem::Common::GReflectiveInterfaceT (single-sourced from the class's
  * localMembers_() and class_name, exactly as everywhere else in the tree); this layer only adds the
- * three algorithm-specific overriders (getAlgorithmName_(), getAlgorithmPersonalityType_()) and the
- * three default GUnitTests stubs. A concrete algorithm derives as
+ * two algorithm-specific overriders getAlgorithmName_() and getAlgorithmPersonalityType_(). A concrete
+ * algorithm derives as
  *
  *     class GFoo : public GOptimizationAlgorithmT<GFoo>             // direct-from-base algorithms
  *     class GBar : public GOptimizationAlgorithmT<GBar, GParChild>  // mu/lambda algorithms
@@ -65,8 +64,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  *     using personality_traits_type = GFoo_PersonalityTraits;  // what getPersonalityTraits_() hands out
  *
  * The mixin holds NO data of its own; clone_() returns a GOptimizationAlgorithmBase pointer (the
- * hierarchy root, the default GReflectiveInterfaceT clone-return). The GUnitTests stubs are ordinary
- * virtuals, so an algorithm with real algorithm-specific tests simply overrides them. An algorithm
+ * hierarchy root, the default GReflectiveInterfaceT clone-return). Algorithm-specific self-tests come
+ * through the Gem::Common::GSelfTestable facet, as for every other class. An algorithm
  * whose load_() is more than a member-wise copy (e.g. GSwarmAlgorithm's iteration-dependent
  * neighbourhood-best handling) overrides the generated load_() in the usual way.
  *

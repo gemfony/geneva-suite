@@ -147,7 +147,7 @@ std::string GHistogram1D::headerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream header_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -187,7 +187,7 @@ std::string GHistogram1D::bodyData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream body_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -220,13 +220,13 @@ std::string GHistogram1D::footerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     emitRootTitle(footer_data, indent, hist_name, plot_label_);
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         footer_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -394,7 +394,7 @@ std::string GHistogram1I::headerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream header_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -424,7 +424,7 @@ std::string GHistogram1I::bodyData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream body_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -458,13 +458,13 @@ std::string GHistogram1I::footerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     emitRootTitle(footer_data, indent, hist_name, plot_label_);
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         footer_data << "// " + rootEscape(ds_marker_) << '\n';
     }
@@ -673,7 +673,7 @@ std::string GHistogram2D::headerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream header_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream header_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -714,7 +714,7 @@ std::string GHistogram2D::bodyData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream body_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream body_data;
 
     const std::string comment = dsMarkerComment(ds_marker_);
 
@@ -750,13 +750,13 @@ std::string GHistogram2D::footerData_(
     std::size_t own_id,
     const std::string &indent
 ) const {
-    EmitStream footer_data; // NOLINT(cppcoreguidelines-init-variables)
+    EmitStream footer_data;
 
     std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
 
     emitRootTitle(footer_data, indent, hist_name, plot_label_);
 
-    std::string const comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string const comment;
     if(!ds_marker_.empty()) {
         footer_data << "// " + rootEscape(ds_marker_) << '\n';
     }

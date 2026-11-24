@@ -324,7 +324,7 @@ void GType::populationSanityChecks_() const {
        ((sorting_mode_ == sortingMode::MUPLUSNU_SINGLEEVAL ||
          sorting_mode_ == sortingMode::MUPLUSNU_PARETO) &&
         pop_size <= this->n_parents_)) {
-        std::ostringstream error; // NOLINT(cppcoreguidelines-init-variables)
+        std::ostringstream error;
         error << "In GEvolutionaryAlgorithm::populationSanityChecks() :" << '\n'
               << "Requested size of population is too small :" << pop_size << " "
               << this->n_parents_ << '\n';

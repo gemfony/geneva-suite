@@ -738,6 +738,20 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   originally-submitted item the state that does not travel on the wire; courtier names it for
   that, not for the use Geneva makes of it. A work-item class that overrides the hook renames
   its override.
+- **common: `convertSmartPointer()` and `Gem::Common::erase_if()` were removed.**
+  `g_ptr_conversion()` is the one pointer conversion (the template arguments in the same order;
+  an empty pointer comes back empty instead of throwing in a Debug build); `std::erase_if`
+  replaces `erase_if`.
+- **common: `sharedPtrFromString()` throws on a string it cannot decode.** It returned an empty
+  pointer and logged a warning; the decode error (a `Gem::Weft::weft_exception`, or another
+  `std::exception`) now reaches the caller, as with `sharedPtrToString()`.
+- **geneva: the build options `GENEVA_ALGO_SA`, `GENEVA_ALGO_SWARM`, `GENEVA_ALGO_CGD`,
+  `GENEVA_ALGO_NM` and `GENEVA_ALGO_PS` were removed.** Every algorithm is always built; an
+  algorithm of one's own is added as a loadable module.
+- **geneva: `GEndOfPar` was removed** from `GParameterScan.hpp`; nothing threw or caught it.
+- **dietrich: `dietrich/plotting/GPlots.hpp` was removed.** `dietrich/GPlotDesigner.hpp` is the
+  one umbrella header; a file that needs only some plot types includes `GDataCollectors.hpp`,
+  `GGraphPlots.hpp` or `GHistogramPlots.hpp` from `dietrich/plotting/`.
 
 ## 8. Checkpointing
 

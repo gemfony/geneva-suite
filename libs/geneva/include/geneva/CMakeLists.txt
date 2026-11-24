@@ -131,6 +131,6 @@ INSTALL ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION ${INSTALL_PREFIX_IN
 	FILES_MATCHING PATTERN "*.hpp" )
 
 # GEqualityPrinter.hpp (the only former include/geneva/tests/ header) is
-# pure test scaffolding and now lives next to its sole consumer in
-# tests/geneva/UnitTests/ (internal only, never installed) — like
-# Geneva_tests.hpp before it.
+# pure test scaffolding: it lives in libs/common/tests/support/ (target
+# gem-test-support, internal only, never installed), shared by geneva's and
+# dietrich's unit tests.

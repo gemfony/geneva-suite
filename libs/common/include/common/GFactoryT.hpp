@@ -199,11 +199,8 @@ public:
 	  */
     template <typename target_type>
     std::shared_ptr<target_type> get_as() {
-        std::shared_ptr<prod_type> const p = this->get();
-        if(p) {
-            return Gem::Common::convertSmartPointer<prod_type, target_type>(p);
-        }
-        return std::shared_ptr<target_type>(); // Just return an empty pointer
+        // An empty product passes through as an empty pointer
+        return Gem::Common::g_ptr_conversion<prod_type, target_type>(this->get());
     }
 
     /***************************************************************************/

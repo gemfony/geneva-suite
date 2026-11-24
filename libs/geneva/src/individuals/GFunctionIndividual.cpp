@@ -370,7 +370,7 @@ std::vector<double> GFunctionIndividual::evaluate() {
  */
 // NOLINTNEXTLINE(readability-function-size) -- one coherent config-registration sweep binding every GFunctionIndividual::Config field; splitting would scatter the option list
 void GFunctionIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c) {
-    std::string comment; // NOLINT(cppcoreguidelines-init-variables)
+    std::string comment;
 
     comment = "";
     comment += "The probability for random adaption of values in evolutionary algorithms;";

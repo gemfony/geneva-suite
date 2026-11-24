@@ -2259,6 +2259,9 @@ TEST_CASE(
     }
     CHECK_THROWS_AS(oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"), gem_exception);
 
+    // An empty field is refused, not skipped: read without it, "d(0,,-1.,1.)" would be a valid spec
+    CHECK_THROWS_AS(gen::GParameterPropertyParser("d(0,,-1.,1.)"), gem_exception);
+
     // The forms without a label are read as before
     gen::GParameterPropertyParser const ppp("d(3, -1., 1., 10), b(2), b(4, 7), i(1, 0, 5)");
     auto [d_it, d_end] = ppp.getIterators<double>();

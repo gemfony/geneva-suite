@@ -69,11 +69,19 @@ namespace Gem::Common {
 /**
  * Initialization of static data members
  */
+namespace {
+// The defaults of the four process-wide switches, stated once (initialization and resetProcessSettings())
+constexpr bool DEFAULT_UNKNOWN_KEY_IS_ERROR = false;
+constexpr bool DEFAULT_CHECK_UNKNOWN_KEYS = true;
+constexpr bool DEFAULT_UPDATE_IN_PLACE = false;
+constexpr bool DEFAULT_EMIT_TIMESTAMP = true;
+} // namespace
+
 std::mutex Gem::Common::GParserBuilder::configfile_parser_mutex_;
-bool Gem::Common::GParserBuilder::unknown_key_is_error_ = false;
-bool Gem::Common::GParserBuilder::check_unknown_keys_ = true;
-bool Gem::Common::GParserBuilder::update_in_place_ = false;
-bool Gem::Common::GParserBuilder::emit_timestamp_ = true;
+std::atomic<bool> Gem::Common::GParserBuilder::unknown_key_is_error_{DEFAULT_UNKNOWN_KEY_IS_ERROR};
+std::atomic<bool> Gem::Common::GParserBuilder::check_unknown_keys_{DEFAULT_CHECK_UNKNOWN_KEYS};
+std::atomic<bool> Gem::Common::GParserBuilder::update_in_place_{DEFAULT_UPDATE_IN_PLACE};
+std::atomic<bool> Gem::Common::GParserBuilder::emit_timestamp_{DEFAULT_EMIT_TIMESTAMP};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -208,7 +216,7 @@ std::size_t GParsableI::numberOfOptionNames() const {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<(std::ostream &(*val)(std::ostream &)) {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     oss << val;
     comment_.at(cl_) += oss.str();
     return *this;
@@ -224,7 +232,7 @@ GParsableI &GParsableI::operator<<(std::ostream &(*val)(std::ostream &)) {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<(std::ios &(*val)(std::ios &)) {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     oss << val;
     comment_.at(cl_) += oss.str();
     return *this;
@@ -240,7 +248,7 @@ GParsableI &GParsableI::operator<<(std::ios &(*val)(std::ios &)) {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<(std::ios_base &(*val)(std::ios_base &)) {
-    std::ostringstream oss; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream oss;
     oss << val;
     comment_.at(cl_) += oss.str();
     return *this;
@@ -329,7 +337,7 @@ std::vector<std::string> GParsableI::splitComment(std::string const &comment) {
     if(not comment.empty() && comment != "empty") {
         // Split according to newlines, then break each line into sub-tokens at semicolons
         std::istringstream buffer(comment);
-        std::string line; // NOLINT(cppcoreguidelines-init-variables)
+        std::string line;
         while(std::getline(buffer, line)) {
             for(auto const &t : Gem::Common::splitString(line, ";")) {
                 results.push_back(t);
@@ -1033,6 +1041,19 @@ bool GParserBuilder::unknownKeyIsError() {
 
 /******************************************************************************/
 /**
+ * Restores the four process-wide switches to their defaults: update-in-place off, the creation
+ * timestamp on, the unknown-key check on, an unknown key a warning rather than an error. Meant for
+ * tests, which share one process.
+ */
+void GParserBuilder::resetProcessSettings() {
+    unknown_key_is_error_ = DEFAULT_UNKNOWN_KEY_IS_ERROR;
+    check_unknown_keys_ = DEFAULT_CHECK_UNKNOWN_KEYS;
+    update_in_place_ = DEFAULT_UPDATE_IN_PLACE;
+    emit_timestamp_ = DEFAULT_EMIT_TIMESTAMP;
+}
+
+/******************************************************************************/
+/**
  * Parses the command line for options
  *
  * @param argc The argument count
@@ -1275,7 +1296,7 @@ boost::program_options::variables_map GParserBuilder::parseAgainst_(
 std::string GParserBuilder::helpText_(std::string const &usage_string) const {
     boost::program_options::options_description listed(usage_string);
     describeCLOptions_(listed, false /* show_all */, true /* with_help */);
-    std::ostringstream text; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream text;
     text << listed;
     return text.str();
 }

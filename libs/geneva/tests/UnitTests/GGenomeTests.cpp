@@ -2683,9 +2683,8 @@ TEST_CASE(
     REQUIRE(contribution.make_factory != nullptr);
     void *raw = contribution.make_factory();
     REQUIRE(raw != nullptr);
-    auto *holder = static_cast<GMarshallerProviderPtr *>(raw);
+    const std::unique_ptr<GMarshallerProviderPtr> holder(static_cast<GMarshallerProviderPtr *>(raw));
     GMarshallerProviderPtr provider = std::move(*holder);
-    delete holder;
     REQUIRE(provider);
     CHECK(provider->getMnemonic() == "cuda");
     CHECK(provider->gpuConfigFile() == "config/ProbeGPU.json");
@@ -2700,9 +2699,10 @@ TEST_CASE(
 
     const GemModuleManifest *other =
         marshallerManifest<ProbeGPUMarshaller, "cuda", "config/OtherGPU.json">();
-    auto *holder2 = static_cast<GMarshallerProviderPtr *>(other->contributions[0].make_factory());
+    const std::unique_ptr<GMarshallerProviderPtr> holder2(
+        static_cast<GMarshallerProviderPtr *>(other->contributions[0].make_factory())
+    );
     GMarshallerProviderPtr const provider2 = std::move(*holder2);
-    delete holder2;
     CHECK_FALSE(
         store->setOnce("cuda", provider2)
     ); // collision: at most one marshaller per device target

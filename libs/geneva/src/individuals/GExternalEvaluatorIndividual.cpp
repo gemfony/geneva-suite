@@ -275,7 +275,7 @@ void GExternalEvaluatorIndividual::appendWorstCaseOnCommandError_(
     const std::string &command_output_file_name,
     std::vector<double> &results
 ) {
-    std::ostringstream error_message; // NOLINT(cppcoreguidelines-init-variables)
+    std::ostringstream error_message;
 
     error_message << "In GExternalEvaluatorIndividual::evaluate():" << '\n'
                   << "Execution of external command failed." << '\n'
@@ -355,8 +355,8 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
 
         // Check whether the results represent useful values
         bool const is_valid = result_individual.at("isValid").as_bool();
-        if(not is_valid) {                    // Assign worst-case values to all result
-            std::ostringstream error_message; // NOLINT(cppcoreguidelines-init-variables)
+        if(not is_valid) { // Assign worst-case values to all result
+            std::ostringstream error_message;
 
             error_message << "In GExternalEvaluatorIndividual::evaluate():" << '\n'
                           << "individuals[0].isValid is \"false\"" << '\n';
@@ -673,8 +673,8 @@ static gen::GenomeData authorFlatGenomeFromSetup(
             }
         }
     }
-    catch(const gem_exception &gec) {
-        throw gec; // Re-throw
+    catch(const gem_exception &) {
+        throw; // Re-throw the original object (a copy would slice a derived type)
     }
     catch(...) {
         throw gem_exception(

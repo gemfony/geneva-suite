@@ -29,7 +29,7 @@
 #
 # Per-library Doxygen target for the Common library.
 #
-# Configures Doxyfile.in from this directory with per-library values and
+# Configures the shared CMakeModules/Doxyfile.in with per-library values and
 # registers `doc-common` as a top-level target. Output (HTML + XML + tag
 # file) lands in this lib's build dir, NOT in the source tree.
 
@@ -38,14 +38,13 @@ IF (NOT DOXYGEN_FOUND)
 ENDIF ()
 
 SET (GEM_DOC_LIB_NAME "common")
-SET (GEM_DOC_LIB_DESC "Utilities: logging, thread pool, formula parser, "
-		"plot designer, serialization helpers, bounded buffers, exception "
-		"types")
+STRING (CONCAT GEM_DOC_LIB_DESC "Foundation: logging and recording, the concurrency "
+		"primitives, configuration parsing, helper functions, exception types")
 # No upstream libraries -- common is the foundation.
 SET (GEM_DOC_TAGFILES "")
 
 CONFIGURE_FILE (
-	${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in
+	${PROJECT_SOURCE_DIR}/CMakeModules/Doxyfile.in
 	${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
 	@ONLY
 )

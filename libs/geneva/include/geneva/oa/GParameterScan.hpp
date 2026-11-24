@@ -58,15 +58,6 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-/** Indicates that all possible parameter values have been explored */
-class GEndOfPar : public std::exception {
-public:
-    using std::exception::exception;
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
 /** @brief A dependent-false helper so the generic traps below fire only when actually instantiated. */
 template <typename>
 inline constexpr bool always_false_scan_v = false;
