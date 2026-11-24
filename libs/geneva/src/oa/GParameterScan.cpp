@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/oa/GParameterScan.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -60,6 +61,8 @@ GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GFScanPar)     // N
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GParameterScan) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -323,14 +326,7 @@ std::tuple<double, double> GParameterScan::cycleLogic_() {
     auto m =
         this->at(0)->getMaxMode(); // We assume that the maxMode is the same for all individuals
     for(it = this->begin(); it != this->end(); ++it) {
-#ifdef DEBUG
-        if(not(*it)->is_processed()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Individual in position " << (it - this->begin()) << " is not processed" << '\n'
-            );
-        }
-#endif
+        checkThat((*it)->is_processed(), "individual ", it - this->begin(), " is not processed");
 
         new_eval = (*it)->getFitnessTuple();
         if(isBetter(
@@ -691,19 +687,10 @@ void GParameterScan::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) 
 void GParameterScan::evaluatePopulation_() {
     using namespace Gem::Courtier;
 
-#ifdef DEBUG
-    GParameterScan::iterator it;
-    for(it = this->begin(); it != this->end(); ++it) {
-        // Make sure the evaluated individuals have the dirty flag set
-        if(not(*it)->is_due_for_processing()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Found individual in position " << std::distance(this->begin(), it)
-                << ", which has not been marked as due for processing" << '\n'
-            );
-        }
-    }
-#endif /* DEBUG */
+    GEM_DEBUG_CHECK(
+        std::ranges::all_of(*this, [](auto const &p) { return p->is_due_for_processing(); }),
+        "an individual is not due for processing"
+    );
 
     //--------------------------------------------------------------------------------
     // Submit all work items and wait for their return

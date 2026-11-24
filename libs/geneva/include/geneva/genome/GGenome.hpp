@@ -50,6 +50,7 @@
 #include <boost/json.hpp>
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
@@ -522,17 +523,15 @@ private:
             if(not ch.fold[k]) {
                 return ngInternalToExternal<T>(stored, scale, anchor);
             }
-#ifdef DEBUG
-            if(scale > T(0) && not(stored >= T(-0.5) && stored < T(0.5))) {
-                throw gem_exception(
-                    g_error_streamer()
-                    << "Internal coordinate " << stored << " of bounded parameter " << k
-                    << " is outside the canonical interval [-0.5, 0.5) -- a write path failed to "
-                       "fold."
-                    << '\n'
-                );
-            }
-#endif /* DEBUG */
+            // Read for every parameter of every evaluation, hence only without NDEBUG
+            GEM_DEBUG_CHECK(
+                scale <= T(0) || (stored >= T(-0.5) && stored < T(0.5)),
+                "Internal coordinate ",
+                stored,
+                " of bounded parameter ",
+                k,
+                " is outside [-0.5, 0.5) -- a write path failed to fold."
+            );
             return ngClampHalfOpen<T>(
                 ngInternalToExternal<T>(stored, scale, anchor),
                 ch.lower[k],
@@ -1196,11 +1195,10 @@ public:
     template <typename personality_type>
         requires std::derived_from<personality_type, GPersonalityTraits>
     std::shared_ptr<personality_type> getPersonalityTraits() {
-#ifdef DEBUG
-        if(not scratch_->personalityRef()) {
-            throw gem_exception(g_error_streamer() << "Empty personality pointer found" << '\n');
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            nullptr != scratch_->personalityRef(),
+            "Empty personality pointer found"
+        );
         return Gem::Common::g_ptr_conversion<GPersonalityTraits, personality_type>(
             scratch_->personalityRef()
         );
@@ -1208,13 +1206,12 @@ public:
 
     /** @brief The personality-traits base pointer.
      *  @return A shared pointer to this entity's GPersonalityTraits
-     *  @throw gem_exception (DEBUG builds) if the personality pointer is empty */
+     *  @throw gem_exception if the personality pointer is empty */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits() {
-#ifdef DEBUG
-        if(not scratch_->personalityRef()) {
-            throw gem_exception(g_error_streamer() << "Empty personality pointer found" << '\n');
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            nullptr != scratch_->personalityRef(),
+            "Empty personality pointer found"
+        );
         return scratch_->personalityRef();
     }
 
@@ -1274,14 +1271,13 @@ public:
         std::vector<par_type> const &par_vec,
         activityMode const &am = activityMode::DEFAULTACTIVITYMODE
     ) {
-#ifdef DEBUG
-        if(countParameters<par_type>() != par_vec.size()) {
-            throw gem_exception(
-                g_error_streamer() << "Sizes don't match: " << countParameters<par_type>() << " / "
-                                   << par_vec.size() << '\n'
-            );
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            countParameters<par_type>() == par_vec.size(),
+            "Sizes don't match: ",
+            countParameters<par_type>(),
+            " / ",
+            par_vec.size()
+        );
         this->assignValueVector_(par_vec, am);
         // As we have modified our internal data sets, make sure the item is reprocessed
         this->mark_as_due_for_processing();
@@ -1363,14 +1359,13 @@ public:
         const std::size_t n_double = countParameters<double>(am);
         const std::size_t n_float = countParameters<float>(am);
 
-#ifdef DEBUG
-        if(n_double + n_float != par_vec.size()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Sizes don't match: " << (n_double + n_float) << " / " << par_vec.size() << '\n'
-            );
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            n_double + n_float == par_vec.size(),
+            "Sizes don't match: ",
+            n_double + n_float,
+            " / ",
+            par_vec.size()
+        );
 
         if(n_double > 0) {
             std::vector<double> const double_vec(
@@ -1439,14 +1434,13 @@ public:
         const std::size_t n_double = countParameters<double>(am);
         const std::size_t n_float = countParameters<float>(am);
 
-#ifdef DEBUG
-        if(n_double + n_float != par_vec.size()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Sizes don't match: " << (n_double + n_float) << " / " << par_vec.size() << '\n'
-            );
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            n_double + n_float == par_vec.size(),
+            "Sizes don't match: ",
+            n_double + n_float,
+            " / ",
+            par_vec.size()
+        );
 
         if(n_double > 0) {
             std::vector<double> const double_vec(

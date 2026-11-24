@@ -40,6 +40,7 @@
 #include <utility>
 #include <vector>
 
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
@@ -57,6 +58,8 @@
 #include <sstream>
 
 namespace Gem::Geneva::Genome {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 /**
@@ -624,15 +627,13 @@ void GGenome::clear_stored_results_vec() {
  */
 individual_processing_result
 GGenome::markAsProcessedWith(std::vector<individual_processing_result> const &result_cnt) {
-#ifdef DEBUG
-    if(result_cnt.size() != stored_results_cnt_.size()) {
-        throw gem_exception(
-            g_error_streamer() << "Vector dimensions" << '\n'
-                               << "do not fit: " << result_cnt.size() << " / "
-                               << stored_results_cnt_.size() << '\n'
-        );
-    }
-#endif
+    checkThat(
+        result_cnt.size() == stored_results_cnt_.size(),
+        "Vector dimensions do not fit: ",
+        result_cnt.size(),
+        " / ",
+        stored_results_cnt_.size()
+    );
 
     stored_results_cnt_ = result_cnt;
     stored_error_descriptions_.clear();
@@ -930,14 +931,13 @@ void GGenome::finalizeFeasibleEvaluation_(
  * @param f_cnt A vector of raw fitness values (size must match the criteria count)
  */
 void GGenome::setFitness_(std::vector<double> const &f_cnt) {
-#ifdef DEBUG
-    if(f_cnt.size() != this->getNStoredResults()) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid size of fitness vector: " << f_cnt.size()
-                               << ", expected: " << this->getNStoredResults() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        f_cnt.size() == this->getNStoredResults(),
+        "Invalid size of fitness vector: ",
+        f_cnt.size(),
+        ", expected: ",
+        this->getNStoredResults()
+    );
 
     if(this->fulfillsConstraints(validity_level_) ||
        evaluationPolicy::USESIMPLEEVALUATION == this->getEvaluationPolicy()) {
@@ -1002,15 +1002,13 @@ void GGenome::applyInvalidityPolicy_() {
  * @param value The raw fitness value to register
  */
 void GGenome::setResult(const std::size_t id, const double value) {
-#ifdef DEBUG
-    if(id >= this->getNStoredResults()) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid position in vector: " << id
-                               << " (expected min 0 and max " << this->getNStoredResults() - 1
-                               << ")" << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        id < this->getNStoredResults(),
+        "no result ",
+        id,
+        " among ",
+        this->getNStoredResults()
+    );
 
     this->modifyStoredResult(id).reset(value);
 }
@@ -1032,20 +1030,14 @@ std::tuple<double, double> GGenome::getFitnessTuple(const std::uint32_t id) cons
  * @return true if every raw fitness is at least as good as its boundary, false otherwise
  */
 bool GGenome::isGoodEnough(std::vector<double> const &boundaries) {
-#ifdef DEBUG
-    if(boundaries.size() != this->getNStoredResults()) {
-        throw gem_exception(
-            g_error_streamer() << "Number of boundaries does not match number of fitness criteria"
-                               << '\n'
-        );
-    }
-    if(not this->is_processed()) {
-        throw gem_exception(
-            g_error_streamer()
-            << "Trying to compare fitness values although the individual isn't processed" << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        boundaries.size() == this->getNStoredResults(),
+        "Number of boundaries does not match number of fitness criteria"
+    );
+    checkThat(
+        this->is_processed(),
+        "Trying to compare fitness values of an unprocessed individual"
+    );
 
     if(maxMode::MAXIMIZE == this->getMaxMode()) {
         for(std::size_t i = 0; i < boundaries.size(); i++) {
@@ -1071,14 +1063,10 @@ bool GGenome::isGoodEnough(std::vector<double> const &boundaries) {
  * @return true if the validity level is <= 1 (all constraints fulfilled)
  */
 bool GGenome::isValid() const {
-#ifdef DEBUG
-    if(this->is_due_for_processing() || this->has_errors()) {
-        throw gem_exception(
-            g_error_streamer() << "Function was called for unprocessed or erroneous individual"
-                               << '\n'
-        );
-    }
-#endif
+    checkThat(
+        not this->is_due_for_processing() && not this->has_errors(),
+        "Function was called for unprocessed or erroneous individual"
+    );
 
     return validity_level_ <= 1.;
 }

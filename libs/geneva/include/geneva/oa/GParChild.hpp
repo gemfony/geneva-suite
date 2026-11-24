@@ -45,6 +45,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
@@ -158,18 +159,13 @@ public:
     template <typename parent_type>
         requires std::derived_from<parent_type, gen::GGenome>
     std::shared_ptr<parent_type> getParentIndividual(std::size_t parent_id) {
-#ifdef DEBUG
-        // Check that the parent id is in a valid range
-        if(parent_id >= this->getNParents()) {
-            throw gem_exception(
-                g_error_streamer() << "Requested parent id which does not exist: " << parent_id
-                                   << " / " << this->getNParents() << '\n'
-            );
-
-            // Make the compiler happy
-            return std::shared_ptr<parent_type>();
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            parent_id < this->getNParents(),
+            "no parent ",
+            parent_id,
+            " among ",
+            this->getNParents()
+        );
 
         // Does error checks on the conversion internally
         return Gem::Common::g_ptr_conversion<gen::GGenome, parent_type>(

@@ -280,10 +280,6 @@ void GExternalEvaluatorIndividual::appendWorstCaseOnCommandError_(
                   << "Program output:" << '\n'
                   << Gem::Common::loadTextDataFromFile(command_output_file_name) << '\n';
 
-#ifdef DEBUG
-    glogger << error_message.str() << GWARNING;
-#endif
-
     // O.k., so the external application crashed or returned an error.
     // All we can do here is to return the worst case. As long as crashes
     // do not happen too often, this will have but little influence on
@@ -353,10 +349,6 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
 
             error_message << "In GExternalEvaluatorIndividual::evaluate():" << '\n'
                           << "individuals[0].isValid is \"false\"" << '\n';
-
-#ifdef DEBUG
-            glogger << error_message.str() << GWARNING;
-#endif
 
             for(double &r : results) {
                 r = this->getWorstCase();

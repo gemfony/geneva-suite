@@ -27,6 +27,7 @@
  *
  ********************************************************************************/
 #include "geneva/oa/GSwarmAlgorithm.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
@@ -56,6 +57,8 @@
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GSwarmAlgorithm) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 /**
@@ -216,22 +219,11 @@ std::size_t GSwarmAlgorithm::getFirstNIPosVec(
     const std::size_t &neighborhood,
     const std::vector<std::size_t> &vec
 ) {
-#ifdef DEBUG
     // The summation below reads vec[0 .. neighborhood-1], so the size vector must cover every
     // neighborhood up to (and including) the requested one. The callers pass one entry per
     // neighborhood, so this also catches the id of a non-existing neighborhood. (This is a static
     // function, so the check is expressed through the argument, not the n_neighborhoods_ member.)
-    if(neighborhood >= vec.size()) {
-        throw gem_exception(
-            g_error_streamer() << "Received id " << neighborhood
-                               << " of a neighborhood which does not exist:" << '\n'
-                               << "the neighborhood-size vector has " << vec.size() << " entries,"
-                               << '\n'
-                               << "hence the maximum allowed id is " << vec.size() - 1 << "."
-                               << '\n'
-        );
-    }
-#endif
+    checkThat(neighborhood < vec.size(), "no neighborhood ", neighborhood, " among ", vec.size());
 
     if(neighborhood == 0) {
         return 0;
@@ -256,18 +248,13 @@ std::size_t GSwarmAlgorithm::getFirstNIPosVec(
  * @return The position (index in the population) one past the last individual of the given neighborhood
  */
 std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const {
-#ifdef DEBUG
-    if(neighborhood >= n_neighborhoods_) {
-        throw gem_exception(
-            g_error_streamer() << "Received id " << neighborhood
-                               << " of a neighborhood which does not exist." << '\n'
-                               << "The number of neighborhoods is " << n_neighborhoods_ << " ."
-                               << '\n'
-                               << "hence the maximum allowed value of the id is "
-                               << n_neighborhoods_ - 1 << "." << '\n'
-        );
-    }
-#endif
+    checkThat(
+        neighborhood < n_neighborhoods_,
+        "no neighborhood ",
+        neighborhood,
+        " among ",
+        n_neighborhoods_
+    );
 
     return getFirstNIPos(neighborhood) + n_neighborhood_members_cnt_[neighborhood];
 }
@@ -279,19 +266,11 @@ std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const
  * @param ind_ptr A reference to the unique_ptr-owned individual whose personal best should be (re)registered
  */
 void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &ind_ptr) {
-#ifdef DEBUG
-    if(not ind_ptr) {
-        throw gem_exception(g_error_streamer() << "Got empty ind_ptr" << '\n');
-    }
-
-    if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-        throw gem_exception(
-            g_error_streamer() << "ind_ptr is unprocessed or has errors: " << '\n'
-                               << "is_due_for_processing() == " << ind_ptr->is_due_for_processing()
-                               << ", has_errors() == " << ind_ptr->has_errors() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(nullptr != ind_ptr, "Got empty ind_ptr");
+    checkThat(
+        not ind_ptr->is_due_for_processing() && not ind_ptr->has_errors(),
+        "ind_ptr is unprocessed or has errors"
+    );
 
     // First-iteration seed: each particle's personal best is initialised unconditionally from its own
     // freshly-evaluated position (there is no prior best to compare against yet). The steady-state,
@@ -310,15 +289,11 @@ void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &in
  * @param ind_ptr A reference to the unique_ptr-owned individual whose personal best should be updated when its current position is better
  */
 void GSwarmAlgorithm::updatePersonalBestIfBetter(const std::unique_ptr<gen::GGenome> &ind_ptr) {
-#ifdef DEBUG
-    if(not ind_ptr) {
-        throw gem_exception(g_error_streamer() << "Got empty ind_ptr" << '\n');
-    }
-
-    if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-        throw gem_exception(g_error_streamer() << "dirty flag of individual is set." << '\n');
-    }
-#endif /* DEBUG */
+    checkThat(nullptr != ind_ptr, "Got empty ind_ptr");
+    checkThat(
+        not ind_ptr->is_due_for_processing() && not ind_ptr->has_errors(),
+        "ind_ptr is unprocessed or has errors"
+    );
 
     auto m =
         this->at(0)->getMaxMode(); // We assume that the maxMode is the same for all individuals
@@ -547,23 +522,19 @@ std::tuple<double, double> GSwarmAlgorithm::cycleLogic_() {
  * neighborhoods after partial returns). It was introduced to avoid adding a separate cycleLogic to
  * GSwarmAlgorithm.
  */
-// NOLINTNEXTLINE(readability-function-size) -- single coherent per-iteration repair pass over the neighborhood topology (surplus-trim / after-first-iteration backfill / first-iteration random backfill are mutually exclusive per-neighborhood branches sharing the sequentially-recomputed first_ni_pos), bookended by DEBUG invariant checks
+// NOLINTNEXTLINE(readability-function-size) -- single coherent per-iteration repair pass over the neighborhood topology (surplus-trim / after-first-iteration backfill / first-iteration random backfill are mutually exclusive per-neighborhood branches sharing the sequentially-recomputed first_ni_pos), bookended by invariant checks
 void GSwarmAlgorithm::adjustNeighborhoods() {
     std::size_t first_ni_pos = 0; // Will hold the expected first position of a neighborhood
 
-#ifdef DEBUG
     // Check that last_iteration_individuals_cnt_ has the desired size in iterations other than the first
-    if(afterFirstIteration() && last_iteration_individuals_cnt_.size() !=
-                                    default_n_neighborhood_members_ * n_neighborhoods_) {
-        throw gem_exception(
-            g_error_streamer() << "last_iteration_individuals_cnt_ has incorrect size! Expected"
-                               << '\n'
-                               << "default_n_neighborhood_members_*n_neighborhoods_ = "
-                               << default_n_neighborhood_members_ * n_neighborhoods_ << '\n'
-                               << "but found " << last_iteration_individuals_cnt_.size() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        not afterFirstIteration() || last_iteration_individuals_cnt_.size() ==
+                                         default_n_neighborhood_members_ * n_neighborhoods_,
+        "last_iteration_individuals_cnt_ has size ",
+        last_iteration_individuals_cnt_.size(),
+        ", expected ",
+        default_n_neighborhood_members_ * n_neighborhoods_
+    );
 
     // Add missing items to neighborhoods that are too small. We use stored copies from the
     // last iteration to fill in the missing items, or add random items in the first iteration.
@@ -618,9 +589,9 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
             }
             else { // first iteration
                 // At least one individual must have returned: the first-iteration backfill seeds missing
-                // slots from this->front(), so a completely empty population is unrecoverable. Guard in
-                // all builds (not just DEBUG) -- otherwise this->front() below is undefined behaviour in
-                // a release build when every first-iteration work item failed to return.
+                // slots from this->front(), so a completely empty population is unrecoverable. Guard it,
+                // otherwise this->front() below is undefined behaviour when every first-iteration work
+                // item failed to return.
                 if(this->empty()) {
                     throw gem_exception(
                         g_error_streamer()
@@ -652,16 +623,13 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
         n_neighborhood_members_cnt_[n] = default_n_neighborhood_members_;
     }
 
-#ifdef DEBUG
-    // Check that the population has the expected size
-    if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
-        throw gem_exception(
-            g_error_streamer() << "The population has an incorrect size of " << this->size()
-                               << ", expected "
-                               << n_neighborhoods_ * default_n_neighborhood_members_ << '\n'
-        );
-    }
-#endif
+    checkThat(
+        this->size() == n_neighborhoods_ * default_n_neighborhood_members_,
+        "The population has size ",
+        this->size(),
+        ", expected ",
+        n_neighborhoods_ * default_n_neighborhood_members_
+    );
 
     last_iteration_individuals_cnt_.clear(); // Get rid of the copies
 }
@@ -691,7 +659,7 @@ bool GSwarmAlgorithm::neighborhoodsHaveNominalValues() const {
  * as individuals have not generally been evaluated then, and we do not want to fill
  * up with "dirty" individuals.
  */
-// NOLINTNEXTLINE(readability-function-size) -- single coherent per-iteration position-update driver (lazily seed missing per-slot velocity blocks, snapshot the previous iteration, then dispatch updateIndividualPositions() per neighborhood member), interleaved with the DEBUG invariant checks that guard each state read before use
+// NOLINTNEXTLINE(readability-function-size) -- single coherent per-iteration position-update driver (lazily seed missing per-slot velocity blocks, snapshot the previous iteration, then dispatch updateIndividualPositions() per neighborhood member), interleaved with the invariant checks that guard each state read before use
 void GSwarmAlgorithm::updatePositions() {
     std::size_t neighborhood_offset = 0;
     auto start = this->begin();
@@ -718,28 +686,6 @@ void GSwarmAlgorithm::updatePositions() {
         }
     }
 
-#ifdef DEBUG
-    // Check that all neighborhoods have the default size
-    for(std::size_t n = 0; n < n_neighborhoods_; n++) {
-        if(n_neighborhood_members_cnt_[n] != default_n_neighborhood_members_) {
-            throw gem_exception(
-                g_error_streamer()
-                << "n_neighborhood_members_cnt_[" << n << "] has invalid size "
-                << n_neighborhood_members_cnt_[n] << '\n'
-                << "but expected size " << default_n_neighborhood_members_ << '\n'
-            );
-        }
-
-        if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
-            throw gem_exception(
-                g_error_streamer()
-                << "The population has an incorrect size of " << this->size() << ", expected "
-                << n_neighborhoods_ * default_n_neighborhood_members_ << '\n'
-            );
-        }
-    }
-#endif
-
     last_iteration_individuals_cnt_.clear();
     if(afterFirstIteration()) {
         // Clone the individuals and copy them over
@@ -748,40 +694,35 @@ void GSwarmAlgorithm::updatePositions() {
         }
     }
 
-#ifdef DEBUG
     // Cross-check that we have the nominal amount of individuals
-    if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid number of individuals found." << '\n'
-                               << "Expected " << n_neighborhoods_ * default_n_neighborhood_members_
-                               << " but got " << this->size() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        this->size() == n_neighborhoods_ * default_n_neighborhood_members_,
+        "The population has size ",
+        this->size(),
+        ", expected ",
+        n_neighborhoods_ * default_n_neighborhood_members_
+    );
+    checkThat(
+        not afterFirstIteration() || nullptr != global_best_ptr_,
+        "global_best_ptr_ is empty"
+    );
 
     // First update all positions
     for(std::size_t n = 0; n < n_neighborhoods_; n++) {
-#ifdef DEBUG
-        if(afterFirstIteration()) {
-            if(not neighborhood_bests_cnt_[n]) {
-                throw gem_exception(
-                    g_error_streamer() << "neighborhood_bests_cnt_[" << n << "] is empty." << '\n'
-                );
-            }
-
-            if(n == 0 && not global_best_ptr_) { // Only check for the first n
-                throw gem_exception(g_error_streamer() << "global_best_ptr_ is empty." << '\n');
-            }
-        }
-
-        // Check that the number if individuals in each neighborhoods has the expected value
-        if(n_neighborhood_members_cnt_[n] != default_n_neighborhood_members_) {
-            throw gem_exception(
-                g_error_streamer() << "Invalid number of members in neighborhood " << n << ": "
-                                   << n_neighborhood_members_cnt_[n] << '\n'
-            );
-        }
-#endif /* DEBUG */
+        checkThat(
+            not afterFirstIteration() || nullptr != neighborhood_bests_cnt_[n],
+            "neighborhood_bests_cnt_[",
+            n,
+            "] is empty"
+        );
+        checkThat(
+            n_neighborhood_members_cnt_[n] == default_n_neighborhood_members_,
+            "neighborhood ",
+            n,
+            " has ",
+            n_neighborhood_members_cnt_[n],
+            " members"
+        );
 
         for(std::size_t member = 0; member < n_neighborhood_members_cnt_[n]; member++) {
             auto current = start + neighborhood_offset;
@@ -843,36 +784,16 @@ void GSwarmAlgorithm::updateIndividualPositions(
     double const c_global = std::get<2>(constants);
     double const c_velocity = std::get<3>(constants);
 
-#ifdef DEBUG
-    // Do some error checking
-    if(not ind) {
-        throw gem_exception(g_error_streamer() << "Found empty individual \"ind\"" << '\n');
-    }
-#endif /* DEBUG */
+    checkThat(nullptr != ind, "Found empty individual \"ind\"");
 
     // Extract the personal best
     std::shared_ptr<gen::GGenome> const personal_best =
         ind->getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()->getPersonalBest();
 
     // Further error checks
-#ifdef DEBUG
-    if(not personal_best) {
-        throw gem_exception(
-            g_error_streamer() << "Found empty individual \"personal_best\"" << '\n'
-        );
-    }
-
-    if(not neighborhood_best) {
-        throw gem_exception(
-            g_error_streamer() << "Found empty individual \"neighborhood_best\"" << '\n'
-        );
-    }
-
-    if(not global_best) {
-        throw gem_exception(g_error_streamer() << "Found empty individual \"global_best\"" << '\n');
-    }
-
-#endif /* DEBUG */
+    checkThat(nullptr != personal_best, "Found empty individual \"personal_best\"");
+    checkThat(nullptr != neighborhood_best, "Found empty individual \"neighborhood_best\"");
+    checkThat(nullptr != global_best, "Found empty individual \"global_best\"");
 
     // The particle's velocity is a per-slot POD double block in its OA scratch (installed in init()).
     std::span<double> const velocity = ind->scratch().metaRecords<double>(AUXKEY_SWARM_VELOCITY);
@@ -1045,7 +966,7 @@ void GSwarmAlgorithm::evaluatePopulation_() {
 
     //--------------------------------------------------------------------------------
     // Take care of unprocessed items, if these exist
-    this->discardUnusableItems_(status, "GSwarmAlgorithm::evaluatePopulation_()");
+    this->discardUnusableItems_(status);
 
     //--------------------------------------------------------------------------------
     // Sort according to the individuals' neighborhoods
@@ -1080,20 +1001,17 @@ std::tuple<double, double> GSwarmAlgorithm::findBests() {
     auto const mode =
         this->at(0)->getMaxMode(); // We assume that the maxMode is the same for all individuals
 
-#ifdef DEBUG
-    for(auto const &[pos, ind_ptr] : *this | std::views::enumerate) {
-        if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Found individual in position " << pos << " in iteration "
-                << this->getIteration() << '\n'
-                << "which is unprocessed or has errors" << '\n'
-                << "is_due_for_processing() == " << ind_ptr->is_due_for_processing()
-                << ", has_errors() == " << ind_ptr->has_errors() << '\n'
-            );
-        }
-    }
-#endif /* DEBUG */
+    GEM_DEBUG_CHECK(
+        std::ranges::none_of(
+            *this,
+            [](auto const &ind_ptr) {
+                return ind_ptr->is_due_for_processing() || ind_ptr->has_errors();
+            }
+        ),
+        "an individual of iteration ",
+        this->getIteration(),
+        " is unprocessed or has errors"
+    );
 
     updateAllPersonalBests();
     sortNeighborhoodsAndUpdateBests(mode);
@@ -1321,18 +1239,15 @@ void GSwarmAlgorithm::adjustPopulation_() {
         }
     }
 
-#ifdef DEBUG
     // As the above switch statement is quite complicated, cross check that we now
     // indeed have at least the required number of individuals
-    if(this->size() < default_pop_size) {
-        throw gem_exception(
-            g_error_streamer() << "Expected at least a population size of " << default_pop_size
-                               << '\n'
-                               << "but found a size of " << this->size() << ", which is too small."
-                               << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        this->size() >= default_pop_size,
+        "population size ",
+        this->size(),
+        " < ",
+        default_pop_size
+    );
 
     // We do not initialize the neighborhood and global bests here, as this requires the value of
     // all individuals to be calculated.
@@ -1374,11 +1289,7 @@ void GSwarmAlgorithm::fillUpNeighborhood1() {
             this->insert(this->begin() + n, (*(this->begin() + n))->clone());
             // Make sure it has a unique value, if requested
             if(random_fill_up_) {
-#ifdef DEBUG
-                if(not(*(this->begin() + n + 1))) {
-                    throw gem_exception(g_error_streamer() << "Found empty position " << n << '\n');
-                }
-#endif /* DEBUG */
+                checkThat(nullptr != *(this->begin() + n + 1), "Found empty position ", n);
 
                 (*(this->begin() + n + 1))->randomInit(activityMode::ACTIVEONLY);
             }

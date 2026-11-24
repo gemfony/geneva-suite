@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/genome/GParameterPropertyParser.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
@@ -453,7 +454,7 @@ void GParameterPropertyParser::applyBoolFragment(
 /**
  * @brief Retrieve the number of "simple scan" items requested by the parsed string.
  *
- * In DEBUG builds this additionally guards against more than one simple-scan entry having
+ * This additionally guards against more than one simple-scan entry having
  * slipped through (which would be an internal inconsistency).
  *
  * @return The nItems of the (single) simple-scan entry, or 0 if no simple-scan entry was specified
@@ -463,15 +464,12 @@ std::size_t GParameterPropertyParser::getNSimpleScanItems() const {
         return static_cast<std::size_t>(0);
     }
     // Return the data of the first item
-#ifdef DEBUG
-    if(s_spec_vec_.size() > 1) {
-        throw gem_exception(
-            g_error_streamer() << "Found " << s_spec_vec_.size() << " simple scan entries where a"
-                               << '\n'
-                               << "maximum of 1 is allowed" << '\n'
-        );
-    }
-#endif
+    Gem::Common::checkThat(
+        s_spec_vec_.size() <= 1,
+        "Found ",
+        s_spec_vec_.size(),
+        " simple scan entries where at most 1 is allowed"
+    );
 
     return (s_spec_vec_.front()).nItems;
 }

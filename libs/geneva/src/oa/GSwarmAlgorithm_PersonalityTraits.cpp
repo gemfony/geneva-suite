@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
@@ -45,6 +46,8 @@ GEM_REGISTER_ARCHIVABLE(
 ) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 /** A short identifier suitable for storage in a std::map */
@@ -154,18 +157,8 @@ bool GSwarmAlgorithm_PersonalityTraits::checkNoPositionUpdateAndReset() {
 void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(
     const std::shared_ptr<gen::GGenome> &p
 ) {
-    // Some error checking
-#ifdef DEBUG
-    // Does it point anywhere ?
-    if(not p) {
-        throw gem_exception(g_error_streamer() << "Got empty smart pointer." << '\n');
-    }
-
-    // Is the dirty flag set ?
-    if(not p->is_processed()) {
-        throw gem_exception(g_error_streamer() << "Got individual which isn't processed." << '\n');
-    }
-#endif
+    checkThat(nullptr != p, "Got empty smart pointer.");
+    checkThat(p->is_processed(), "Got individual which isn't processed.");
 
     // Copy the personal_best_ vector over. The stored best is a bare individual carrying no personality
     // (it lives on the population slot), so there is no "chain" of individuals to break.
@@ -186,13 +179,7 @@ void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(
  * @return A shared pointer to the personally best individual
  */
 std::shared_ptr<gen::GGenome> GSwarmAlgorithm_PersonalityTraits::getPersonalBest() const {
-#ifdef DEBUG
-    if(not personal_best_) {
-        throw gem_exception(
-            g_error_streamer() << "Tried to retrieve personal_best_ while pointer is empty" << '\n'
-        );
-    }
-#endif
+    checkThat(nullptr != personal_best_, "Tried to retrieve personal_best_ while pointer is empty");
 
     return personal_best_;
 }

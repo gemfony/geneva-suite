@@ -119,7 +119,7 @@ bool GGenomeFixedSizePriorityQueue::isValid(const std::unique_ptr<GGenome> &item
 /******************************************************************************/
 /**
 	 * @brief Evaluates a single work item, so that it can be sorted. Note that this function
-	 * will throw in DEBUG mode, if the dirty flag of item is set. Note that the function
+	 * will throw if the dirty flag of item is set. Note that the function
 	 * uses the primary evaluation criterion only.
 	 *
 	 * @param item_ptr A constant reference to the individual to be evaluated

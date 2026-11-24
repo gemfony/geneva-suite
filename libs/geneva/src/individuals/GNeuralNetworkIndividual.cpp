@@ -27,6 +27,7 @@
  *
  ********************************************************************************/
 
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -628,13 +629,7 @@ void GNeuralNetworkIndividual::init(
     const double &min_ad_prob,
     const double &max_ad_prob
 ) {
-#ifdef DEBUG
-    if(not n_d_) {
-        throw gem_exception(
-            g_error_streamer() << "No network data appears to have been registered." << '\n'
-        );
-    }
-#endif /* DEBUG */
+    Gem::Common::checkThat(nullptr != n_d_, "No network data appears to have been registered.");
 
     // Build the flat weight genome for the network geometry held in the global data store, with the
     // supplied init range / Gauss settings. The genome construction is shared with the factory path

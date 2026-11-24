@@ -30,6 +30,7 @@
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
+#include "common/GChecks.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -70,6 +71,8 @@ GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GEvolutionaryAlgori
 /******************************************************************************/
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 using GType = GEvolutionaryAlgorithm;
 
@@ -190,14 +193,7 @@ void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_indivi
     constexpr bool donotreplace = false;
     constexpr bool replace = true;
 
-#ifdef DEBUG
-    if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer()
-            << "Tried to retrieve the best individuals even though the population is empty." << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(not this->empty(), "Tried to retrieve the best individuals of an empty population");
 
     switch(sorting_mode_) {
     case sortingMode::MUPLUSNU_SINGLEEVAL:
@@ -227,15 +223,7 @@ void GType::updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_ind
     constexpr bool donotreplace = false;
     constexpr bool replace = true;
 
-#ifdef DEBUG
-    if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer()
-            << "GEvolutionaryAlgorithm::updateIterationBestsPQ_() :" << '\n'
-            << "Tried to retrieve the best individuals even though the population is empty." << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(not this->empty(), "Tried to retrieve the best individuals of an empty population");
 
     switch(sorting_mode_) {
     case sortingMode::MUPLUSNU_SINGLEEVAL:
@@ -325,30 +313,31 @@ void GType::populationSanityChecks_() const {
 void GType::evaluatePopulation_() {
     const std::tuple<std::size_t, std::size_t> range = getEvaluationRange_();
 
-#ifdef DEBUG
-    for(std::size_t i = this->getNParents(); i < this->size(); i++) {
-        if(not this->at(i)->is_due_for_processing()) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to evaluate children in range " << std::get<0>(range)
-                                   << " - " << std::get<1>(range) << '\n'
-                                   << "but found \"clean\" individual in position " << i << '\n'
-            );
-        }
-    }
+    GEM_DEBUG_CHECK(
+        std::ranges::all_of(
+            *this | std::views::drop(this->getNParents()),
+            [](auto const &ind_ptr) { return ind_ptr->is_due_for_processing(); }
+        ),
+        "a child in range ",
+        std::get<0>(range),
+        " - ",
+        std::get<1>(range),
+        " is not due for processing"
+    );
 
     // The population may be larger than its size: the first iteration of a later algorithm of a
     // Go2 chain holds every individual the one before handed over, and selectBest_() reduces it.
-    if(this->size() < this->getDefaultPopulationSize()) {
-        throw gem_exception(
-            g_error_streamer() << "Size of data vector (" << this->size() << ") should be at least "
-                               << this->getDefaultPopulationSize() << '\n'
-        );
-    }
-#endif
+    checkThat(
+        this->size() >= this->getDefaultPopulationSize(),
+        "population size ",
+        this->size(),
+        " is smaller than ",
+        this->getDefaultPopulationSize()
+    );
 
     auto status = this->evaluatePopulationRange_(std::get<0>(range), std::get<1>(range));
 
-    this->discardUnusableItems_(status, "GEvolutionaryAlgorithm::evaluatePopulation_()");
+    this->discardUnusableItems_(status);
 
     fixAfterJobSubmission();
 }
@@ -356,16 +345,13 @@ void GType::evaluatePopulation_() {
 /******************************************************************************/
 
 void GType::selectBest_() {
-#ifdef DEBUG
-    if((this->size() - this->n_parents_) < this->default_n_children_) {
-        throw gem_exception(
-            g_error_streamer() << "Too few children. Got " << (this->size() - this->getNParents())
-                               << "," << '\n'
-                               << "but was expecting at least " << this->getDefaultNChildren()
-                               << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        this->size() - this->n_parents_ >= this->default_n_children_,
+        "Too few children: ",
+        this->size() - this->getNParents(),
+        " < ",
+        this->getDefaultNChildren()
+    );
 
     // Measure the offspring success rate (children vs. their OWN parent) NOW, while the population is
     // still laid out as parents [0, np) + children [np, size) -- i.e. before the sort below reorders
@@ -411,14 +397,13 @@ void GType::selectBest_() {
 
     this->markParents();
 
-#ifdef DEBUG
-    if(this->size() < this->getDefaultPopulationSize()) {
-        throw gem_exception(
-            g_error_streamer() << "Size of population is smaller than expected: " << this->size()
-                               << " / " << this->getDefaultPopulationSize() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        this->size() >= this->getDefaultPopulationSize(),
+        "population size ",
+        this->size(),
+        " is smaller than ",
+        this->getDefaultPopulationSize()
+    );
 
     this->resize(this->getNParents() + this->getDefaultNChildren());
 
