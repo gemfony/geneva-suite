@@ -2559,3 +2559,26 @@ TEST_CASE("writeToFile refuses a file it cannot write", "[plotting]") {
     CHECK(std::filesystem::file_size(file) == gpd.plot(file).size());
     std::filesystem::remove_all(dir);
 }
+
+/******************************************************************************/
+// ROOT puts an axis title at the far end of its axis. In a 3-d graph the x title then ran into the
+// colour palette of a projected surface and the y title into the tick labels of its own axis. The
+// titles of the two floor axes are centred and set further out.
+TEST_CASE("The floor-axis titles of a 3-d graph are centred and clear of the ticks", "[plotting]") {
+    for(const auto projection : {surfaceProjection::NONE, surfaceProjection::FLOOR}) {
+        auto g = std::make_shared<GGraph3D>();
+        for(int i = 0; i < 3; ++i) {
+            for(int j = 0; j < 3; ++j) {
+                (*g) & std::tuple<double, double, double>(i, j, i * j);
+            }
+        }
+        g->setSurfaceProjection(projection);
+        g->setXAxisLabel("input 1");
+        g->setYAxisLabel("input 2");
+        const std::string s = rootMacroOf(g);
+        CHECK(s.contains("->GetXaxis()->CenterTitle();"));
+        CHECK(s.contains("->GetYaxis()->CenterTitle();"));
+        CHECK(s.contains("->GetXaxis()->SetTitleOffset(2);"));
+        CHECK(s.contains("->GetYaxis()->SetTitleOffset(2.5);"));
+    }
+}

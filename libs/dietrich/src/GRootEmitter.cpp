@@ -74,6 +74,11 @@ using Gem::Common::to_string;
 
 namespace {
 
+/** @brief The offset of the x-axis title of a 3-d graph from its axis (ROOT's unit: the title size) */
+constexpr double GRAPH3DXTITLEOFFSET = 2.0;
+/** @brief The offset of the y-axis title of a 3-d graph; its tick labels stand further out */
+constexpr double GRAPH3DYTITLEOFFSET = 2.5;
+
 /******************************************************************************/
 /**
  * One series of a pad as the ROOT macro draws it: what its plotter reports -- its plot spec, its
@@ -630,13 +635,18 @@ std::string graph3DFooter(const rootSeries &s, const std::string &indent) {
     else {
         out << projectedSurface(s, graph, indent);
     }
+    // The titles of the two floor axes are centred on their axis and set clear of the tick labels:
+    // ROOT puts them at the far end of the axis by default, where the x title ran into the colour
+    // palette of a projected surface and the y title into the tick labels of its axis.
     out << indent << "gPad->Update();" << '\n'
         << indent << graph << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label) << "\");"
         << '\n'
-        << indent << graph << "->GetXaxis()->SetTitleOffset(1.5);" << '\n'
+        << indent << graph << "->GetXaxis()->CenterTitle();" << '\n'
+        << indent << graph << "->GetXaxis()->SetTitleOffset(" << GRAPH3DXTITLEOFFSET << ");" << '\n'
         << indent << graph << "->GetYaxis()->SetTitle(\"" << rootEscape(s.spec.y_label) << "\");"
         << '\n'
-        << indent << graph << "->GetYaxis()->SetTitleOffset(1.5);" << '\n'
+        << indent << graph << "->GetYaxis()->CenterTitle();" << '\n'
+        << indent << graph << "->GetYaxis()->SetTitleOffset(" << GRAPH3DYTITLEOFFSET << ");" << '\n'
         << indent << graph << "->GetZaxis()->SetTitle(\"" << rootEscape(s.spec.z_label) << "\");"
         << '\n'
         << indent << graph << "->GetZaxis()->SetTitleOffset(1.5);" << '\n'
