@@ -51,6 +51,7 @@
 #include <vector>
 
 // Other Geneva headers whose symbols are used directly
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -337,14 +338,7 @@ std::string trimWhitespace(std::string_view s) {
 std::vector<std::string> splitString(std::string const &str, const char *sep) {
     std::vector<std::string> result;
 
-#ifdef DEBUG
-    if(1 != std::string(sep).size()) {
-        throw gem_exception(
-            g_error_streamer() << "Supplied separator \"" << sep << "\" has invalid size "
-                               << std::string(sep).size() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(1 == std::string(sep).size(), "separator \"", sep, "\" is not one character");
 
     const char sep_char = sep[0];
     const std::string_view sv{str};

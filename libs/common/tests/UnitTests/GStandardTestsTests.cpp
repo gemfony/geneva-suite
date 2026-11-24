@@ -76,10 +76,7 @@ public:
 
 protected:
     void load_(const Root *cp) override {
-        ptrDifferenceCheck(
-            cp,
-            this
-        ); // loading from itself throws in DEBUG mode, as in generated load_()s
+        ptrDifferenceCheck(cp, this); // loading from itself throws, as in generated load_()s
         v_ = cp->v_;
     }
 

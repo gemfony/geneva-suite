@@ -43,6 +43,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
@@ -314,6 +315,8 @@ public:
      * @param begin An iterator to the first item of the range to be moved in
      * @param end An iterator one past the last item of the range to be moved in
      * @param replace If true, the queue is emptied before the new items are added
+     * @throw gem_exception if not one item of a non-empty range is admissible (typically a
+     * population handed over before it was evaluated)
      */
     template <std::input_iterator it_type>
         requires std::same_as<std::iter_value_t<it_type>, StoredType>
@@ -328,7 +331,12 @@ public:
                 ++accepted;
             }
         }
-        checkBulkYield_(offered, accepted, "add(range)");
+        checkThat(
+            0 == offered || 0 != accepted,
+            "none of the ",
+            offered,
+            " supplied items was admissible"
+        );
         finalize_();
     }
 
@@ -348,6 +356,8 @@ public:
      * @param begin An iterator to the first item of the range to be copied in
      * @param end An iterator one past the last item of the range to be copied in
      * @param replace If true, the queue is emptied before the new items are added
+     * @throw gem_exception if not one item of a non-empty range is admissible (typically a
+     * population handed over before it was evaluated)
      */
     template <std::input_iterator it_type>
         requires std::same_as<std::iter_value_t<it_type>, StoredType>
@@ -362,7 +372,12 @@ public:
                 ++accepted;
             }
         }
-        checkBulkYield_(offered, accepted, "addClone(range)");
+        checkThat(
+            0 == offered || 0 != accepted,
+            "none of the ",
+            offered,
+            " supplied items was admissible"
+        );
         finalize_();
     }
 
@@ -749,34 +764,6 @@ private:
     void refreshWorstAdmitted_() {
         worst_admitted_ = data_cnt_.empty() ? Gem::Common::getWorstCase<double>(sort_order_)
                                             : this->evaluation(data_cnt_.back());
-    }
-
-    /***************************************************************************/
-    /**
-     * @brief In DEBUG builds, reports a bulk insertion that admitted nothing
-     *
-     * A caller that hands over a non-empty batch of which not one item is admissible
-     * has a problem of its own (typically a population handed to the archive before it
-     * was evaluated). Release builds simply skip the items.
-     *
-     * @param offered The number of items the caller supplied
-     * @param accepted The number of items that passed isValid()
-     * @param where The name of the calling overload, for the error message
-     */
-    void checkBulkYield_(
-        [[maybe_unused]] std::size_t offered,
-        [[maybe_unused]] std::size_t accepted,
-        [[maybe_unused]] char const *where
-    ) const {
-#ifdef DEBUG
-        if(offered > 0 && 0 == accepted) {
-            throw gem_exception(
-                g_error_streamer()
-                << "In GFixedSizePriorityQueueT<T>::" << where << ": Error!" << '\n'
-                << "None of the " << offered << " supplied items was admissible." << '\n'
-            );
-        }
-#endif /* DEBUG */
     }
 
     /***************************************************************************/

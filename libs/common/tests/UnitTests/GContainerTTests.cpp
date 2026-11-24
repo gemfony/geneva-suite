@@ -718,16 +718,13 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::deque backend", "[GContain
         CHECK_THROWS(a.compare_base(b, Gem::Common::expectation::EQUALITY, 0.0));
     }
 
-    SECTION("crossOver — invalid position throws in debug build") {
+    SECTION("crossOver — invalid position throws") {
         ConcretePodDeque a;
         a.assign({1, 2, 3});
         ConcretePodDeque b;
         b.assign({4, 5, 6});
-#ifdef DEBUG
         CHECK_THROWS_AS(a.crossOver(b, 3), gem_exception);
-#else
         CHECK_NOTHROW(a.crossOver(b, 2));
-#endif
     }
 
     SECTION("crossOver — this longer than cp") {
@@ -1127,11 +1124,8 @@ TEST_CASE(
         ConcretePtrVec b;
         b.push_back_noclone(std::make_shared<TestBase>(4));
         b.push_back_noclone(std::make_shared<TestBase>(5));
-#ifdef DEBUG
         CHECK_THROWS_AS(a.crossOver(b, 2), gem_exception);
-#else
         CHECK_NOTHROW(a.crossOver(b, 1));
-#endif
     }
 
     SECTION("crossOver — cp longer than this") {
@@ -1535,19 +1529,15 @@ TEST_CASE("GContainerT: edge cases", "[GContainerT][edge]") {
         CHECK_FALSE(Gem::Common::HasFrontInsertion<std::vector<int>>);
     }
 
-    SECTION("crossOver — invalid position throws in debug build") {
+    SECTION("crossOver — invalid position throws") {
         ConcretePodVec a;
         a.assign({1, 2, 3});
         ConcretePodVec b;
         b.assign({4, 5, 6});
-#ifdef DEBUG
-        // pos >= minSize(3) must throw in debug builds
+        // pos >= minSize(3) must throw
         CHECK_THROWS_AS(a.crossOver(b, 3), gem_exception);
         CHECK_THROWS_AS(a.crossOver(b, 99), gem_exception);
-#else
-        // In release builds the guard is compiled out; just verify no crash at boundary
         CHECK_NOTHROW(a.crossOver(b, 2));
-#endif
     }
 
     SECTION("SharedPtrStorage emplaceBack not available — checked via type trait") {

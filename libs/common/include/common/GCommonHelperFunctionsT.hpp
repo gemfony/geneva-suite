@@ -61,6 +61,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -314,9 +315,9 @@ std::optional<target_type> environmentVariableAs(std::string const &var) {
 
 /******************************************************************************/
 /**
- * @brief In debug builds, throws if two raw pointers alias the same object.
+ * @brief Throws if two raw pointers alias the same object.
  *
- * No-op for nullptr p1, and a no-op entirely in release builds.
+ * No-op for nullptr p1.
  *
  * @tparam T The pointee type
  * @param p1 The first pointer (the check is skipped when this is nullptr)
@@ -324,17 +325,13 @@ std::optional<target_type> environmentVariableAs(std::string const &var) {
  */
 template <typename T>
 void ptrDifferenceCheck(const T *p1, const T *p2) {
-#ifdef DEBUG
-    if(nullptr != p1 && p1 == p2) {
-        throw gem_exception(g_error_streamer() << "p1 and p2 point to the same object!" << '\n');
-    }
-#endif
+    checkThat(nullptr == p1 || p1 != p2, "p1 and p2 point to the same object");
 }
 
 /******************************************************************************/
 /**
- * @brief Shared-pointer overload: in debug builds, throws if both non-null
- * shared pointers alias the same object.
+ * @brief Shared-pointer overload: throws if both non-null shared pointers alias
+ * the same object.
  *
  * @tparam T The pointee type
  * @param p1 The first shared pointer (the check is skipped when this is empty)
@@ -342,46 +339,34 @@ void ptrDifferenceCheck(const T *p1, const T *p2) {
  */
 template <typename T>
 void ptrDifferenceCheck(const std::shared_ptr<T> &p1, const std::shared_ptr<T> &p2) {
-#ifdef DEBUG
-    if(p1 && p1.get() == p2.get()) {
-        throw gem_exception(
-            g_error_streamer() << "Smart pointers p1 and p2 point to the same object!" << '\n'
-        );
-    }
-#endif
+    checkThat(not p1 || p1.get() != p2.get(), "smart pointers p1 and p2 point to the same object");
 }
 
 /******************************************************************************/
 /**
  * Converts a raw base pointer to target_type*. The `requires` clause restricts
- * the template to *downcasts* (target_type must derive from base_type), so
- * this is a checked dynamic_cast in DEBUG and an unchecked static_cast in
- * release. Returns nullptr unchanged. Throws in DEBUG on a failed cast.
- * (The previous comment "upcasts only" was inverted — a derived-from base
- * cast is a downcast.)
+ * the template to *downcasts* (target_type must derive from base_type). The
+ * conversion is a static_cast; without NDEBUG a dynamic_cast checks it first
+ * (GEM_DEBUG_CHECK: a dynamic_cast on every conversion would count in a release
+ * build). Returns nullptr unchanged.
  *
  * @tparam base_type The source (base) pointer type
  * @tparam target_type The target (derived) pointer type; must derive from base_type
  * @param convert_ptr The base pointer to convert (nullptr is returned unchanged)
  * @return convert_ptr converted to const target_type*, or nullptr if the input was nullptr
- * @throws gem_exception in DEBUG builds if the dynamic_cast fails
+ * @throws gem_exception without NDEBUG if the dynamic type is not target_type
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
 const target_type *g_ptr_conversion(const base_type *convert_ptr) {
-#ifdef DEBUG
-    const auto *p = dynamic_cast<const target_type *>(convert_ptr);
-    if(nullptr == convert_ptr || p) {
-        return p;
-    }
-    throw gem_exception(
-        g_error_streamer() << "invalid conversion from " << typeid(base_type).name() << " to "
-                           << typeid(target_type).name() << '\n'
+    GEM_DEBUG_CHECK(
+        nullptr == convert_ptr || nullptr != dynamic_cast<const target_type *>(convert_ptr),
+        "invalid conversion from ",
+        typeid(base_type).name(),
+        " to ",
+        typeid(target_type).name()
     );
-    return nullptr;
-#else
     return static_cast<const target_type *>(convert_ptr);
-#endif
 }
 
 /******************************************************************************/
@@ -392,23 +377,19 @@ const target_type *g_ptr_conversion(const base_type *convert_ptr) {
  * @tparam target_type The target (derived) pointee type; must derive from base_type
  * @param convert_ptr The base shared pointer to convert (empty is returned unchanged)
  * @return convert_ptr converted to std::shared_ptr<target_type>, or empty if the input was empty
- * @throws gem_exception in DEBUG builds if the dynamic_pointer_cast fails
+ * @throws gem_exception without NDEBUG if the dynamic type is not target_type
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
 std::shared_ptr<target_type> g_ptr_conversion(const std::shared_ptr<base_type> &convert_ptr) {
-#ifdef DEBUG
-    auto p = std::dynamic_pointer_cast<target_type>(convert_ptr);
-    if(nullptr == convert_ptr.get() || p) {
-        return p;
-    }
-    throw gem_exception(
-        g_error_streamer() << "invalid conversion from " << typeid(base_type).name() << " to "
-                           << typeid(target_type).name() << '\n'
+    GEM_DEBUG_CHECK(
+        not convert_ptr || nullptr != dynamic_cast<target_type *>(convert_ptr.get()),
+        "invalid conversion from ",
+        typeid(base_type).name(),
+        " to ",
+        typeid(target_type).name()
     );
-#else
     return std::static_pointer_cast<target_type>(convert_ptr);
-#endif
 }
 
 /******************************************************************************/
@@ -423,7 +404,7 @@ std::shared_ptr<target_type> g_ptr_conversion(const std::shared_ptr<base_type> &
  * @param convert_ptr The base shared pointer to convert
  * @param compare_ptr The shared pointer that convert_ptr must not alias
  * @return convert_ptr converted to std::shared_ptr<target_type>
- * @throws gem_exception in DEBUG builds on a failed conversion or on aliasing
+ * @throws gem_exception on aliasing, and without NDEBUG on a failed conversion
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -445,7 +426,7 @@ std::shared_ptr<target_type> g_convert_and_compare(
  * @param convert_ptr The base pointer to convert
  * @param compare_ptr The pointer that convert_ptr must not alias
  * @return convert_ptr converted to const target_type*
- * @throws gem_exception in DEBUG builds on a failed conversion or on aliasing
+ * @throws gem_exception on aliasing, and without NDEBUG on a failed conversion
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -465,7 +446,7 @@ g_convert_and_compare(const base_type *convert_ptr, const target_type *compare_p
  * @param convert_ref The base reference whose address is converted
  * @param compare_ptr The pointer that the converted address must not alias
  * @return The address of convert_ref converted to const target_type*
- * @throws gem_exception in DEBUG builds on a failed conversion or on aliasing
+ * @throws gem_exception on aliasing, and without NDEBUG on a failed conversion
  */
 template <typename base_type, typename target_type>
     requires std::derived_from<target_type, base_type>
@@ -749,7 +730,7 @@ std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
  * @param sep1 The outer separator splitting raw into fragments (must differ from sep2)
  * @param sep2 The inner separator splitting each fragment into its two sub-fields
  * @return A vector of (split1_type, split2_type) tuples
- * @throws gem_exception if sep1 and sep2 are identical, or (DEBUG) if a fragment lacks exactly two sub-fields
+ * @throws gem_exception if sep1 and sep2 are identical, or if a fragment lacks exactly two sub-fields
  */
 template <typename split1_type, typename split2_type>
 std::vector<std::tuple<split1_type, split2_type>>
@@ -764,13 +745,7 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
     std::vector<std::tuple<split1_type, split2_type>> result;
     for(const auto &fragment : Gem::Common::splitString(raw, sep1)) {
         const auto sub = Gem::Common::splitString(fragment, sep2);
-#ifdef DEBUG
-        if(2 != sub.size()) {
-            throw gem_exception(
-                g_error_streamer() << "expected 2 sub-fragments, got " << sub.size() << '\n'
-            );
-        }
-#endif
+        checkThat(2 == sub.size(), "fragment \"", fragment, "\" lacks two sub-fields");
         result.emplace_back(
             Gem::Common::from_string<split1_type>(sub[0]),
             Gem::Common::from_string<split2_type>(sub[1])

@@ -884,3 +884,21 @@ TEST_CASE(
     CHECK(pq.best()->value() == 2.0);
     CHECK(pq.worst()->value() == 5.0);
 }
+
+TEST_CASE(
+    "GFixedSizePriorityQueueT: a bulk insertion that admits nothing of a non-empty range throws",
+    "[common][priority-queue]"
+) {
+    GatedPQ pq(10);
+
+    std::vector<std::unique_ptr<TestItem>> rejected;
+    rejected.push_back(std::make_unique<TestItem>(-3.0));
+    rejected.push_back(std::make_unique<TestItem>(-4.0));
+    CHECK_THROWS_AS(pq.addClone(rejected, /*replace=*/false), gem_exception);
+    CHECK_THROWS_AS(pq.add(std::move(rejected), /*replace=*/false), gem_exception);
+
+    // An empty range admits nothing and is no error
+    std::vector<std::unique_ptr<TestItem>> none;
+    CHECK_NOTHROW(pq.addClone(none, /*replace=*/false));
+    CHECK(pq.empty());
+}

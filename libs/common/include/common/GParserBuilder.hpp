@@ -47,6 +47,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <source_location>
 #include <sstream>
 #include <string>
 #include <type_traits>
@@ -64,6 +65,7 @@
 #include <boost/program_options.hpp>
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
@@ -2076,13 +2078,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-#ifdef DEBUG
-        assertNotRegistered_(
-            option_name,
-            file_parameter_proxies_,
-            "registerFileParameter(single_parm_ptr)"
-        );
-#endif /* DEBUG */
+        checkNotRegistered_(option_name, file_parameter_proxies_);
 
         // Always route through the full constructor: the comment may legitimately be empty, but the
         // caller's is_essential choice must never be dropped (the comment-less constructor hardcodes
@@ -2192,13 +2188,7 @@ public:
         std::string const &comment1 = std::string(),
         std::string const &comment2 = std::string()
     ) {
-#ifdef DEBUG
-        assertNotRegistered_(
-            option_name1,
-            file_parameter_proxies_,
-            "registerFileParameter(comb_parm_ptr)"
-        );
-#endif /* DEBUG */
+        checkNotRegistered_(option_name1, file_parameter_proxies_);
 
         // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
         // empty comments must not drop the caller's is_essential choice.
@@ -2276,13 +2266,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-#ifdef DEBUG
-        assertNotRegistered_(
-            option_name,
-            file_parameter_proxies_,
-            "registerFileParameter(vec_parm_ptr)"
-        );
-#endif /* DEBUG */
+        checkNotRegistered_(option_name, file_parameter_proxies_);
 
         // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
         // an empty comment must not drop the caller's is_essential choice.
@@ -2384,13 +2368,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-#ifdef DEBUG
-        assertNotRegistered_(
-            option_name,
-            file_parameter_proxies_,
-            "registerFileParameter(array_parm_ptr)"
-        );
-#endif /* DEBUG */
+        checkNotRegistered_(option_name, file_parameter_proxies_);
 
         std::shared_ptr<GFileArrayParsableParameterT<parameter_type, N>> array_parm_ptr;
 
@@ -2500,13 +2478,7 @@ public:
         bool implicit_allowed = GCL_IMPLICIT_NOT_ALLOWED,
         const parameter_type &impl_val = GDefaultValueT<parameter_type>::value()
     ) {
-#ifdef DEBUG
-        assertNotRegistered_(
-            option_name,
-            cl_parameter_proxies_,
-            "registerCLParameter(ref_parm_ptr)"
-        );
-#endif /* DEBUG */
+        checkNotRegistered_(option_name, cl_parameter_proxies_);
 
         std::shared_ptr<GCLReferenceParsableParameterT<parameter_type>> ref_parm_ptr;
 
@@ -2551,9 +2523,7 @@ public:
         std::vector<parameter_type> &values,
         std::string const &comment = std::string()
     ) {
-#ifdef DEBUG
-        assertNotRegistered_(option_name, cl_parameter_proxies_, "registerCLRepeatableParameter()");
-#endif /* DEBUG */
+        checkNotRegistered_(option_name, cl_parameter_proxies_);
         namespace po = boost::program_options;
         return addCLProxy_(std::make_shared<GCLSemanticParsableParameter>(
             option_name,
@@ -2594,27 +2564,24 @@ private:
     }
 
     /***************************************************************************/
-    /** @brief DEBUG-build helper shared by every registration overload: throws if an option of
-     *  the given name was already registered in @p proxies (formerly an identical 15-line
-     *  \#ifdef DEBUG block per overload).
+    /** @brief The check shared by every registration overload: throws if an option of the given
+     *  name was already registered in @p proxies.
      *  @tparam proxy_vector_type The proxy-vector type (file or command-line proxies)
      *  @param option_name The (first) option name about to be registered
-     *  @param proxies The proxy store to check for a duplicate
-     *  @param caller The registering overload, used in the error message */
+     *  @param proxies The proxy store to look in
+     *  @param place The place of the registration (defaulted to the caller's location) */
     template <typename proxy_vector_type>
-    static void assertNotRegistered_(
+    static void checkNotRegistered_(
         std::string const &option_name,
         proxy_vector_type const &proxies,
-        char const *caller
+        std::source_location const &place = std::source_location::current()
     ) {
-        auto it = findProxyByName_(proxies, option_name);
-        if(it != proxies.end()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "In GParserBuilder::" << caller << ": Error!" << '\n'
-                << "Parameter " << option_name << " has already been registered" << '\n'
-            );
-        }
+        checkThat(
+            GCheckCondition(findProxyByName_(proxies, option_name) == proxies.end(), place),
+            "Parameter ",
+            option_name,
+            " has already been registered"
+        );
     }
 
     /***************************************************************************/

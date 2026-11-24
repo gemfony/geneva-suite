@@ -101,8 +101,8 @@ public:
         Gem::Common::serializationMode ser_mod
     ) {
         // With deducing this, `self` already IS the most-derived caller object, so taking its address
-        // yields a g_class_type pointer by an implicit, compile-time-checked upcast -- no runtime
-        // dynamic_cast (DEBUG) / unchecked static_cast (release) fork is needed. (De-)serialization
+        // yields a g_class_type pointer by an implicit, compile-time-checked upcast -- no checked
+        // downcast (g_ptr_conversion) is needed. (De-)serialization
         // still travels through a g_class_type pointer, so the archive bytes are identical to before.
         const g_class_type *local = &self;
 

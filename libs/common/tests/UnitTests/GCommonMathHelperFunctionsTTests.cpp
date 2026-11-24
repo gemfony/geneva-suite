@@ -142,15 +142,10 @@ TEST_CASE(
     }
 }
 
-#ifdef DEBUG
-TEST_CASE(
-    "grational_sigmoid: zero steepness throws in DEBUG mode",
-    "[common][math][grational_sigmoid]"
-) {
+TEST_CASE("grational_sigmoid: zero steepness throws", "[common][math][grational_sigmoid]") {
     REQUIRE_THROWS_AS(Gem::Common::grational_sigmoid(1., 10., 0.), gem_exception);
     REQUIRE_THROWS_AS(Gem::Common::grational_sigmoid(1., 10., -1.), gem_exception);
 }
-#endif
 
 // --- enforceRangeConstraint ----------------------------------------------
 
@@ -427,11 +422,9 @@ TEST_CASE("GMean: constant vector returns the constant", "[common][math][GMean]"
     REQUIRE(Gem::Common::GMean(v) == Approx(4.2));
 }
 
-#ifdef DEBUG
-TEST_CASE("GMean: empty vector throws in DEBUG mode", "[common][math][GMean]") {
+TEST_CASE("GMean: empty vector throws", "[common][math][GMean]") {
     REQUIRE_THROWS_AS(Gem::Common::GMean(std::vector<double>{}), gem_exception);
 }
-#endif
 
 // --- GStandardDeviation --------------------------------------------------
 
@@ -511,19 +504,17 @@ TEST_CASE(
     }
 }
 
-#ifdef DEBUG
-TEST_CASE("subtractVec: size mismatch throws in DEBUG", "[common][math][subtractVec]") {
+TEST_CASE("subtractVec: size mismatch throws", "[common][math][subtractVec]") {
     std::vector<double> a{1., 2.};
     std::vector<double> b{3., 4., 5.};
     REQUIRE_THROWS_AS(Gem::Common::subtractVec(a, b), gem_exception);
 }
 
-TEST_CASE("addVec: size mismatch throws in DEBUG", "[common][math][addVec]") {
+TEST_CASE("addVec: size mismatch throws", "[common][math][addVec]") {
     std::vector<double> a{1., 2.};
     std::vector<double> b{3.};
     REQUIRE_THROWS_AS(Gem::Common::addVec(a, b), gem_exception);
 }
-#endif
 
 // --- multVecConst / assignVecConst ---------------------------------------
 

@@ -133,23 +133,18 @@ TEST_CASE(
     REQUIRE_NOTHROW(Gem::Common::ptrDifferenceCheck<int>(nullptr, &a));
 }
 
-#ifdef DEBUG
-TEST_CASE(
-    "ptrDifferenceCheck raw: same pointer throws in DEBUG",
-    "[common][helper][ptrDifferenceCheck]"
-) {
+TEST_CASE("ptrDifferenceCheck raw: same pointer throws", "[common][helper][ptrDifferenceCheck]") {
     int a = 1;
     REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(&a, &a), gem_exception);
 }
 
 TEST_CASE(
-    "ptrDifferenceCheck shared_ptr: aliasing shared_ptrs throw in DEBUG",
+    "ptrDifferenceCheck shared_ptr: aliasing shared_ptrs throw",
     "[common][helper][ptrDifferenceCheck]"
 ) {
     auto p = std::make_shared<int>(42);
     REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(p, p), gem_exception);
 }
-#endif
 
 TEST_CASE(
     "ptrDifferenceCheck shared_ptr: distinct objects do not throw",
@@ -179,9 +174,9 @@ TEST_CASE("g_ptr_conversion raw: null input returns null", "[common][helper][g_p
     REQUIRE(p == nullptr);
 }
 
-#ifdef DEBUG
+#ifndef NDEBUG // the dynamic type is checked by GEM_DEBUG_CHECK
 TEST_CASE(
-    "g_ptr_conversion raw: wrong dynamic type throws in DEBUG",
+    "g_ptr_conversion raw: wrong dynamic type throws without NDEBUG",
     "[common][helper][g_ptr_conversion]"
 ) {
     TOther other;
@@ -210,9 +205,9 @@ TEST_CASE(
     REQUIRE(result == nullptr);
 }
 
-#ifdef DEBUG
+#ifndef NDEBUG // the dynamic type is checked by GEM_DEBUG_CHECK
 TEST_CASE(
-    "g_ptr_conversion shared_ptr: wrong dynamic type throws in DEBUG",
+    "g_ptr_conversion shared_ptr: wrong dynamic type throws without NDEBUG",
     "[common][helper][g_ptr_conversion]"
 ) {
     auto sp = std::make_shared<TOther>();
@@ -278,6 +273,16 @@ TEST_CASE(
 
 TEST_CASE("splitStringT two-sep: identical separators throw", "[common][helper][splitStringT2]") {
     REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1", "/", "/")), gem_exception);
+}
+
+// A fragment without its second sub-field was indexed past the end in a release build (the check
+// was compiled only in DEBUG builds); it now throws in every build.
+TEST_CASE(
+    "splitStringT two-sep: a fragment without two sub-fields throws",
+    "[common][helper][splitStringT2]"
+) {
+    REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1 2", " ", "/")), gem_exception);
+    REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1/2", " ", "/")), gem_exception);
 }
 
 // --- getMapItem ----------------------------------------------------------
