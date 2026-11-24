@@ -47,10 +47,6 @@
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GAntColonyOptimization) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -513,63 +509,14 @@ std::tuple<double, double> GAntColonyOptimization::cycleLogic_() {
 
 /******************************************************************************/
 /**
- * Applies modifications to this object. This is needed for testing purposes.
+ * Changes this algorithm for the standard tests: the base's change and its archive size.
+ *
+ * @return Whether the algorithm was changed (always true)
  */
-bool GAntColonyOptimization::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    if(GOptimizationAlgorithmBase::modifyForTest()) {
-        result = true;
-    }
-
+bool GAntColonyOptimization::modifyForTest() {
+    GOptimizationAlgorithmBase::modifyForTest();
     this->setArchiveSize(this->getArchiveSize() + 1);
-    result = true;
-
-    return result;
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GAntColonyOptimization::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * Performs self tests that are expected to succeed. This is needed for testing purposes.
- */
-// NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- self-test entry point for GAntColonyOptimization: a sequence of independent, self-scoped CHECK blocks, one per ACO strategy-parameter/operator scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-void GAntColonyOptimization::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    { // Test setting and retrieval of basic strategy parameters
-        auto const p_test = this->clone<GAntColonyOptimization>();
-
-        CHECK_NOTHROW(p_test->setArchiveSize(25));
-        CHECK(p_test->getArchiveSize() == 25);
-
-        CHECK_NOTHROW(p_test->setNAnts(4));
-        CHECK(p_test->getNAnts() == 4);
-
-        CHECK_NOTHROW(p_test->setQ(0.5));
-        CHECK(p_test->getQ() == 0.5);
-
-        CHECK_NOTHROW(p_test->setXi(0.7));
-        CHECK(p_test->getXi() == 0.7);
-    }
-
-    { // Setting invalid strategy parameters must throw
-        auto const p_test = this->clone<GAntColonyOptimization>();
-        CHECK_THROWS(p_test->setArchiveSize(1)); // need at least 2 archive members
-        CHECK_THROWS(p_test->setNAnts(0));       // need at least 1 ant
-        CHECK_THROWS(p_test->setQ(0.));          // q must be > 0
-        CHECK_THROWS(p_test->setXi(-1.));        // xi must be > 0
-    }
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GAntColonyOptimization::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

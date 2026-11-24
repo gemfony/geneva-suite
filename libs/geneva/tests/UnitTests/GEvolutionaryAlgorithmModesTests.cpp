@@ -53,6 +53,7 @@
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeMultiConstraint.hpp"
 #include "geneva/genome/GGenomeT.hpp"
+#include "geneva/individuals/GTestIndividual1.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GBasePluggableOM.hpp"
@@ -537,3 +538,37 @@ TEST_CASE("ea MUNU1PRETAIN never loses its best parent", "[ea][oa]") {
     }
     CHECK(n_worse == 0);
 }
+
+/******************************************************************************/
+
+TEST_CASE(
+    "GEvolutionaryAlgorithm: the population sizes split into parents and children",
+    "[geneva][ea]"
+) {
+    oa::GEvolutionaryAlgorithm ea;
+
+    // Replaces the population by n randomly initialised test individuals
+    auto const fill = [&ea](std::size_t n_individuals) {
+        CHECK_NOTHROW(ea.clear());
+        for(std::size_t i = 0; i < n_individuals; i++) {
+            ea.push_back(std::make_unique<Gem::Geneva::Individuals::GTestIndividual1>());
+        }
+        for(auto const &ind_ptr : ea) {
+            ind_ptr->randomInit(activityMode::ALLPARAMETERS);
+        }
+    };
+
+    fill(100);
+    CHECK(ea.size() == 100);
+
+    for(std::size_t n_children = 5; n_children < 10; n_children++) {
+        for(std::size_t n_parents = 1; n_parents < n_children; n_parents++) {
+            fill(n_parents + n_children);
+            CHECK_NOTHROW(ea.setPopulationSizes(n_parents + n_children, n_parents));
+            CHECK(ea.getNParents() == n_parents);
+            CHECK(ea.getNChildren() == n_children);
+        }
+    }
+}
+
+/******************************************************************************/

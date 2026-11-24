@@ -50,11 +50,6 @@
 #include "geneva/oa/GParChild.hpp"
 #include "geneva/oa/GTunableManifest.hpp"
 
-#ifdef GEM_TESTING
-#include "common/GSelfTestable.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
-#endif /* GEM_TESTING */
-
 namespace Gem::Geneva::OptimizationAlgorithms {
 /**
  * The default sorting mode (matches the classic EA)
@@ -210,8 +205,7 @@ constexpr auto DEFAULTEASORTINGMODE = sortingMode::MUCOMMANU_SINGLEEVAL;
  */
 //! [geneva.oa.identifiers]
 class GEvolutionaryAlgorithm // NOLINT(cppcoreguidelines-special-member-functions)
-  : public GOptimizationAlgorithmT<GEvolutionaryAlgorithm, GParChild>
-  , public Gem::Common::GSelfTestable {
+  : public GOptimizationAlgorithmT<GEvolutionaryAlgorithm, GParChild> {
 public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GEvolutionaryAlgorithm";
@@ -302,6 +296,10 @@ public:
         return inline_evaluation_;
     }
 
+    /** @brief Changes this algorithm for the standard tests: the base's change and its sorting scheme.
+     *  @return Whether the algorithm was changed (always true) */
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
@@ -320,10 +318,6 @@ protected:
     /** @brief Recombination + (optionally) intermediate sigma-recombination of children. */
     void recombine() override;
 
-    /** @brief Applies modifications to this object */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
     /***************************************************************************/
 
 private:
@@ -379,8 +373,6 @@ private:
      *  the shared OptimizationAlgorithms::nonDominatedRank). @param include_parents true for mu+nu (parents
      *  and children compete), false for mu,nu (only children). */
     void selectParetoParents(bool include_parents);
-
-    void fillWithObjects(const std::size_t &n_individuals);
 
     /***************************************************************************/
     // Local data

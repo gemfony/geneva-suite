@@ -51,6 +51,7 @@ SET ( ${EXECUTABLENAME}_SRCS
 	GLateReturnIntegrationTests.cpp
 	GFaultInjectorTests.cpp
 	GNeuralNetworkDataTests.cpp
+	GPersonalityTraitsTests.cpp
 	GSepCmaEvolutionStrategyTests.cpp
 	GTestIndividualsTests.cpp
 )

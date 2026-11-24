@@ -38,7 +38,6 @@
 
 // Geneva headers go here
 #include "common/GReflectiveInterfaceT.hpp"
-#include "common/GSelfTestable.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -48,7 +47,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * The shared intermediate base of every personality-traits class whose only per-algorithm state is
  * the individual's POSITION in the population (its slot / vertex / particle / ant index). It owns the
  * position member, its accessors, the serialization, the load_()/compare_() machinery and the
- * GEM_TESTING bodies -- stated ONCE; a concrete traits class on top supplies only its identity
+ * change for the standard tests -- stated ONCE; a concrete traits class on top supplies only its identity
  * (nickname / getMnemonic() / name_() / clone_() and its serialization export). Before this base
  * existed, six algorithm traits classes carried near-byte-identical copies of all of it, and the
  * parent-child traits a seventh.
@@ -58,8 +57,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * to one another merely because they share this base.
  */
 class GPositionPersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceBaseT<GPositionPersonalityTraits, GPersonalityTraits>
-  , public Gem::Common::GSelfTestable {
+  : public Gem::Common::GReflectiveInterfaceBaseT<GPositionPersonalityTraits, GPersonalityTraits> {
     ///////////////////////////////////////////////////////////////////////
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceBaseT base reach this class's
     // localMembers_() (pop_pos_); this abstract base is never reconstructed on load.
@@ -92,6 +90,11 @@ public:
         return pop_pos_;
     }
 
+    /** @brief Changes these traits for the standard tests: the population position. Traits that add
+     *  members call this function and change their own.
+     *  @return Whether the traits were changed (always true) */
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     /** @brief Single declaration of this class'es local data members */
@@ -108,10 +111,6 @@ protected:
     // on its concrete type, so g_convert_and_compare already rejects a foreign
     // traits type; this base slice only handles pop_pos_.
 
-    /**
-     * @brief Applies modifications to this object. This is needed for testing purposes.
-     */
-    bool modify_GUnitTests_() override;
     /***************************************************************************/
 
 private:

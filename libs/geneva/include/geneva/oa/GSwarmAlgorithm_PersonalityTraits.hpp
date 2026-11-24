@@ -38,7 +38,6 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "common/GSelfTestable.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/genome/GGenome.hpp"
 
@@ -50,8 +49,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * to swarm optimization.
  */
 class GSwarmAlgorithm_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GSwarmAlgorithm_PersonalityTraits, GPersonalityTraits>
-  , public Gem::Common::GSelfTestable {
+  : public Gem::Common::
+        GReflectiveInterfaceT<GSwarmAlgorithm_PersonalityTraits, GPersonalityTraits> {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
     // GReflectiveInterfaceAccess lets the base reach localMembers_() for the generated
@@ -143,14 +142,14 @@ public:
      */
     [[nodiscard]] std::string getMnemonic() const override;
 
+    /** @brief Changes these traits for the standard tests: the neighborhood.
+     *  @return Whether the traits were changed (always true) */
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
 
-    /** @brief Applies modifications to this object. This is needed for testing purposes */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
     /***************************************************************************/
 
 private:

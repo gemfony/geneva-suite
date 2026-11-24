@@ -40,10 +40,6 @@
 #include <memory>
 #include <tuple>
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(
     Gem::Geneva::OptimizationAlgorithms::GSwarmAlgorithm_PersonalityTraits
 ) // NOLINT
@@ -109,7 +105,7 @@ void GSwarmAlgorithm_PersonalityTraits::setNoPositionUpdate() {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GSwarmAlgorithm_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -124,7 +120,7 @@ bool GSwarmAlgorithm_PersonalityTraits::noPositionUpdate() const {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GSwarmAlgorithm_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -143,7 +139,7 @@ bool GSwarmAlgorithm_PersonalityTraits::checkNoPositionUpdateAndReset() {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GSwarmAlgorithm_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -271,77 +267,13 @@ std::size_t GSwarmAlgorithm_PersonalityTraits::getNeighborhood() const {
 
 /******************************************************************************/
 /**
- * @brief Applies modifications to this object. This is needed for testing purposes
+ * @brief Changes these traits for the standard tests: the neighborhood.
  *
- * @return A boolean which indicates whether modifications were made
+ * @return Whether the traits were changed (always true)
  */
-bool GSwarmAlgorithm_PersonalityTraits::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
+bool GSwarmAlgorithm_PersonalityTraits::modifyForTest() {
     this->setNeighborhood(this->getNeighborhood() + 1);
-    result = true;
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GSwarmAlgorithm_PersonalityTraits::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to succeed. This is needed for testing purposes
- */
-// NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- self-test entry point for GSwarmAlgorithm_PersonalityTraits: a sequence of independent, self-scoped CHECK blocks, one per swarm-personality flag/state scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-void GSwarmAlgorithm_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    //---------------------------------------------------------------------------
-
-    { // Test setting and retrieval of the no_position_update_ flag
-        std::shared_ptr<GSwarmAlgorithm_PersonalityTraits> const p_test =
-            this->clone<GSwarmAlgorithm_PersonalityTraits>();
-
-        // Check setting and retrieval
-        CHECK_NOTHROW(p_test->setNoPositionUpdate());
-        CHECK(p_test->noPositionUpdate() == true);
-
-        // Check retrieval and reset
-        bool no_position_update = false; // This value should be changed by the following call
-        CHECK_NOTHROW(no_position_update = p_test->checkNoPositionUpdateAndReset());
-        CHECK(no_position_update == true);
-        CHECK(p_test->noPositionUpdate() == false);
-
-        // Try again -- the value "false" should not change
-        no_position_update = true; // This value should be changed by the following call
-        CHECK_NOTHROW(no_position_update = p_test->checkNoPositionUpdateAndReset());
-        CHECK(no_position_update == false);
-        CHECK(p_test->noPositionUpdate() == false);
-    }
-
-    //---------------------------------------------------------------------------
-
-    { // Test setting and retrieval of the neighborhood
-        std::shared_ptr<GSwarmAlgorithm_PersonalityTraits> const p_test =
-            this->clone<GSwarmAlgorithm_PersonalityTraits>();
-
-        // Setting and retrieval of the neighborhood
-        for(std::size_t i = 0; i < 10; i++) {
-            CHECK_NOTHROW(p_test->setNeighborhood(i));
-            CHECK(p_test->getNeighborhood() == i);
-        }
-    }
-
-    //---------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GSwarmAlgorithm_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/
