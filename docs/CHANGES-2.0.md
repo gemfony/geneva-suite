@@ -599,6 +599,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   smart-pointer `operator<<` overloads of the example/library individuals take a
   `const std::unique_ptr<T>&`, and `GExternalEvaluatorIndividual::archive()` takes a
   `std::vector<std::unique_ptr<GExternalEvaluatorIndividual>>`.
+- **`Go2::getBestGlobalIndividual(s)()` return the bests of the whole run** (behaviour change):
+  with `copy_best_individuals_only` set to `false` they returned the best of the last algorithm's
+  last population, which with comma selection, annealing or a swarm need not hold the best found.
+  They now read the algorithms' own archives of best individuals, whatever the setting; the setting
+  only says which individuals go on to the next algorithm of a chain.
 - **The EA's iteration accessors describe the last iteration** (behaviour change): in the
   single-criterion sorting modes `getBestIterationIndividual(s)()` returned the best of all
   iterations so far, as the global accessors do; the iteration archive is now replaced in every
