@@ -1739,7 +1739,7 @@ private:
     informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT:
-            if(stream_.beginAlgorithm(*goa)) {
+            if(not stream_.isOpen()) {
                 this->declareStream_(*goa);
             }
             break;
