@@ -47,7 +47,7 @@ class GPlotDesigner; // forward declaration
  * or a numpy .npz archive) rather than a rendered plot. See the per-enumerator notes below.
  */
 enum class plotBackend {
-    ROOT, ///< Emit a ROOT macro (the default; output is byte-identical to the historical generator)
+    ROOT,       ///< Emit a ROOT macro (the default; every plot kind)
     GNUPLOT,    ///< Emit a gnuplot script (graph plotters only)
     MATPLOTLIB, ///< Emit a Python/matplotlib script (graph plotters and histograms)
     OCTAVE, ///< Emit an Octave / MATLAB script (.m; graph plotters and histograms, common-core syntax)
@@ -93,9 +93,11 @@ public:
 
 /******************************************************************************/
 /**
- * The ROOT backend. emitDocument() reproduces the historical GPlotDesigner ROOT
- * macro byte-for-byte: a TCanvas, a TPaveLabel title, a Divide()'d TPad and the
- * per-plotter Header / Body / Footer sections.
+ * The ROOT backend. emitDocument() writes a ROOT macro: a TCanvas, a TPaveLabel title, a
+ * Divide()'d TPad and, for every pad, the declarations of its series' data, the data and the
+ * drawing. Like the other backends it draws every series from what its plotter reports -- its
+ * GPlotSpec, its data columns and its draw style (GBasePlotter::plotSpec(), dataColumns(),
+ * drawStyle()) -- and supports every plot kind.
  */
 class GRootEmitter : public IPlotEmitter {
 public:

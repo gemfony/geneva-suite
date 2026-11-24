@@ -135,7 +135,9 @@ enum class plotKind {
 /**
  * A first-class, serializable VALUE describing the CHOICE a plotter makes: what kind
  * of plot it is, its semantic role, its labels, its drawing arguments and its column
- * (axis) names. For histograms it also carries the per-axis bin counts. It is a pure
+ * (axis) names. For histograms it also carries the per-axis bin counts and ranges, for a
+ * function its formula, range and sampling, and for a 4-d graph its markers: what a backend
+ * needs to draw the plot from the spec and the plotter's data columns. It is a pure
  * report derived from a plotter's existing state -- it carries no plotter and adds no
  * stored member to the plotters; see GBasePlotter::plotSpec().
  */
@@ -157,13 +159,25 @@ struct GPlotSpec {
 
     std::vector<std::string> columns; ///< axis/column names, e.g. {"x","y"} or {"x","ex","y","ey"}
 
-    std::optional<std::size_t> n_bins_x; ///< number of x-bins (histograms only)
-    std::optional<std::size_t> n_bins_y; ///< number of y-bins (histograms only)
+    std::optional<std::size_t>
+        n_bins_x; ///< histograms: the number of x-bins; functions: the number of points sampled along x
+    std::optional<std::size_t>
+        n_bins_y; ///< 2-d histograms: the number of y-bins; 2-d functions: the points sampled along y
+
+    std::optional<std::tuple<double, double>> range_x; ///< histograms: a fixed (min,max) x range
+                                                       ///< (absent: from the data); functions: the
+                                                       ///< x range they are drawn over
+    std::optional<std::tuple<double, double>>
+        range_y; ///< 2-d histograms: a fixed (min,max) y range; 2-d functions: the y range drawn
+
+    std::string function; ///< functions only: the formula, in ROOT's TF1 / TF2 syntax
 
     std::optional<std::tuple<double, double>>
-        range_x; ///< fixed (min,max) x-axis range (histograms only; absent = auto-range from data)
-    std::optional<std::tuple<double, double>>
-        range_y; ///< fixed (min,max) y-axis range (2-d histograms only)
+        marker_size; ///< 4-d graphs: the smallest and the largest marker (absent: the defaults)
+    std::optional<bool> small_w_large_marker; ///< 4-d graphs: false gives a large w a large marker
+                                              ///< (absent: a small w gets a large one)
+    std::optional<std::size_t> n_best;        ///< 4-d graphs: only the n points of best w are drawn
+                                              ///< (absent or 0: all)
 
     std::optional<graphPlotMode>
         plot_mode; ///< scatter vs. curve (2-d graphs; for a 3-d graph CURVE adds a line)
@@ -252,6 +266,22 @@ struct GPlotSpec {
         if(range_y.has_value()) {
             out += ", \"range_y\": [" + std::to_string(std::get<0>(*range_y)) + ", " +
                    std::to_string(std::get<1>(*range_y)) + "]";
+        }
+        // The settings of a function and of a 4-d graph appear only when set, so the JSON of
+        // another plot is what it was before they existed.
+        if(not function.empty()) {
+            out += ", \"function\": \"" + jsonEscape(function) + "\"";
+        }
+        if(marker_size.has_value()) {
+            out += ", \"marker_size\": [" + std::to_string(std::get<0>(*marker_size)) + ", " +
+                   std::to_string(std::get<1>(*marker_size)) + "]";
+        }
+        if(small_w_large_marker.has_value()) {
+            out += std::string(", \"small_w_large_marker\": ") +
+                   (*small_w_large_marker ? "true" : "false");
+        }
+        if(n_best.has_value()) {
+            out += ", \"n_best\": " + std::to_string(*n_best);
         }
         if(plot_mode.has_value()) {
             out += ", \"plot_mode\": \"";
