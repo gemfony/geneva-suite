@@ -56,8 +56,6 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "common/GErrorStreamer.hpp"
-#include "common/GExceptions.hpp"
 
 namespace Gem::Common {
 
@@ -253,14 +251,14 @@ consteval bool enumNamesAreComplete() {
 }
 
 /**
- * @brief The name of an enum's value, from its table (see enum_names_v)
+ * @brief The name of an enum's value, from its table (see enum_names_v). It does not throw, since
+ * names are printed mostly in log lines and error messages: a number cast to the enum that is none
+ * of its values is named "<invalid value N>".
  * @param value The value
- * @return Its name
- * @throws gem_exception if the value has no name: a number cast to the enum that is none of its
- *         values
+ * @return Its name, or "<invalid value N>" for a value without one
  */
 template <named_enum enum_type>
-[[nodiscard]] constexpr std::string_view enumName(enum_type value) {
+[[nodiscard]] constexpr std::string enumName(enum_type value) noexcept {
     static_assert(
         enumNamesAreComplete<enum_type>(),
         "enum_names_v names a value twice, uses a name twice, or does not name exactly the values "
@@ -268,14 +266,11 @@ template <named_enum enum_type>
     );
     for(auto const &[candidate, name] : enum_names_v<enum_type>) {
         if(candidate == value) {
-            return name;
+            return std::string(name);
         }
     }
-    throw gem_exception(
-        g_error_streamer() << "Gem::Common::enumName(): the value "
-                           << static_cast<std::int64_t>(std::to_underlying(value))
-                           << " is none of the enum's values and has no name" << '\n'
-    );
+    return "<invalid value " +
+           std::to_string(static_cast<std::int64_t>(std::to_underlying(value))) + ">";
 }
 
 /**
@@ -285,7 +280,7 @@ template <named_enum enum_type>
  * @return The value, or nothing if no value has this name
  */
 template <named_enum enum_type>
-[[nodiscard]] constexpr std::optional<enum_type> enumFromName(std::string_view name) {
+[[nodiscard]] constexpr std::optional<enum_type> enumFromName(std::string_view name) noexcept {
     static_assert(
         enumNamesAreComplete<enum_type>(),
         "enum_names_v names a value twice, uses a name twice, or does not name exactly the values "

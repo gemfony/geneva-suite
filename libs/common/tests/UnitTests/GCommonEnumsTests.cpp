@@ -31,7 +31,6 @@
 
 #include <array>
 #include <cstdint>
-#include <initializer_list>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -39,10 +38,11 @@
 #include <utility>
 
 #include "common/GCommonEnums.hpp"
-#include "common/GExceptions.hpp"
 #include "common/record/GRecordTypes.hpp"
+#include "common/testing/GStandardTests.hpp"
 
 using namespace Gem::Common;
+using Gem::Common::Testing::checkEnumNames;
 
 // Generic helper: stream the enum out, parse the integral form back in and
 // expect bit-for-bit equality. The integral-only round-trip mirrors the
@@ -118,16 +118,11 @@ TEST_CASE("tribool::operator<<: prints the textual name", "[common][enums]") {
 
 TEST_CASE("tribool::operator<<: out-of-range value is diagnosed (not silent)", "[common][enums]") {
     // Force an unknown enumerator (e.g. via a corrupted-stream load). The stream-out must not
-    // produce an empty/silent output: it refuses with an error that names the number.
+    // produce an empty/silent output, and must not throw (it may be part of an error report).
     auto bad = static_cast<tribool>(99);
     std::ostringstream oss;
-    try {
-        oss << bad;
-        FAIL("an unknown tribool was streamed out");
-    }
-    catch(gem_exception const &e) {
-        CHECK(std::string(e.what()).contains("99"));
-    }
+    CHECK_NOTHROW(oss << bad);
+    CHECK(oss.str() == "<invalid value 99>");
 }
 
 TEST_CASE("indeterminate() helper", "[common][enums]") {
@@ -140,28 +135,16 @@ TEST_CASE("indeterminate() helper", "[common][enums]") {
 // The names of the enums (enum_names_v): every name is pinned, since files, scripts and the
 // manual quote them, and each name leads back to its value.
 
-namespace {
-/** @brief Checks that an enum's table holds exactly the expected names, both ways */
-template <typename E>
-void checkNames(std::initializer_list<std::pair<E, std::string_view>> expected) {
-    REQUIRE(enum_names_v<E>.size() == expected.size());
-    for(auto const &[value, name] : expected) {
-        CHECK(enumName(value) == name);
-        CHECK(enumFromName<E>(name) == value);
-    }
-}
-} // namespace
-
 TEST_CASE("enum names: common's enums", "[common][enums][names]") {
-    checkNames<serializationMode>(
+    checkEnumNames<serializationMode>(
         {{serializationMode::GEM_BINARY, "GEM_BINARY"}, {serializationMode::GEM_JSON, "GEM_JSON"}}
     );
-    checkNames<tribool>(
+    checkEnumNames<tribool>(
         {{tribool::False, "False"},
          {tribool::Indeterminate, "Indeterminate"},
          {tribool::True, "True"}}
     );
-    checkNames<logType>(
+    checkEnumNames<logType>(
         {{logType::ERROR_REPORT, "ERROR_REPORT"},
          {logType::TERMINATION, "TERMINATION"},
          {logType::WARNING, "WARNING"},
@@ -171,13 +154,13 @@ TEST_CASE("enum names: common's enums", "[common][enums][names]") {
          {logType::STDERR, "STDERR"},
          {logType::EXIT, "EXIT"}}
     );
-    checkNames<expectation>(
+    checkEnumNames<expectation>(
         {{expectation::EQUALITY, "EQUALITY"},
          {expectation::FP_SIMILARITY, "FP_SIMILARITY"},
          {expectation::INEQUALITY, "INEQUALITY"}}
     );
     using Record::columnType;
-    checkNames<columnType>(
+    checkEnumNames<columnType>(
         {{columnType::INTEGER, "integer"},
          {columnType::UNSIGNED, "unsigned"},
          {columnType::FLOATING, "floating"},
@@ -194,11 +177,16 @@ TEST_CASE("enum names: a name is read at compile time", "[common][enums][names]"
     SUCCEED();
 }
 
-TEST_CASE("enum names: an unknown name or value is refused", "[common][enums][names]") {
+TEST_CASE(
+    "enum names: an unknown name is refused; an unknown value is named as such",
+    "[common][enums][names]"
+) {
     CHECK_FALSE(enumFromName<serializationMode>("GEM_XML").has_value());
     CHECK_FALSE(enumFromName<serializationMode>("gem_binary").has_value()); // spelled exactly
     CHECK_FALSE(enumFromName<serializationMode>("").has_value());
-    CHECK_THROWS_AS(enumName(static_cast<serializationMode>(99)), gem_exception);
+    // A number that is none of the values prints as itself, without an exception
+    static_assert(noexcept(enumName(serializationMode::GEM_BINARY)));
+    CHECK(enumName(static_cast<serializationMode>(99)) == "<invalid value 99>");
 }
 
 namespace {

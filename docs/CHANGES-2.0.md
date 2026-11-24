@@ -687,12 +687,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `enumFromName<E>(text)`; the per-enum functions that spelled the names out again are gone.
   The printed names are unchanged. Removed: `Gem::Common::serModeToString()`,
   `Gem::Common::Record::to_string(columnType)`, courtier's `psToStr()`, `fkToStr()` and
-  `GPU::toString(BackendKind)` -- call `Gem::Common::enumName()` instead
-  (`GProcessable::getProcessingStatusAsStr()` stays, no longer `noexcept`). A
-  number cast to an enum that is none of its values now raises a `gem_exception` where it is
-  printed. A user-defined enum gets names by specializing `enum_names_v` with its value/name
-  pairs; where it also lists its values in `numeric_enum_values_v`, a table that misses one
-  does not compile.
+  `GPU::toString(BackendKind)` -- call `Gem::Common::enumName()` instead. A number cast to an
+  enum that is none of its values prints as `<invalid value N>`. A user-defined enum gets names
+  by specializing `enum_names_v` with its value/name pairs; where it also lists its values in
+  `numeric_enum_values_v`, a table that misses one does not compile. A test pins the names with
+  `Gem::Common::Testing::checkEnumNames<E>()` (`common/testing/GStandardTests.hpp`).
 - **dietrich: `project<I>()`/`projectX..W()` on a non-all-double collector is now a
   compile-time error** (it used to compile and throw at run time), and the projections
   are available for every axis of every all-double collector arity.

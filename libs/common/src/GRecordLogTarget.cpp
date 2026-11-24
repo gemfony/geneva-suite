@@ -139,7 +139,7 @@ void GRecordLogTarget::record_(
             );
         }
         if(stream_->isOpen()) {
-            stream_->append(Record::GRow{std::string(enumName(severity)), source, message});
+            stream_->append(Record::GRow{enumName(severity), source, message});
             return;
         }
     }

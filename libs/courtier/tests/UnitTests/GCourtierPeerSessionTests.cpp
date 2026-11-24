@@ -291,8 +291,8 @@ public:
                 .onClosed =
                     [self](GPeerEnd end, GPeerClose how, std::string_view) {
                         const std::scoped_lock lock(self->mutex_);
-                        self->closed_ = std::string(Gem::Common::enumName(end)) + ":" +
-                                        std::string(Gem::Common::enumName(how));
+                        self->closed_ =
+                            Gem::Common::enumName(end) + ":" + Gem::Common::enumName(how);
                     },
             }
         );

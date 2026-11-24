@@ -151,7 +151,7 @@ Gem::Common::expectation GToken::getExpectation() const {
  * @return The name of the expectation ("FP_SIMILARITY", "EQUALITY" or "INEQUALITY")
  */
 std::string GToken::getExpectationStr() const {
-    return std::string(enumName(e_));
+    return enumName(e_);
 }
 
 /******************************************************************************/

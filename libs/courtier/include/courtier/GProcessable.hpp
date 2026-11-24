@@ -210,8 +210,8 @@ public:
     }
 
     /** @brief @return A string representation of the current processing status (debugging) */
-    [[nodiscard]] std::string getProcessingStatusAsStr() const {
-        return std::string(Gem::Common::enumName(processing_status_));
+    [[nodiscard]] std::string getProcessingStatusAsStr() const noexcept {
+        return Gem::Common::enumName(processing_status_);
     }
 
     /** @brief @return true if the item carries the PROCESSED flag */

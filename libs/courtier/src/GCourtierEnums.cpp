@@ -48,7 +48,6 @@ namespace Gem::Courtier {
  * @param o The ostream the item should be added to
  * @param srm the item to be added to the stream
  * @return The std::ostream object used to add the item to
- * @throws gem_exception for a number cast to processingStatus that is none of its values
  */
 std::ostream &operator<<(std::ostream &o, const Gem::Courtier::processingStatus &srm) {
     o << "processingStatus::" << Gem::Common::enumName(srm);

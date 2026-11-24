@@ -501,9 +501,9 @@ private:
         if(not decoded.head_read || (kind != GFrameKind::WORK && kind != GFrameKind::HELLO)) {
             if(current) {
                 this->protocolError_(
-                    decoded.head_read ? "a frame of a kind a server does not send: " +
-                                            std::string(Gem::Common::enumName(kind))
-                                      : decoded.error
+                    decoded.head_read
+                        ? "a frame of a kind a server does not send: " + Gem::Common::enumName(kind)
+                        : decoded.error
                 );
             }
         }

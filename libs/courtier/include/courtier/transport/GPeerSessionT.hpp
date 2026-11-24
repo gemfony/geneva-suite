@@ -269,7 +269,7 @@ private:
             this->protocolError_(
                 *peer,
                 "a frame of a kind a client does not send: " +
-                    std::string(Gem::Common::enumName(command_container_.kind()))
+                    Gem::Common::enumName(command_container_.kind())
             );
             return;
         }

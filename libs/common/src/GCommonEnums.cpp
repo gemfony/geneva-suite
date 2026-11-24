@@ -46,8 +46,8 @@ namespace Gem::Common {
  *
  * @param o The output stream to write to
  * @param x The tribool value to write (True / False / Indeterminate)
- * @return The output stream, to allow chaining
- * @throws gem_exception for a number cast to tribool that is none of its values
+ * @return The output stream, to allow chaining ("<invalid value N>" for a number cast to tribool
+ * that is none of its values)
  */
 std::ostream &operator<<(std::ostream &o, Gem::Common::tribool const &x) {
     o << enumName(x);
@@ -66,7 +66,7 @@ std::string serializationModeChoices() {
         if(m > 0) {
             text += (m + 1 == SERIALIZATIONMODES.size()) ? " or " : ", ";
         }
-        text += std::string(enumName(SERIALIZATIONMODES.at(m))) + " (" +
+        text += enumName(SERIALIZATIONMODES.at(m)) + " (" +
                 std::to_string(std::to_underlying(SERIALIZATIONMODES.at(m))) + ")";
     }
     return text;
