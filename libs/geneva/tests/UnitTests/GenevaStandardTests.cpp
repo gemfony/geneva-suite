@@ -1022,3 +1022,49 @@ TEST_CASE(
     CHECK(std::abs(q->getMinSigma() - 0.01) < 1e-9);
     CHECK(std::abs(q->getSigmaSigma() - 0.5) < 1e-9);
 }
+
+// ============================================================================
+// The names of geneva's enums (enum_names_v): every name is pinned, as reports and benchmark
+// configurations quote them, and each name leads back to its value.
+// ============================================================================
+
+TEST_CASE("geneva's enums: every value has its name", "[geneva][names]") {
+    using Gem::Common::Testing::checkEnumNames;
+    checkEnumNames<evaluationPolicy>(
+        {{evaluationPolicy::USESIMPLEEVALUATION, "USESIMPLEEVALUATION"},
+         {evaluationPolicy::USEWORSTCASEFORINVALID, "USEWORSTCASEFORINVALID"},
+         {evaluationPolicy::USESIGMOID, "USESIGMOID"}}
+    );
+    using gind::metaOptimizationTarget;
+    checkEnumNames<metaOptimizationTarget>(
+        {{metaOptimizationTarget::BESTFITNESS, "best fitness"},
+         {metaOptimizationTarget::MINSOLVERCALLS, "minimum number of solver calls"},
+         {metaOptimizationTarget::MC_MINSOLVER_BESTFITNESS,
+          "multi-criterion target with best fitness, minimum number of solver calls"}}
+    );
+    using gind::solverFunction;
+    checkEnumNames<solverFunction>(
+        {{solverFunction::PARABOLA, "PARABOLA"},
+         {solverFunction::NOISYPARABOLA, "NOISYPARABOLA"},
+         {solverFunction::ROSENBROCK, "ROSENBROCK"},
+         {solverFunction::ACKLEY, "ACKLEY"},
+         {solverFunction::RASTRIGIN, "RASTRIGIN"},
+         {solverFunction::SCHWEFEL, "SCHWEFEL"},
+         {solverFunction::SALOMON, "SALOMON"},
+         {solverFunction::NEGPARABOLA, "NEGPARABOLA"},
+         {solverFunction::ACKLEY_CANONICAL, "ACKLEY_CANONICAL"},
+         {solverFunction::GRIEWANK, "GRIEWANK"},
+         {solverFunction::LEVY, "LEVY"},
+         {solverFunction::STYBLINSKI_TANG, "STYBLINSKI_TANG"},
+         {solverFunction::ELLIPSOID, "ELLIPSOID"},
+         {solverFunction::MICHALEWICZ, "MICHALEWICZ"},
+         {solverFunction::ZAKHAROV, "ZAKHAROV"}}
+    );
+
+    // The meta-optimizer's report and an individual's JSON carry the names
+    using Meta = gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>;
+    auto p = std::make_shared<Meta>();
+    Meta::addContent(p, oa::GEvolutionaryAlgorithm::tunableManifest());
+    CHECK(p->print(false).contains("Optimization target: \"best fitness\""));
+    CHECK(p->toJSON().at("transformationPolicy").as_string() == "USESIMPLEEVALUATION");
+}

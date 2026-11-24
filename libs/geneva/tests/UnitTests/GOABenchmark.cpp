@@ -54,6 +54,7 @@
 #include <string>
 #include <vector>
 
+#include "common/GCommonEnums.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaption.hpp"
@@ -79,6 +80,19 @@ enum class BenchFn : int {
     Rastrigin = 1,
     Rosenbrock = 2
 };
+
+} // namespace
+
+namespace Gem::Common {
+template <>
+inline constexpr auto enum_names_v<BenchFn> = std::to_array<std::pair<BenchFn, std::string_view>>(
+    {{BenchFn::Sphere, "Sphere"},
+     {BenchFn::Rastrigin, "Rastrigin"},
+     {BenchFn::Rosenbrock, "Rosenbrock"}}
+);
+} /* namespace Gem::Common */
+
+namespace {
 
 /** @brief The pure objective value for a streamlined parameter vector. Accumulated in long double so that
  *  a strongly-converged run (e.g. sep-CMA on the sphere, |x_i| ~ 1e-162) does not underflow the
@@ -108,18 +122,6 @@ double objective(BenchFn fn, const std::vector<double> &x) {
         return static_cast<double>(s);
     }
     return static_cast<double>(s);
-}
-
-const char *fnName(BenchFn fn) {
-    switch(fn) {
-    case BenchFn::Sphere:
-        return "Sphere";
-    case BenchFn::Rastrigin:
-        return "Rastrigin";
-    case BenchFn::Rosenbrock:
-        return "Rosenbrock";
-    }
-    return "?";
 }
 
 /******************************************************************************/
@@ -270,8 +272,8 @@ void runMatrix(double budget_s) {
 
     std::sort(rows.begin(), rows.end(), [](const Row &a, const Row &b) { return a.best < b.best; });
 
-    std::cout << "\n================ " << fnName(FN) << "  (n=" << N << ", budget=" << budget_s
-              << "s/algo) ================\n";
+    std::cout << "\n================ " << Gem::Common::enumName(FN) << "  (n=" << N
+              << ", budget=" << budget_s << "s/algo) ================\n";
     std::cout << std::left << std::setw(20) << "algorithm" << std::right << std::setw(16)
               << "best f" << std::setw(12) << "iters" << std::setw(10) << "secs" << "\n";
     std::cout << std::string(58, '-') << "\n";
@@ -283,9 +285,9 @@ void runMatrix(double budget_s) {
     }
     // Machine-parseable rows (aggregated across one-algorithm-per-process invocations by the driver):
     for(const Row &r : rows) {
-        std::cout << "RESULT," << r.algo << "," << fnName(FN) << "," << N << "," << std::scientific
-                  << std::setprecision(6) << r.best << "," << r.iterations << "," << std::fixed
-                  << std::setprecision(2) << r.seconds << "\n";
+        std::cout << "RESULT," << r.algo << "," << Gem::Common::enumName(FN) << "," << N << ","
+                  << std::scientific << std::setprecision(6) << r.best << "," << r.iterations << ","
+                  << std::fixed << std::setprecision(2) << r.seconds << "\n";
     }
     std::cout.flush();
 }

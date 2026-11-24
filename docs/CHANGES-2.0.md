@@ -687,8 +687,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `enumFromName<E>(text)`; the per-enum functions that spelled the names out again are gone.
   The printed names are unchanged. Removed: `Gem::Common::serModeToString()`,
   `Gem::Common::Record::to_string(columnType)`, courtier's `psToStr()`, `fkToStr()` and
-  `GPU::toString(BackendKind)`, dietrich's `to_string(plotKind)` and `to_string(legendSample)`
-  -- call `Gem::Common::enumName()` instead. A number cast to an
+  `GPU::toString(BackendKind)`, dietrich's `to_string(plotKind)` and `to_string(legendSample)`,
+  and the meta-optimizer's protected `getClearTextMOT()` -- call `Gem::Common::enumName()`
+  instead. A number cast to an
   enum that is none of its values prints as `<invalid value N>`. A user-defined enum gets names
   by specializing `enum_names_v` with its value/name pairs; where it also lists its values in
   `numeric_enum_values_v`, a table that misses one does not compile. A test pins the names with

@@ -474,4 +474,14 @@ inline constexpr auto numeric_enum_values_v<Gem::Geneva::updateRule> = numeric_e
 template <>
 inline constexpr auto numeric_enum_values_v<Gem::Geneva::adaptionMode> =
     numeric_enum_range<Gem::Geneva::adaptionMode::ALWAYS, Gem::Geneva::adaptionMode::NEVER>();
+
+/** @brief The names of the evaluation policies, as an individual's JSON report carries them (see
+ *  enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Geneva::evaluationPolicy> =
+    std::to_array<std::pair<Gem::Geneva::evaluationPolicy, std::string_view>>(
+        {{Gem::Geneva::evaluationPolicy::USESIMPLEEVALUATION, "USESIMPLEEVALUATION"},
+         {Gem::Geneva::evaluationPolicy::USEWORSTCASEFORINVALID, "USEWORSTCASEFORINVALID"},
+         {Gem::Geneva::evaluationPolicy::USESIGMOID, "USESIGMOID"}}
+    );
 } /* namespace Gem::Common */
