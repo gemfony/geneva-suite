@@ -32,14 +32,17 @@
 // Standard library headers used directly in this translation unit
 #include <atomic>
 #include <cctype>
+#include <cerrno>
 #include <charconv>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -49,6 +52,14 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+// Boost.Process v2, built with boost.process.fs=std (INSTALL): BOOST_PROCESS_USE_STD_FS is set for
+// this library in its CMakeLists.txt, so the process paths are std::filesystem paths
+#include <boost/asio/io_context.hpp>
+#include <boost/process/v2/environment.hpp>
+#include <boost/process/v2/process.hpp>
+#include <boost/process/v2/stdio.hpp>
+#include <boost/system/error_code.hpp>
 
 // Other Geneva headers whose symbols are used directly
 #include "common/GChecks.hpp"
@@ -126,6 +137,32 @@ bool parseSeparatedNumbers(
     }
 
     return true;
+}
+
+/******************************************************************************/
+/**
+ * Writes one word of a command line as a POSIX shell would need it: unchanged if it consists of
+ * characters the shell does not interpret, otherwise in single quotes. Used for messages only.
+ *
+ * @param word The word to show
+ * @return The word, quoted where needed
+ */
+std::string shellQuotedForDisplay(std::string const &word) {
+    constexpr std::string_view plain_characters =
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_@%+=:,./-";
+    if(not word.empty() and word.find_first_not_of(plain_characters) == std::string::npos) {
+        return word;
+    }
+    std::string quoted{"'"};
+    for(char const c : word) {
+        if(c == '\'') {
+            quoted += "'\\''"; // end the quote, an escaped quote, reopen
+        }
+        else {
+            quoted += c;
+        }
+    }
+    return quoted + "'";
 }
 } /* anonymous namespace */
 
@@ -265,13 +302,18 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
 
 /******************************************************************************/
 /**
- * Execute an external command, reacting to possible errors.
+ * Runs an external program without a shell and waits for it to end (see the declaration for the
+ * contract).
  *
- * @param program The command (program) to be executed
- * @param arguments The list of arguments to be appended to the command
- * @param command_output_file_name The name of a file to which the command's output should be piped (empty to skip)
- * @param full_command Output parameter: receives the full command line that was assembled and executed
- * @return The error code returned by the executed command
+ * @param program The program to run; a name without a directory part is looked up in PATH
+ * @param arguments The arguments, each passed to the program as one argument, unchanged
+ * @param command_output_file_name A file that receives the program's standard output and standard
+ * error (truncated first); empty to let the program inherit both
+ * @param full_command Output parameter: the command written as a shell would show it (words quoted
+ * where needed), for messages only
+ * @return 0 on success, else the program's exit status or the number of the signal that ended it
+ * @throws gem_exception if the program is not found, the output file cannot be opened, or the
+ * program cannot be started or waited for
  */
 int runExternalCommand(
     std::filesystem::path const &program,
@@ -279,36 +321,71 @@ int runExternalCommand(
     std::filesystem::path const &command_output_file_name,
     std::string &full_command
 ) {
-    // Convert slashes to backslashes on Windows
-    std::filesystem::path p_program = program;
-    std::string local_command = (p_program.make_preferred()).string();
+    namespace bp = boost::process::v2;
 
-    // Add command line arguments
+    full_command = shellQuotedForDisplay(program.string());
     for(auto const &argument : arguments) {
-        local_command += (std::string(" ") + argument);
+        full_command += ' ' + shellQuotedForDisplay(argument);
     }
-
-    // If requested by the user, we want to send the command to an external file
     if(not command_output_file_name.empty()) {
-        std::filesystem::path p_command_output_file_name = command_output_file_name;
-        std::string const localcommand_output_file_name =
-            (p_command_output_file_name.make_preferred()).string();
-
-        local_command = std::string("(") + local_command + std::string(") > ") +
-                        localcommand_output_file_name + std::string(" 2>&1");
+        full_command += " > " + shellQuotedForDisplay(command_output_file_name.string()) + " 2>&1";
     }
 
-    // Assign the full command (mostly needed for external error-evaluation)
-    full_command = local_command;
+    // A name without a directory part is looked up in PATH, as the shell used to do
+    std::filesystem::path const executable =
+        program.has_parent_path() ? program : bp::environment::find_executable(program);
+    if(executable.empty()) {
+        throw gem_exception(
+            g_error_streamer() << "In runExternalCommand(): program " << program.string()
+                               << " was not found in PATH" << '\n'
+                               << "Command: " << full_command << '\n'
+        );
+    }
 
-    // Run the actual command.
-    // This runs on worker threads: GExternalEvaluatorIndividual calls it during evaluation. POSIX does not
-    // require system() to be thread-safe; glibc documents it as MT-Safe.
-    // NOLINTNEXTLINE(concurrency-mt-unsafe,cert-env33-c) -- deliberate: this IS the external-command runner
-    int const error_code = system(local_command.c_str());
+    // Standard output and standard error share one open file, as "> file 2>&1" did
+    std::unique_ptr<std::FILE, int (*)(std::FILE *)> output_file{nullptr, &std::fclose};
+    if(not command_output_file_name.empty()) {
+        output_file.reset(std::fopen(command_output_file_name.string().c_str(), "w"));
+        if(not output_file) {
+            int const open_error = errno;
+            throw gem_exception(
+                g_error_streamer() << "In runExternalCommand(): cannot open the output file "
+                                   << command_output_file_name.string() << ": "
+                                   << std::generic_category().message(open_error) << '\n'
+                                   << "Command: " << full_command << '\n'
+            );
+        }
+    }
 
-    // The error code will be returned as the function value
-    return error_code;
+    // One I/O context per call: concurrent calls share no state. The child closes every inherited
+    // file descriptor but its standard streams, so a file another thread opens meanwhile does not
+    // leak into it.
+    boost::asio::io_context context;
+    boost::system::error_code ec;
+    auto child = bp::default_process_launcher()(
+        context,
+        ec,
+        executable,
+        arguments,
+        bp::process_stdio{
+            .in = {},
+            .out = output_file ? output_file.get() : stdout,
+            .err = output_file ? output_file.get() : stderr
+        }
+    );
+    int exit_code = 0;
+    if(not ec) {
+        exit_code = child.wait(ec);
+    }
+    if(ec) {
+        throw gem_exception(
+            g_error_streamer() << "In runExternalCommand(): the program could not be run: "
+                               << ec.message() << '\n'
+                               << "Command: " << full_command << '\n'
+        );
+    }
+
+    return exit_code;
 }
 
 /******************************************************************************/

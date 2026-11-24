@@ -52,11 +52,37 @@
 #include <filesystem>
 #include <memory>
 #include <sstream>
+#include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::Individuals::GExternalEvaluatorIndividual) // NOLINT
 namespace Gem::Geneva::Individuals {
+
+/******************************************************************************/
+/**
+ * @brief Turns the configured custom options into arguments of the external program.
+ *
+ * The program is started without a shell (Gem::Common::runExternalCommand), so the options are
+ * split here: at whitespace, into words, each word one argument. Quotes are not interpreted; an
+ * option value that contains a space cannot be passed this way. "empty" (the default) or an empty
+ * string means no options.
+ *
+ * @param custom_options The configured custom options
+ * @return The words of @p custom_options
+ */
+static std::vector<std::string> customOptionArguments(const std::string &custom_options) {
+    std::vector<std::string> words;
+    if(custom_options == "empty") {
+        return words;
+    }
+    std::istringstream stream(custom_options);
+    for(std::string word; stream >> word;) {
+        words.push_back(std::move(word));
+    }
+    return words;
+}
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,9 +121,10 @@ std::string GExternalEvaluatorIndividual::getProgramName() const {
 
 /******************************************************************************/
 /**
- * @brief Sets custom command-line options passed verbatim to the external evaluation program.
+ * @brief Sets custom command-line options for the external evaluation program.
  *
- * @param custom_options The custom options string forwarded to the external program
+ * @param custom_options The custom options, split at whitespace into separate arguments (no shell,
+ * no quoting; "empty" for none)
  */
 void GExternalEvaluatorIndividual::setCustomOptions(const std::string &custom_options) {
     custom_options_ = custom_options;
@@ -220,13 +247,10 @@ std::vector<double> GExternalEvaluatorIndividual::evaluate() {
     Gem::Common::writeJsonFile(parameterfile_name, batch_out);
 
     // Collect all command-line arguments
-    std::vector<std::string> arguments;
-    if(custom_options_ != "empty" && not custom_options_.empty()) {
-        arguments.push_back(custom_options_);
-    }
+    std::vector<std::string> arguments = customOptionArguments(custom_options_);
     arguments.emplace_back("--evaluate");
-    arguments.push_back(std::string("--input=\"") + parameterfile_name + "\"");
-    arguments.push_back(std::string("--output=\"") + result_file_name + "\"");
+    arguments.push_back("--input=" + parameterfile_name);
+    arguments.push_back("--output=" + result_file_name);
 
     // Perform the external evaluation. The full per-criterion result vector is returned (the caller writes
     // each criterion); an error / invalid path fills it with the worst case and flags the individual.
@@ -481,7 +505,9 @@ void GExternalEvaluatorIndividual::describeConfig(Gem::Common::GParserBuilder &g
         "custom_options",
         c.custom_options,
         GEEI_DEF_CUSTOMOPTIONS
-    ) << "Any custom options you wish to pass to the external evaluator";
+    ) << "Any custom options you wish to pass to the external evaluator,"
+      << '\n'
+      << "split at whitespace into separate arguments (no shell, no quoting)";
     gpb.registerFileParameter<std::string>(
         "parameter_file",
         c.parameter_file_base_name,
@@ -513,10 +539,7 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
     json::value setup_doc;
 
     { // Give the external program the opportunity to perform initial work
-        std::vector<std::string> arguments;
-        if(c.custom_options != "empty" && not c.custom_options.empty()) {
-            arguments.push_back(c.custom_options);
-        }
+        std::vector<std::string> arguments = customOptionArguments(c.custom_options);
         arguments.emplace_back("--init");
         std::string command;
         int const error_code = Gem::Common::runExternalCommand(
@@ -535,15 +558,12 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
     }
 
     { // Now ask the external program for setup information
-        std::vector<std::string> arguments;
-        if(c.custom_options != "empty" && not c.custom_options.empty()) {
-            arguments.push_back(c.custom_options);
-        }
+        std::vector<std::string> arguments = customOptionArguments(c.custom_options);
         std::string const setup_file_name =
             std::string("./setup-") + Gem::Common::generate_uuid_v4() + std::string(".json");
         arguments.push_back("--setup");
-        arguments.push_back("--output=\"" + setup_file_name + "\"");
-        arguments.push_back("--initvalues=\"" + c.init_values + "\"");
+        arguments.push_back("--output=" + setup_file_name);
+        arguments.push_back("--initvalues=" + c.init_values);
         std::string command;
         int const error_code = Gem::Common::runExternalCommand(
             std::filesystem::path(c.program_name),
@@ -778,10 +798,7 @@ void GExternalEvaluatorIndividual::finalize(const Config &c) {
                 << LOGEXIT(EXIT_FAILURE);
     }
 
-    std::vector<std::string> arguments;
-    if(c.custom_options != "empty" && not c.custom_options.empty()) {
-        arguments.push_back(c.custom_options);
-    }
+    std::vector<std::string> arguments = customOptionArguments(c.custom_options);
     arguments.emplace_back("--finalize");
 
     std::string command;
@@ -834,13 +851,9 @@ void GExternalEvaluatorIndividual::archive(
 
     Gem::Common::writeJsonFile(parameterfile_name, batch_out);
 
-    std::vector<std::string> arguments;
-    const std::string custom_options = arch.front()->getCustomOptions();
-    if(custom_options != "empty" && not custom_options.empty()) {
-        arguments.push_back(custom_options);
-    }
+    std::vector<std::string> arguments = customOptionArguments(arch.front()->getCustomOptions());
     arguments.emplace_back("--archive");
-    arguments.push_back(std::string("--input=\"" + parameterfile_name + "\""));
+    arguments.push_back("--input=" + parameterfile_name);
 
     std::string command;
     int const error_code = Gem::Common::runExternalCommand(

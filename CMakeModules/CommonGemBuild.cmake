@@ -179,6 +179,13 @@ IF(NOT COMMON_GEM_BUILD_INCLUDED)
 	)
 	MESSAGE("")
 
+	# Boost.Process, which only common uses, privately (runExternalCommand). It is found apart from
+	# GEM_BOOST_LIBS, as Boost's own BoostConfig.cmake finds a component, so that Boost_LIBRARIES --
+	# which Geneva's programs link -- does not carry it and its dependencies (container, context,
+	# date_time, exception); an installed Geneva's users need no Boost.Process package.
+	GET_FILENAME_COMPONENT(_GEM_BOOST_CMAKEDIR "${Boost_DIR}" DIRECTORY)
+	FIND_PACKAGE(boost_process ${Boost_VERSION} EXACT CONFIG REQUIRED HINTS "${_GEM_BOOST_CMAKEDIR}")
+
 	IF (GEM_BUILD_TESTS)
 		MESSAGE("Searching for Catch2...\n")
 		FIND_PACKAGE(Catch2 3 REQUIRED)
