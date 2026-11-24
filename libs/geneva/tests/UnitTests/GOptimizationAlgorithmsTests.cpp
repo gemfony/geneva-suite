@@ -1488,6 +1488,58 @@ TEST_CASE(
 
 /******************************************************************************/
 
+TEST_CASE("the iteration archive takes the number of best individuals to record", "[oa]") {
+    // n_record_best_individuals sets the capacity of both archives, also in a copy and in a run
+    // resumed from a checkpoint. An EA with 15 parents offers 15 individuals per iteration.
+    // Regression: setNRecordBestIndividuals() resized the global archive only, and the iteration
+    // archive kept the default of 10; a checkpoint did not hold it, so a resume had 10 as well.
+    namespace fs = std::filesystem;
+    namespace gind = Gem::Geneva::Individuals;
+    constexpr std::size_t n_record = Gem::Geneva::DEFNRECORDBESTINDIVIDUALS + 2;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    const gind::GLineFitIndividual src(data_points);
+    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    ea->push_back(src.clone());
+    ea->setPopulationSizes(30, 15);
+    ea->setMaxIteration(2);
+    ea->setReportIteration(0);
+    ea->setNRecordBestIndividuals(n_record);
+    ea->setAdaptionConfig(src.getAdaptionConfig());
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-record-capacity-test";
+    fs::remove_all(cp_dir);
+    ea->setCheckpointInterval(1);
+    ea->setCheckpointBaseName(cp_dir.string(), "capacity.cp");
+    ea->optimize();
+    CHECK(ea->getBestIterationIndividuals<gen::GGenome>().size() == n_record);
+    CHECK(ea->getBestGlobalIndividuals<gen::GGenome>().size() == n_record);
+
+    // One more iteration of an algorithm that continues the run
+    auto const one_more_iteration = [&src](oa::GEvolutionaryAlgorithm &alg) {
+        alg.setCheckpointInterval(0);
+        alg.setMaxIteration(alg.getIteration() + 2);
+        alg.setAdaptionConfig(src.getAdaptionConfig());
+        alg.optimize(alg.getIteration() + 1);
+        return alg.getBestIterationIndividuals<gen::GGenome>().size();
+    };
+
+    oa::GEvolutionaryAlgorithm copy(*ea);
+    CHECK(one_more_iteration(copy) == n_record);
+
+    fs::path cp;
+    for(const auto &entry : fs::directory_iterator(cp_dir)) {
+        if(entry.path().filename().string().find("-final-") != std::string::npos) {
+            cp = entry.path();
+        }
+    }
+    REQUIRE(not cp.empty());
+    oa::GEvolutionaryAlgorithm resumed;
+    resumed.loadCheckpoint(cp);
+    fs::remove_all(cp_dir);
+    CHECK(one_more_iteration(resumed) == n_record);
+}
+
+/******************************************************************************/
+
 TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[oa]") {
     // The best-so-far record and the stall counter belong to the state of a run, which a
     // checkpoint supplies. Regression (2026-11-20): optimize() reset both at every start, a resume
