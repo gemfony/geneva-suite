@@ -711,6 +711,7 @@ private:
             Gem::Common::make_member("simple_scan_items_", self.simple_scan_items_),
             Gem::Common::make_member("scans_performed_", self.scans_performed_),
             Gem::Common::make_member("cycle_logic_halt_", self.cycle_logic_halt_),
+            Gem::Common::make_member("max_failed_retries_", self.max_failed_retries_),
             Gem::Common::make_cloneable_container_member("b_cnt_", self.b_cnt_),
             Gem::Common::make_cloneable_container_member("int32_cnt_", self.int32_cnt_),
             Gem::Common::make_cloneable_container_member("d_cnt_", self.d_cnt_),
@@ -746,15 +747,24 @@ public:
     /** @brief Allows to check whether the parameter space should be scanned randomly or on a grid */
     bool getScanRandomly() const;
 
+    /** @brief Sets how often a failed evaluation is evaluated again before the run ends */
+    void setMaxFailedRetries(std::size_t max_failed_retries);
+    /** @brief Retrieves how often a failed evaluation is evaluated again before the run ends */
+    [[nodiscard]] std::size_t getMaxFailedRetries() const;
+
 protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
 
 private:
     /** @brief Need-all algorithm: a missing or failed evaluation cannot be tolerated, so it submits
-     *  through courtier under full-success-or-fatal (matches the legacy throw-on-error). */
+     *  through courtier under full-success-or-fatal, a failed evaluation evaluated again up to
+     *  getMaxFailedRetries() times.
+     *  @return The full-success-or-fatal submission policy */
     Gem::Courtier::GSubmissionPolicy getSubmissionPolicy_() const override {
-        return Gem::Courtier::GSubmissionPolicy::full_success_or_fatal();
+        auto policy = Gem::Courtier::GSubmissionPolicy::full_success_or_fatal();
+        policy.max_failed_retries = max_failed_retries_;
+        return policy;
     }
 
 protected:
@@ -855,6 +865,8 @@ private:
         0; ///< When set to a value > 0, a random scan of the entire parameter space will be made instead of individual parameters -- set through the configuration file
     std::size_t scans_performed_ =
         0; ///< Holds the number of processed items so far while a simple scan is performed
+    std::size_t max_failed_retries_ =
+        0; ///< How often a failed evaluation is evaluated again before the run ends
 
     /***************************************************************************/
 };

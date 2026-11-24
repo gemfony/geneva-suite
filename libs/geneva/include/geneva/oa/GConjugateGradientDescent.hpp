@@ -210,7 +210,8 @@ private:
             Gem::Common::make_member("error_estimation_", self.error_estimation_),
             Gem::Common::make_member("error_up_", self.error_up_),
             Gem::Common::make_member("central_differences_", self.central_differences_),
-            Gem::Common::make_member("lbfgs_memory_", self.lbfgs_memory_)
+            Gem::Common::make_member("lbfgs_memory_", self.lbfgs_memory_),
+            Gem::Common::make_member("max_failed_retries_", self.max_failed_retries_)
         );
     }
 
@@ -295,6 +296,11 @@ public:
      */
     [[nodiscard]] std::size_t getLBFGSMemory() const;
 
+    /** @brief Sets how often a failed evaluation is evaluated again before the run ends */
+    void setMaxFailedRetries(std::size_t max_failed_retries);
+    /** @brief Retrieves how often a failed evaluation is evaluated again before the run ends */
+    [[nodiscard]] std::size_t getMaxFailedRetries() const;
+
     /**
      * @brief Selects whether/how a MINUIT-style parameter-error estimate is computed at convergence.
      */
@@ -323,12 +329,15 @@ protected:
 private:
     /**
      * @brief Need-all algorithm: a missing or failed evaluation cannot be tolerated, so it submits
-     * through courtier under full-success-or-fatal (matches the legacy throw-on-error).
+     * through courtier under full-success-or-fatal, a failed evaluation evaluated again up to
+     * getMaxFailedRetries() times.
      *
      * @return The full-success-or-fatal submission policy
      */
     Gem::Courtier::GSubmissionPolicy getSubmissionPolicy_() const override {
-        return Gem::Courtier::GSubmissionPolicy::full_success_or_fatal();
+        auto policy = Gem::Courtier::GSubmissionPolicy::full_success_or_fatal();
+        policy.max_failed_retries = max_failed_retries_;
+        return policy;
     }
 
 protected:
@@ -440,6 +449,8 @@ private:
 
     std::size_t lbfgs_memory_ =
         DEFAULTCGDLBFGSMEMORY; ///< L-BFGS history size m ((s,y) pairs kept); LBFGS mode only
+    std::size_t max_failed_retries_ =
+        0; ///< How often a failed evaluation is evaluated again before the run ends
 
     errorEstimationMode error_estimation_ =
         errorEstimationMode::NONE; ///< Whether to estimate parameter errors at convergence (opt-in)

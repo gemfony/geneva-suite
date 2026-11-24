@@ -413,6 +413,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GOptimizationAlgorithmBase::requireCompleteEvaluation_()` and its calls, the calls of
   `discardUnusableItems_()` in simulated annealing, sep-CMA-ES and the swarm (it stays for the
   meta-EA, which evaluates on a pool of its own), and the failed-vertex case of Nelder-Mead.
+  Nelder-Mead, CGD and the parameter scan, whose policy ends the run at a failed evaluation, have a
+  setting `max_failed_retries` (`setMaxFailedRetries()`, default 0 as before): a failed evaluation
+  is evaluated again up to that many times before the run ends.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
   thread.
 - **The GPU path keeps the processing contract of a CPU consumer.** A marshaller begins each

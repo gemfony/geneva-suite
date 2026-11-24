@@ -244,6 +244,28 @@ std::uint32_t GNelderMead::getRestartThreshold() const {
 
 /******************************************************************************/
 /**
+ * @brief Sets how often a failed evaluation is evaluated again before the run ends. A transient
+ * failure (an external program that fails now and then) is ridden out so; a deterministic one fails
+ * again. The default 0 ends the run at the first failure.
+ *
+ * @param max_failed_retries The number of further evaluations of an item whose evaluation failed
+ */
+void GNelderMead::setMaxFailedRetries(std::size_t max_failed_retries) {
+    max_failed_retries_ = max_failed_retries;
+}
+
+/******************************************************************************/
+/**
+ * @brief Retrieves how often a failed evaluation is evaluated again before the run ends.
+ *
+ * @return The number of further evaluations of an item whose evaluation failed (0: none)
+ */
+std::size_t GNelderMead::getMaxFailedRetries() const {
+    return max_failed_retries_;
+}
+
+/******************************************************************************/
+/**
  * @brief Number of population slots used per simplex (vertices + trial slots).
  *
  * @return The block size, i.e. (n_fp_parms_first_ + 1) vertices plus NM_NTRIALS trial slots
@@ -603,6 +625,14 @@ void GNelderMead::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
     ) << "Stall count after which the simplices are restarted (oriented, around"
       << '\n'
       << "the best vertex) to escape a degenerate collapse. 0 disables restarts";
+
+    gpb.registerFileParameter<std::size_t>(
+        "max_failed_retries",
+        0,
+        [this](std::size_t r) { this->setMaxFailedRetries(r); }
+    ) << "How often a failed evaluation is evaluated again before the run ends"
+      << '\n'
+      << "(0: the first failure ends the run)";
 }
 
 /******************************************************************************/

@@ -264,6 +264,28 @@ std::size_t GConjugateGradientDescent::getLBFGSMemory() const {
 
 /******************************************************************************/
 /**
+ * @brief Sets how often a failed evaluation is evaluated again before the run ends. A transient
+ * failure (an external program that fails now and then) is ridden out so; a deterministic one fails
+ * again. The default 0 ends the run at the first failure.
+ *
+ * @param max_failed_retries The number of further evaluations of an item whose evaluation failed
+ */
+void GConjugateGradientDescent::setMaxFailedRetries(std::size_t max_failed_retries) {
+    max_failed_retries_ = max_failed_retries;
+}
+
+/******************************************************************************/
+/**
+ * @brief Retrieves how often a failed evaluation is evaluated again before the run ends.
+ *
+ * @return The number of further evaluations of an item whose evaluation failed (0: none)
+ */
+std::size_t GConjugateGradientDescent::getMaxFailedRetries() const {
+    return max_failed_retries_;
+}
+
+/******************************************************************************/
+/**
  * @brief Selects whether/how a MINUIT-style parameter-error estimate is computed at convergence.
  *
  * @param em The error-estimation mode (none, diagonal, full Hessian, or MINOS asymmetric)
@@ -984,13 +1006,19 @@ void GConjugateGradientDescent::addConfigurationOptions_(Gem::Common::GParserBui
     ) << "The MINUIT error definition UP: the objective increase"
       << '\n'
       << "defining one standard deviation (1 = chi^2, 0.5 = -logL)";
+
+    gpb.registerFileParameter<std::size_t>(
+        "max_failed_retries",
+        0,
+        [this](std::size_t r) { this->setMaxFailedRetries(r); }
+    ) << "How often a failed evaluation is evaluated again before the run ends"
+      << '\n'
+      << "(0: the first failure ends the run)";
 }
 
 /******************************************************************************/
 /**
  * @brief Triggers fitness calculation of all individuals through the process consumer.
- *
- * Throws a gem_exception if no complete set of evaluated items is received or if any individual reports errors.
  */
 void GConjugateGradientDescent::evaluatePopulation_() {
     using namespace Gem::Courtier;
