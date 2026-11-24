@@ -40,6 +40,7 @@
 #include <chrono>
 #include <cstdint>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <span>
@@ -561,6 +562,110 @@ TEST_CASE(
     CHECK(ind.has_errors());
     CHECK(ind.getProcessingStatus() == processingStatus::ERROR_FLAGGED);
     CHECK_FALSE(ind.is_processed());
+}
+
+/******************************************************************************/
+/**
+ * Regression: a result that is not a number was stored as the fitness of a processed individual.
+ * No comparison orders a NaN, so every sort of a population by fitness was undefined from then on.
+ * It is an evaluation error, like an exception thrown by evaluate().
+ */
+namespace Gem::Tests {
+
+class NaNSphere : public GGenomeT<NaNSphere> {
+public:
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+public:
+    NaNSphere() {
+        GGenomeBuilder b;
+        b.addDoubleGroup(2, -10., 10.).init(1.0);
+        this->setGenome(b.build());
+    }
+    NaNSphere(const NaNSphere &) = default;
+
+protected:
+    /** @brief A fitness function that divides zero by zero, as a simulation may for some input. */
+    std::vector<double> evaluate() override {
+        return {std::numeric_limits<double>::quiet_NaN()};
+    }
+};
+
+} // namespace Gem::Tests
+
+TEST_CASE("GGenome: a result that is not a number is an evaluation error", "[candidate][status]") {
+    Gem::Tests::NaNSphere ind;
+    REQUIRE(ind.is_due_for_processing());
+
+    CHECK_THROWS_AS(ind.process(), Gem::Courtier::g_processing_exception);
+    CHECK(ind.has_errors());
+    CHECK_FALSE(ind.is_processed());
+    // The NaN is not readable as a result: an individual that is not processed has none
+    CHECK_THROWS(ind.raw_fitness(0));
+
+    // The same holds for a result computed elsewhere and handed in
+    Gem::Tests::NaNSphere external;
+    CHECK_THROWS_AS(
+        external.process([](const Gem::Geneva::Genome::GGenome &) {
+            return std::vector<double>{std::numeric_limits<double>::quiet_NaN()};
+        }),
+        Gem::Courtier::g_processing_exception
+    );
+    CHECK(external.has_errors());
+}
+
+/******************************************************************************/
+/**
+ * Regression: cross-over asked for a position between two values in every channel that was not
+ * empty, and that request throws for a channel with a single value. An individual with one boolean
+ * beside its doubles ended an evolutionary algorithm with amalgamation in the first cross-over.
+ */
+namespace Gem::Tests {
+
+class OneBoolSphere : public GGenomeT<OneBoolSphere> {
+public:
+    using genome_only =
+        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
+public:
+    OneBoolSphere() {
+        GGenomeBuilder b;
+        b.addDoubleGroup(3, -10., 10.).init(1.0);
+        b.addBool(true);
+        this->setGenome(b.build());
+    }
+    OneBoolSphere(const OneBoolSphere &) = default;
+
+protected:
+    std::vector<double> evaluate() override {
+        std::vector<double> v;
+        this->streamline<double>(v);
+        return {(v.at(0) * v.at(0)) + (v.at(1) * v.at(1)) + (v.at(2) * v.at(2))};
+    }
+};
+
+} // namespace Gem::Tests
+
+TEST_CASE("GGenome: cross-over with a single value of one type", "[candidate]") {
+    Gem::Tests::OneBoolSphere a;
+    Gem::Tests::OneBoolSphere b;
+    b.assignValueVector<double>(std::vector<double>{2., 2., 2.});
+    b.assignValueVector<bool>(std::vector<bool>{false});
+
+    std::shared_ptr<Gem::Geneva::Genome::GGenome> child;
+    REQUIRE_NOTHROW(child = a.crossOverWith(b));
+    REQUIRE(child);
+
+    // The doubles are a head of a and a tail of b; the single boolean has no position to cross at
+    // and stays that of a
+    std::vector<double> d;
+    child->streamline<double>(d);
+    REQUIRE(d.size() == 3);
+    CHECK(d.at(0) == 1.);
+    CHECK(d.at(2) == 2.);
+    std::vector<bool> flags;
+    child->streamline<bool>(flags);
+    REQUIRE(flags.size() == 1);
+    CHECK(flags.at(0) == true);
 }
 
 /******************************************************************************/

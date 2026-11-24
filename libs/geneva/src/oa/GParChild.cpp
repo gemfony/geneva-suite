@@ -657,8 +657,9 @@ void GParChild::fixAfterJobSubmission() {
         p->setAssignedIteration(iteration);
     });
 
-    // Make sure that parents are at the beginning of the array.
-    std::ranges::sort(*this, std::ranges::greater{}, [](const auto &p) {
+    // Make sure that parents are at the beginning of the array. The sort is stable: the parents keep
+    // their order (position 0 is the best parent, and a child's parent id is a position).
+    std::ranges::stable_sort(*this, std::ranges::greater{}, [](const auto &p) {
         return p->template getPersonalityTraits<GBaseParChildPersonalityTraits>()->isParent();
     });
 

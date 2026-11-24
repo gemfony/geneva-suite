@@ -37,18 +37,27 @@
  */
 
 #include <algorithm>
+#include <atomic>
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <ranges>
 #include <vector>
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include "courtier/GCourtierEnums.hpp" // processingStatus
 #include "geneva/GFaultInjector.hpp"
+#include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
+#include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
+#include "geneva/oa/GSwarmAlgorithm.hpp"
+#include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE + archive-generic dispatch
 
 using namespace Gem::Geneva;
@@ -102,6 +111,49 @@ public:
 
 private:
     Fault fault_;
+};
+
+/** @brief An injector that fails every n-th evaluation (the n-th, 2n-th, ...). */
+class EveryNthInjector : public GFaultInjector {
+public:
+    explicit EveryNthInjector(std::size_t n)
+      : n_(n) {
+    }
+    Fault evaluate(const GGenome & /*item*/, Gem::Hap::GRandomBase & /*gr*/) override {
+        return (calls_.fetch_add(1) + 1) % n_ == 0 ? Fault::FLAG_ERROR : Fault::NONE;
+    }
+
+private:
+    std::size_t n_;
+    std::atomic<std::size_t> calls_{0};
+};
+
+/** @brief An injector that fails every evaluation of one swarm neighborhood in one iteration. */
+class NeighborhoodInjector : public GFaultInjector {
+public:
+    NeighborhoodInjector(std::size_t neighborhood, std::uint32_t iteration)
+      : neighborhood_(neighborhood)
+      , iteration_(iteration) {
+    }
+    Fault evaluate(const GGenome &item, Gem::Hap::GRandomBase & /*gr*/) override {
+        const auto traits = std::dynamic_pointer_cast<
+            Gem::Geneva::OptimizationAlgorithms::GSwarmAlgorithm_PersonalityTraits
+        >(item.scratch().personalityRef());
+        if(traits && traits->getNeighborhood() == neighborhood_ &&
+           item.getAssignedIteration() == iteration_) {
+            n_failed_.fetch_add(1);
+            return Fault::FLAG_ERROR;
+        }
+        return Fault::NONE;
+    }
+    [[nodiscard]] std::size_t nFailed() const {
+        return n_failed_.load();
+    }
+
+private:
+    std::size_t neighborhood_;
+    std::uint32_t iteration_;
+    std::atomic<std::size_t> n_failed_{0};
 };
 
 } // namespace Gem::Tests
@@ -172,4 +224,77 @@ TEST_CASE("fault injector: clearing restores the zero-cost default", "[faultinj]
     FISphere ind;
     CHECK_NOTHROW(ind.process());
     CHECK(ind.is_processed());
+}
+
+/******************************************************************************/
+// Algorithms under failing evaluations
+
+TEST_CASE("sep-CMA-ES keeps its lambda offspring when evaluations fail", "[faultinj][oa]") {
+    // The consumer replaces a failed offspring by a clone of a successful one (the submission policy
+    // of the tolerant algorithms), so the population keeps its lambda members and the run its
+    // progress although a third of all evaluations fail.
+    namespace oa = Gem::Geneva::OptimizationAlgorithms;
+    GFaultInjectorRegistry::set(std::make_unique<EveryNthInjector>(3));
+
+    auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+    pop->setLambda(12);
+    pop->setMaxIteration(15);
+    pop->setMaxStallIteration(0);
+    pop->setReportIteration(100000);
+    pop->setEmitTerminationReason(false);
+    pop->push_back(FISphere().clone());
+    CHECK_NOTHROW(pop->optimize());
+    GFaultInjectorRegistry::clear();
+
+    CHECK(pop->size() == 12);
+    auto best = pop->getBestGlobalIndividual<FISphere>();
+    REQUIRE(best);
+    CHECK(best->is_processed());
+    CHECK(std::isfinite(best->raw_fitness(0)));
+    CHECK(best->raw_fitness(0) < 2.); // not worse than the start (1, 1)
+}
+
+TEST_CASE("the swarm survives the failure of a whole neighborhood", "[faultinj][oa]") {
+    // Regression: with every member of a neighborhood gone after an evaluation, the search for
+    // the neighborhood's best read the element at its (empty) start: for the last neighborhood the
+    // one behind the population.
+    namespace oa = Gem::Geneva::OptimizationAlgorithms;
+
+    SECTION("in a later iteration the neighborhood is refilled and the run goes on") {
+        auto injector = std::make_unique<NeighborhoodInjector>(2, 2);
+        const NeighborhoodInjector *const watch = injector.get();
+        GFaultInjectorRegistry::set(std::move(injector));
+
+        auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+        pop->setSwarmSizes(3, 4); // 3 neighborhoods x 4 members
+        pop->setMaxIteration(6);
+        pop->setMaxStallIteration(0);
+        pop->setReportIteration(100000);
+        pop->setEmitTerminationReason(false);
+        pop->push_back(FISphere().clone());
+        CHECK_NOTHROW(pop->optimize());
+        CHECK(watch->nFailed() == 4); // the case was really met
+        GFaultInjectorRegistry::clear();
+
+        CHECK(pop->size() == 12);
+        auto best = pop->getBestGlobalIndividual<FISphere>();
+        REQUIRE(best);
+        CHECK(std::isfinite(best->raw_fitness(0)));
+    }
+
+    SECTION("in the first iteration there is nothing to seed its best with: an error says so") {
+        GFaultInjectorRegistry::set(std::make_unique<NeighborhoodInjector>(2, 0));
+
+        auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+        pop->setSwarmSizes(3, 4);
+        pop->setMaxIteration(3);
+        pop->setReportIteration(100000);
+        pop->setEmitTerminationReason(false);
+        pop->push_back(FISphere().clone());
+        CHECK_THROWS_WITH(
+            pop->optimize(),
+            Catch::Matchers::ContainsSubstring("cannot seed its best")
+        );
+        GFaultInjectorRegistry::clear();
+    }
 }

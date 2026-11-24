@@ -354,3 +354,34 @@ TEST_CASE(
     // The hard assertion form throws while the gap stands.
     CHECK_THROWS(Gem::Weft::verifyArchiveRegistrations());
 }
+
+TEST_CASE(
+    "GArchive polymorphic: a tag of another type than the pointer holds is refused",
+    "[common][archive][poly]"
+) {
+    // Regression: the object built from the archive's tag was cast to the pointer's type without a
+    // check. An archive that names a sibling type (a checkpoint of another program, a damaged file)
+    // gave undefined behaviour where an error is due.
+    auto b = std::make_shared<PolyB>();
+    b->b_str_ = "not a PolyA";
+    const std::shared_ptr<PolyBase> p = b;
+
+    SECTION("binary") {
+        GBinaryOArchive oa;
+        oa & p;
+        const std::string encoded = oa.str();
+        GBinaryIArchive ia(encoded);
+        std::shared_ptr<PolyA> q;
+        CHECK_THROWS_AS(ia & q, Gem::Weft::weft_exception);
+        CHECK_FALSE(q);
+    }
+    SECTION("json") {
+        GJsonOArchive oa;
+        oa & p;
+        const std::string encoded = oa.str();
+        GJsonIArchive ia(encoded);
+        std::unique_ptr<PolyA> q;
+        CHECK_THROWS_AS(ia & q, Gem::Weft::weft_exception);
+        CHECK_FALSE(q);
+    }
+}

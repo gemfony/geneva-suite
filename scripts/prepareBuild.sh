@@ -549,6 +549,11 @@ else
 			echo -e "make\t\t# Use '-jn', where 'n' is the number of cores in your system"
 			echo -e "make install\n"
 		fi
+	else
+		# A failed configuration is the script's failure: without this branch the status was that of
+		# an "if" whose condition failed, which is 0
+		echo -e "\nError: the configuration with ${CMAKE} failed. Leaving...\n"
+		exit 1
 	fi
 fi
 
