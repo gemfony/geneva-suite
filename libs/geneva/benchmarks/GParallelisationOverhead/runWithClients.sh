@@ -106,6 +106,10 @@
 # two independent jobs on one host can get the same names; they then use each
 # other's memory and crash or hang (SIGSEGV in mca_btl_sm_poll_handle_frag). With many
 # client jobs at once that is likely: about one run in four with 200 of them.
+# The same directory holds the launcher's session directory (PRTE_MCA_prte_tmpdir_base).
+# mpirun names it after its own pid, ompi.<pid>, below /tmp by default, and fails to start
+# ("The PMIx server's listener thread failed to start") when a killed earlier job left
+# one for the same pid.
 ####################################################################
 
 set -u
@@ -200,7 +204,7 @@ if [ "$C" = mpi ]; then
     # The ranks take their roles from MPI (and with groups from the cascade); the options reach
     # every rank.
     # shellcheck disable=SC2086
-    OMPI_MCA_btl_sm_backing_directory=$(jobdir job) \
+    OMPI_MCA_btl_sm_backing_directory=$(jobdir job) PRTE_MCA_prte_tmpdir_base=$(jobdir job) \
         ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" \
         "${GROUPOPT[@]}" "$@" > server.log 2>&1 &
     # In the background, so that a signal reaches the script's trap at once (bash runs a trap only
@@ -264,6 +268,7 @@ else
             sleep "$LAST_CLIENT_DELAY"
         fi
         OMPI_MCA_btl_sm_backing_directory=$(jobdir "client-$i") \
+            PRTE_MCA_prte_tmpdir_base=$(jobdir "client-$i") \
             "${LAUNCH[@]}" "$X" -c "$C" --client "${CONNECT[@]}" "${GROUPOPT[@]}" "$@" \
             >> clients.log 2>&1 &
         PIDS+=($!)
