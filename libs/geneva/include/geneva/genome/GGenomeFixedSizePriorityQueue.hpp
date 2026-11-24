@@ -62,7 +62,10 @@ namespace Gem::Geneva::Genome {
  * an algorithm that genuinely hands an individual over calls add() with an rvalue.
  *
  * Only individuals that have actually been processed are admitted; that rule lives
- * in the isValid() override, which is the base class's single admission gate.
+ * in the isValid() override, which is the base class's single admission gate. Two
+ * individuals with equal parameter values are one entry, of which the archive keeps
+ * one (isSameEntry()): a parent that survives several iterations, or an individual that
+ * went on from one algorithm of a chain to the next, is recorded once.
  */
 class GGenomeFixedSizePriorityQueue // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<
@@ -119,6 +122,13 @@ protected:
      * @brief The archive's admission rule: only individuals that carry a result belong in it
      */
     [[nodiscard]] bool isValid(const std::unique_ptr<GGenome> &item_ptr) const override;
+    /**
+     * @brief The archive's identity rule: equal parameter values are the same entry
+     */
+    [[nodiscard]] bool isSameEntry(
+        const std::unique_ptr<GGenome> &kept,
+        const std::unique_ptr<GGenome> &item
+    ) const override;
     /**
      * @brief Evaluates a single work item, so that it can be sorted
      */

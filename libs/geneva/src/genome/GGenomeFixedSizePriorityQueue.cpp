@@ -33,6 +33,7 @@
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
+#include <algorithm>
 #include <cstddef>
 #include <format>
 #include <memory>
@@ -114,6 +115,30 @@ bool GGenomeFixedSizePriorityQueue::isValid(const std::unique_ptr<GGenome> &item
 
     // The item must have been worked on
     return item_ptr->is_processed();
+}
+
+/******************************************************************************/
+/**
+ * @brief The archive's identity rule: two individuals with equal parameter values are the same
+ * candidate solution, also when they are two copies of one individual (a surviving parent offered
+ * in every iteration, a best that went on to the next algorithm of a chain). The base class asks
+ * only for items of equal evaluation, so the comparison runs rarely; it reads the four value
+ * channels of the genome.
+ *
+ * @param kept The individual the archive keeps
+ * @param item A later individual of the same evaluation
+ * @return A boolean indicating whether both hold equal parameter values
+ */
+bool GGenomeFixedSizePriorityQueue::isSameEntry(
+    const std::unique_ptr<GGenome> &kept,
+    const std::unique_ptr<GGenome> &item
+) const {
+    GGenome const &k = *kept;
+    GGenome const &i = *item;
+    return std::ranges::equal(k.internalDoubleValues(), i.internalDoubleValues()) &&
+           std::ranges::equal(k.internalFloatValues(), i.internalFloatValues()) &&
+           std::ranges::equal(k.internalInt32Values(), i.internalInt32Values()) &&
+           std::ranges::equal(k.internalBoolValues(), i.internalBoolValues());
 }
 
 /******************************************************************************/

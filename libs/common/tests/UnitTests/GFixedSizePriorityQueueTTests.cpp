@@ -168,6 +168,20 @@ GFSPQ_TEST_QUEUE(
 
 #undef GFSPQ_TEST_QUEUE
 
+/** @brief A solely-owning queue whose items are the same entry when their values are equal */
+class ValueUniquePQ : public UniquePQ {
+public:
+    using UniquePQ::UniquePQ;
+
+protected:
+    [[nodiscard]] bool isSameEntry(
+        std::unique_ptr<TestItem> const &kept,
+        std::unique_ptr<TestItem> const &item
+    ) const override {
+        return kept->value() == item->value();
+    }
+};
+
 /******************************************************************************/
 // Holder-generic helpers, so one case body can be written for all three queues.
 
@@ -685,6 +699,33 @@ TEST_CASE(
         CHECK(pq.best().get() == src.get());
         CHECK(src.use_count() == 2);
     }
+}
+
+TEST_CASE(
+    "GFixedSizePriorityQueueT: a derived class's identity rule keeps one of the same entries",
+    "[common][priority-queue][unique]"
+) {
+    // A derived class widens "the same entry" as it narrows isValid(); the queue keeps the first
+    // of them, whether they arrive one by one or in one batch.
+    ValueUniquePQ pq(10);
+    pq.add(std::make_unique<TestItem>(2.0));
+    pq.add(std::make_unique<TestItem>(1.0));
+    pq.add(std::make_unique<TestItem>(2.0));
+    std::vector<std::unique_ptr<TestItem>> batch;
+    batch.push_back(std::make_unique<TestItem>(3.0));
+    batch.push_back(std::make_unique<TestItem>(1.0));
+    batch.push_back(std::make_unique<TestItem>(3.0));
+    pq.add(std::move(batch), false);
+    REQUIRE(pq.size() == 3);
+    CHECK(valueOf(pq.at(0)) == 1.0);
+    CHECK(valueOf(pq.at(1)) == 2.0);
+    CHECK(valueOf(pq.at(2)) == 3.0);
+
+    // The default rule is the same object: equal values of two objects are two entries
+    UniquePQ plain(10);
+    plain.add(std::make_unique<TestItem>(2.0));
+    plain.add(std::make_unique<TestItem>(2.0));
+    CHECK(plain.size() == 2);
 }
 
 TEST_CASE(

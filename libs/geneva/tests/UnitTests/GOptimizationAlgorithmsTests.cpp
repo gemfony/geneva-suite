@@ -1449,6 +1449,14 @@ TEST_CASE("a Go2 chain returns the best found by any of its algorithms", "[oa][g
             CHECK(std::ranges::is_sorted(go_bests, {}, [](auto const &ind) {
                 return fitnessOf(*ind);
             }));
+            // An individual that went on to the second algorithm is in both archives, but is
+            // returned once (regression: with the setting false the merge returned it twice)
+            std::set<std::vector<double>> seen;
+            for(auto const &ind : go_bests) {
+                std::vector<double> values;
+                ind->streamline<double>(values);
+                CHECK(seen.insert(values).second);
+            }
         }
     }
 }

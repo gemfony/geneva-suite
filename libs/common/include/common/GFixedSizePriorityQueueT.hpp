@@ -35,9 +35,10 @@
 // Standard headers go here
 #include <algorithm>
 #include <concepts>
+#include <cstddef>
 #include <iterator>
 #include <memory>
-#include <unordered_set>
+#include <span>
 #include <vector>
 
 // Boost headers go here
@@ -105,9 +106,10 @@ constexpr auto GFSPQ_DEF_SORT_ORDER = Gem::Common::sortOrder::LOWERISBETTER;
  * Every candidate passes isValid() first; an item that fails is skipped. The
  * default rejects an empty handle (and accepts every value for POD storage), and a
  * derived class narrows it further (e.g. "only already-evaluated individuals").
- * For the pointer policies the queue additionally drops items that are the *same
- * object* inserted twice; value storage has no object identity, so two equal values
- * are two legitimate entries there.
+ * The queue keeps one item of each set of items that are the same entry
+ * (isSameEntry()): for the pointer policies by default the *same object* inserted
+ * twice; value storage has no object identity, so two equal values are two legitimate
+ * entries there. A derived class may widen the rule, as it narrows isValid().
  *
  * @tparam T The logical type of the work items stored in the queue
  * @tparam storage_policy_type How an item is physically held (see above)
@@ -689,6 +691,27 @@ protected:
 
     /***************************************************************************/
     /**
+     * @brief Decides whether two items are the same entry, of which the queue keeps one
+     *
+     * The default is the same object (pointer storage); for value storage no two items are
+     * the same entry. A derived class may widen the rule (e.g. "equal content"). Only items
+     * of equal evaluation are compared: the rule must not hold for items that differ in it.
+     *
+     * @param kept The stored handle of the item the queue keeps
+     * @param item The stored handle of a later item of the same evaluation
+     * @return A boolean indicating whether item is the same entry as kept and is dropped
+     */
+    [[nodiscard]] virtual bool isSameEntry(StoredType const &kept, StoredType const &item) const {
+        if constexpr(holds_values) {
+            return false;
+        }
+        else {
+            return kept.get() == item.get();
+        }
+    }
+
+    /***************************************************************************/
+    /**
      * @brief Evaluates a single work item, so that it can be sorted
      *
      * @param item The stored handle of the work item to be evaluated
@@ -772,12 +795,16 @@ private:
      * sorted best-first, and no more than max_size_ entries.
      */
     void finalize_() {
-        removeDuplicates_();
+        // Sort the data according to the evaluation, so the worst items end up at the back. The
+        // sort is stable, so among equal items those that were in the queue before come first.
+        std::ranges::stable_sort(
+            data_cnt_,
+            [this](StoredType const &x, StoredType const &y) -> bool {
+                return this->isBetter(this->evaluation(x), this->evaluation(y));
+            }
+        );
 
-        // Sort the data according to the evaluation, so the worst items end up at the back
-        std::ranges::sort(data_cnt_, [this](StoredType const &x, StoredType const &y) -> bool {
-            return this->isBetter(this->evaluation(x), this->evaluation(y));
-        });
+        removeDuplicates_();
 
         // Remove surplus work items. As the worst items are at the end of the queue, they
         // are the ones dropped. Only has an effect if max_size_ is != 0.
@@ -790,27 +817,25 @@ private:
 
     /***************************************************************************/
     /**
-     * @brief Drops entries that refer to the same object as an earlier entry
+     * @brief Drops every entry that is the same entry (isSameEntry()) as an earlier one
      *
-     * Only meaningful for the pointer policies: it catches the same object being handed
-     * to the queue twice. Values have no object identity, so for POD storage two equal
-     * values are two legitimate entries and nothing is removed.
+     * Runs on the sorted queue: items of equal evaluation stand together, and each is
+     * compared with the items kept before it in its run only.
      */
     void removeDuplicates_() {
-        if constexpr(not holds_values) {
-            // Stores addresses we have already encountered
-            std::unordered_set<ValueType const *> known_addresses;
-
-            auto it = data_cnt_.begin();
-            while(it != data_cnt_.end()) {
-                if(ValueType const *raw_ptr = it->get(); known_addresses.contains(raw_ptr)) {
-                    // Found a duplicate -- remove it. "it" will then point to the next element.
-                    it = data_cnt_.erase(it);
-                }
-                else {
-                    known_addresses.insert(raw_ptr);
-                    ++it;
-                }
+        std::size_t run_begin = 0; // the first item of the current run of equal evaluations
+        for(std::size_t pos = 0; pos < data_cnt_.size();) {
+            if(this->evaluation(data_cnt_[run_begin]) != this->evaluation(data_cnt_[pos])) {
+                run_begin = pos;
+            }
+            auto const run = std::span(data_cnt_).subspan(run_begin, pos - run_begin);
+            if(std::ranges::any_of(run, [this, pos](StoredType const &kept) {
+                   return this->isSameEntry(kept, data_cnt_[pos]);
+               })) {
+                data_cnt_.erase(data_cnt_.begin() + static_cast<std::ptrdiff_t>(pos));
+            }
+            else {
+                ++pos;
             }
         }
     }

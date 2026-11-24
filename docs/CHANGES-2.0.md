@@ -614,6 +614,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   iteration archive kept 10 whatever the key said, and a run resumed from a checkpoint had 10 as
   well. `setNRecordBestIndividuals()` / `getNRecordBestIndividuals()` are public, as the setters of
   the other keys are.
+- **The archives of best individuals hold each candidate once** (behaviour change):
+  `GGenomeFixedSizePriorityQueue` treats individuals with equal parameter values as one entry.
+  Under plus selection a surviving parent was recorded again in every iteration, so
+  `getBestGlobalIndividuals()` could return the same individual several times (and Go2's merge of a
+  chain's archives, too). `GFixedSizePriorityQueueT` has a hook `isSameEntry()` for this, by default
+  the same object, as before.
 - **Several public headers moved to sit with the layer they belong to** (source-breaking
   `#include`-path changes; update the paths). The flat-genome / entity headers moved from
   `geneva/ind/` to `geneva/genome/`; the entity multi-constraint headers (`GMultiConstraintT`,
