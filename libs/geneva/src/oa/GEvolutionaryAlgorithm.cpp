@@ -155,15 +155,12 @@ void GType::extractCurrentParetoIndividuals(
 Gem::Courtier::submission_status_t
 GType::evaluatePopulationRange_(std::size_t start, std::size_t end) {
     if(inline_evaluation_) {
+        // process() throws when an evaluation fails, so every item it returns from is evaluated
         end = std::min(end, this->size());
-        bool has_errors = false;
         for(std::size_t i = start; i < end; ++i) {
             this->at(i)->process();
-            if(this->at(i)->has_errors()) {
-                has_errors = true;
-            }
         }
-        return Gem::Courtier::submission_status_t{.is_complete = true, .has_errors = has_errors};
+        return Gem::Courtier::submission_status_t{.is_complete = true, .has_errors = false};
     }
     return this->workOnPopulation(start, end);
 }
@@ -335,8 +332,16 @@ void GType::evaluatePopulation_() {
         this->getDefaultPopulationSize()
     );
 
+    // The parents (evaluated in the first iteration only) may not be replaced by a substitute when
+    // their evaluation fails: a failed parent is evaluated again within the policy's budgets, or the
+    // run ends. A child may be.
+    for(std::size_t i = std::get<0>(range); i < std::get<1>(range); ++i) {
+        this->at(i)->setSubstitutable(i >= this->getNParents());
+    }
+
     auto status = this->evaluatePopulationRange_(std::get<0>(range), std::get<1>(range));
 
+    // Only an evaluation outside courtier (the meta-EA's) can leave unusable individuals behind
     this->discardUnusableItems_(status);
 
     fixAfterJobSubmission();

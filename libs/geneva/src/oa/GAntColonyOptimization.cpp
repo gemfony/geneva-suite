@@ -429,9 +429,8 @@ void GAntColonyOptimization::updateArchive() {
 void GAntColonyOptimization::evaluatePopulation_() {
     const std::size_t n_eval = this->afterFirstIteration() ? n_ants_ : archive_size_;
 
-    auto status = this->workOnPopulation(0, n_eval);
-
-    this->requireCompleteEvaluation_(status, "GAntColonyOptimization::evaluatePopulation_()");
+    // The consumer returns every slot evaluated (a failed one refilled with a marked substitute).
+    this->workOnPopulation(0, n_eval);
 }
 
 /******************************************************************************/
@@ -479,9 +478,6 @@ std::tuple<double, double> GAntColonyOptimization::cycleLogic_() {
 
     for(std::size_t pos = 0; pos < n_eval; ++pos) {
         auto &ind = (*this->at(pos));
-        if(ind.is_due_for_processing() || ind.has_errors()) {
-            continue;
-        }
         if(isBetter(ind.transformed_fitness(0), std::get<G_TRANSFORMED_FITNESS>(best_fitness), m)) {
             best_fitness = ind.getFitnessTuple();
         }

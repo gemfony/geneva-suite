@@ -695,10 +695,9 @@ void GParameterScan::evaluatePopulation_() {
     //--------------------------------------------------------------------------------
     // Submit all work items and wait for their return
 
-    auto status = this->workOnPopulation(0, this->data_cnt_.size());
-
-    // An incomplete or errored return cannot be accepted in a parameter scan.
-    this->requireCompleteEvaluation_(status, "GParameterScan::evaluatePopulation_()");
+    // An incomplete or errored return cannot be accepted in a parameter scan: the strict submission
+    // policy (getSubmissionPolicy_()) ends the run then.
+    this->workOnPopulation(0, this->data_cnt_.size());
 }
 
 /******************************************************************************/

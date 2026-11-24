@@ -720,20 +720,12 @@ protected:
     Gem::Courtier::submission_status_t workOnPopulation(std::size_t start, std::size_t end);
 
     /**
-     * @brief Enforces the "need-all" evaluation policy after a submission: throws if the returned
-     * status is incomplete or carries errors. The strict counterpart of discardUnusableItems_() --
-     * together the two helpers state the strict/tolerant split exactly once, mirroring the
-     * per-algorithm submission policy (getSubmissionPolicy_()).
-     */
-    void requireCompleteEvaluation_(
-        const Gem::Courtier::submission_status_t &status,
-        const std::string &caller
-    ) const;
-
-    /**
-     * @brief Applies the "tolerant" evaluation policy after a submission: erases the individuals a
-     * partial or errored return left unusable (still due for processing, or error-flagged), so the
-     * population continues with evaluated individuals only. See requireCompleteEvaluation_().
+     * @brief Erases the individuals an evaluation outside courtier left unusable (still due for
+     * processing, or error-flagged), so the population continues with evaluated individuals only. A
+     * submission through workOn() needs none of this: the consumer reconciles the batch by the
+     * algorithm's submission policy (getSubmissionPolicy_()) and returns only evaluated items, a
+     * substitute marked as such. An algorithm that evaluates on its own (the meta-EA runs its
+     * individuals on a pool of its own) reports what it got in @p status.
      */
     void discardUnusableItems_(const Gem::Courtier::submission_status_t &status);
 

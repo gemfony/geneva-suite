@@ -1557,31 +1557,10 @@ Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOn(
 
 /******************************************************************************/
 /**
- * Enforces the "need-all" evaluation policy after a submission (see the header).
+ * Erases the individuals an evaluation outside courtier left unusable -- still flagged DO_PROCESS, or
+ * error-flagged -- from the population (see the header).
  *
- * @param status The executor status returned by the submission
- * @param caller The calling function's name, used in the error message
- */
-void GOptimizationAlgorithmBase::requireCompleteEvaluation_(
-    const Gem::Courtier::submission_status_t &status,
-    const std::string &caller
-) const {
-    if(not status.is_complete || status.has_errors) {
-        throw gem_exception(
-            g_error_streamer()
-            << "In " << caller << ": Error!" << '\n'
-            << "No complete set of items received or errors found in some individuals" << '\n'
-        );
-    }
-}
-
-/******************************************************************************/
-/**
- * Applies the "tolerant" evaluation policy after a submission (see the header): individuals that a
- * partial or errored return left unusable -- still flagged DO_PROCESS, or error-flagged -- are
- * erased from the population.
- *
- * @param status The executor status returned by the submission
+ * @param status The status reported by the evaluation
  */
 void GOptimizationAlgorithmBase::discardUnusableItems_(
     const Gem::Courtier::submission_status_t &status

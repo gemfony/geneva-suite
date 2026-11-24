@@ -1001,10 +1001,9 @@ void GConjugateGradientDescent::evaluatePopulation_() {
         "an individual is not due for processing"
     );
 
-    auto status = this->workOnPopulation(0, this->data_cnt_.size());
-
-    // A conjugate-gradient method needs a complete set of evaluated solutions.
-    this->requireCompleteEvaluation_(status, "GConjugateGradientDescent::evaluatePopulation_()");
+    // A conjugate-gradient method needs a complete set of evaluated solutions: the strict submission
+    // policy (getSubmissionPolicy_()) ends the run otherwise.
+    this->workOnPopulation(0, this->data_cnt_.size());
 }
 
 /******************************************************************************/

@@ -403,6 +403,16 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   for a client, or whose result the client cannot encode or return (the client then sends the
   outcome alone, marked as failed, and stays). In each case the submission policy decides what
   happens to the item, as it does for any failed evaluation.
+- **A failed evaluation is handled once, by the consumer, and the item says so.** The consumer
+  reconciles every batch by the algorithm's submission policy and returns only evaluated items: a
+  slot it refills with a copy of an evaluated item is marked (`GProcessable::isSubstitute()`, until
+  the item is submitted again). A submitter forbids a substitute with `setSubstitutable(false)`; such
+  an item is evaluated again within the policy's budgets, or the run ends. The evolutionary
+  algorithm forbids it for its parents, so a parent whose evaluation fails in the first iteration
+  ends the run. The algorithms' own code for failed items, which could no longer run, is gone:
+  `GOptimizationAlgorithmBase::requireCompleteEvaluation_()` and its calls, the calls of
+  `discardUnusableItems_()` in simulated annealing, sep-CMA-ES and the swarm (it stays for the
+  meta-EA, which evaluates on a pool of its own), and the failed-vertex case of Nelder-Mead.
 - **Several submitters may use the GPU consumer at once**; their batches are queued to one device
   thread.
 - **The GPU path keeps the processing contract of a CPU consumer.** A marshaller begins each

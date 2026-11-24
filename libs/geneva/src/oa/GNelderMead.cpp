@@ -376,7 +376,8 @@ void GNelderMead::proposeTrials() {
             // fitness is not; treat such a vertex as the worst so it becomes the
             // reflected point. It is re-evaluated by evaluatePopulation_()
             // later in this iteration, so proper ranking resumes next cycle.
-            if(ind->is_due_for_processing() || ind->has_errors()) {
+            // (A vertex never holds a failed evaluation: the strict submission policy ends the run.)
+            if(ind->is_due_for_processing()) {
                 vfit[v] = std::numeric_limits<double>::max();
             }
             else {
@@ -606,16 +607,11 @@ void GNelderMead::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
 
 /******************************************************************************/
 /**
- * @brief Triggers fitness calculation of all individuals via the consumer.
- *
- * Throws if the consumer does not return a complete set of results or reports errors in any individual.
+ * @brief Triggers fitness calculation of all individuals via the consumer. Every vertex comes back
+ * evaluated: the strict submission policy (getSubmissionPolicy_()) ends the run otherwise.
  */
 void GNelderMead::evaluatePopulation_() {
-    using namespace Gem::Courtier;
-
-    auto status = this->workOnPopulation(0, this->data_cnt_.size());
-
-    this->requireCompleteEvaluation_(status, "GNelderMead::evaluatePopulation_()");
+    this->workOnPopulation(0, this->data_cnt_.size());
 }
 
 /******************************************************************************/
