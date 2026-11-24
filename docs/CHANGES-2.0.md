@@ -785,6 +785,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The checkpoint directory is created lazily**, at the first actual checkpoint write;
   merely configuring an algorithm (`setCheckpointBaseName`) no longer touches the
   filesystem.
+- **A checkpoint names its algorithm inside the file**: the personality type is its first
+  field, and `loadCheckpoint()` / `cp_personality_fits()` read it from there. The file name
+  stays a convention, so a renamed checkpoint loads; `saveCheckpoint()` is public, and a
+  checkpoint is no longer the plain `toFile()` archive of the algorithm.
 - **A final checkpoint is written when a run halts** (file name tagged `final`) whenever
   checkpointing is enabled (`cp_interval != 0`); with checkpointing disabled a run
   performs no checkpoint I/O at all.

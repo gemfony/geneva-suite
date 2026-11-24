@@ -294,8 +294,15 @@ public:
     /**
      * @brief Loads the state of a run from a checkpoint file; the settings of this job
      * (jobSettings_(): halt criteria, checkpoint settings, pluggable monitors, ...) stay as they are.
+     * A checkpoint of another algorithm is refused (its type is the file's first field).
      */
     void loadCheckpoint(std::filesystem::path const &cp_file);
+
+    /**
+     * @brief Writes a checkpoint of this algorithm to a file: its personality type first, then the
+     * algorithm with its population (checkpoint() calls it with the conventional file name).
+     */
+    void saveCheckpoint(std::filesystem::path const &output_file) const;
 
     /**
      * @brief Hands this algorithm an OA-owned adaption configuration to use for the run.
@@ -622,7 +629,8 @@ public:
     bool afterFirstIteration() const;
 
     /**
-     * @brief Checks whether a checkpoint-file has the same "personality" as our own algorithm.
+     * @brief Checks whether a checkpoint file was written by an algorithm of our own personality
+     * type (read from the file, not from its name).
      */
     bool cp_personality_fits(const std::filesystem::path &p) const;
 
@@ -784,16 +792,6 @@ protected:
         return getPersonalityTraits_();
     }
 
-    /**
-     * @brief Saves the state of the class to disc.
-     */
-    void saveCheckpoint(std::filesystem::path const &output_file) const;
-
-    /**
-     * @brief Extracts the short name of the optimization algorithm.
-     */
-    static std::string extractOptAlgFromPath(const std::filesystem::path &p);
-
     /** @brief Allows to set the personality type of the individuals */
     void setIndividualPersonalities();
     /** @brief Resets the individual's personality types */
@@ -836,7 +834,7 @@ public:
      * run's setup has consumed it (in optimize_(), right after init()). While true, the setup steps
      * PRESERVE the restored per-individual scratch (personality + adaption / swarm / CG POD blocks)
      * instead of re-seeding it, so a resumed algorithm keeps its evolved state. It is deliberately NOT
-     * serialized (it is a transient resume marker, and loadCheckpoint sets it AFTER fromFile anyway).
+     * serialized (it is a transient resume marker, and loadCheckpoint sets it AFTER load_() anyway).
      *
      * A pluggable monitor reads it at INFOINIT, which comes before it is cleared: a resumed run
      * appends to the streams of its monitors (GMonitorStream::declare()).
