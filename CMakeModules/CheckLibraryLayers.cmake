@@ -30,8 +30,9 @@
 # Driver for the test LibraryLayersRespected.
 #
 # The libraries of the collection are layered: weft at the bottom, common on weft, hap, dietrich and
-# courtier each on common only (three peers that know nothing of each other), geneva on all of them.
-# A file that includes a header of a library outside its layer makes its library, or its program,
+# courtier each on common and so on weft (three peers that know nothing of each other), geneva on all
+# of them. A library may include everything below it, also transitively (weft for hap, dietrich and
+# courtier). A file that includes a header of a library outside its layer makes its library, or its program,
 # depend on that library. Every library's include directory is on the global include path of the
 # build, and the shared libraries are linked without -z defs, so such an include shows neither when
 # the file is compiled nor when its library is linked. This driver reads the #include lines of

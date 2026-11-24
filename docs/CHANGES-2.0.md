@@ -122,7 +122,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   evaluators; the bundled `evaluator.py` was rewritten to match).
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
   materialize/refresh their config files with `--update-configs` (programs without Geneva's
-  launcher honor it too).
+  launcher honor it too: `Gem::Common::finishConfigEmission()` logs the end of the pass and the
+  program's `main()` returns after it; a Go2 program ends inside `optimize()`).
 - **A parameter entry of the wrong form is refused.** Each parameter is an object with a
   `"value"` -- a list for a vector or array parameter -- as in
   `"scan_randomly": { "value": false }`; a combined parameter is an object of such entries. A
@@ -460,7 +461,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   installed Geneva library now links only `libboost_json` and `libboost_program_options` (Boost
   headers are still needed at build time, e.g. Boost.Asio/Beast for the networked consumers and
   Boost.DLL for module loading).
-- **courtier depends on common only.** `gemfony-courtier` no longer links `gemfony-hap`, so
+- **courtier depends on common (and so on weft) only.** `gemfony-courtier` no longer links `gemfony-hap`, so
   `Geneva::courtier` no longer brings `Geneva::hap` with it: a program that used hap through
   courtier links `Geneva::hap` itself. `Geneva::geneva` links hap directly and brings it as
   before. The demo work items `GSimpleContainer`, `GRandomNumberContainer` and `GFaultyContainer`
@@ -539,12 +540,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     `GEM_BUILD_TESTS`, `GEM_BUILD_EXAMPLES`, `GEM_BUILD_BENCHMARKS`,
     `GEM_BUILD_WITH_MPI_CONSUMER`, `GEM_BUILD_WITH_GPU_CONSUMER`, `GEM_USE_CUDA_RNG`,
     `GEM_SKIP_CUDA`, `GEM_FORCE_CUDA`, `GEM_MIN_CUDA_VERSION`, `GEM_SANITIZER`,
-    `GEM_BUILD_WITH_COVERAGE`,
-    `GEM_COMMON_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE`,
-    `GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT`,
-    `GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE`, `GEM_HAP_FACTORY_QUEUE_PREALLOCATED` (each was
-    `GENEVA_...`). The keys of `genevaConfig.gcfg` are unchanged; a build directory configured
-    with the old names is configured again (`prepareBuild.sh <gcfg> --clean -y`);
+    `GEM_BUILD_WITH_COVERAGE` (each was `GENEVA_...`). The keys of `genevaConfig.gcfg` are
+    unchanged; a build directory configured with the old names is configured again
+    (`prepareBuild.sh <gcfg> --clean -y`). The six tuning switches `GENEVA_COMMON_DEFAULT_BUFFER_SIZE`,
+    `GENEVA_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE`, `..._DEFAULT_BUFFER_SIZE`, `..._DEFAULT_GET_WAIT`,
+    `..._SEED_VECTOR_SIZE` and `GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED` are gone: they changed the
+    layout of installed classes inside Geneva's own build only. Their values are fixed constants
+    in `hap/GHapEnums.hpp` and `common/GCommonEnums.hpp`;
   - the environment variables `GEM_CONFIG_BASENAME` and `GEM_RUN_TIMEOUT` (`startLocalJobs.sh`);
   - the log files a program writes into its working directory: `GEM-EXCEPTION.log`,
     `GEM-TERMINATION.log`;
@@ -619,6 +621,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   by design, the producer-thread count has its own setter, and the singleton's destructor
   joins the threads at static teardown). Access it only through `Gem::Hap::randomFactory()`.
   The generic `Gem::Common::GSingletonT<T>::reset()` is unaffected.
+- **`Gem::Hap::bi_normal_distribution::reset()` has the standard meaning** (behaviour change):
+  it discards cached values, as the standard distributions do, and keeps the parameters.
+  Restoring the parameters of the construction is `restoreParams()`. The class is now
+  assignable. The bi-Gauss adaption's "no change" nudge follows the direction of the step.
 - **The `execMode` enum is gone.** It was the selector of the removed per-algorithm
   broker parallelization model; under the one-consumer model the choice is simply which
   consumer the process registers. The direct-mode examples/benchmark keep their numeric
@@ -636,11 +642,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     declares its own, calls its base's and changes its own members;
   - its `specificTests*` bodies become ordinary Catch2 test cases in its own test program;
   - the standard tests come from the installed header `common/testing/GStandardTests.hpp`
-    (namespace `Gem::Common::Testing`: `StandardTests_no_failure_expected<T>()`,
-    `StandardTests_failures_expected<T>()`, `TFactory_GUnitTests<T>()`, `GEqualityPrinter`).
+    (namespace `Gem::Common::Testing`: `checkRoundTrips<T>()`,
+    `checkMisuse<T>()`, `makeTestObject<T>()`, `GEqualityPrinter`).
     They find `modifyForTest()` with a `requires` expression; a type without one is tested
     unchanged, and the round-trips that need a changed object are skipped. A specialization
-    of `TFactory_GUnitTests` is written in namespace `Gem::Common::Testing`.
+    of `makeTestObject` is written in namespace `Gem::Common::Testing`.
   The test individuals `GTestIndividual1/2/3` are no longer installed.
 - **A custom optimization algorithm no longer has to override `actOnStalls_()`.** The
   hook now has an empty default on `GOptimizationAlgorithmBase`; override it only when
@@ -783,6 +789,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The checkpoint directory is created lazily**, at the first actual checkpoint write;
   merely configuring an algorithm (`setCheckpointBaseName`) no longer touches the
   filesystem.
+- **A checkpoint names its algorithm inside the file**: the personality type is its first
+  field, and `loadCheckpoint()` / `cp_personality_fits()` read it from there. The file name
+  stays a convention, so a renamed checkpoint loads; `saveCheckpoint()` is public, and a
+  checkpoint is no longer the plain `toFile()` archive of the algorithm.
 - **A final checkpoint is written when a run halts** (file name tagged `final`) whenever
   checkpointing is enabled (`cp_interval != 0`); with checkpointing disabled a run
   performs no checkpoint I/O at all.

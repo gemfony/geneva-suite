@@ -275,7 +275,7 @@ private:
         // DEFAULTFACTORYGETWAIT for a container (after the start of the producers, which the first call
         // waits for) and signals "nothing available yet" with an empty pointer.
         // An empty return is normally TRANSIENT (the producers simply have not refilled the buffer
-        // yet), so we retry. Once the factory has been FINALIZED, however, its buffers are closed for
+        // yet), so we retry. (When no producer is left at all, getNewRandomContainer() throws.) Once the factory has been FINALIZED, however, its buffers are closed for
         // good and no container will ever arrive again -- retrying would then busy-spin at 100% CPU
         // forever. Distinguish the terminal case and fail fast with a clear exception instead of
         // hanging. (Defensive: the factory is a process-global singleton finalized only at the end

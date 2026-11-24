@@ -29,7 +29,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <limits>
 #include <span>
 #include <vector>
 
@@ -290,6 +294,29 @@ TEST_CASE("adaptBiGaussGroup: mode ALWAYS adapts every value (ULP-guaranteed cha
 }
 
 /******************************************************************************/
+TEST_CASE(
+    "adaptBiGaussGroup: a step too small to change a value nudges it in its own direction",
+    "[kernel]"
+) {
+    // Regression: when a bi-gaussian step was lost in the value's precision, the value was always
+    // moved one ULP upwards; the Gauss kernel moves it in the direction of the step. Both do now.
+    BiGaussConfig<double> cfg;
+    cfg.mode = adaptionMode::ALWAYS;
+    cfg.adaption_threshold = 0; // the widths stay fixed: no self-adaption
+    BiGaussState<double> st;
+    st.sigma1 = 0.1;
+    st.delta = 0.5;
+
+    std::vector<double> v(400, 1e20); // a step of about 0.25 is far below one ULP of 1e20
+    adaptBiGaussGroup<double>(cfg, st, std::span<double>(v), gr);
+    const auto n_down = std::ranges::count_if(v, [](double x) { return x < 1e20; });
+    const auto n_up = std::ranges::count_if(v, [](double x) { return x > 1e20; });
+    CHECK(n_up + n_down == static_cast<std::ptrdiff_t>(v.size()));
+    CHECK(n_down > static_cast<std::ptrdiff_t>(v.size() / 4));
+    CHECK(n_up > static_cast<std::ptrdiff_t>(v.size() / 4));
+}
+
+/******************************************************************************/
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent kernel test: the 200-rep self-adaption loop checks sigma1/sigma2/delta bounds together against the SAME evolving state
 TEST_CASE("adaptBiGaussGroup: sigma1/sigma2/delta self-adapt within their bounds", "[kernel]") {
     BiGaussConfig<double> cfg;
@@ -401,6 +428,47 @@ TEST_CASE("adaptGaussIntGroup: WITHPROBABILITY honours the ad_prob extremes", "[
         CHECK(adaptGaussIntGroup(cfg, st, std::span<std::int32_t>(v), 100, gr) == 0);
         CHECK(v == before);
     }
+}
+
+/******************************************************************************/
+TEST_CASE(
+    "adaptGaussIntGroup: a range as wide as int32 gives a symmetric step and an int32 value",
+    "[kernel]"
+) {
+    // Regression: the step range * N(0, sigma) was converted to int32 and added in int32. For a range
+    // near INT32_MAX about a third of the steps did not fit: the conversion was undefined (a fixed jump
+    // to INT32_MIN or a wrap, by compiler) and the addition overflowed. The step is now computed in 64
+    // bits, and the sum saturates at the limits of int32.
+    GaussConfig<double> cfg;
+    cfg.mode = adaptionMode::ALWAYS;
+    cfg.adaption_threshold = 0; // sigma stays fixed: no self-adaption
+    cfg.adapt_sigma_prob = 0.;
+    GaussState<double> st;
+    st.sigma = 1.;
+
+    std::vector<std::int32_t> v(2000, 0);
+    adaptGaussIntGroup(
+        cfg,
+        st,
+        std::span<std::int32_t>(v),
+        std::numeric_limits<std::int32_t>::max(),
+        gr
+    );
+    const auto n_up = std::ranges::count_if(v, [](std::int32_t x) { return x > 0; });
+    const auto n_down = std::ranges::count_if(v, [](std::int32_t x) { return x < 0; });
+    CHECK(n_up + n_down == static_cast<std::ptrdiff_t>(v.size()));
+    CHECK(std::abs(n_up - n_down) < static_cast<std::ptrdiff_t>(v.size() / 10));
+    // About a third of the steps (|N(0, 1)| > 1) end at a limit of int32 instead of wrapping around
+    const auto n_at_limits = std::ranges::count_if(v, [](std::int32_t x) {
+        return x == std::numeric_limits<std::int32_t>::max() ||
+               x == std::numeric_limits<std::int32_t>::min();
+    });
+    CHECK(n_at_limits > static_cast<std::ptrdiff_t>(v.size() / 5));
+
+    // Next to the upper limit, a step upwards ends at INT32_MAX instead of wrapping around
+    std::vector<std::int32_t> w(200, std::numeric_limits<std::int32_t>::max() - 1);
+    adaptGaussIntGroup(cfg, st, std::span<std::int32_t>(w), 1000, gr);
+    CHECK(std::ranges::all_of(w, [](std::int32_t x) { return x > 0; }));
 }
 
 /******************************************************************************/

@@ -583,7 +583,7 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
     // The per-individual OA scratch (adaption sigma/state) lives on the individual itself (in its GAuxiliaryStore) and is
     // serialized for check-pointing, so a resumed algorithm keeps its evolved state. Here we seed an individual's
     // scratch (as the EA does at setup), drive its sigma to a known value, round-trip the whole algorithm
-    // through the exact checkpoint path (toFile -> loadCheckpoint) and confirm the scratch survives. A
+    // through the exact checkpoint path (saveCheckpoint -> loadCheckpoint) and confirm the scratch survives. A
     // fully serialization-registered individual (GLineFitIndividual) is used so the algorithm can be
     // serialized to a file.
     namespace gind = Gem::Geneva::Individuals;
@@ -601,11 +601,10 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
     states[0].sigma = 0.123456;
     states[0].counter = 17;
 
-    // Serialize through the checkpoint mechanism (filename must encode the EA personality so
-    // loadCheckpoint's cross-check passes), then resume into a fresh algorithm.
+    // Serialize through the checkpoint mechanism, then resume into a fresh algorithm.
     const std::filesystem::path cp =
         std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-scratchtest.cp";
-    pop->toFile(cp, pop->getCheckpointSerializationMode());
+    pop->saveCheckpoint(cp);
 
     auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
     resumed->loadCheckpoint(cp);
@@ -666,7 +665,7 @@ TEST_CASE(
 
     const std::filesystem::path cp =
         std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-policytest.cp";
-    pop->toFile(cp, pop->getCheckpointSerializationMode());
+    pop->saveCheckpoint(cp);
 
     auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
     resumed->loadCheckpoint(cp);
@@ -1467,6 +1466,44 @@ TEST_CASE("a reset after a loaded checkpoint starts a run of its own", "[oa]") {
     const auto best = job2.getBestGlobalIndividual<gind::GLineFitIndividual>();
     REQUIRE(best);
     CHECK(record == best->raw_fitness(0));
+}
+
+/******************************************************************************/
+
+TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
+    // Regression: the algorithm of a checkpoint was read from the second hyphen-separated token of
+    // its file name, so a renamed checkpoint could not be loaded, and a file named after another
+    // algorithm was taken for one of it. The personality type is now the file's first field.
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    auto const dir = std::filesystem::temp_directory_path();
+
+    oa::GEvolutionaryAlgorithm ea;
+    ea.push_back(gind::GLineFitIndividual(data_points).clone());
+    ea.push_back(gind::GLineFitIndividual(data_points).clone());
+
+    // A checkpoint under a name of the user's choice loads
+    auto const renamed = dir / "my-run-of-today.cp";
+    ea.saveCheckpoint(renamed);
+    oa::GEvolutionaryAlgorithm from_renamed;
+    CHECK(from_renamed.cp_personality_fits(renamed));
+    REQUIRE_NOTHROW(from_renamed.loadCheckpoint(renamed));
+    CHECK(from_renamed.size() == ea.size());
+    std::filesystem::remove(renamed);
+
+    // A checkpoint of another algorithm is refused, whatever its name says
+    oa::GSimulatedAnnealing sa;
+    sa.push_back(gind::GLineFitIndividual(data_points).clone());
+    auto const misnamed = dir / "checkpoint-PERSONALITY_EA-0-0-misnamed.cp";
+    sa.saveCheckpoint(misnamed);
+    oa::GEvolutionaryAlgorithm into_ea;
+    CHECK_FALSE(into_ea.cp_personality_fits(misnamed));
+    CHECK_THROWS_WITH(
+        into_ea.loadCheckpoint(misnamed),
+        Catch::Matchers::ContainsSubstring("was written by the algorithm PERSONALITY_SA") &&
+            Catch::Matchers::ContainsSubstring("not by this one (PERSONALITY_EA)")
+    );
+    std::filesystem::remove(misnamed);
 }
 
 /******************************************************************************/
@@ -3018,7 +3055,7 @@ TEST_CASE("EA global-sigma controller resumes its evolved sigma from a checkpoin
 
     const std::filesystem::path cp =
         std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-globalsigmatest.cp";
-    pop->toFile(cp, pop->getCheckpointSerializationMode());
+    pop->saveCheckpoint(cp);
 
     auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
     resumed->loadCheckpoint(cp); // sets the resume marker; slots carry the evolved scratch

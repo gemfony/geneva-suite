@@ -472,7 +472,7 @@ TEST_CASE("A copy of a monitor's stream holder is empty", "[monitor][oa]") {
     RecordDirectory const dir("copy");
     oa::GEvolutionaryAlgorithm const ea;
     oa::GMonitorStream original;
-    REQUIRE(original.beginAlgorithm(ea));
+    REQUIRE_FALSE(original.isOpen());
     original.declare("copied", {{.name = "n", .type = Gem::Common::Record::columnType::UNSIGNED}}, ea);
     REQUIRE(original.isOpen());
     oa::GMonitorStream copy(original);

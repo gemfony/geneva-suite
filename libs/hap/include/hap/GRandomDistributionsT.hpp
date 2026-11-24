@@ -377,9 +377,6 @@ public:
 
     bi_normal_distribution() = default;
 
-    bi_normal_distribution(bi_normal_distribution<fp_type> &&) = delete;
-    bi_normal_distribution<fp_type> &operator=(bi_normal_distribution<fp_type> &&) = delete;
-
     /********************************************************************************************/
 
     /**
@@ -405,12 +402,10 @@ public:
       , params_store_(params) { /* nothing */
     }
 
-    /** @brief The copy constructor (memberwise, so it cannot silently drop a member; the former
-     *  hand-written version skipped the inner normal distribution and the boolean source).
-     *  Copy assignment is implicitly deleted through the const params_store_ member -- a
-     *  distribution carrying a const reset target is not assignable (the former hand-written
-     *  operator assigned that const member and was ill-formed; it merely was never instantiated). */
+    /** @brief The copy constructor (memberwise, so it cannot silently drop a member) */
     bi_normal_distribution(bi_normal_distribution<fp_type> const &) = default;
+    /** @brief The copy assignment (memberwise) @return This distribution */
+    bi_normal_distribution &operator=(bi_normal_distribution<fp_type> const &) = default;
 
     /**
      * @brief Returns the middle between both peaks.
@@ -490,11 +485,20 @@ public:
     }
 
     /**
-     * @brief Resets the distribution to the values used for its construction.
+     * @brief Discards cached values, as reset() of the standard distributions does: the next draw
+     * does not depend on earlier ones. The parameters stay as they are.
      */
     void reset() {
+        normal_distribution_.reset();
+        uniform_bool_.reset();
+    }
+
+    /**
+     * @brief Restores the parameters this distribution was constructed with.
+     */
+    void restoreParams() {
         params_ = params_store_;
-    };
+    }
 
     /**
       * @brief Returns the next random number with a bi_normal distribution.
@@ -546,9 +550,9 @@ private:
         fp_type(DEF_BINORM_SIGMA2),
         fp_type(DEF_BINORM_DISTANCE)
     }; ///< The actual parameter values being used
-    const param_type params_store_{
+    param_type params_store_{
         params_
-    }; ///< The values the distribution will be reset to when reset() is called
+    }; ///< The parameters of the construction, restored by restoreParams()
 };
 
 /******************************************************************************/

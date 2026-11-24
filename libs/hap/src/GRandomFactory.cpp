@@ -46,6 +46,7 @@
 #include <new>
 #include <random>
 #include <stdexcept>
+#include <string>
 #include <system_error>
 #include <thread>
 #include <tuple>
@@ -327,6 +328,8 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
  *
  * @return A unique_ptr to a filled container, or a null pointer if none came within
  *   DEFAULTFACTORYGETWAIT milliseconds
+ * @throws gem_exception if none came and no producer thread is left (each has ended with an error),
+ *   so that a caller does not wait for ever
  */
 std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
     // Start the producer threads upon first access to this function
@@ -361,6 +364,26 @@ std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
         // On timeout p stays empty -- our way of signaling a time out is an empty std::unique_ptr.
         // Count it: this is the aggregate "production could not keep up with demand" signal.
         n_get_timeouts_.fetch_add(1, std::memory_order_relaxed);
+
+        // Nothing came, and no producer is left that could still deliver: every one has ended with an
+        // error. Waiting on would last for ever, so the draw fails with the reason. (At shutdown the
+        // producers end as well; finalize() has then asked them to stop, and the caller sees
+        // finalized().)
+        if(0 == n_living_producers_.load() && not threads_stop_requested_.load()) {
+            std::string last_error;
+            {
+                std::unique_lock<std::mutex> const tc_lk(thread_creation_mutex_);
+                last_error = last_producer_error_;
+            }
+            throw gem_exception(
+                g_error_streamer()
+                << "No producer thread of the random-number factory is left: each has ended with an"
+                << " error, so no further random numbers will come." << '\n'
+                << (last_error.empty() ? std::string("The error of the last one is not known.")
+                                       : "The error of the last one: " + last_error)
+                << '\n'
+            );
+        }
     }
 
     return p;
@@ -389,9 +412,17 @@ GRandomFactory::startProducers(std::uint16_t n_new) {
     try {
         for(; n_started < n_new; n_started++) {
             producerThreadCreationHook();
-            producer_threads_.create_thread([this, start]() {
-                this->producer(this->getSeed(), start);
-            });
+            // Counted before it runs: the producer counts itself out when it ends
+            n_living_producers_.fetch_add(1);
+            try {
+                producer_threads_.create_thread([this, start]() {
+                    this->producer(this->getSeed(), start);
+                });
+            }
+            catch(...) {
+                n_living_producers_.fetch_sub(1);
+                throw;
+            }
         }
     }
     catch(const std::exception &e) {
@@ -489,7 +520,9 @@ void GRandomFactory::awaitStart(GProducerStart &start) {
  * std::thread, no exception may escape it (that would call std::terminate() and
  * bring the whole process down); every exception is therefore caught, logged as
  * a warning, and this producer thread exits cleanly while the remaining
- * producer threads keep supplying numbers.
+ * producer threads keep supplying numbers. Its error is kept (last_producer_error_), and the
+ * producer counts itself out of n_living_producers_, so that a draw that finds no producer left
+ * fails with that error instead of waiting for ever (getNewRandomContainer()).
  *
  * @param seed A seed for this producer thread's local random number generator
  * @param start The state of the start this producer belongs to; it reports its stages there
@@ -523,6 +556,14 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
             (*this)();
         }
     } report_start(std::move(start));
+
+    // Keeps this producer's error for a draw that finds no producer left. The start is reported as
+    // finished first: setNProducerThreads() holds thread_creation_mutex_ while it waits for a start.
+    auto keep_error = [&](std::string const &what) {
+        report_start();
+        std::unique_lock<std::mutex> const tc_lk(thread_creation_mutex_);
+        last_producer_error_ = what;
+    };
 
     try {
         // The fill backend picks -- once -- the fastest engine available in this
@@ -585,15 +626,20 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
         glogger << "Caught an exception with message" << '\n'
                 << e.what() << '\n'
                 << "This producer thread will now terminate cleanly. Random-number" << '\n'
-                << "production continues on the remaining producer threads." << '\n'
+                << "production continues on the remaining producer threads, if any." << '\n'
                 << GWARNING;
+        keep_error(e.what());
     }
     catch(...) {
         glogger << "Caught an unknown exception." << '\n'
                 << "This producer thread will now terminate cleanly. Random-number" << '\n'
-                << "production continues on the remaining producer threads." << '\n'
+                << "production continues on the remaining producer threads, if any." << '\n'
                 << GWARNING;
+        keep_error("an unknown exception");
     }
+
+    // Counted out after its error is kept, so that a draw that sees no producer left finds the error
+    n_living_producers_.fetch_sub(1);
 }
 
 /******************************************************************************/

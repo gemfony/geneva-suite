@@ -31,12 +31,16 @@
  *
  ********************************************************************************/
 
+#include <random>
 #include <thread>
+#include <tuple>
+#include <type_traits>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "GHap_tests.hpp"
 #include "hap/GRandomDefines.hpp"
+#include "hap/GRandomDistributionsT.hpp"
 #include "hap/GRandomFactory.hpp"
 
 TEST_CASE_METHOD(GHap_tests, "GHap no_failure_expected", "[hap][standard]") {
@@ -149,4 +153,37 @@ TEST_CASE(
     // A decrease while threads run is refused (warning) and leaves the count unchanged.
     factory->setNProducerThreads(1);
     REQUIRE(factory->getNProducerThreads() == target);
+}
+
+TEST_CASE(
+    "bi_normal_distribution: reset() forgets cached values and restoreParams() restores",
+    "[hap][standard]"
+) {
+    // Regression: reset() restored the construction parameters and kept the cached second value of
+    // the embedded normal distribution -- the opposite of what reset() means for the standard
+    // distributions -- and the class was not assignable. A standard engine with a fixed seed is used
+    // here (not hap), so that two draws can be compared.
+    using Gem::Hap::bi_normal_distribution;
+    bi_normal_distribution<double> used(1., 2., 1., 3.);
+    std::mt19937_64 engine(42);
+    std::ignore = used(engine); // the normal distribution keeps the second value of its pair
+    auto engine_copy = engine;
+    used.reset();
+    bi_normal_distribution<double> fresh(1., 2., 1., 3.);
+    CHECK(used(engine) == fresh(engine_copy)); // nothing cached is used after reset()
+
+    // reset() keeps the parameters; restoreParams() returns to those of the construction
+    used.param(bi_normal_distribution<double>::param_type(0., 1., 1., 1.));
+    used.reset();
+    CHECK(used.mean() == 0.);
+    used.restoreParams();
+    CHECK(used.mean() == 1.);
+    CHECK(used.distance() == 3.);
+
+    CHECK(std::is_copy_assignable_v<bi_normal_distribution<double>>);
+    if constexpr(std::is_copy_assignable_v<bi_normal_distribution<double>>) {
+        bi_normal_distribution<double> assigned;
+        assigned = fresh;
+        CHECK(assigned == fresh);
+    }
 }

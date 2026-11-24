@@ -46,7 +46,7 @@ namespace Gem::Common {
  * code already knows. To materialize them at build/install time, a binary is run with the
  * @c --update-configs command-line switch: it puts GParserBuilder into update-in-place mode (so every
  * config it subsequently parses is created-if-absent and rewritten in canonical form), constructs
- * each of its config owners so their parse fires, and exits without optimizing.
+ * each of its config owners so their parse fires, and ends without optimizing.
  *
  * A driver that owns its program's configs may do this internally (Geneva's @c Go2, for example,
  * consumes @c --update-configs and refreshes every config it owns). These helpers give every other
@@ -61,7 +61,8 @@ namespace Gem::Common {
  *       Gem::Common::beginConfigEmission();
  *       // Construct (and, if the parse is lazy, exercise) every config owner this binary uses:
  *       MyConfiguredComponent component("./config/MyConfiguredComponent.json");
- *       Gem::Common::finishConfigEmission(); // logs and exits(0)
+ *       Gem::Common::finishConfigEmission(); // logs completion
+ *       return 0;
  *   }
  * @endcode
  */
@@ -108,13 +109,13 @@ void beginConfigEmission();
 
 /******************************************************************************/
 /**
- * @brief Concludes a configuration-emission run: logs completion and exits the process cleanly.
+ * @brief Concludes a configuration-emission run: logs completion.
  *
- * Call after every config owner has been constructed (and its parse exercised). Like Geneva's Go2
- * on @c --update-configs, this exits via std::exit(0) so the caller's remaining work is not
- * reached; registered atexit/static teardown (logger flush, RNG factory guard) still runs.
+ * Call after every config owner has been constructed (and its parse exercised). It does not end the
+ * process: the caller ends the run itself, a main() by returning. (Geneva's Go2 ends the process on
+ * @c --update-configs, because its caller's code after optimize() expects a population.)
  */
-[[noreturn]] void finishConfigEmission();
+void finishConfigEmission();
 
 /******************************************************************************/
 

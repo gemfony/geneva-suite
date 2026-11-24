@@ -14,7 +14,7 @@ cd /your/build && make doc             # all libraries (aggregator)
 ```
 
 `doc-courtier` automatically depends on `doc-common` so the upstream tag
-file exists for cross-references (courtier builds on common only).
+file exists for cross-references (courtier builds on common, and so on weft).
 
 ## Output location
 

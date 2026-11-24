@@ -49,20 +49,20 @@ using namespace Gem::Geneva;
 /************************************************************************************************/
 
 TEMPLATE_TEST_CASE(
-    "StandardTests_no_failure_expected -- GStarterIndividual",
+    "checkRoundTrips -- GStarterIndividual",
     "[examples][starter][standard]",
     GStarterIndividual
 ) {
     STATIC_REQUIRE(Gem::Common::Testing::ModifiableForTest<TestType>);
-    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::checkRoundTrips<TestType>();
 }
 
 TEMPLATE_TEST_CASE(
-    "StandardTests_failures_expected -- GStarterIndividual",
+    "checkMisuse -- GStarterIndividual",
     "[examples][starter][standard]",
     GStarterIndividual
 ) {
-    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::checkMisuse<TestType>();
 }
 
 /************************************************************************************************/

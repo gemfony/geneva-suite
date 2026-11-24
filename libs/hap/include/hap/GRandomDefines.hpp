@@ -41,80 +41,13 @@
 #include <thread>
 
 // Geneva headers go here
-#include "common/concurrency/GQueueCommon.hpp" // for QueueBackend
+#include "hap/GHapEnums.hpp" // the constants of the random factory
 
 namespace Gem::Hap {
 
 /******************************************************************************/
 // The seed type used by the random factory's seeding machinery
 using seed_type = std::mt19937::result_type;
-
-/******************************************************************************/
-// Some constants needed for the random number generation
-
-#ifdef GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE
-const std::size_t DEFAULTARRAYSIZE =
-    GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE; ///< Default size of the random number array
-#else
-constexpr std::size_t DEFAULTARRAYSIZE = 10000; ///< Default size of the random number array
-#endif /* GHAP_DEFAULT_ARRAY_SIZE */
-
-#ifdef GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE
-const std::size_t DEFAULTFACTORYBUFFERSIZE =
-    GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE; ///< Default size of the underlying buffer
-#else
-// The producers FILL the fresh-package buffer to capacity, so this default is a deliberate
-// hap-specific memory budget, NOT the generic queue default (Gem::Common::DEFAULTBUFFERSIZE
-// == 5000, which at DEFAULTARRAYSIZE doubles per package would pin ~400 MB of RSS). 64
-// packages (~5 MB) are ample head-room: consumers drain at most a handful of packages per
-// proxy refill while the producer pool refills continuously; a persistent shortfall shows up
-// in getNGetTimeouts() rather than being hidden by a huge buffer.
-constexpr std::size_t DEFAULTFACTORYBUFFERSIZE = 64; ///< Default size of the underlying buffer
-#endif /* GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE */
-
-// Selects the MPMC-queue backend the random factory's package buffers use. The default is the
-// std::deque-backed queue, so production behaviour is unchanged; defining
-// GEM_HAP_FACTORY_QUEUE_PREALLOCATED at configure time switches them to the preallocated ring
-// buffer (a drop-in, interface-identical alternative -- see Gem::Common::Concurrency::GMPMCQueueT).
-#ifdef GEM_HAP_FACTORY_QUEUE_PREALLOCATED
-constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND =
-    Gem::Common::Concurrency::QueueBackend::Preallocated;
-#else
-constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND =
-    Gem::Common::Concurrency::QueueBackend::Deque;
-#endif /* GEM_HAP_FACTORY_QUEUE_PREALLOCATED */
-
-#ifdef GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT
-const std::uint16_t DEFAULTFACTORYGETWAIT =
-    GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT; ///< waiting time in milliseconds
-#else
-constexpr std::uint16_t DEFAULTFACTORYGETWAIT = 200; ///< waiting time in milliseconds
-#endif /* GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT */
-
-/// How long the call that starts producer threads waits for their start before it warns that it waits
-constexpr std::chrono::seconds PRODUCERSTARTFIRSTWARNING{10};
-/// How long that call waits between its later warnings
-constexpr std::chrono::seconds PRODUCERSTARTREPEATWARNING{60};
-
-#ifdef GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE
-const std::size_t DEFAULTSEEDVECTORSIZE =
-    GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE; ///< The size of the seeding vector
-#else
-constexpr std::size_t DEFAULTSEEDVECTORSIZE = 2000; ///< The size of the seeding vector
-#endif /* GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE */
-
-/******************************************************************************/
-/**
- * The fallback number of threads that simultaneously produce [0,1[ random numbers when the core
- * count cannot be determined, and the floor for the hardware-derived count (see
- * autoProducerThreadCount()).
- */
-constexpr std::uint16_t DEFAULT01PRODUCERTHREADS = 2;
-
-/** @brief Divisor applied to hardware_concurrency() when auto-sizing the RNG producer pool. */
-constexpr unsigned int PRODUCERTHREADS_HW_DIVISOR = 4;
-/** @brief Upper clamp on the auto-sized producer count (bounds fresh-queue lock contention). */
-constexpr std::uint16_t MAXAUTOPRODUCERTHREADS = 8;
 
 /******************************************************************************/
 /**

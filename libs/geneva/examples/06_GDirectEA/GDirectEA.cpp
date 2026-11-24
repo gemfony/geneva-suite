@@ -258,6 +258,7 @@ int main(int argc, char **argv) {
         Gem::Common::beginConfigEmission();
         gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
         Gem::Common::finishConfigEmission();
+        return 0;
     }
 
     /****************************************************************************/

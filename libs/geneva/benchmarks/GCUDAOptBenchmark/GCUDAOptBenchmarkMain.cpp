@@ -154,6 +154,7 @@ int main(int argc, char **argv) {
         auto marshaller = std::make_shared<GBenchmarkGPUMarshaller>();
         Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome>("./config/GGPUConsumer.json", marshaller);
         Gem::Common::finishConfigEmission();
+        return 0;
     }
 
     Gem::Common::GParserBuilder options;

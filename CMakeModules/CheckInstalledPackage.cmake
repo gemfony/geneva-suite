@@ -412,7 +412,7 @@ FUNCTION(gip_lane_flags _mode)
 		"get_target_property(_geneva_links Geneva::geneva INTERFACE_LINK_LIBRARIES)\n"
 		"if(\"\${_courtier_links}\" MATCHES \"Geneva::hap\")\n"
 		"  message(SEND_ERROR \"${_mode}: Geneva::courtier links Geneva::hap "
-		"(\${_courtier_links}); courtier builds on common only\")\n"
+		"(\${_courtier_links}); courtier builds on common and weft, not on hap\")\n"
 		"endif()\n"
 		"if(NOT \"\${_geneva_links}\" MATCHES \"Geneva::hap\")\n"
 		"  message(SEND_ERROR \"${_mode}: Geneva::geneva does not link Geneva::hap "

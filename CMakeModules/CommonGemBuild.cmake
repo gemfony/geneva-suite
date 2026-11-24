@@ -249,8 +249,8 @@ IF(NOT COMMON_GEM_BUILD_INCLUDED)
 	# The order of the entries is important, as it translates to the linking
 	# order in TARGET_LINK_LIBRARIES() later: every library comes before the ones it
 	# builds on. geneva builds on courtier, hap and dietrich, three peers that each
-	# build on common only; common builds on weft (the standalone serialization
-	# engine, the deepest layer), so weft links LAST, after common.
+	# build on common and so on weft; common builds on weft (the standalone
+	# serialization engine, the deepest layer), so weft links LAST, after common.
 	SET (
 			GEM_LIBNAMES
 			${GENEVA_LIBNAME}

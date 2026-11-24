@@ -64,13 +64,10 @@ namespace Gem::Common {
  * is a safeguard against errors like endless loops that might keep
  * filling the buffer until memory is exhausted. In normal work
  * conditions, however, the buffer should never reach its upper
- * limit.
+ * limit. A fixed constant, not a build switch: it is part of the
+ * type of installed queues, so a program and the libraries must agree on it.
  */
-#ifdef GEM_COMMON_DEFAULT_BUFFER_SIZE
-constexpr std::size_t DEFAULTBUFFERSIZE = GEM_COMMON_DEFAULT_BUFFER_SIZE;
-#else
 constexpr std::size_t DEFAULTBUFFERSIZE = 5000;
-#endif
 
 /******************************************************************************/
 // A basetype used for all enums in Geneva

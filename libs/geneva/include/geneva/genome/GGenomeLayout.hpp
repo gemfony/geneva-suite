@@ -141,6 +141,8 @@ T foldConstrainedFP(const T &val, const T &lo, const T &hi) {
 /**
  * The reflecting fold of GConstrainedIntT::transfer(), re-expressed as a free function over (val, lo,
  * hi). Integer ranges are CLOSED [lo, hi] (both boundaries included), unlike the half-open FP range.
+ * A type narrower than 64 bits is folded in std::int64_t: the width of its range (hi - lo + 1) and
+ * the shifted values need one bit more than the type has. The result lies in [lo, hi].
  *
  * @tparam T The integer value type.
  * @param val The unbounded internal value to fold into range.
@@ -154,24 +156,28 @@ T foldConstrainedInt(const T &val, const T &lo, const T &hi) {
         return val;
     }
 
-    const T value_range = hi - lo + T(1); // both boundaries are included
-    T mapping = T(0);
+    using wide_type = std::conditional_t<(sizeof(T) < sizeof(std::int64_t)), std::int64_t, T>;
+    const wide_type v = val;
+    const wide_type l = lo;
+    const wide_type h = hi;
+    const wide_type value_range = h - l + 1; // both boundaries are included
+    wide_type mapping = 0;
 
-    if(val < lo) {
-        const T n_below = (lo - (val + T(1))) / value_range;
-        mapping = val + (value_range * (n_below + T(1)));
+    if(v < l) {
+        const wide_type n_below = (l - (v + 1)) / value_range;
+        mapping = v + (value_range * (n_below + 1));
         if(n_below % 2 == 0) {
-            mapping = lo + hi - mapping; // revert (descending range)
+            mapping = l + h - mapping; // revert (descending range)
         }
     }
     else { // val > hi
-        const T n_above = (val - hi - T(1)) / value_range;
-        mapping = val - (value_range * (n_above + T(1)));
+        const wide_type n_above = (v - h - 1) / value_range;
+        mapping = v - (value_range * (n_above + 1));
         if(n_above % 2 == 0) {
-            mapping = lo + hi - mapping; // revert (descending range)
+            mapping = l + h - mapping; // revert (descending range)
         }
     }
-    return mapping;
+    return static_cast<T>(mapping);
 }
 
 /******************************************************************************/
@@ -339,17 +345,25 @@ struct ChannelLayout {
 // by its hard bound [lower, upper); an unbounded one (no hard bound) by its init perimeter
 // [init_lower, init_upper). No separate state is stored -- these are computed from the arrays present.
 
+/** @brief The type ngScale() / ngAnchor() compute in: T itself for floating point, std::int64_t for
+ *  integers (the width of an int32 range and the sum of its bounds need 33 bits). */
+template <typename T>
+using ng_scale_type = std::conditional_t<std::is_integral_v<T>, std::int64_t, T>;
+
 /** @brief The mutation scale of value k: the bound width (folding) or the init-perimeter width (unbounded). */
 template <typename T>
-T ngScale(ChannelLayout<T> const &ch, std::size_t k) {
-    return ch.fold[k] ? (ch.upper[k] - ch.lower[k]) : (ch.init_upper[k] - ch.init_lower[k]);
+ng_scale_type<T> ngScale(ChannelLayout<T> const &ch, std::size_t k) {
+    using S = ng_scale_type<T>;
+    return ch.fold[k] ? (S(ch.upper[k]) - S(ch.lower[k]))
+                      : (S(ch.init_upper[k]) - S(ch.init_lower[k]));
 }
 
 /** @brief The anchor (interval centre) of value k, matching ngScale's interval choice. */
 template <typename T>
-T ngAnchor(ChannelLayout<T> const &ch, std::size_t k) {
-    return ch.fold[k] ? ((ch.lower[k] + ch.upper[k]) / T(2))
-                      : ((ch.init_lower[k] + ch.init_upper[k]) / T(2));
+ng_scale_type<T> ngAnchor(ChannelLayout<T> const &ch, std::size_t k) {
+    using S = ng_scale_type<T>;
+    return ch.fold[k] ? ((S(ch.lower[k]) + S(ch.upper[k])) / S(2))
+                      : ((S(ch.init_lower[k]) + S(ch.init_upper[k])) / S(2));
 }
 
 /******************************************************************************/
