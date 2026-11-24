@@ -87,6 +87,15 @@ set_property(CACHE GEM_BUILD_WITH_GPU_CONSUMER PROPERTY STRINGS auto on off)
 set(GEM_BUILD_WITH_MQTT_CONSUMER "auto" CACHE STRING "Build the MQTT transport into courtier and expose the 'mqtt' mnemonic: auto|on|off")
 set_property(CACHE GEM_BUILD_WITH_MQTT_CONSUMER PROPERTY STRINGS auto on off)
 
+# Build example 14 (the Mona-Lisa problem) with FLOAT parameters + a float GPU kernel. This is the
+# DEFAULT (ON): FP32 is ~14x faster than FP64 at the 1000-triangle workload on consumer GPUs. Turn
+# OFF for the double variant (e.g. to compare FP32 vs FP64). Selects the scalar type at compile time
+# (gimage_fp_t) and the matching default GPU-consumer config / device kernel. Settable from
+# genevaConfig.gcfg via GIMAGE_USE_FLOAT. Declared here rather than in the example, which only a CUDA
+# build adds: a build without CUDA would otherwise warn that the variable prepareBuild.sh passes is
+# unused.
+OPTION ( GIMAGE_USE_FLOAT "Build example 14 (Mona-Lisa) with float parameters + a float GPU kernel instead of double" ON )
+
 # Selects the source the default Gem::Hap::GRandom proxy draws from (compile-time only -- exactly
 # one backend exists in a given build):
 #   queue      -> the central factory package queue (the default; producers may bulk-fill via cuRAND/SIMD)

@@ -34,12 +34,8 @@
 # selects CPU / CUDA at run time via config/GGPUConsumer.json. It only needs libpng to load
 # the target image and write result pictures; if libpng is missing the example is skipped.
 
-# Build example 14 (the Mona-Lisa problem) with FLOAT parameters + a float GPU kernel. This is the
-# DEFAULT (ON): FP32 is ~14x faster than FP64 at the 1000-triangle workload on consumer GPUs. Turn
-# OFF for the double variant (e.g. to compare FP32 vs FP64). Selects the scalar type at compile time
-# (gimage_fp_t) and the matching default GPU-consumer config / device kernel. Settable from
-# genevaConfig.gcfg via GIMAGE_USE_FLOAT.
-OPTION ( GIMAGE_USE_FLOAT "Build example 14 (Mona-Lisa) with float parameters + a float GPU kernel instead of double" ON )
+# GIMAGE_USE_FLOAT (float or double parameters and GPU kernel) is an option of the top-level
+# CMakeLists.txt.
 
 FIND_PACKAGE ( PNG QUIET )
 IF ( NOT PNG_FOUND )
