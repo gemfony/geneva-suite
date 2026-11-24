@@ -39,6 +39,7 @@
 #include <tuple>
 #include <vector>
 
+#include "common/GChecks.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
@@ -211,6 +212,7 @@ void GAntColonyOptimization::adjustPopulation_() {
  * Does some preparatory work before the optimization starts: determines the floating-point parameter
  * count, computes the ranked selection probabilities and seeds the initial archive into the first k population slots
  * (member 0 keeps the registered start individual; the rest are randomized uniformly inside the box).
+ * A run resumed from a checkpoint keeps its archive instead; it is checked against k and the genome.
  */
 void GAntColonyOptimization::init() {
     GOptimizationAlgorithmT<GAntColonyOptimization>::init();
@@ -230,7 +232,25 @@ void GAntColonyOptimization::init() {
     }
 
     computeSelectionProbabilities();
-    seedInitialArchive();
+    if(this->resumedFromCheckpoint()) {
+        Gem::Common::checkThat(
+            archive_.size() == archive_size_ &&
+                std::ranges::all_of(
+                    archive_,
+                    [this](ACOSolution const &sol) { return sol.parms.size() == n_fp_parms_; }
+                ),
+            "The archive of the checkpoint does not fit the population: expected ",
+            archive_size_,
+            " solutions with ",
+            n_fp_parms_,
+            " floating point parameters, found ",
+            archive_.size(),
+            " solutions."
+        );
+    }
+    else {
+        seedInitialArchive();
+    }
     markIndividualPositions();
 }
 
@@ -278,12 +298,12 @@ void GAntColonyOptimization::finalize() {
 
 /******************************************************************************/
 /**
- * Retrieve the number of processable items in the current iteration. In the very first iteration the
- * whole seeded archive (k individuals) is evaluated; afterwards only the m newly constructed ants are
- * evaluated.
+ * Retrieve the number of processable items in the current iteration. While the archive is empty (in
+ * the first iteration of a new run) the whole seeded archive (k individuals) is evaluated; afterwards,
+ * and in every iteration of a resumed run, only the m newly constructed ants are evaluated.
  */
 std::size_t GAntColonyOptimization::getNProcessableItems_() const {
-    return this->afterFirstIteration() ? n_ants_ : archive_size_;
+    return archive_.empty() ? archive_size_ : n_ants_;
 }
 
 /******************************************************************************/
@@ -421,26 +441,26 @@ void GAntColonyOptimization::updateArchive() {
 
 /******************************************************************************/
 /**
- * Submits the relevant population sub-range to the one process consumer and waits for processed items.
- * In the first iteration the whole seeded archive (k individuals) is evaluated; afterwards only the m
- * newly constructed ants (population slots 0..m-1) are evaluated. Mirrors the stock EA's submission path
- * (workOnPopulation reconciles the contiguous range in place).
+ * Submits the relevant population sub-range to the one process consumer and waits for processed items:
+ * the k seeds while the archive is empty, otherwise the m newly constructed ants (population slots
+ * 0..m-1). Mirrors the stock EA's submission path (workOnPopulation reconciles the contiguous range in
+ * place).
  */
 void GAntColonyOptimization::evaluatePopulation_() {
-    const std::size_t n_eval = this->afterFirstIteration() ? n_ants_ : archive_size_;
-
     // The consumer returns every slot evaluated (a failed one refilled with a marked substitute).
-    this->workOnPopulation(0, n_eval);
+    this->workOnPopulation(0, this->getNProcessableItems_());
 }
 
 /******************************************************************************/
 /**
  * The actual business logic to be performed during each iteration.
  *
- *   - first iteration: the k seed candidates were written into the first k population slots by
- *     init(); evaluate all k and read them into the (empty) archive, which ranks them best-first.
- *   - later iterations: construct m new ants (sampling from the ranked archive), evaluate them, then
- *     merge them into the archive and truncate to k.
+ *   - while the archive is empty (the first iteration of a new run): the k seed candidates were
+ *     written into the first k population slots by init(); evaluate all k and read them into the
+ *     archive, which ranks them best-first.
+ *   - otherwise (later iterations, and every iteration of a resumed run): construct m new ants
+ *     (sampling from the ranked archive), evaluate them, then merge them into the archive and
+ *     truncate to k.
  *
  * The global best is retained across iterations by the base class's global priority queue, which is fed
  * the whole population every iteration; cycleLogic_ therefore reports the best (raw, transformed)
@@ -449,7 +469,9 @@ void GAntColonyOptimization::evaluatePopulation_() {
  * @return The best fitness found in this iteration
  */
 std::tuple<double, double> GAntColonyOptimization::cycleLogic_() {
-    if(this->afterFirstIteration()) {
+    const std::size_t n_eval = this->getNProcessableItems_(); // before the seeds fill the archive
+
+    if(not archive_.empty()) {
         // Sample m new ants from the current (ranked) archive, then evaluate and merge.
         constructAnts();
         evaluatePopulation_();
@@ -471,7 +493,6 @@ std::tuple<double, double> GAntColonyOptimization::cycleLogic_() {
     // Report the best (raw, transformed) fitness among the individuals actually evaluated this iteration,
     // using the standard EA/ES ranking helpers (isBetter / getMaxMode).
     const auto m = this->at(0)->getMaxMode();
-    const std::size_t n_eval = this->afterFirstIteration() ? n_ants_ : archive_size_;
 
     std::tuple<double, double> best_fitness =
         std::make_tuple(this->at(0)->getWorstCase(), this->at(0)->getWorstCase());

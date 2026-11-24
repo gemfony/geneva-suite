@@ -38,6 +38,7 @@
 #include <tuple>
 #include <vector>
 
+#include "common/GChecks.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
@@ -178,6 +179,8 @@ void GStandardPSO2011::adjustPopulation_() {
  * Does some preparatory work before the optimization starts. It determines the floating-point parameter
  * count, randomly initializes all particles (keeping particle 0 as the registered start individual),
  * seeds the velocities via the SPSO-2011 half-diff rule, and sets each personal best to the start position.
+ * A run resumed from a checkpoint keeps its positions, velocities and bests instead; they are checked
+ * against the swarm size and the genome.
  */
 void GStandardPSO2011::init() {
     GOptimizationAlgorithmT<GStandardPSO2011>::init();
@@ -195,18 +198,43 @@ void GStandardPSO2011::init() {
         );
     }
 
+    informs_.assign(swarm_size_, std::vector<bool>(swarm_size_, false));
+    global_best_improved_ = true;
+
+    // Particle index bookkeeping.
+    for(std::size_t i = 0; i < swarm_size_; ++i) {
+        this->at(i)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(i);
+    }
+
+    if(this->resumedFromCheckpoint()) {
+        auto const fits = [this](std::vector<std::vector<double>> const &rows) {
+            return rows.size() == swarm_size_ && std::ranges::all_of(rows, [this](auto const &row) {
+                       return row.size() == n_fp_parms_;
+                   });
+        };
+        Gem::Common::checkThat(
+            fits(velocities_) && fits(personal_bests_) &&
+                personal_best_fitness_.size() == swarm_size_ && global_best_.size() == n_fp_parms_,
+            "The swarm state of the checkpoint does not fit the population: expected ",
+            swarm_size_,
+            " particles with ",
+            n_fp_parms_,
+            " floating point parameters, found ",
+            velocities_.size(),
+            " particles with ",
+            global_best_.size(),
+            " parameters."
+        );
+        return;
+    }
+
     velocities_.assign(swarm_size_, std::vector<double>(n_fp_parms_, 0.));
     personal_bests_.assign(swarm_size_, std::vector<double>(n_fp_parms_, 0.));
     personal_best_fitness_.assign(swarm_size_, std::numeric_limits<double>::max());
     global_best_.assign(n_fp_parms_, 0.);
     global_best_fitness_ = std::numeric_limits<double>::max();
-    informs_.assign(swarm_size_, std::vector<bool>(swarm_size_, false));
-    global_best_improved_ = true;
 
     for(std::size_t i = 0; i < swarm_size_; ++i) {
-        // Particle index bookkeeping.
-        this->at(i)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(i);
-
         std::vector<double> pos;
         this->at(i)->streamlineFPInternal(pos, activityMode::ACTIVEONLY);
 

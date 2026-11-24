@@ -239,9 +239,9 @@ private:
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief Single declaration of this class'es local data members (drives serialize/load/compare).
-     *  Only the scalar configuration (n_chains, q_v, q_a, t0, reannealing) is persisted; all per-chain
-     *  state (current points/energies, cooling clocks, stall counters, parameter bounds) is transient
-     *  and rebuilt in init(). */
+     *  The configuration and the per-chain run state (cooling clocks, best energies, stall counters)
+     *  are persisted, so a run resumed from a checkpoint goes on with them; the chains' points are the
+     *  population. */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
     // overloads are trivial forwarders. self_type is deduced as the (const) class type.
     template <typename self_type>
@@ -252,7 +252,10 @@ private:
             Gem::Common::make_member("qa_", self.qa_),
             Gem::Common::make_member("t0_", self.t0_),
             Gem::Common::make_member("reannealing_steps_", self.reannealing_steps_),
-            Gem::Common::make_member("cooling_timescale_", self.cooling_timescale_)
+            Gem::Common::make_member("cooling_timescale_", self.cooling_timescale_),
+            Gem::Common::make_member("chain_step_", self.chain_step_),
+            Gem::Common::make_member("chain_best_energy_", self.chain_best_energy_),
+            Gem::Common::make_member("chain_stall_", self.chain_stall_)
         );
     }
 
@@ -376,19 +379,19 @@ private:
         DEFAULTGSACOOLING; ///< Divides the step counter in the schedule (1 = strict; larger slows cooling)
 
     /***************************************************************************/
-    // Internal per-chain state (transient; rebuilt in init(), excluded from serialize/compare)
+    // The per-chain run state: built by init() for a new run, kept by init() for a resumed one
 
-    /// transient: the number of active floating point parameters, set in init()
+    /// transient: the number of active floating point parameters, derived from the genome in init()
     std::size_t n_fp_parms_ = 0;
 
-    /// transient: the visiting temperature actually used (== t0_ or derived), set in init()
+    /// transient: the visiting temperature actually used (== t0_ or derived), derived in init()
     double t0_effective_ = 0.;
 
-    /// transient: the per-chain cooling-clock step index t (reset on reanneal), rebuilt in init()
+    /// Per chain: the cooling-clock step index t (reset on reanneal)
     std::vector<std::uint32_t> chain_step_;
-    /// transient: the per-chain best energy seen so far, rebuilt in init()
+    /// Per chain: the best energy seen so far
     std::vector<double> chain_best_energy_;
-    /// transient: the per-chain steps since the last improvement, rebuilt in init()
+    /// Per chain: the steps since the last improvement
     std::vector<std::uint32_t> chain_stall_;
 };
 

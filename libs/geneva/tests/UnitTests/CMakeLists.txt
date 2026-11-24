@@ -40,6 +40,7 @@ SET ( ${EXECUTABLENAME}_SRCS
 	GNormalizedGenomeTests.cpp
 	GOptimizationAlgorithmsTests.cpp
 	GStandardPSO2011Tests.cpp
+	GResumeRunStateTests.cpp
 	GAntColonyOptimizationTests.cpp
 	GGeneralizedSimulatedAnnealingTests.cpp
 	GOABenchmark.cpp

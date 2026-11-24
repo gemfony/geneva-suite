@@ -155,7 +155,8 @@ constexpr std::size_t DEFAULTSPSOK = 3; ///< The default number of particles eac
  * \f[
  *   v_{i,d} = \tfrac{1}{2}\bigl(U(\mathrm{lower}_d, \mathrm{upper}_d) - x_{i,d}\bigr),
  * \f]
- * and the personal best is initialized to the start position, \f$p_i = x_i\f$.
+ * and the personal best is initialized to the start position, \f$p_i = x_i\f$. A run resumed from a
+ * checkpoint keeps its positions, velocities and bests (they are part of the checkpoint).
  *
  * @note Clean-room implementation: derived solely from the published SPSO-2011 specification, not adapted
  * from any existing PSO codebase, keeping it free of copyleft entanglement with Geneva's Apache-2.0
@@ -180,15 +181,21 @@ private:
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief Single declaration of this class'es local data members (drives serialize/load/compare).
-     *  Only the scalar configuration is persisted; all per-particle swarm state (velocities, personal
-     *  bests, topology, bounds, ...) is transient and rebuilt in init(). */
+     *  The configuration and the swarm's run state (velocities, personal and global bests) are
+     *  persisted, so a run resumed from a checkpoint goes on with them; the informant topology is
+     *  transient (see below). */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
     // overloads are trivial forwarders. self_type is deduced as the (const) class type.
     template <typename self_type>
     auto localMembers_(this self_type &self) {
         return std::make_tuple(
             Gem::Common::make_member("swarm_size_", self.swarm_size_),
-            Gem::Common::make_member("n_informants_", self.n_informants_)
+            Gem::Common::make_member("n_informants_", self.n_informants_),
+            Gem::Common::make_member("velocities_", self.velocities_),
+            Gem::Common::make_member("personal_bests_", self.personal_bests_),
+            Gem::Common::make_member("personal_best_fitness_", self.personal_best_fitness_),
+            Gem::Common::make_member("global_best_", self.global_best_),
+            Gem::Common::make_member("global_best_fitness_", self.global_best_fitness_)
         );
     }
 
@@ -275,28 +282,29 @@ private:
     std::size_t n_informants_ = DEFAULTSPSOK; ///< The number of particles each particle informs (K)
 
     /***************************************************************************/
-    // Internal swarm state (transient; rebuilt in init(), excluded from serialize/compare)
+    // The swarm's run state: built by init() for a new run, kept by init() for a resumed one
 
-    /// transient: the number of active floating point parameters, set in init()
+    /// transient: the number of active floating point parameters, derived from the genome in init()
     std::size_t n_fp_parms_ = 0;
 
-    /// transient: the per-particle velocity vectors, rebuilt in init()
+    /// The per-particle velocity vectors
     std::vector<std::vector<double>> velocities_;
-    /// transient: the per-particle personal-best positions, rebuilt in init()
+    /// The per-particle personal-best positions
     std::vector<std::vector<double>> personal_bests_;
-    /// transient: the per-particle personal-best (minimization) fitness, rebuilt in init()
+    /// The per-particle personal-best (minimization) fitness
     std::vector<double> personal_best_fitness_;
 
-    /// transient: the globally best position found so far, rebuilt in init()
+    /// The globally best position found so far
     std::vector<double> global_best_;
-    /// transient: the globally best (minimization) fitness, rebuilt in init()
+    /// The globally best (minimization) fitness
     double global_best_fitness_ = 0.;
 
-    /// transient: informs_[i][j] == true iff particle i informs particle j, rebuilt in init()
+    /// transient: informs_[i][j] == true iff particle i informs particle j; the first iteration of
+    /// every job (a resumed one as well) builds the random topology anew
     std::vector<std::vector<bool>> informs_;
 
-    /// transient: whether the global best improved in the previous iteration (gates the topology
-    /// rebuild), reset in init()
+    /// transient: whether the global best improved in the previous iteration; it gates the topology
+    /// rebuild of the next one, and the first iteration of every job rebuilds the topology anyway
     bool global_best_improved_ = true;
 };
 

@@ -967,6 +967,70 @@ void compare(
 
 /******************************************************************************/
 /**
+ * This function checks whether two sequence containers of sequence containers (e.g. the rows of a
+ * matrix held as a std::vector of std::vector) meet a given expectation. The rows are compared one by
+ * one through the compare() overload of their type, so floating point rows honour the similarity
+ * limit. A check for inequality is met if the sizes or any row differ. The function will throw a
+ * g_expectation_violation exception if the expectation was violated.
+ *
+ * @tparam elem_type The element type held by the rows
+ * @tparam row_type The row container template (e.g. std::vector) parameterised by element and allocator
+ * @tparam c_type The outer container template parameterised by row and allocator
+ * @param x The first container to be compared
+ * @param y The second container to be compared
+ * @param x_name The name of the first parameter
+ * @param y_name The name of the second parameter
+ * @param e The expectation both parameters need to fulfill
+ * @param limit The maximum allowed deviation of two floating point values (only used for FP_SIMILARITY)
+ */
+template <
+    typename elem_type,
+    template <typename, typename> class row_type,
+    template <typename, typename> class c_type>
+void compare(
+    c_type<
+        row_type<elem_type, std::allocator<elem_type>>,
+        std::allocator<row_type<elem_type, std::allocator<elem_type>>>> const &x,
+    c_type<
+        row_type<elem_type, std::allocator<elem_type>>,
+        std::allocator<row_type<elem_type, std::allocator<elem_type>>>> const &y,
+    std::string const &x_name,
+    std::string const &y_name,
+    Gem::Common::expectation e,
+    double limit = CE_DEF_SIMILARITY_DIFFERENCE
+) {
+    if(Gem::Common::expectation::INEQUALITY == e) {
+        if(x == y) {
+            throw g_expectation_violation(
+                "The containers " + x_name + " and " + y_name +
+                " do not differ even though they should\n"
+            );
+        }
+        return;
+    }
+
+    if(x.size() != y.size()) {
+        throw g_expectation_violation(
+            "Different container sizes found: " + x_name + ".size() = " + std::to_string(x.size()) +
+            ", " + y_name + ".size() = " + std::to_string(y.size()) + '\n'
+        );
+    }
+
+    std::size_t row = 0;
+    for(auto x_it = x.begin(), y_it = y.begin(); x_it != x.end(); ++x_it, ++y_it, ++row) {
+        compare(
+            *x_it,
+            *y_it,
+            x_name + "[" + std::to_string(row) + "]",
+            y_name + "[" + std::to_string(row) + "]",
+            e,
+            limit
+        );
+    }
+}
+
+/******************************************************************************/
+/**
  * This function checks whether two complex types meet a given expectation. It is assumed that
  * these types have the standard Geneva interface with corresponding "compare" functions.
  *

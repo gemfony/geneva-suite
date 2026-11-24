@@ -440,7 +440,8 @@ void GType::init() {
  * @brief Installs the chosen step controller onto the OA-owned adaption config (after GParChild::init()
  * adopted and seeded it). For SELF_ADAPT_SCALED the per-group sigma_sigma is rescaled to the textbook
  * dimension-aware value; for ONE_FIFTH / CSA the per-group log-normal self-adaption is suppressed (the
- * global controller owns sigma) and the global-sigma run scratch is seeded from the config's seed sigma.
+ * global controller owns sigma) and the controller's state is seeded from the config's seed sigma -- or,
+ * in a run resumed from a checkpoint, kept as the checkpoint holds it.
  */
 void GType::installStepController() {
     auto cfg = this->adaption_config_;
@@ -465,20 +466,19 @@ void GType::installStepController() {
     case stepControl::CSA: {
         // The global controller owns sigma: stop the per-group log-normal self-adaption.
         cfg->suppressPerGroupSigmaSelfAdaption();
-        // Seed the global sigma from a representative sigma in the slots' scratch. On a fresh run
-        // that is the config's seed sigma (GParChild::init() just installed it); on a checkpoint
-        // resume it is the EVOLVED sigma the interrupted run had reached (the scratch is
-        // serialized), so the controller resumes where it left off instead of restarting at 1.0.
-        global_sigma_ = 1.;
-        p_sigma_ = 0.;
+        // A new run seeds the global sigma from a representative sigma in the slots' scratch: the
+        // config's seed sigma, which GParChild::init() just installed. A resumed run goes on with
+        // the global sigma and the evolution path of its checkpoint.
         last_p_success_ = 0.;
         controller_warmed_up_ = false;
-        if(not this->empty()) {
-            global_sigma_ = readRepresentativeSigma(this->at(0)->scratch(), *cfg, 1.);
-            // Push the global sigma into every slot so the first adaption uses it uniformly.
-            for(auto const &slot : *this) {
-                writeGlobalSigma(slot->scratch(), *cfg, global_sigma_);
-            }
+        if(not this->resumedFromCheckpoint()) {
+            p_sigma_ = 0.;
+            global_sigma_ =
+                this->empty() ? 1. : readRepresentativeSigma(this->at(0)->scratch(), *cfg, 1.);
+        }
+        // Push the global sigma into every slot so the first adaption uses it uniformly.
+        for(auto const &slot : *this) {
+            writeGlobalSigma(slot->scratch(), *cfg, global_sigma_);
         }
     } break;
     }

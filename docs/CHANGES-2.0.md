@@ -868,6 +868,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `population_position_` and PSO `particle_` tags became `pop_pos_`). Checkpoints written
   by earlier 1.99 development builds do not load; 1.11 checkpoints never loaded in 2.0
   anyway (see the top of this document).
+- **A resumed run goes on with the run state of its algorithm**: Standard PSO 2011 (velocities,
+  personal and global bests), the generalized simulated annealing (per-chain cooling clocks, best
+  energies and stall counters), the ant colony optimization (its solution archive) and the EA's
+  global step-size controllers ONE_FIFTH / CSA (global sigma, CSA evolution path) hold it in their
+  member lists, so the checkpoint carries it, and `init()` keeps it on a resume instead of
+  starting it afresh; a state that does not fit the population (another swarm size, number of
+  chains or archive size) is refused. Checkpoints of these algorithms written by earlier 1.99
+  builds do not load.
 
 ## 9. Recording: monitors write streams
 
