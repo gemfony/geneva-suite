@@ -46,13 +46,15 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 FOREACH(_case gpu-off-at-start gpu-off-later gpu-failure gpu-off-while-creating gpu-failure-while-creating
 		gpu-off-after-choice start-awaited-first-draw start-awaited-more-producers exit-after-first-draw
 		start-wait-warning start-wait-first-draw start-wait-others-served gpu-start-throws
-		producer-creation-fails producer-creation-fails-all)
+		producer-creation-fails producer-creation-fails-all no-producer-left)
 	ADD_TEST(NAME ${EXECUTABLENAME}_${_case} COMMAND ${EXECUTABLENAME} "[${_case}]")
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME}_${_case} PROPERTIES LABELS "hap" SKIP_RETURN_CODE 4)
 	GEM_TEST_SIZE(${EXECUTABLENAME}_${_case} S)
 ENDFOREACH()
 # A program that ends right after its first draw must end at once
 SET_TESTS_PROPERTIES(${EXECUTABLENAME}_exit-after-first-draw PROPERTIES TIMEOUT 10)
+# A draw with no producer left once waited for ever: the time limit makes that a failure
+SET_TESTS_PROPERTIES(${EXECUTABLENAME}_no-producer-left PROPERTIES TIMEOUT 30)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/tests/hap/HapGpuFallbackTests )
 

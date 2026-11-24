@@ -53,6 +53,7 @@
 #include "common/concurrency/GCompletionLatchT.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "hap/GRandomFactory.hpp"
+#include "hap/GRandomT.hpp"
 
 using namespace Gem::Hap;
 
@@ -544,12 +545,37 @@ TEST_CASE(
 ) {
     randomFactory()->setNProducerThreads(1);
     failGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION, true);
-    // The only producer ends while it starts; the first draw returns when it has, with nothing
-    std::ignore = randomFactory()->getNewRandomContainer();
+    // The only producer ends while it starts; the first draw returns when it has, with nothing, and
+    // throws because no producer is left ([no-producer-left])
+    try {
+        std::ignore = randomFactory()->getNewRandomContainer();
+    }
+    catch(std::exception const &) { /* nothing: the count is what this case checks */
+    }
     failGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION, false);
     requireGpuChoice();
     REQUIRE(nGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION) == 1);
     CHECK(nGpuRandomSources() == 0);
+}
+
+TEST_CASE("A draw throws when no producer thread is left", "[no-producer-left]") {
+    // Regression: when every producer had ended with an error, a proxy waited for ever for a
+    // container, silently. Now the draw throws, naming the reason and the last producer's error.
+    // The test's time limit (CMake) turns a hang into a failure.
+    randomFactory()->setNProducerThreads(1);
+    failGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION, true);
+    std::string what;
+    try {
+        GRandomT<randomSource::QUEUE> proxy; // the only producer ends while it starts
+        std::ignore = proxy();
+    }
+    catch(std::exception const &e) {
+        what = e.what();
+    }
+    failGpuRandomSourceStartsForTests(GpuSourceStartStage::CONTEXT_CREATION, false);
+    requireGpuChoice();
+    CHECK(what.contains("No producer thread of the random-number factory is left"));
+    CHECK(what.contains("(test hook)"));
 }
 
 namespace {

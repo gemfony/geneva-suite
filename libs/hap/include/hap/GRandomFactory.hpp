@@ -49,6 +49,7 @@
 #include <mutex>
 #include <random>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <type_traits>
 
@@ -381,7 +382,9 @@ public:
      * start: a program must not end -- return from main() or call std::exit() -- while another of
      * its threads is still in a call to hap. Every call, the first after its wait included, then
      * waits at most DEFAULTFACTORYGETWAIT milliseconds for a filled container and returns a null
-     * pointer if none came (counted in getNGetTimeouts()); callers retry.
+     * pointer if none came (counted in getNGetTimeouts()); callers retry. If none came and no
+     * producer thread is left -- each has ended with an error -- the call throws gem_exception with
+     * the reason and the last producer's error, so that no caller waits for ever.
      *
      * If only k of the n producer threads can be created, the factory runs with those k: the
      * producer count (getNProducerThreads()) and the reservation in the thread budget become k, a
@@ -478,6 +481,9 @@ private:
     std::atomic<std::uint16_t> n_producer_threads_{
         autoProducerThreadCount()
     }; ///< The number of threads used to produce random numbers (hardware-derived by default)
+    /// The producer threads that have not ended: counted up before a thread is created, down by the
+    /// producer when it ends. A draw that times out while it is 0 throws instead of waiting for ever.
+    std::atomic<std::uint32_t> n_living_producers_{0};
 
     /// The producers' reservation in the process-wide thread budget (taken when the producer
     /// threads are lazily started, returned after they are joined in finalize()).
@@ -502,8 +508,11 @@ private:
         p_ret_bfr_;
 
     /// Orders the start of producer threads: the first getNewRandomContainer() and
-    /// setNProducerThreads(). Not held by the first draw while it waits for the start.
+    /// setNProducerThreads(). Not held by the first draw while it waits for the start. Also guards
+    /// last_producer_error_ (a producer reports its start as finished before it takes the lock).
     mutable std::mutex thread_creation_mutex_;
+    /// The error with which the last failing producer ended (guarded by thread_creation_mutex_)
+    std::string last_producer_error_;
 
     /// Source of non-deterministic random numbers. getSeed() draws a fresh set of entropy words
     /// from it for every seed batch -- a std::seed_seq built once and kept would regenerate the
