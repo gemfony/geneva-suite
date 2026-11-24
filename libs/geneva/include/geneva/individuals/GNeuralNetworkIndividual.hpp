@@ -342,8 +342,10 @@ using GDatStore = Gem::Common::GSingletonT<Gem::Geneva::Individuals::networkData
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// A number of default settings for the factory
-const std::string GNN_DEF_DATAFILE = "./Datasets/hyper_cube.dat";
+// A number of default settings for the factory. The training-data file is the one read when no
+// "trainingDataFile" is set in neuralNetworkOptions() -- as when the generic optimizer loads the
+// individual as a module; example 09 writes it into ./DataSets of its build directory.
+const std::string GNN_DEF_DATAFILE = "./DataSets/hyper_cube.dat";
 constexpr double GNN_DEF_ADPROB = 0.05;
 constexpr double GNN_DEF_ADAPTADPROB = 0.1;
 constexpr double GNN_DEF_MINADPROB = 0.05;
