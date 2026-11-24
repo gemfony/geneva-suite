@@ -133,11 +133,7 @@ std::size_t GConjugateGradientDescent::getNStartingPoints() const {
  */
 void GConjugateGradientDescent::setNStartingPoints(std::size_t n_starting_points) {
     if(n_starting_points == 0) {
-        throw gem_exception(
-            g_error_streamer()
-            << "In GConjugateGradientDescent::setNStartingPoints(const std::size_t&):" << '\n'
-            << "Got invalid number of starting points." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got invalid number of starting points." << '\n');
     }
 
     n_starting_points_ = n_starting_points;
@@ -153,9 +149,7 @@ void GConjugateGradientDescent::setFiniteStep(double finite_step) {
     if(finite_step <= 0. ||
        finite_step > 1000.) { // Specified in per mill of the allowed or preferred value range
         throw gem_exception(
-            g_error_streamer() << "In GConjugateGradientDescent::setFiniteStep(double): Error!"
-                               << '\n'
-                               << "Invalid value of finite_step: " << finite_step << '\n'
+            g_error_streamer() << "Invalid value of finite_step: " << finite_step << '\n'
                                << "Must be in the range ]0.:1000.]" << '\n'
         );
     }
@@ -186,9 +180,7 @@ void GConjugateGradientDescent::setStepSize(double step_size) {
     if(step_size <= 0. ||
        step_size > 1000.) { // Specified in per mill of the allowed or preferred value range
         throw gem_exception(
-            g_error_streamer() << "In GConjugateGradientDescent::setStepSize(double): Error!"
-                               << '\n'
-                               << "Invalid value of step_size: " << step_size << '\n'
+            g_error_streamer() << "Invalid value of step_size: " << step_size << '\n'
                                << "Must be in the range ]0.:1000.]" << '\n'
         );
     }
@@ -295,11 +287,7 @@ errorEstimationMode GConjugateGradientDescent::getErrorEstimation() const {
  */
 void GConjugateGradientDescent::setErrorDefinition(double up) {
     if(up <= 0.) {
-        throw gem_exception(
-            g_error_streamer() << "In GConjugateGradientDescent::setErrorDefinition(double): Error!"
-                               << '\n'
-                               << "UP must be positive, got " << up << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "UP must be positive, got " << up << '\n');
     }
     error_up_ = up;
 }
@@ -480,10 +468,8 @@ void GConjugateGradientDescent::updateParentIndividuals() {
 #ifdef DEBUG
         if(this->at(i)->is_due_for_processing() || (this->at(i)->has_errors())) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GConjugateGradientDescent::updateParentIndividuals():" << '\n'
-                << "Found individual in position " << i << " which is unprocessed or has errors"
-                << '\n'
+                g_error_streamer() << "Found individual in position " << i
+                                   << " which is unprocessed or has errors" << '\n'
             );
         }
 #endif /* DEBUG */
@@ -1012,8 +998,7 @@ void GConjugateGradientDescent::evaluatePopulation_() {
     for(auto const &[pos, item_ptr] : *this | std::views::enumerate) {
         if(this->afterFirstIteration() && !item_ptr->is_due_for_processing()) {
             throw gem_exception(
-                g_error_streamer() << "In GConjugateGradientDescent::evaluatePopulation_():" << '\n'
-                                   << "Found individual on position " << pos
+                g_error_streamer() << "Found individual on position " << pos
                                    << " which is not due for processing" << '\n'
             );
         }
@@ -1040,16 +1025,14 @@ void GConjugateGradientDescent::init() {
 #ifdef DEBUG
     if(step_size_ <= 0. || step_size_ > 1000.) {
         throw gem_exception(
-            g_error_streamer() << "In GConjugateGradientDescent::init(): Error!" << '\n'
-                               << "Invalid value of step_size_: " << step_size_ << '\n'
+            g_error_streamer() << "Invalid value of step_size_: " << step_size_ << '\n'
                                << "Must be in the range ]0.:1000.]" << '\n'
         );
     }
 
     if(finite_step_ <= 0. || finite_step_ > 1000.) {
         throw gem_exception(
-            g_error_streamer() << "In GConjugateGradientDescent::init(): Error!" << '\n'
-                               << "Invalid value of finite_step_: " << finite_step_ << '\n'
+            g_error_streamer() << "Invalid value of finite_step_: " << finite_step_ << '\n'
                                << "Must be in the range ]0.:1000.]" << '\n'
         );
     }
@@ -1239,7 +1222,6 @@ void GConjugateGradientDescent::adjustPopulation_() {
         if(this->at(i)->countFPParameters(activityMode::ACTIVEONLY) != n_fp_parms_first_) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GConjugateGradientDescent::adjustPopulation():" << '\n'
                 << "Found individual in position " << i << " with different" << '\n'
                 << "number of floating point parameters than the first one: "
                 << this->at(i)->countFPParameters(activityMode::ACTIVEONLY) << "/"
@@ -1277,8 +1259,7 @@ void GConjugateGradientDescent::adjustPopulation_() {
 #ifdef DEBUG
     if(this->size() != n_starting_points_ * (children_per_sp + 1)) {
         throw gem_exception(
-            g_error_streamer() << "In GConjugateGradientDescent::adjustPopulation():" << '\n'
-                               << "Population size is " << this->size() << '\n'
+            g_error_streamer() << "Population size is " << this->size() << '\n'
                                << "but expected " << n_starting_points_ * (children_per_sp + 1)
                                << '\n'
         );

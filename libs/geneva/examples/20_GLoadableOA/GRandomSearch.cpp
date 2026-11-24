@@ -128,8 +128,7 @@ void GRandomSearch::evaluatePopulation_() {
 
     if(not status.is_complete || status.has_errors) {
         throw gem_exception(
-            g_error_streamer() << "In GRandomSearch::evaluatePopulation_(): Error!" << '\n'
-                               << "The population could not be fully evaluated (is_complete="
+            g_error_streamer() << "The population could not be fully evaluated (is_complete="
                                << status.is_complete << ", has_errors=" << status.has_errors << ")."
                                << '\n'
         );
@@ -156,15 +155,11 @@ void GRandomSearch::adjustPopulation_() {
     if(n_start == 0) {
         throw gem_exception(
             g_error_streamer()
-            << "In GRandomSearch::adjustPopulation_(): Error!" << '\n'
             << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
     }
     if(this->getDefaultPopulationSize() == 0) {
-        throw gem_exception(
-            g_error_streamer() << "In GRandomSearch::adjustPopulation_(): Error!" << '\n'
-                               << "The default population size is 0." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "The default population size is 0." << '\n');
     }
 
     // Keep a single seed, then clone it up to the configured population size.

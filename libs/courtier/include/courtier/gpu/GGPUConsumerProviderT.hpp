@@ -115,10 +115,7 @@ public:
     typename base_type::consumer_ptr setup(const ConsumerSpec &) override {
         const auto provider = marshaller_();
         if(not provider) {
-            throw gem_exception(
-                g_error_streamer() << "In GGPUConsumerProviderT::setup(): Error!" << '\n'
-                                   << missingPrerequisite() << '\n'
-            );
+            throw gem_exception(g_error_streamer() << missingPrerequisite() << '\n');
         }
         const auto handle = provider->provide();
         if(handle->scalarKind() == GPUScalarKind::Double) {
@@ -153,8 +150,7 @@ private:
         auto marshaller = typed_<scalar_type>(handle);
         if(not marshaller) {
             throw gem_exception(
-                g_error_streamer() << "In GGPUConsumerProviderT::setup(): Error!" << '\n'
-                                   << "The registered GPU marshaller is not one for the item type "
+                g_error_streamer() << "The registered GPU marshaller is not one for the item type "
                                    << boost::core::demangle(typeid(processable_type).name()) << '\n'
             );
         }

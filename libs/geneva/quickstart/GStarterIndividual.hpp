@@ -222,10 +222,7 @@ public:
 #ifdef DEBUG
         // Check whether values have been provided
         if(startValues.empty()) {
-            throw gem_exception(
-                g_error_streamer() << "In GStarterIndividual::addContent(): Error!" << '\n'
-                                   << "No parameters given" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "No parameters given" << '\n');
         }
 
         // Check whether all sizes match
@@ -233,7 +230,6 @@ public:
            startValues.size() != upperBoundaries.size()) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GStarterIndividual::addContent(): Error!" << '\n'
                 << "Invalid sizes" << startValues.size() << " / " << lowerBoundaries.size() << " / "
                 << upperBoundaries.size() << '\n'
             );

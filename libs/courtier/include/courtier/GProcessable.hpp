@@ -264,7 +264,6 @@ public:
         if(target_ps == processingStatus::PROCESSED) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GProcessable::set_processing_status():" << '\n'
                 << "An attempt was made to set the processing state to PROCESSED" << '\n'
                 << "which is not allowed through this function." << '\n'
             );
@@ -291,7 +290,6 @@ public:
         if(not allowed) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GProcessable::set_processing_status():" << '\n'
                 << "Got invalid target processing status " << psToStr(target_ps) << '\n'
                 << "for the current state of " << psToStr(processing_status_) << '\n'
             );
@@ -825,10 +823,7 @@ protected:
      */
     void force_set_error(const std::string &error_info) {
         if(error_info.empty()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "In GProcessable::force_set_error(): Error info is empty" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Error info is empty" << '\n');
         }
         // There may already be information stored in this variable. Hence we attach via +=
         stored_error_descriptions_ += error_info;

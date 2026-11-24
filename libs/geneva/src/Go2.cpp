@@ -85,10 +85,7 @@ void Go2::registerDefaultAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
-        throw gem_exception(
-            g_error_streamer() << "In Go2::registerDefaultAlgorithm(std::string): Error!" << '\n'
-                               << "Got invalid algorithm mnemonic " << mn << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got invalid algorithm mnemonic " << mn << '\n');
     }
 
     this->registerDefaultAlgorithm(p->provide());
@@ -106,10 +103,7 @@ void Go2::registerDefaultAlgorithm(std::string const &mn) {
 void Go2::registerDefaultAlgorithm(const std::shared_ptr<GOABase> &default_algorithm) {
     // Check that the pointer isn't empty
     if(not default_algorithm) {
-        throw gem_exception(
-            g_error_streamer() << "In Go2::registerDefaultAlgorithm(): Error!" << '\n'
-                               << "Got empty algorithm." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got empty algorithm." << '\n');
     }
 
     // If any individuals have been storedn in the default algorithm, we assume
@@ -138,9 +132,7 @@ void Go2::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &plugg
     }
     else {
         throw gem_exception(
-            g_error_streamer()
-            << "In Go2::registerPluggableOM(): Tried to register empty pluggable optimization "
-               "monitor\n"
+            g_error_streamer() << "Tried to register empty pluggable optimization monitor\n"
         );
     }
 }
@@ -204,10 +196,7 @@ std::size_t Go2::getNAlgorithms() const {
 void Go2::addAlgorithm(const std::shared_ptr<GOABase> &alg) {
     // Check that the pointer is not empty
     if(not alg) {
-        throw gem_exception(
-            g_error_streamer() << "In Go2::addAlgorithm(): Error!" << '\n'
-                               << "Tried to register an empty pointer" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Tried to register an empty pointer" << '\n');
     }
 
     // If any individuals have already been registered with alg, we assume
@@ -286,10 +275,7 @@ void Go2::addAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
-        throw gem_exception(
-            g_error_streamer() << "In Go2::addAlgorithm(std::string): Error!" << '\n'
-                               << "Got invalid algorithm mnemonic " << mn << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got invalid algorithm mnemonic " << mn << '\n');
     }
 
     this->addAlgorithm(p->provide()); // The provider's factory might add a monitor to the object
@@ -349,8 +335,7 @@ void Go2::claimContentCreator_(
 
     if(not cc_ptr) {
         throw gem_exception(
-            g_error_streamer() << "In Go2::claimContentCreator_(): Error!" << '\n'
-                               << "Tried to register an empty content creator (source: "
+            g_error_streamer() << "Tried to register an empty content creator (source: "
                                << sourceStr(source) << ")" << '\n'
         );
     }
@@ -358,7 +343,6 @@ void Go2::claimContentCreator_(
     if(content_creator_source_ != individualSource::NONE) {
         throw gem_exception(
             g_error_streamer()
-            << "In Go2::claimContentCreator_(): Error!" << '\n'
             << "An optimization problem (individual) is already provided ("
             << sourceStr(content_creator_source_) << ");" << '\n'
             << "refusing to add another (" << sourceStr(source) << ")." << '\n'
@@ -429,8 +413,8 @@ void Go2::refreshAllConfigs_() {
             (void)provider->provide();
         }
         catch(std::exception const &e) {
-            glogger << "In Go2::refreshAllConfigs_(): could not refresh the \""
-                    << provider->getMnemonic() << "\" algorithm config: " << e.what() << '\n'
+            glogger << "could not refresh the \"" << provider->getMnemonic()
+                    << "\" algorithm config: " << e.what() << '\n'
                     << GWARNING;
         }
     }
@@ -441,9 +425,7 @@ void Go2::refreshAllConfigs_() {
             (void)(*content_creator_ptr_)();
         }
         catch(std::exception const &e) {
-            glogger << "In Go2::refreshAllConfigs_(): could not refresh the individual config: "
-                    << e.what() << '\n'
-                    << GWARNING;
+            glogger << "could not refresh the individual config: " << e.what() << '\n' << GWARNING;
         }
     }
 
@@ -520,8 +502,7 @@ void Go2::validateCheckpointFitsFirstAlgorithm() const {
     if(cp_file_ != "empty" &&
        not algorithms_cnt_[0]->cp_personality_fits(std::filesystem::path(cp_file_))) {
         throw gem_exception(
-            g_error_streamer() << "In Go2::optimize(): Error!" << '\n'
-                               << "Checkpoint file " << cp_file_ << " does not" << '\n'
+            g_error_streamer() << "Checkpoint file " << cp_file_ << " does not" << '\n'
                                << "fit requirements of first algorithm "
                                << algorithms_cnt_[0]->getAlgorithmPersonalityType() << '\n'
         );
@@ -548,7 +529,6 @@ void Go2::fillPopulationFromContentCreator() {
     if(not content_creator_ptr_) {
         throw gem_exception(
             g_error_streamer()
-            << "In Go2::optimize(): Error!" << '\n'
             << "No optimization problem (individual) is available: no content creator and no"
             << '\n'
             << "individuals have been registered. Provide exactly one of:" << '\n'
@@ -577,7 +557,6 @@ void Go2::createIndividualsFromContentCreator() {
             if(this->empty()) { // Still empty?
                 throw gem_exception(
                     g_error_streamer()
-                    << "In Go2::optimize(): Error!" << '\n'
                     << "The content creator did not deliver any individuals" << '\n'
                     << "and none have been registered so far." << '\n'
                     << "No way to continue." << '\n'
@@ -716,16 +695,12 @@ void Go2::sortIndividualsByFitness() {
 std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
     // Do some error checking
     if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer() << "In Go2::getBestGlobalIndividual_(): Error!" << '\n'
-                               << "No individuals found" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No individuals found" << '\n');
     }
 
     if(not sorted_) {
         throw gem_exception(
-            g_error_streamer() << "In Go2::getBestGlobalIndividual_(): Error!" << '\n'
-                               << "Tried to retrieve best individual" << '\n'
+            g_error_streamer() << "Tried to retrieve best individual" << '\n'
                                << "from an unsorted population." << '\n'
         );
     }
@@ -733,8 +708,7 @@ std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
     // Check if the best individual is processed
     if(not this->front()->is_processed() && not this->front()->is_unprocessed()) {
         throw gem_exception(
-            g_error_streamer() << "In Go2::getBestGlobalIndividual_(): Error!" << '\n'
-                               << "Best individual is unprocessed or has errors" << '\n'
+            g_error_streamer() << "Best individual is unprocessed or has errors" << '\n'
         );
     }
 
@@ -753,18 +727,14 @@ std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
 std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() const {
     // Do some error checking
     if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer() << "In Go2::getBestGlobalIndividuals_(): Error!" << '\n'
-                               << "No individuals found" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No individuals found" << '\n');
     }
 
     std::vector<std::unique_ptr<gen::GGenome>> best_individuals;
     for(auto const &[pos, ind_ptr] : *this | std::views::enumerate) {
         if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
             throw gem_exception(
-                g_error_streamer() << "In Go2::getBestGlobalIndividuals_(): Error!" << '\n'
-                                   << "Found individual in position " << pos
+                g_error_streamer() << "Found individual in position " << pos
                                    << " which is unprocessed or which has errors" << '\n'
             );
         }
@@ -785,10 +755,7 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() cons
  * @return Never returns normally; always throws a gem_exception
  */
 std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
-    throw gem_exception(
-        g_error_streamer() << "In Go2::getBestIterationIndividual_(): Error!" << '\n'
-                           << "This function should not be called" << '\n'
-    );
+    throw gem_exception(g_error_streamer() << "This function should not be called" << '\n');
 }
 
 /******************************************************************************/
@@ -800,10 +767,7 @@ std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
  * @return Never returns normally; always throws a gem_exception
  */
 std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestIterationIndividuals_() const {
-    throw gem_exception(
-        g_error_streamer() << "In Go2::getBestIterationIndividuals_(): Error!" << '\n'
-                           << "This function should not be called" << '\n'
-    );
+    throw gem_exception(g_error_streamer() << "This function should not be called" << '\n');
 }
 
 /******************************************************************************/
@@ -856,7 +820,6 @@ void Go2::resolveAlgorithmChain_(std::vector<std::string> const &mnemonics) {
         if(not oaFactoryStore()->get(alg_str, p)) {
             throw gem_exception(
                 g_error_streamer()
-                << "In Go2::resolveAlgorithmChain_(): Error!" << '\n'
                 << "Got invalid algorithm mnemonic \"" << alg_str << "\"." << '\n'
                 << "No algorithm found for this string." << '\n'
             );

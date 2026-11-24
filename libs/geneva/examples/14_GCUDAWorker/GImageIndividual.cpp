@@ -88,8 +88,7 @@ std::ostream &operator<<(std::ostream &os, const CircleTriangle &ct) {
 static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
     if(c.min_size < 0. || c.max_size > 1. || c.min_size >= c.max_size) {
         throw gem_exception(
-            g_error_streamer() << "In GImageIndividual::buildGenome() : Error!" << '\n'
-                               << "Invalid values for minSize and maxSize provided: " << c.min_size
+            g_error_streamer() << "Invalid values for minSize and maxSize provided: " << c.min_size
                                << " / " << c.max_size << '\n'
         );
     }
@@ -98,32 +97,28 @@ static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
     if(c.start_size >= 0. && c.start_size < c.min_size) {
         // Cannot be < 0 as minSize may not be <= 0
         throw gem_exception(
-            g_error_streamer() << "In GImageIndividual::buildGenome() : Error!" << '\n'
-                               << "Invalid values for minSize and startSize provided: "
+            g_error_streamer() << "Invalid values for minSize and startSize provided: "
                                << c.min_size << " / " << c.start_size << '\n'
         );
     }
 
     if(c.start_size > c.max_size) {
         throw gem_exception(
-            g_error_streamer() << "In GImageIndividual::buildGenome() : Error!" << '\n'
-                               << "Invalid values for maxSize and startSize provided: "
+            g_error_streamer() << "Invalid values for maxSize and startSize provided: "
                                << c.max_size << " / " << c.start_size << '\n'
         );
     }
 
     if(c.adapt_ad_prob < 0. || c.adapt_ad_prob > 1.) {
         throw gem_exception(
-            g_error_streamer() << "In GImageIndividual::buildGenome() : Error!" << '\n'
-                               << "Invalid value for adaptAdProb provided: " << c.adapt_ad_prob
+            g_error_streamer() << "Invalid value for adaptAdProb provided: " << c.adapt_ad_prob
                                << '\n'
         );
     }
 
     if(c.loc_adapt_ad_prob < 0. || c.loc_adapt_ad_prob > 1.) {
         throw gem_exception(
-            g_error_streamer() << "In GImageIndividual::buildGenome() : Error!" << '\n'
-                               << "Invalid value for loc_adaptAdProb provided: "
+            g_error_streamer() << "Invalid value for loc_adaptAdProb provided: "
                                << c.loc_adapt_ad_prob << '\n'
         );
     }
@@ -131,8 +126,7 @@ static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
     if(c.min_ad_prob >= c.max_ad_prob || c.min_ad_prob < 0. || c.max_ad_prob > 1. ||
        c.ad_prob < c.min_ad_prob || c.ad_prob > c.max_ad_prob) {
         throw gem_exception(
-            g_error_streamer() << "In GImageIndividual::buildGenome() : Error!" << '\n'
-                               << "Invalid values for minAdprob, maxAdProb or adProb provided: "
+            g_error_streamer() << "Invalid values for minAdprob, maxAdProb or adProb provided: "
                                << c.min_ad_prob << " / " << c.max_ad_prob << " / " << c.ad_prob
                                << '\n'
         );
@@ -142,7 +136,6 @@ static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
        c.loc_ad_prob < c.loc_min_ad_prob || c.loc_ad_prob > c.loc_max_ad_prob) {
         throw gem_exception(
             g_error_streamer()
-            << "In GImageIndividual::buildGenome() : Error!" << '\n'
             << "Invalid values for loc_minAdprob, loc_maxAdProb or loc_adProb provided: "
             << c.loc_min_ad_prob << " / " << c.loc_max_ad_prob << " / " << c.loc_ad_prob << '\n'
         );
@@ -347,8 +340,7 @@ std::vector<CircleTriangle> GImageIndividual::getTriangleData() const {
     if(parVec.size() != 10 * nTriangles_ + 3) {
         // including background color
         throw gem_exception(
-            g_error_streamer() << "In GImageIndividual::getTriangleData(): Error!" << '\n'
-                               << "Invalid number of parameters in this class " << parVec.size()
+            g_error_streamer() << "Invalid number of parameters in this class " << parVec.size()
                                << " / " << (10 * nTriangles_ + 3) << '\n'
         );
     }

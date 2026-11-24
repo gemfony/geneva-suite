@@ -75,16 +75,12 @@ GMPIPollCore::GMPIPollCore(
   , keep_alive_(timing.keepAlive)
   , life_(receivers_.size()) {
     if(not calls_) {
-        throw gem_exception(
-            g_error_streamer() << "In GMPIPollCore::GMPIPollCore(): Error!" << '\n'
-                               << "No calls to MPI were given" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No calls to MPI were given" << '\n');
     }
     if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin || timing_.rounds < 1 ||
        timing_.drainGrace.count() < 0 || timing_.keepAlive.count() < 0) {
         throw gem_exception(
             g_error_streamer()
-            << "In GMPIPollCore::GMPIPollCore(): Error!" << '\n'
             << "The timing is not usable: the shortest pause must be positive and not above the "
             << "longest, at least one round, and a drain grace and a keep-alive interval that are "
             << "not negative" << '\n'
@@ -133,8 +129,7 @@ void GMPIPollCore::addReceiver(int rank, std::shared_ptr<GMPIPollReceiverI> rece
     }
     if(refusal != nullptr) {
         throw gem_exception(
-            g_error_streamer() << "In GMPIPollCore::addReceiver(): Error!" << '\n'
-                               << "A receiver for rank " << rank << " cannot be added: " << refusal
+            g_error_streamer() << "A receiver for rank " << rank << " cannot be added: " << refusal
                                << '\n'
         );
     }
@@ -203,8 +198,7 @@ void GMPIPollCore::setKeepAlive(std::chrono::milliseconds interval) {
 void GMPIPollCore::startSend(int rank, int tag, std::string message) {
     if(not this->validRank_(rank)) {
         throw gem_exception(
-            g_error_streamer() << "In GMPIPollCore::startSend(): Error!" << '\n'
-                               << "Rank " << rank << " is not one of the " << size_
+            g_error_streamer() << "Rank " << rank << " is not one of the " << size_
                                << " ranks of the communicator" << '\n'
         );
     }

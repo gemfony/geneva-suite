@@ -279,8 +279,7 @@ public:
         }
         else {
             throw gem_exception(
-                g_error_streamer() << "In GLogger::setDefaultLogTarget(): Error!" << '\n'
-                                   << "Tried to register empty default logger" << '\n'
+                g_error_streamer() << "Tried to register empty default logger" << '\n'
             );
         }
     }
@@ -301,10 +300,7 @@ public:
             log_cnt_.push_back(gblt);
         }
         else {
-            throw gem_exception(
-                g_error_streamer() << "In GLogger::addLogTarget(): Error!" << '\n'
-                                   << "Tried to register empty logger" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Tried to register empty logger" << '\n');
         }
     }
 

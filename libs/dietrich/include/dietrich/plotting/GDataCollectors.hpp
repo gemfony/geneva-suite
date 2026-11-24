@@ -204,8 +204,7 @@ public:
         }
         catch(std::overflow_error &e) {
             throw gem_exception(
-                g_error_streamer() << "In GDataCollectorT::operator&(const T&): Error!" << '\n'
-                                   << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                g_error_streamer() << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                                    << "with the message " << '\n'
                                    << e.what() << '\n'
             );
@@ -297,7 +296,6 @@ public:
             catch(std::overflow_error &e) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GDataCollectorT::operator&(const std::vector<T>&): Error!" << '\n'
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                     << "with the message " << '\n'
                     << e.what() << '\n'
@@ -331,7 +329,6 @@ public:
             catch(std::overflow_error &e) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GDataCollectorT::operator&(std::span<const T>): Error!" << '\n'
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                     << "with the message " << '\n'
                     << e.what() << '\n'
@@ -522,7 +519,6 @@ public:
         if(this->currentSize() == 0) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GDataCollectorT::getMinMaxElements(): Error!" << '\n'
                 << "Cannot determine the data range of an empty collector." << '\n'
             );
         }
@@ -583,7 +579,6 @@ public:
             if(row.size() != n_axes) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GDataCollectorT::appendRow(): Error!" << '\n'
                     << "row size " << row.size() << " != axis count " << n_axes << '\n'
                 );
             }
@@ -695,8 +690,7 @@ private:
         }
         catch(std::overflow_error &e) {
             throw gem_exception(
-                g_error_streamer() << "In GDataCollectorT::appendRow(): Error!" << '\n'
-                                   << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                g_error_streamer() << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                                    << "with the message " << '\n'
                                    << e.what() << '\n'
             );
@@ -777,8 +771,7 @@ private:
         }
         catch(std::overflow_error &e) {
             throw gem_exception(
-                g_error_streamer() << "In GDataCollectorT::operator&(tuple): Error!" << '\n'
-                                   << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                g_error_streamer() << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                                    << "with the message " << '\n'
                                    << e.what() << '\n'
             );

@@ -170,7 +170,6 @@ mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base) {
     if(not environment.expired()) {
         throw gem_exception(
             g_error_streamer()
-            << "In mpiEnvironmentOn(): Error!" << '\n'
             << "An MPI environment exists already; mpiEnvironmentOn() must be the first call "
             << "that builds it" << '\n'
         );

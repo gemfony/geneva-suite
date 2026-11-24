@@ -283,9 +283,7 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
 
     if(threads_started_) {
         if(n_producer_threads_local < n_current) { // Running threads cannot be removed
-            glogger << "In GRandomFactory::setNProducerThreads(" << n_producer_threads
-                    << "): Warning!" << '\n'
-                    << "Attempt to decrease the number of producer threads from " << n_current
+            glogger << "Attempt to decrease the number of producer threads from " << n_current
                     << " to " << n_producer_threads_local << '\n'
                     << "while threads were already running. The number of threads will remain "
                        "unchanged."
@@ -399,8 +397,7 @@ GRandomFactory::startProducers(std::uint16_t n_new) {
         if(0 == n_started) {
             throw;
         }
-        glogger << "In GRandomFactory::startProducers(): Warning!" << '\n'
-                << "Only " << n_started << " of " << n_new
+        glogger << "Only " << n_started << " of " << n_new
                 << " producer thread(s) could be started:" << '\n'
                 << e.what() << '\n'
                 << "Random-number production goes on with " << n_started << " producer thread(s)."
@@ -465,8 +462,8 @@ void GRandomFactory::awaitStart(GProducerStart &start) {
             std::chrono::steady_clock::now() - begin
         );
         glogger
-            << "In GRandomFactory: the start of " << start.finished.remaining() << " of "
-            << start.n_producers << " producer thread(s) has not finished after "
+            << "The start of " << start.finished.remaining() << " of " << start.n_producers
+            << " producer thread(s) has not finished after "
             << static_cast<double>(waited.count()) / 1000. << " s:" << '\n'
             << start.n_building.load()
             << " still building its random-number engine (on a GPU: its CUDA"
@@ -558,8 +555,7 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
 #ifdef DEBUG
                 if(not p) {
                     throw gem_exception(
-                        g_error_streamer() << "In GRandomFactory::producer(): Error!" << '\n'
-                                           << "Got empty recycling pointer" << '\n'
+                        g_error_streamer() << "Got empty recycling pointer" << '\n'
                     );
                 }
 
@@ -592,16 +588,14 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
     // and return, letting this producer thread exit cleanly; the remaining
     // producer threads keep supplying random numbers.
     catch(const std::exception &e) {
-        glogger << "In GRandomFactory::producer(): Warning!" << '\n'
-                << "Caught an exception with message" << '\n'
+        glogger << "Caught an exception with message" << '\n'
                 << e.what() << '\n'
                 << "This producer thread will now terminate cleanly. Random-number" << '\n'
                 << "production continues on the remaining producer threads." << '\n'
                 << GWARNING;
     }
     catch(...) {
-        glogger << "In GRandomFactory::producer(): Warning!" << '\n'
-                << "Caught an unknown exception." << '\n'
+        glogger << "Caught an unknown exception." << '\n'
                 << "This producer thread will now terminate cleanly. Random-number" << '\n'
                 << "production continues on the remaining producer threads." << '\n'
                 << GWARNING;

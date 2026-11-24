@@ -149,7 +149,6 @@ public:
             if(flat == nullptr) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GBaseGPUMarshallerT::flatten(): Error!" << '\n'
                     << "A work item is not a GGenome; a GPU marshaller requires flat-genome"
                     << " individuals." << '\n'
                 );
@@ -170,7 +169,6 @@ public:
             if(const std::size_t item_dim = this->itemDimension(items[i]); item_dim != dim) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GBaseGPUMarshallerT::flatten(): Error!" << '\n'
                     << "Work item " << i << " has " << item_dim << " parameters after its"
                     << " pre-processing, the batch " << dim << "." << '\n'
                     << "A pre-processor must not change the number of parameters of an item"

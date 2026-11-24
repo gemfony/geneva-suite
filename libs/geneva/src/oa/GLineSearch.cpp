@@ -126,8 +126,7 @@ GLineSearchResult GLineSearch::search(
 
         if(values.size() != points.size()) {
             throw gem_exception(
-                g_error_streamer() << "In GLineSearch::search(): Error!" << '\n'
-                                   << "The evaluation function returned " << values.size()
+                g_error_streamer() << "The evaluation function returned " << values.size()
                                    << " values for " << points.size() << " points." << '\n'
             );
         }

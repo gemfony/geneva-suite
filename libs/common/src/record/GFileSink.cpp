@@ -61,7 +61,6 @@ void GFileSink::open(GStreamInfo const &info) {
         if(ec) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GFileSink::open(): Error!" << '\n'
                 << "The directory " << info.directory.string() << " of the stream \"" << info.name
                 << "\" could not be created: " << ec.message() << '\n'
             );
@@ -83,8 +82,7 @@ void GFileSink::open(GStreamInfo const &info) {
     out_.open(path_, append ? std::ios::app : std::ios::trunc);
     if(not out_) {
         throw gem_exception(
-            g_error_streamer() << "In GFileSink::open(): Error!" << '\n'
-                               << "The file " << path_.string() << " of the stream \"" << info.name
+            g_error_streamer() << "The file " << path_.string() << " of the stream \"" << info.name
                                << "\" could not be opened" << '\n'
         );
     }
@@ -145,8 +143,7 @@ void GFileSink::write(std::span<GRow const> rows) {
     out_.flush();
     if(not out_) {
         throw gem_exception(
-            g_error_streamer() << "In GFileSink::write(): Error!" << '\n'
-                               << "Writing to " << path_.string() << " failed" << '\n'
+            g_error_streamer() << "Writing to " << path_.string() << " failed" << '\n'
         );
     }
 }

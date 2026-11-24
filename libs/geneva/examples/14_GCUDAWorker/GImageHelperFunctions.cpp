@@ -376,8 +376,7 @@ bool loadImageToFloat(
     const std::size_t channel_size = imageData_vec.size();
     if(channel_size != width * height * 3) {
         throw gem_exception(
-            g_error_streamer() << "In loadImageToFloat: Error!" << '\n'
-                               << "Invalid dimensions " << width << " / " << height << '\n'
+            g_error_streamer() << "Invalid dimensions " << width << " / " << height << '\n'
         );
     }
 
@@ -443,8 +442,7 @@ bool saveFloatImageToFile(
     // Check the dimensions
     if(imageData_f_vec.size() != width * height * 3) {
         throw gem_exception(
-            g_error_streamer() << "In saveFloatImageToFile: Error!" << '\n'
-                               << "Invalid dimensions: " << "width = " << width << " / "
+            g_error_streamer() << "Invalid dimensions: " << "width = " << width << " / "
                                << "height = " << height
                                << " / width * height * 3 = " << width * height * 3
                                << " / imageData_f_vec.size() = " << imageData_f_vec.size() << '\n'

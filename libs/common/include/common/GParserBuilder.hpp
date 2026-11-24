@@ -785,9 +785,7 @@ public:
     void registerCallBackFunction(std::move_only_function<void(parameter_type)> call_back) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GSingleParsableParameter::registerCallBackFunction(): Error" << '\n'
-                << "Tried to register an empty call-back function" << '\n'
+                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
             );
         }
 
@@ -826,7 +824,6 @@ private:
             if(this->numberOfComments() != 1) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GFileSingleParsableParameterT<>::save_to(): Error!" << '\n'
                     << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
                 );
             }
@@ -846,7 +843,6 @@ private:
         if(not call_back_func_) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GSingleParsableParameter::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
         }
@@ -1078,9 +1074,7 @@ public:
     void registerCallBackFunction(std::move_only_function<void(par0_type, par1_type)> call_back) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GFileCombinedParsableParameterT::registerCallBackFunction(): Error" << '\n'
-                << "Tried to register an empty call-back function" << '\n'
+                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
             );
         }
 
@@ -1128,7 +1122,6 @@ private:
         if(this->hasComments() && this->numberOfComments() != 2) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GFileCombinedParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 2 comments but got " << this->numberOfComments() << '\n'
             );
         }
@@ -1161,7 +1154,6 @@ private:
         if(not call_back_func_) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GFileCombinedParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
         }
@@ -1347,9 +1339,7 @@ public:
     registerCallBackFunction(std::move_only_function<void(std::vector<parameter_type>)> call_back) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GFileVectorParsableParameterT::registerCallBackFunction(): Error" << '\n'
-                << "Tried to register an empty call-back function" << '\n'
+                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
             );
         }
 
@@ -1398,7 +1388,6 @@ private:
         if(this->hasComments() && this->numberOfComments() != 1) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GFileVectorParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
             );
         }
@@ -1436,7 +1425,6 @@ private:
         if(not call_back_func_) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GFileVectorParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
         }
@@ -1617,9 +1605,7 @@ public:
     ) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GFileArrayParsableParameterT::registerCallBackFunction(): Error" << '\n'
-                << "Tried to register an empty call-back function" << '\n'
+                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
             );
         }
 
@@ -1663,7 +1649,6 @@ private:
         if(this->hasComments() && this->numberOfComments() != 1) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GFileArrayParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
             );
         }
@@ -1671,8 +1656,7 @@ private:
         // Do some error checking
         if(GArrayParT<parameter_type, N>::def_val_arr_.empty()) {
             throw gem_exception(
-                g_error_streamer() << "In GFileArrayParsableParameterT::save_to(): Error!" << '\n'
-                                   << "You need to provide at least one default value" << '\n'
+                g_error_streamer() << "You need to provide at least one default value" << '\n'
             );
         }
 
@@ -1706,7 +1690,6 @@ private:
         if(not call_back_func_) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GFileArrayParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
         }
@@ -2169,11 +2152,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw gem_exception(
-                g_error_streamer()
-                << "In GParameterObject::resetFileParameterDefaults(GSingleParmT): Error!" << '\n'
-                << "Parameter object couldn't be found" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
         }
 
         // Reset the default value
@@ -2268,11 +2247,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw gem_exception(
-                g_error_streamer()
-                << "In GParameterObject::resetFileParameterDefaults(GCombinedParT): Error!" << '\n'
-                << "Parameter object couldn't be found" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
         }
 
         // Reset the default value
@@ -2378,11 +2353,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw gem_exception(
-                g_error_streamer()
-                << "In GParameterObject::resetFileParameterDefaults(GVectorParT): Error!" << '\n'
-                << "Parameter object couldn't be found" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
         }
 
         // Reset the default value
@@ -2499,11 +2470,7 @@ public:
 
         // Check that we have indeed received an item
         if(not parm_object) {
-            throw gem_exception(
-                g_error_streamer()
-                << "In GParameterObject::resetFileParameterDefaults(GArrayParT): Error!" << '\n'
-                << "Parameter object couldn't be found" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
         }
 
         // Reset the default value

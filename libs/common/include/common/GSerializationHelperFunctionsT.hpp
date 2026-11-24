@@ -83,8 +83,7 @@ sharedPtrToString(std::shared_ptr<T> gt_ptr, const Gem::Common::serializationMod
     }
 
     throw gem_exception(
-        g_error_streamer() << "In sharedPtrToString(): unknown serialization mode "
-                           << static_cast<int>(ser_mod) << '\n'
+        g_error_streamer() << "unknown serialization mode " << static_cast<int>(ser_mod) << '\n'
     );
 }
 

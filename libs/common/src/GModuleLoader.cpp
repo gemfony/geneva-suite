@@ -182,8 +182,7 @@ boost::dll::shared_library &openAndKeep(const std::string &path_str) {
     }
     catch(const std::exception &e) {
         throw gem_exception(
-            g_error_streamer() << "In Gem::Common::openAndKeep(): Error!" << '\n'
-                               << "Could not load the module '" << path_str << "':" << '\n'
+            g_error_streamer() << "Could not load the module '" << path_str << "':" << '\n'
                                << e.what() << '\n'
         );
     }
@@ -200,8 +199,7 @@ void validateCompatOrThrow(const GemCompat &mod, const std::string &path_str) {
     if(mod.struct_version != GEM_COMPAT_STRUCT_VERSION ||
        mod.struct_size < sizeof(std::uint32_t) * 4) {
         throw gem_exception(
-            g_error_streamer() << "In Gem::Common::validateCompatOrThrow(): Error!" << '\n'
-                               << "The module '" << path_str
+            g_error_streamer() << "The module '" << path_str
                                << "' carries an incompatible GemCompat layout" << '\n'
                                << "(struct_version=" << mod.struct_version << ", expected "
                                << GEM_COMPAT_STRUCT_VERSION
@@ -213,7 +211,6 @@ void validateCompatOrThrow(const GemCompat &mod, const std::string &path_str) {
     if(not mismatch.empty()) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Common::validateCompatOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' is not ABI-compatible with this program." << '\n'
             << mismatch << '\n'
             << "  plugin:       " << describeCompat(mod) << '\n'
@@ -237,7 +234,6 @@ void validateAbiStampOrThrow(const GemModuleManifest &manifest, const std::strin
     if(manifest.abi_version != GEM_MODULE_ABI_VERSION) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Common::validateAbiStampOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' was built against a different Geneva module ABI."
             << '\n'
             << "  module ABI version: " << manifest.abi_version << '\n'
@@ -250,7 +246,6 @@ void validateAbiStampOrThrow(const GemModuleManifest &manifest, const std::strin
     if(manifest.manifest_size != static_cast<std::uint32_t>(sizeof(GemModuleManifest))) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Common::validateAbiStampOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' claims module ABI version " << manifest.abi_version
             << " but carries a manifest of " << manifest.manifest_size
             << " bytes, where this program's is " << sizeof(GemModuleManifest) << "." << '\n'
@@ -262,7 +257,6 @@ void validateAbiStampOrThrow(const GemModuleManifest &manifest, const std::strin
     if(manifest.contribution_size != static_cast<std::uint32_t>(sizeof(GemContribution))) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Common::validateAbiStampOrThrow(): Error!" << '\n'
             << "The module '" << path_str << "' claims module ABI version " << manifest.abi_version
             << " but carries contributions of " << manifest.contribution_size
             << " bytes, where this program's are " << sizeof(GemContribution) << "." << '\n'
@@ -360,7 +354,6 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
     if(handlers.empty()) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Common::loadModule(): Error!" << '\n'
             << "No contribution handler was given: a program states at the call which kinds of"
             << " contribution it accepts." << '\n'
         );
@@ -370,7 +363,6 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
         if(not isPrefixedKind(handler.kind)) {
             throw gem_exception(
                 g_error_streamer()
-                << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "The handler for the kind \"" << handler.kind << "\" (" << handler.noun
                 << ") does not name it with the prefix of its library (\"<library>.<kind>\")."
                 << '\n'
@@ -378,15 +370,13 @@ void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
         }
         if(not handler.take) {
             throw gem_exception(
-                g_error_streamer() << "In Gem::Common::loadModule(): Error!" << '\n'
-                                   << "The handler for kind \"" << handler.kind << "\" ("
+                g_error_streamer() << "The handler for kind \"" << handler.kind << "\" ("
                                    << handler.noun << ") has no take function." << '\n'
             );
         }
         if(not kinds.insert(handler.kind).second) {
             throw gem_exception(
                 g_error_streamer()
-                << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "More than one handler was given for kind \"" << handler.kind << "\"." << '\n'
             );
         }
@@ -460,7 +450,6 @@ void loadModule(
     if(manifest->contributions_count == 0 || manifest->contributions == nullptr) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Common::loadModule(): Error!" << '\n'
             << "The module " << described << " contributes nothing: its manifest lists "
             << manifest->contributions_count << " contribution(s)"
             << (manifest->contributions == nullptr ? " and has no contribution array" : "") << "."
@@ -485,7 +474,6 @@ void loadModule(
         if(contribution.kind == nullptr) {
             throw gem_exception(
                 g_error_streamer()
-                << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "Contribution " << i << " of the module " << described << " (name '"
                 << contributionName(contribution) << "') names no kind." << '\n'
                 << "This program accepts: " << describeKinds(handlers) << "." << '\n'
@@ -498,7 +486,6 @@ void loadModule(
         if(contribution.make_factory == nullptr) {
             throw gem_exception(
                 g_error_streamer()
-                << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "Contribution " << i << " of the module " << described << " (kind \""
                 << contribution.kind << "\", name '" << contributionName(contribution)
                 << "') has no factory entry point." << '\n'
@@ -513,7 +500,6 @@ void loadModule(
         if(handler == nullptr) {
             throw gem_exception(
                 g_error_streamer()
-                << "In Gem::Common::loadModule(): Error!" << '\n'
                 << "Contribution " << i << " of the module " << described << " has the kind \""
                 << contribution.kind << "\" (name '" << contributionName(contribution)
                 << "'), which this program does not accept." << '\n'

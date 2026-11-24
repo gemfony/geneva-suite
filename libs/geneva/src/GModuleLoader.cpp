@@ -75,7 +75,6 @@ void registerOAContribution(
     if(not registerOptimizationAlgorithm(provider)) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description
             << " contributes an optimization algorithm with mnemonic '" << mnemonic << "'," << '\n'
             << "but that mnemonic is already registered (a built-in or another module owns it). A"
@@ -101,7 +100,6 @@ void registerMarshallerContribution(
     if(not Gem::Courtier::GPU::marshallerProviderStore()->setOnce(device_target, provider)) {
         throw gem_exception(
             g_error_streamer()
-            << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description
             << " contributes a GPU marshaller for device target '" << device_target << "'," << '\n'
             << "but that target is already registered (a compiled-in marshaller or another module"
@@ -132,8 +130,7 @@ std::vector<GContributionHandler> genevaContributionHandlers(LoadedModule &taken
                  *seen = context.path;
                  if(taken.individual or twice) {
                      throw gem_exception(
-                         g_error_streamer() << "In Gem::Geneva::loadModule(): Error!" << '\n'
-                                            << "The module " << context.description
+                         g_error_streamer() << "The module " << context.description
                                             << " contributes a second individual;"
                                             << " a program has one optimization problem." << '\n'
                      );

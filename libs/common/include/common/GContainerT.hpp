@@ -725,7 +725,6 @@ public:
         if(amount > data_cnt_.size()) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GContainerT::resize(): "
                 << "Cannot grow a SharedPtrStorage container without a prototype. "
                 << "Use resize_clone(), resize_noclone(), or resize_empty() instead." << '\n'
             );
@@ -1064,8 +1063,7 @@ public:
     [[nodiscard]] size_type count(const std::shared_ptr<item_type> &item) const {
         if(not item) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::count(): "
-                                   << "Tried to count with an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to count with an empty smart pointer." << '\n'
             );
         }
         return Gem::Common::narrow<size_type>(
@@ -1091,8 +1089,7 @@ public:
     [[nodiscard]] const_iterator find(const std::shared_ptr<item_type> &item) const {
         if(not item) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::find(): "
-                                   << "Tried to find an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to find an empty smart pointer." << '\n'
             );
         }
         return std::ranges::find_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
@@ -1141,8 +1138,7 @@ public:
     {
         if(not item_ptr) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::push_back_clone(): "
-                                   << "Tried to clone an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
             );
         }
         data_cnt_.push_back(clone_into_stored(item_ptr));
@@ -1163,8 +1159,7 @@ public:
     {
         if(not item_ptr) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::push_back_noclone(): "
-                                   << "Tried to insert an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
             );
         }
         data_cnt_.push_back(std::move(item_ptr));
@@ -1188,8 +1183,7 @@ public:
     {
         if(not item_ptr) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::insert_clone(): "
-                                   << "Tried to clone an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
             );
         }
         return data_cnt_.insert(pos, clone_into_stored(item_ptr));
@@ -1209,8 +1203,7 @@ public:
     {
         if(not item_ptr) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::insert_clone(count): "
-                                   << "Tried to clone an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
             );
         }
         if(count == 0)
@@ -1242,8 +1235,7 @@ public:
     {
         if(not item_ptr) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::insert_noclone(): "
-                                   << "Tried to insert an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
             );
         }
         return data_cnt_.insert(pos, std::move(item_ptr));
@@ -1267,8 +1259,7 @@ public:
     {
         if(not item_ptr) {
             throw gem_exception(
-                g_error_streamer() << "In GContainerT::insert_noclone(count): "
-                                   << "Tried to insert an empty smart pointer." << '\n'
+                g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
             );
         }
         // Guard against unsigned underflow of `count - 1` below when count == 0.
@@ -1313,8 +1304,7 @@ public:
         else if(amount > data_size) {
             if(not item_ptr) {
                 throw gem_exception(
-                    g_error_streamer() << "In GContainerT::resize_clone(): "
-                                       << "Tried to clone an empty smart pointer." << '\n'
+                    g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
                 );
             }
             // Clone the prototype into an independent local FIRST: item_ptr frequently aliases an element
@@ -1349,8 +1339,7 @@ public:
         else if(amount > data_size) {
             if(not item_ptr) {
                 throw gem_exception(
-                    g_error_streamer() << "In GContainerT::resize_noclone(): "
-                                       << "Tried to insert an empty smart pointer." << '\n'
+                    g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
                 );
             }
             data_cnt_.reserve(amount);
@@ -1560,7 +1549,6 @@ public:
         if(pos >= min_size) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GContainerT::crossOver(): Error!" << '\n'
                 << "Invalid position " << pos << " / " << this->size() << " / " << cp.size() << '\n'
             );
         }

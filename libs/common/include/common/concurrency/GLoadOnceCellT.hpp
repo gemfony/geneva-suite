@@ -176,7 +176,6 @@ public:
         if(not this->loaded()) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GLoadOnceCellT::get(): Error!" << '\n'
                 << "The cell was read before it was loaded. Fill it once (via ensureLoaded())"
                 << '\n'
                 << "before any reader calls get()." << '\n'

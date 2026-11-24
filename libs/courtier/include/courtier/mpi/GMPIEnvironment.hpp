@@ -159,7 +159,6 @@ public:
         if(finalized != 0) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
                 << "MPI has been finalized in this process and cannot be used again." << '\n'
             );
         }
@@ -180,7 +179,6 @@ public:
             }
             throw gem_exception(
                 g_error_streamer()
-                << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
                 << "courtier's MPI transport requires MPI with the thread level "
                 << "MPI_THREAD_MULTIPLE (a.k.a. " << MPI_THREAD_MULTIPLE << "), but "
                 << (i_initialized_mpi_ ? "the runtime environment only supports level "

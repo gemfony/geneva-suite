@@ -88,8 +88,7 @@ void GStreamCore::append(GRow row) {
     const std::size_t offset = time_ == withTime::none ? 0 : 1;
     if(row.size() + offset != info_.columns.size()) {
         throw gem_exception(
-            g_error_streamer() << "In GStream::append(): Error!" << '\n'
-                               << "The stream \"" << info_.name << "\" has "
+            g_error_streamer() << "The stream \"" << info_.name << "\" has "
                                << info_.columns.size() - offset << " columns, but a row of "
                                << row.size() << " values was appended" << '\n'
         );
@@ -99,7 +98,6 @@ void GStreamCore::append(GRow row) {
         if(typeOf(row[i]) != column.type) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GStream::append(): Error!" << '\n'
                 << "The column \"" << column.name << "\" of the stream \"" << info_.name
                 << "\" holds " << to_string(column.type) << " values, but a "
                 << to_string(typeOf(row[i])) << " value was appended" << '\n'
@@ -110,8 +108,7 @@ void GStreamCore::append(GRow row) {
     const std::scoped_lock lk(mutex_);
     if(closed_) {
         throw gem_exception(
-            g_error_streamer() << "In GStream::append(): Error!" << '\n'
-                               << "The stream \"" << info_.name
+            g_error_streamer() << "The stream \"" << info_.name
                                << "\" is closed; it takes no further row" << '\n'
         );
     }
@@ -250,7 +247,7 @@ GStream &GStream::operator=(GStream &&cp) noexcept {
             this->close();
         }
         catch(std::exception const &e) {
-            glogger << "In GStream::operator=(): the stream could not be closed cleanly:" << '\n'
+            glogger << "the stream could not be closed cleanly:" << '\n'
                     << e.what() << '\n'
                     << GWARNING;
         }
@@ -268,7 +265,7 @@ GStream::~GStream() {
         this->close();
     }
     catch(std::exception const &e) {
-        glogger << "In GStream::~GStream(): the stream could not be closed cleanly:" << '\n'
+        glogger << "the stream could not be closed cleanly:" << '\n'
                 << e.what() << '\n'
                 << GWARNING;
     }
@@ -283,10 +280,7 @@ GStream::~GStream() {
  */
 void GStream::append(GRow row) {
     if(not core_) {
-        throw gem_exception(
-            g_error_streamer() << "In GStream::append(): Error!" << '\n'
-                               << "The handle has no stream" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "The handle has no stream" << '\n');
     }
     core_->append(std::move(row));
 }

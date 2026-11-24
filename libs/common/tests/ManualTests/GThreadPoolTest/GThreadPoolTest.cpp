@@ -110,8 +110,7 @@ public:
 
         if(true == simulateCrash) {
             throw gem_exception(
-                g_error_streamer() << "In testTask::process(): Error!" << '\n'
-                                   << "SHF-Exception (Some Horrible Failure)" << '\n'
+                g_error_streamer() << "SHF-Exception (Some Horrible Failure)" << '\n'
                                    << "occurred, as requested ..." << '\n'
             );
         }

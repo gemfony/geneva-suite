@@ -194,7 +194,6 @@ public:
         if(empty()) {
             throw gem_exception(
                 g_error_streamer()
-                << "In random_container::next(): Error!" << '\n'
                 << "Invalid current_pos_: " << current_pos_ << " / " << DEFAULTARRAYSIZE << '\n'
             );
         }

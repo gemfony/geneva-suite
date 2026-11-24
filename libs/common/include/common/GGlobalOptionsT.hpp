@@ -117,8 +117,8 @@ public:
             return *value;
         }
         throw gem_exception(
-            g_error_streamer() << "In GGlobalOptionsT::get(\"" << key << "\"): Error!" << '\n'
-                               << "Key is not present in the global options map." << '\n'
+            g_error_streamer() << "Key \"" << key << "\" is not present in the global options map."
+                               << '\n'
                                << "Use exists(key) to check before calling, or get(key, value) "
                                   "which signals absence via its return value."
                                << '\n'

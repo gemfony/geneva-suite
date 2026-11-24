@@ -52,7 +52,6 @@
 #include <vector>
 
 // Boost header files go here
-#include <boost/core/demangle.hpp>
 
 // Geneva header files go here
 #include "common/GCommonHelperFunctions.hpp" // duration_from_string()
@@ -130,10 +129,7 @@ void applyNetworkedTimeouts(GBaseConsumerT<processable_type> &consumer) {
 
 /** @brief An error of the free functions @param what Why @return The exception to throw */
 inline gem_exception consumerError(const std::string &what) {
-    return gem_exception(
-        g_error_streamer() << "In Gem::Courtier's consumer functions: Error!" << '\n'
-                           << what << '\n'
-    );
+    return gem_exception(g_error_streamer() << what << '\n');
 }
 
 } // namespace detail
@@ -460,12 +456,7 @@ private:
     [[nodiscard]] std::string listing_(const GProducerDescriptionI &description) const;
     /** @brief A refusal of the launcher @param what Why @return The exception to throw */
     static gem_exception refusal_(const std::string &what) {
-        return gem_exception(
-            g_error_streamer() << "In GLauncherT<"
-                               << boost::core::demangle(typeid(processable_type).name())
-                               << ">::run(): Error!" << '\n'
-                               << what << '\n'
-        );
+        return gem_exception(g_error_streamer() << what << '\n');
     }
 
     int argc_;                          ///< The command line

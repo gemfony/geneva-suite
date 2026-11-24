@@ -339,22 +339,19 @@ void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
     if(released_) {
         throw gem_exception(
             g_error_streamer()
-            << "In GMPICascade::lead(): Error!" << '\n'
             << "The group was released (release()); lead() comes before the first round" << '\n'
         );
     }
     if(announced_) {
         throw gem_exception(
             g_error_streamer()
-            << "In GMPICascade::lead(): Error!" << '\n'
             << "A round was announced already; lead() comes before the first round, so that "
             << "its setUp() pairs with the members' setUp()" << '\n'
         );
     }
     if(lifecycle_ != nullptr) {
         throw gem_exception(
-            g_error_streamer() << "In GMPICascade::lead(): Error!" << '\n'
-                               << "lead() was called before; a group is set up once" << '\n'
+            g_error_streamer() << "lead() was called before; a group is set up once" << '\n'
         );
     }
     lifecycle_ = &lifecycle;
@@ -455,8 +452,7 @@ void GMPICascade::requireConfirmedRole_(std::string_view where) {
 void GMPICascade::requireRole(processRole consumer_role) {
     if(role_ == processRole::BYSTANDER) {
         throw gem_exception(
-            g_error_streamer() << "In GMPICascade::requireRole(): Error!" << '\n'
-                               << "This process (base rank " << base_rank_
+            g_error_streamer() << "This process (base rank " << base_rank_
                                << ") is a member of the cascade; a member "
                                << "has no consumer, it calls serve()" << '\n'
         );
@@ -471,8 +467,7 @@ void GMPICascade::requireRole(processRole consumer_role) {
             : "Start every lead with --client and a networked consumer (for example --consumer "
               "beast), and the job without the MPI consumer.";
     throw gem_exception(
-        g_error_streamer() << "In GMPICascade::requireRole(): Error!" << '\n'
-                           << "Base rank " << base_rank_ << " of a cascade laid out "
+        g_error_streamer() << "Base rank " << base_rank_ << " of a cascade laid out "
                            << layoutName(config_.layout)
                            << ": the consumer gave this process the role of "
                            << roleName(consumer_role) << ", the cascade the role of "
@@ -509,7 +504,7 @@ void GMPICascade::abortJob(int code, std::string_view reason) {
         this->endJob_("abortJob()", reason, code);
     }
     try {
-        glogger << "In GMPICascade, abortJob(): " << reason << '\n'
+        glogger << reason << '\n'
                 << "MPI is not in use: the process is ended with the exit code " << code << "."
                 << '\n'
                 << GERROR;
@@ -573,7 +568,6 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
         }
         throw gem_exception(
             g_error_streamer()
-            << "In GMPICascade::GMPICascade(): Error!" << '\n'
             << "Rank 0 of the base communicator could not provide the cascade's configuration"
             << '\n'
         );
@@ -689,8 +683,7 @@ void GMPICascade::announceRound_() {
     this->requireConfirmedRole_("round()");
     if(released_) {
         throw gem_exception(
-            g_error_streamer() << "In GMPICascade::round(): Error!" << '\n'
-                               << "The group was released (release()); no round follows the stop"
+            g_error_streamer() << "The group was released (release()); no round follows the stop"
                                << '\n'
         );
     }

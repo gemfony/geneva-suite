@@ -203,10 +203,9 @@ public:
         // Check that we have been given a suitable new results vector
         if(result_cnt.size() != stored_results_cnt_.size()) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GProcessingContainerT::markAsProcessedWith(): Vector dimensions" << '\n'
-                << "do not fit: " << result_cnt.size() << " / " << stored_results_cnt_.size()
-                << '\n'
+                g_error_streamer() << "Vector dimensions" << '\n'
+                                   << "do not fit: " << result_cnt.size() << " / "
+                                   << stored_results_cnt_.size() << '\n'
             );
         }
 #endif
@@ -302,7 +301,7 @@ public:
         if(not this->is_processed()) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GProcessingContainerT::getStoredResult(): Tried to" << '\n'
+                << "Tried to" << '\n'
                 << "retrieve stored result while the PROCESSED flag was not set" << '\n'
             );
         }

@@ -284,10 +284,7 @@ void createRandomVector(
         break;
 
     default: {
-        throw gem_exception(
-            g_error_streamer() << "In createRandomVector(): Error!" << '\n'
-                               << "Received invalid distType " << dType << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Received invalid distType " << dType << '\n');
     } break;
     }
 }
@@ -342,8 +339,7 @@ int main(int argc, char **argv) {
 
     default: {
         throw gem_exception(
-            g_error_streamer() << "In main(): Error!" << '\n'
-                               << "Received invalid rnrProductionMode " << rnrProductionMode << '\n'
+            g_error_streamer() << "Received invalid rnrProductionMode " << rnrProductionMode << '\n'
         );
     } break;
     };

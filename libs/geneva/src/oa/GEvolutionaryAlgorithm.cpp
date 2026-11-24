@@ -194,7 +194,6 @@ void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_indivi
     if(this->empty()) {
         throw gem_exception(
             g_error_streamer()
-            << "In GEvolutionaryAlgorithm::updateGlobalBestsPQ_() :" << '\n'
             << "Tried to retrieve the best individuals even though the population is empty." << '\n'
         );
     }
@@ -302,11 +301,7 @@ void GType::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
 
 void GType::populationSanityChecks_() const {
     if(this->n_parents_ == 0) {
-        throw gem_exception(
-            g_error_streamer() << "In GEvolutionaryAlgorithm::populationSanityChecks(): Error!"
-                               << '\n'
-                               << "Number of parents is set to 0"
-        );
+        throw gem_exception(g_error_streamer() << "Number of parents is set to 0");
     }
 
     std::size_t const pop_size = this->getPopulationSize();
@@ -334,11 +329,9 @@ void GType::evaluatePopulation_() {
     for(std::size_t i = this->getNParents(); i < this->size(); i++) {
         if(not this->at(i)->is_due_for_processing()) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GEvolutionaryAlgorithm::evaluatePopulation_(): Error!" << '\n'
-                << "Tried to evaluate children in range " << std::get<0>(range) << " - "
-                << std::get<1>(range) << '\n'
-                << "but found \"clean\" individual in position " << i << '\n'
+                g_error_streamer() << "Tried to evaluate children in range " << std::get<0>(range)
+                                   << " - " << std::get<1>(range) << '\n'
+                                   << "but found \"clean\" individual in position " << i << '\n'
             );
         }
     }
@@ -347,8 +340,7 @@ void GType::evaluatePopulation_() {
     // Go2 chain holds every individual the one before handed over, and selectBest_() reduces it.
     if(this->size() < this->getDefaultPopulationSize()) {
         throw gem_exception(
-            g_error_streamer() << "In GEvolutionaryAlgorithm::evaluatePopulation_(): Error!" << '\n'
-                               << "Size of data vector (" << this->size() << ") should be at least "
+            g_error_streamer() << "Size of data vector (" << this->size() << ") should be at least "
                                << this->getDefaultPopulationSize() << '\n'
         );
     }
@@ -367,8 +359,7 @@ void GType::selectBest_() {
 #ifdef DEBUG
     if((this->size() - this->n_parents_) < this->default_n_children_) {
         throw gem_exception(
-            g_error_streamer() << "In GEvolutionaryAlgorithm::select():" << '\n'
-                               << "Too few children. Got " << (this->size() - this->getNParents())
+            g_error_streamer() << "Too few children. Got " << (this->size() - this->getNParents())
                                << "," << '\n'
                                << "but was expecting at least " << this->getDefaultNChildren()
                                << '\n'
@@ -423,8 +414,7 @@ void GType::selectBest_() {
 #ifdef DEBUG
     if(this->size() < this->getDefaultPopulationSize()) {
         throw gem_exception(
-            g_error_streamer() << "In GEvolutionaryAlgorithm::selectBest(): Error!" << '\n'
-                               << "Size of population is smaller than expected: " << this->size()
+            g_error_streamer() << "Size of population is smaller than expected: " << this->size()
                                << " / " << this->getDefaultPopulationSize() << '\n'
         );
     }
@@ -788,7 +778,6 @@ void GType::sortMuPlusNuParetoMode() {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
             glogger
-                << "In GEvolutionaryAlgorithm::sortMuPlusNuParetoMode(): Warning!" << '\n'
                 << "A PARETO sorting mode was selected, but the individuals expose only a single"
                 << '\n'
                 << "fitness criterion. Pareto selection therefore degenerates to single-objective"
@@ -810,7 +799,6 @@ void GType::sortMuCommaNuParetoMode() {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
             glogger
-                << "In GEvolutionaryAlgorithm::sortMuCommaNuParetoMode(): Warning!" << '\n'
                 << "A PARETO sorting mode was selected, but the individuals expose only a single"
                 << '\n'
                 << "fitness criterion. Pareto selection therefore degenerates to single-objective"

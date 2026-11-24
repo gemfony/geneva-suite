@@ -224,7 +224,6 @@ private:
             if(marshaller_->itemDimension(items[i]) != dim_sz) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GGPUConsumerT::dispatch_(): Error!" << '\n'
                     << "The GPU consumer requires a UNIFORM item geometry across a batch, but item "
                     << i << " has " << marshaller_->itemDimension(items[i])
                     << " parameters while item 0"
@@ -279,7 +278,6 @@ private:
         if(not backendAvailable(kind)) {
             throw gem_exception(
                 g_error_streamer()
-                << "In Gem::Courtier::GPU::GGPUConsumerT::ensureBackend_(): Error!" << '\n'
                 << "The '" << toString(kind) << "' backend was not compiled into this build (its"
                 << " toolkit was not found at configure time)." << '\n'
                 << "The GPU consumer is device-only; to run on the CPU use a CPU consumer instead"

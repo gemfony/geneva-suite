@@ -271,8 +271,7 @@ private:
 #ifdef DEBUG
         if(not grf_) {
             throw gem_exception(
-                g_error_streamer() << "In GRandomT<QUEUE>::getNewRandomContainer(): Error!" << '\n'
-                                   << "No connection to GRandomFactory object." << '\n'
+                g_error_streamer() << "No connection to GRandomFactory object." << '\n'
             );
         }
 #endif /* DEBUG */
@@ -296,7 +295,6 @@ private:
             if(grf_->finalized()) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GRandomT<QUEUE>::getNewRandomContainer(): Error!" << '\n'
                     << "The random-number factory has been finalized (permanently shut down);"
                     << '\n'
                     << "no further random-number containers will be produced." << '\n'

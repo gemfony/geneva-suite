@@ -170,8 +170,7 @@ void GLineFitIndividual::applyConfig(GLineFitIndividual &ind, const Config &c) {
     std::ifstream in(c.data_file);
     if(not in) {
         throw gem_exception(
-            g_error_streamer() << "In GLineFitIndividual::applyConfig(): Error!" << '\n'
-                               << "Could not open the data-point file \"" << c.data_file << "\""
+            g_error_streamer() << "Could not open the data-point file \"" << c.data_file << "\""
                                << '\n'
         );
     }
@@ -189,7 +188,6 @@ void GLineFitIndividual::applyConfig(GLineFitIndividual &ind, const Config &c) {
         if(not(iss >> x >> y)) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GLineFitIndividual::applyConfig(): Error!" << '\n'
                 << "Malformed data-point line (expected \"x y\"): \"" << line << "\"" << '\n'
             );
         }

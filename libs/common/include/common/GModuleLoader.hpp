@@ -161,8 +161,7 @@ template <typename ptr_type>
     void *raw = contribution.make_factory();
     if(raw == nullptr) {
         throw gem_exception(
-            g_error_streamer() << "In Gem::Common::takeContribution(): Error!" << '\n'
-                               << "The module " << context.description << " produced a null "
+            g_error_streamer() << "The module " << context.description << " produced a null "
                                << noun << " (contribution " << context.index << ")." << '\n'
         );
     }
@@ -172,8 +171,7 @@ template <typename ptr_type>
     ptr_type result = std::move(*holder);
     if(not result) {
         throw gem_exception(
-            g_error_streamer() << "In Gem::Common::takeContribution(): Error!" << '\n'
-                               << "The module " << context.description << " returned an empty "
+            g_error_streamer() << "The module " << context.description << " returned an empty "
                                << noun << " (contribution " << context.index << ")." << '\n'
         );
     }

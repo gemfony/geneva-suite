@@ -82,9 +82,7 @@ GAntColonyOptimization::GAntColonyOptimization(std::size_t archive_size)
 void GAntColonyOptimization::setArchiveSize(std::size_t archive_size) {
     if(archive_size < 2) {
         throw gem_exception(
-            g_error_streamer() << "In GAntColonyOptimization::setArchiveSize(std::size_t): Error!"
-                               << '\n'
-                               << "Got invalid archive size " << archive_size
+            g_error_streamer() << "Got invalid archive size " << archive_size
                                << " (need at least 2)." << '\n'
         );
     }
@@ -101,10 +99,7 @@ std::size_t GAntColonyOptimization::getArchiveSize() const {
 /** Sets the number of ants m constructed per iteration. */
 void GAntColonyOptimization::setNAnts(std::size_t n_ants) {
     if(n_ants == 0) {
-        throw gem_exception(
-            g_error_streamer() << "In GAntColonyOptimization::setNAnts(std::size_t): Error!" << '\n'
-                               << "Got invalid number of ants (0)." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got invalid number of ants (0)." << '\n');
     }
     n_ants_ = n_ants;
 }
@@ -118,10 +113,7 @@ std::size_t GAntColonyOptimization::getNAnts() const {
 /** Sets the locality / intensification parameter q (> 0). */
 void GAntColonyOptimization::setQ(double q) {
     if(q <= 0.) {
-        throw gem_exception(
-            g_error_streamer() << "In GAntColonyOptimization::setQ(double): Error!" << '\n'
-                               << "q must be > 0, got " << q << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "q must be > 0, got " << q << '\n');
     }
     q_ = q;
 }
@@ -135,10 +127,7 @@ double GAntColonyOptimization::getQ() const {
 /** Sets the evaporation / convergence-speed parameter xi (> 0). */
 void GAntColonyOptimization::setXi(double xi) {
     if(xi <= 0.) {
-        throw gem_exception(
-            g_error_streamer() << "In GAntColonyOptimization::setXi(double): Error!" << '\n'
-                               << "xi must be > 0, got " << xi << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "xi must be > 0, got " << xi << '\n');
     }
     xi_ = xi;
 }
@@ -195,8 +184,7 @@ void GAntColonyOptimization::resetToOptimizationStart_() {
 void GAntColonyOptimization::adjustPopulation_() {
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer() << "In GAntColonyOptimization::adjustPopulation_(): Error!" << '\n'
-                               << "No individuals found in the population. You need to add at least"
+            g_error_streamer() << "No individuals found in the population. You need to add at least"
                                << '\n'
                                << "one individual before the call to optimize()." << '\n'
         );
@@ -204,8 +192,7 @@ void GAntColonyOptimization::adjustPopulation_() {
 
     if(n_ants_ > archive_size_) {
         throw gem_exception(
-            g_error_streamer() << "In GAntColonyOptimization::adjustPopulation_(): Error!" << '\n'
-                               << "The number of ants (" << n_ants_
+            g_error_streamer() << "The number of ants (" << n_ants_
                                << ") exceeds the archive size (" << archive_size_ << ")." << '\n'
         );
     }
@@ -236,7 +223,6 @@ void GAntColonyOptimization::init() {
     if(n_fp_parms_ == 0) {
         throw gem_exception(
             g_error_streamer()
-            << "In GAntColonyOptimization::init(): Error!" << '\n'
             << "The individual exposes no floating point parameters; Ant Colony Optimization"
             << '\n'
             << "(continuous) requires a continuous (double / float) genome." << '\n'

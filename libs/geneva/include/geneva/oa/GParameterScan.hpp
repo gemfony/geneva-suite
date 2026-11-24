@@ -807,8 +807,7 @@ private:
         // Check that we haven't exceeded the size of the data vector
         if(data_point.pos >= data_vec.size()) {
             throw gem_exception(
-                g_error_streamer() << "In GParameterScan::addDataPoint(): Error!" << '\n'
-                                   << "Got position beyond end of data vector: " << data_point.pos
+                g_error_streamer() << "Got position beyond end of data vector: " << data_point.pos
                                    << " / " << data_vec.size() << '\n'
             );
         }

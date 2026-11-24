@@ -330,7 +330,6 @@ public:
         if(held == nullptr || not *held) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GCommandContainerT<processable_type>::process():" << '\n'
                 << "Tried to process a work item while the frame carries none" << '\n'
             );
         }
@@ -656,8 +655,7 @@ std::string container_to_string(
     }
     catch(...) {
         throw gem_exception(
-            g_error_streamer() << "In container_to_string(GCommandContainerT<>): "
-                               << describeException(std::current_exception()) << '\n'
+            g_error_streamer() << describeException(std::current_exception()) << '\n'
                                << "with serializationMode == "
                                << Gem::Common::serModeToString(serMode) << '\n'
         );

@@ -144,8 +144,7 @@ std::shared_ptr<float[]> GTestIndividual3::getPlainData() const {
 #ifdef DEBUG
     if(par_vec.size() != 10 * GTI_DEF_NITEMS) {
         throw gem_exception(
-            g_error_streamer() << "In GTestIndividual3::getPlainData(): Error!" << '\n'
-                               << "Invalid number of double parameters " << par_vec.size() << " / "
+            g_error_streamer() << "Invalid number of double parameters " << par_vec.size() << " / "
                                << (10 * GTI_DEF_NITEMS) << '\n'
         );
     }

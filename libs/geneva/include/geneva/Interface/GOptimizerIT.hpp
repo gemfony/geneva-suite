@@ -130,9 +130,7 @@ public:
         // Cross check that we indeed got a valid set of individuals
         if(best_base_individuals.empty()) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GOptimizerIT<optimizer_type>::getBestGlobalIndividuals(): Error!" << '\n'
-                << "Received empty collection of best individuals." << '\n'
+                g_error_streamer() << "Received empty collection of best individuals." << '\n'
             );
         }
 
@@ -194,11 +192,7 @@ public:
         // Cross check that we indeed got a valid set of individuals
         if(best_base_individuals.empty()) {
             throw gem_exception(
-                g_error_streamer()
-                << "In GOptimizerIT<optimizer_type>::getBestIterationIndividuals(): "
-                   "Error!"
-                << '\n'
-                << "Received empty collection of best individuals." << '\n'
+                g_error_streamer() << "Received empty collection of best individuals." << '\n'
             );
         }
 

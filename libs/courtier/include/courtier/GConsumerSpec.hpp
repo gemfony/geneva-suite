@@ -101,8 +101,7 @@ template <typename config_type>
         return *config;
     }
     throw gem_exception(
-        g_error_streamer() << "In configOf(): Error!" << '\n'
-                           << "The consumer \"" << spec.mnemonic << "\" is configured with a "
+        g_error_streamer() << "The consumer \"" << spec.mnemonic << "\" is configured with a "
                            << boost::core::demangle(typeid(config_type).name()) << "," << '\n'
                            << "but its specification carries a "
                            << boost::core::demangle(spec.config.type().name()) << "." << '\n'

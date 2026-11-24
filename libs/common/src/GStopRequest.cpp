@@ -88,8 +88,7 @@ void installStopHandlers() {
 #endif
     if(not installed) {
         throw gem_exception(
-            g_error_streamer() << "In Gem::Common::installStopHandlers(): Error!" << '\n'
-                               << "A handler of a stop request could not be installed" << '\n'
+            g_error_streamer() << "A handler of a stop request could not be installed" << '\n'
         );
     }
 }

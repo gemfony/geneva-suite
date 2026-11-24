@@ -95,8 +95,7 @@ bool isBetter(
     if(x_mode != y_mode) {
         // Throw an exception
         throw gem_exception(
-            g_error_streamer() << "In isBetterThan(x_ptr, y_ptr):" << '\n'
-                               << "Got different maxMode-settings: " << x_mode << " / " << y_mode
+            g_error_streamer() << "Got different maxMode-settings: " << x_mode << " / " << y_mode
                                << '\n'
         );
     }

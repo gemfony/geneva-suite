@@ -505,10 +505,7 @@ GMPIListener::GMPIListener(std::shared_ptr<GMPICallsI> calls, GMPIPeerOptions op
   : calls_(std::move(calls))
   , options_(std::move(options)) {
     if(not calls_) {
-        throw gem_exception(
-            g_error_streamer() << "In GMPIListener::GMPIListener(): Error!" << '\n'
-                               << "No calls to MPI were given" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No calls to MPI were given" << '\n');
     }
 }
 
@@ -808,8 +805,7 @@ GMPIConnector::GMPIConnector(std::shared_ptr<GMPICallsI> calls, GMPIPeerOptions 
   , options_(std::move(options)) {
     if(not calls_ || calls_->rank() == RANK_MASTER_NODE) {
         throw gem_exception(
-            g_error_streamer() << "In GMPIConnector::GMPIConnector(): Error!" << '\n'
-                               << (calls_ ? "The submitter's rank has no connector"
+            g_error_streamer() << (calls_ ? "The submitter's rank has no connector"
                                           : "No calls to MPI were given")
                                << '\n'
         );

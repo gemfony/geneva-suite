@@ -247,8 +247,7 @@ public:
         // Check that the file exists
         if(not std::filesystem::exists(p)) {
             throw gem_exception(
-                g_error_streamer() << "In GCommonInterfaceT::fromFile(): Error!" << '\n'
-                                   << "Requested input file " << p.string() << '\n'
+                g_error_streamer() << "Requested input file " << p.string() << '\n'
                                    << "does not exist." << '\n'
             );
         }
@@ -257,8 +256,7 @@ public:
 
         if(not ifstr) {
             throw gem_exception(
-                g_error_streamer() << "In GCommonInterfaceT::fromFile():" << '\n'
-                                   << "Problem connecting to file " << p.string() << '\n'
+                g_error_streamer() << "Problem connecting to file " << p.string() << '\n'
             );
         }
 
@@ -391,8 +389,7 @@ public:
             return std::unique_ptr<clone_type>(converted);
         }
         throw gem_exception(
-            g_error_streamer() << "In GCommonInterfaceT<>::clone<clone_type>():" << '\n'
-                               << "Invalid conversion to type " << typeid(clone_type).name() << '\n'
+            g_error_streamer() << "Invalid conversion to type " << typeid(clone_type).name() << '\n'
         );
     }
 

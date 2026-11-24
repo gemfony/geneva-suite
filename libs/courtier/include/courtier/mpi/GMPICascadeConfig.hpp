@@ -80,7 +80,6 @@ checkPollPauses(std::chrono::microseconds pause_min, std::chrono::microseconds p
     if(pause_min.count() <= 0 || pause_max < pause_min) {
         throw gem_exception(
             g_error_streamer()
-            << "In checkPollPauses(): Error!" << '\n'
             << "The poll pauses must satisfy 0 < pause_min <= pause_max, but pause_min is "
             << pause_min.count() << " us and pause_max is " << pause_max.count() << " us" << '\n'
         );
@@ -162,7 +161,6 @@ struct GMPICascadeConfig {
         if(groupSize == 0) {
             throw gem_exception(
                 g_error_streamer()
-                << "In GMPICascadeConfig::check(): Error!" << '\n'
                 << "The group size of the MPI cascade (sub_client_group_size) is 0; a group has "
                 << "at least one process, its lead" << '\n'
             );
@@ -170,8 +168,7 @@ struct GMPICascadeConfig {
         if(layout != GMPICascadeLayout::SUBMITTER_AND_GROUPS &&
            layout != GMPICascadeLayout::GROUPS_ONLY) {
             throw gem_exception(
-                g_error_streamer() << "In GMPICascadeConfig::check(): Error!" << '\n'
-                                   << "The layout of the MPI cascade has the unknown value "
+                g_error_streamer() << "The layout of the MPI cascade has the unknown value "
                                    << static_cast<Gem::Common::ENUMBASETYPE>(layout) << '\n'
             );
         }

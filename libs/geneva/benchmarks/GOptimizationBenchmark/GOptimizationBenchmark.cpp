@@ -112,15 +112,14 @@ int main(int argc, char **argv) {
 #ifdef DEBUG
                     if(g->getParameterSize() != *it) {
                         throw gem_exception(
-                            g_error_streamer()
-                            << "In main(): parameter size of individual != requested size: "
-                            << g->getParameterSize() << " / " << *it << std::endl
+                            g_error_streamer() << "parameter size of individual != requested size: "
+                                               << g->getParameterSize() << " / " << *it << std::endl
                         );
                     }
 
                     if(!go_loop.empty()) {
                         throw gem_exception(
-                            g_error_streamer() << "In main(): go contains " << go_loop.size()
+                            g_error_streamer() << "go contains " << go_loop.size()
                                                << " items when it should be empty." << std::endl
                         );
                     }

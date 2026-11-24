@@ -180,8 +180,7 @@ public:
                     promise_ptr->set_exception(std::current_exception());
                 }
                 catch(...) { // set_exception() itself may throw -- nothing safe remains
-                    glogger << "In GThreadPool::async_schedule(): promise.set_exception() threw."
-                            << '\n'
+                    glogger << "promise.set_exception() threw." << '\n'
                             << "We cannot continue" << '\n'
                             << GTERMINATION;
                 }
@@ -195,9 +194,7 @@ public:
             // the future rather than losing it silently.
             promise_ptr->set_exception(
                 std::make_exception_ptr(gem_exception(
-                    g_error_streamer()
-                    << "In GThreadPool::async_schedule(): submission after the pool was closed"
-                    << '\n'
+                    g_error_streamer() << "submission after the pool was closed" << '\n'
                 ))
             );
         }
@@ -237,7 +234,7 @@ public:
             }
         };
         if(not enqueue(std::move_only_function<void()>(std::move(task)))) {
-            glogger << "In GThreadPool::post(): submission after the pool was closed;"
+            glogger << "submission after the pool was closed;"
                     << " task dropped." << '\n'
                     << GWARNING;
         }

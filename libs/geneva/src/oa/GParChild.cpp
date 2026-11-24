@@ -158,8 +158,7 @@ std::size_t GParChild::getNProcessableItems_() const {
 #ifdef DEBUG
     if(std::get<1>(range) <= std::get<0>(range)) {
         throw gem_exception(
-            g_error_streamer() << "In GParChild<>::getNProcessableItems(): Error!" << '\n'
-                               << "Upper boundary of range <= lower boundary: "
+            g_error_streamer() << "Upper boundary of range <= lower boundary: "
                                << std::get<1>(range) << "/" << std::get<0>(range) << '\n'
         );
     }
@@ -294,9 +293,8 @@ void GParChild::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
 void GParChild::setAmalgamationLikelihood(double amalgamation_likelihood) {
     if(amalgamation_likelihood < 0. || amalgamation_likelihood > 1.) {
         throw gem_exception(
-            g_error_streamer()
-            << "In setCrossOverLikelihood(" << amalgamation_likelihood << "): Error!" << '\n'
-            << "Received invalid likelihood for amalgamation. Must be in the range [0:1]." << '\n'
+            g_error_streamer() << "Received invalid likelihood " << amalgamation_likelihood
+                               << " for amalgamation. Must be in the range [0:1]." << '\n'
         );
     }
 
@@ -673,16 +671,12 @@ void GParChild::fixAfterJobSubmission() {
 
     // Check that individuals do exist in the population. We cannot continue, if this is not the case
     if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer() << "In GParChild::fixAfterJobSubmission(): Error!" << '\n'
-                               << "Population holds no data" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Population holds no data" << '\n');
     }
 
     // Emit a warning if no children have returned
     if(this->size() <= np) {
-        glogger << "In GParChild::fixAfterJobSubmission(): Warning!" << '\n'
-                << "No child individuals have returned" << '\n'
+        glogger << "No child individuals have returned" << '\n'
                 << "We have a size of " << this->size() << " with " << np << " parents" << '\n'
                 << "We need to fill up the population with clones from parent individuals" << '\n'
                 << GWARNING;
@@ -691,8 +685,7 @@ void GParChild::fixAfterJobSubmission() {
     // Check that the last individual is not unprocessed. This is a severe error.
     if(this->back()->is_due_for_processing()) {
         throw gem_exception(
-            g_error_streamer() << "In GParChild::fixAfterJobSubmission(): Error!" << '\n'
-                               << "The last individual in the population is unprocessed" << '\n'
+            g_error_streamer() << "The last individual in the population is unprocessed" << '\n'
                                << "so we cannot use it for cloning" << '\n'
         );
     }
@@ -745,8 +738,7 @@ void GParChild::recombine() {
     // you must add mechanisms to "repair" the population.
     if((this->size() - n_parents_) < default_n_children_) {
         throw gem_exception(
-            g_error_streamer() << "In GParChild::recombine():" << '\n'
-                               << "Too few children. Got " << this->size() - n_parents_ << ","
+            g_error_streamer() << "Too few children. Got " << this->size() - n_parents_ << ","
                                << '\n'
                                << "but was expecting at least " << default_n_children_ << '\n'
         );
@@ -826,8 +818,7 @@ std::tuple<double, double> GParChild::cycleLogic_() {
     // The dirty flag of this individual shouldn't be set
     if(not this->at(0)->is_processed()) {
         throw gem_exception(
-            g_error_streamer() << "In GParChild::cycleLogic(): Error!" << '\n'
-                               << "Expected clean individual in best position" << '\n'
+            g_error_streamer() << "Expected clean individual in best position" << '\n'
         );
     }
 
@@ -875,7 +866,6 @@ void GParChild::init() {
             if(not provided_adaption_config_) {
                 throw gem_exception(
                     g_error_streamer()
-                    << "In GParChild::init(): Error!" << '\n'
                     << "This adapting algorithm has no adaption config. The genome carries only "
                        "structure;"
                     << '\n'
@@ -939,7 +929,6 @@ void GParChild::adjustPopulation_() {
     if(GOptimizationAlgorithmBase::getDefaultPopulationSize() == 0) {
         throw gem_exception(
             g_error_streamer()
-            << "In GParChild::adjustPopulation() :" << '\n'
             << "The population size is 0." << '\n'
             << "Did you call GOptimizationAlgorithmBase::setParentsAndPopulationSize() ?" << '\n'
         );
@@ -949,8 +938,7 @@ void GParChild::adjustPopulation_() {
     std::size_t const this_sz = this->size();
     if(this_sz == 0) {
         throw gem_exception(
-            g_error_streamer() << "In GParChild::adjustPopulation() :" << '\n'
-                               << "size of population is 0. Did you add any individuals?" << '\n'
+            g_error_streamer() << "size of population is 0. Did you add any individuals?" << '\n'
                                << "We need at least one local individual" << '\n'
         );
     }
@@ -959,10 +947,7 @@ void GParChild::adjustPopulation_() {
     typename std::vector<std::unique_ptr<gen::GGenome>>::iterator it;
     for(const auto &individual : GOptimizationAlgorithmBase::data_cnt_) {
         if(not individual) { // unique_ptr can be implicitly converted to bool
-            throw gem_exception(
-                g_error_streamer() << "In GParChild::adjustPopulation() :" << '\n'
-                                   << "Found empty smart pointer." << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Found empty smart pointer." << '\n');
         }
     }
 
@@ -1074,10 +1059,7 @@ void GParChild::valueRecombine(
     }
 
     if(not done) {
-        throw gem_exception(
-            g_error_streamer() << "In GParChild::valueRecombine():" << '\n'
-                               << "Could not recombine." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Could not recombine." << '\n');
     }
 }
 

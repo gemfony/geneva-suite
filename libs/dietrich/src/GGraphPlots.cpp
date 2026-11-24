@@ -1007,7 +1007,6 @@ std::string GGraph3D::rootProjectedSurface_(
     if(is_secondary) {
         throw gem_exception(
             g_error_streamer()
-            << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
             << "a surface projection was requested for an overlay -- only the primary plot of a "
                "pad "
             << "can be drawn as a projected surface" << '\n'
@@ -1016,15 +1015,13 @@ std::string GGraph3D::rootProjectedSurface_(
     if(not this->drawing_arguments_.empty()) {
         throw gem_exception(
             g_error_streamer()
-            << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
             << "a surface projection decides the drawing itself and cannot be combined with the "
             << "custom drawing arguments \"" << this->drawing_arguments_ << "\"" << '\n'
         );
     }
     if(this->currentSize() < 3) {
         throw gem_exception(
-            g_error_streamer() << "In GGraph3D::rootProjectedSurface_(): Error!" << '\n'
-                               << "a surface needs at least three points, got "
+            g_error_streamer() << "a surface needs at least three points, got "
                                << this->currentSize() << '\n'
         );
     }
@@ -1159,8 +1156,7 @@ GGraph3D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own
 void GGraph4D::setMinMarkerSize(const double &min_marker_size) {
     if(min_marker_size < 0.) {
         throw gem_exception(
-            g_error_streamer() << "In GGraph4D::setMinMarkerSize(): Error!" << '\n'
-                               << "Received invalid minimum marker size: " << min_marker_size
+            g_error_streamer() << "Received invalid minimum marker size: " << min_marker_size
                                << '\n'
         );
     }
@@ -1178,8 +1174,7 @@ void GGraph4D::setMinMarkerSize(const double &min_marker_size) {
 void GGraph4D::setMaxMarkerSize(const double &max_marker_size) {
     if(max_marker_size < 0. || max_marker_size < min_marker_size_) {
         throw gem_exception(
-            g_error_streamer() << "In GGraph4D::setMaxMarkerSize(): Error!" << '\n'
-                               << "Received invalid maximum marker size: " << min_marker_size_
+            g_error_streamer() << "Received invalid maximum marker size: " << min_marker_size_
                                << " " << max_marker_size << "." << '\n'
                                << "Always set the lower boundary first." << '\n'
         );
@@ -1376,8 +1371,7 @@ GGraph4D::footerData_(
     // data items, while reading straight from the columns (no copy).
     if(data_size < static_cast<std::size_t>(2)) {
         throw gem_exception(
-            g_error_streamer() << "In GGraph4D::footerData_(): Error!" << '\n'
-                               << "Got vector of invalid size " << data_size << '\n'
+            g_error_streamer() << "Got vector of invalid size " << data_size << '\n'
         );
     }
     std::tuple<double, double, double, double, double, double, double, double> min_max{
@@ -1608,8 +1602,7 @@ std::string GFunctionPlotter1D::headerData_(
     // Check the extreme values for consistency
     if(std::get<0>(x_extremes_) >= std::get<1>(x_extremes_)) {
         throw gem_exception(
-            g_error_streamer() << "In GFunctionPlotter1D::headerData_(): Error!" << '\n'
-                               << "lower boundary >= upper boundary: " << std::get<0>(x_extremes_)
+            g_error_streamer() << "lower boundary >= upper boundary: " << std::get<0>(x_extremes_)
                                << " / " << std::get<1>(x_extremes_) << '\n'
         );
     }
@@ -1817,8 +1810,7 @@ std::string GFunctionPlotter2D::headerData_(
     // Check the extreme values for consistency
     if(std::get<0>(x_extremes_) >= std::get<1>(x_extremes_)) {
         throw gem_exception(
-            g_error_streamer() << "In GFunctionPlotter2D::headerData_(): Error!" << '\n'
-                               << "lower boundary(x) >= upper boundary(x): "
+            g_error_streamer() << "lower boundary(x) >= upper boundary(x): "
                                << std::get<0>(x_extremes_) << " / " << std::get<1>(x_extremes_)
                                << '\n'
         );
@@ -1826,8 +1818,7 @@ std::string GFunctionPlotter2D::headerData_(
 
     if(std::get<0>(y_extremes_) >= std::get<1>(y_extremes_)) {
         throw gem_exception(
-            g_error_streamer() << "In GFunctionPlotter2D::headerData_(): Error!" << '\n'
-                               << "lower boundary(y) >= upper boundary(y): "
+            g_error_streamer() << "lower boundary(y) >= upper boundary(y): "
                                << std::get<0>(y_extremes_) << " / " << std::get<1>(y_extremes_)
                                << '\n'
         );

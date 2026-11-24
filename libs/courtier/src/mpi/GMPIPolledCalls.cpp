@@ -149,8 +149,7 @@ MPI_Status probePolled(
     );
     if(result != MPI_SUCCESS) {
         throw gem_exception(
-            g_error_streamer() << "In probePolled(): Error!" << '\n'
-                               << "MPI_Iprobe failed with the error code " << result << '\n'
+            g_error_streamer() << "MPI_Iprobe failed with the error code " << result << '\n'
         );
     }
     return status;

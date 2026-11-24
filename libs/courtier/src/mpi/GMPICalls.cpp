@@ -108,7 +108,6 @@ GMPICalls::GMPICalls(std::shared_ptr<GMPIEnvironment> environment)
     if(communicator_ == MPI_COMM_NULL) {
         throw gem_exception(
             g_error_streamer()
-            << "In GMPICalls::GMPICalls(): Error!" << '\n'
             << "No environment, or the environment of a process that takes no part in courtier's "
             << "protocol" << '\n'
         );
@@ -146,8 +145,7 @@ std::optional<GMPIProbed> GMPICalls::probe() {
     MPI_Get_count(&status, MPI_CHAR, &count);
     if(count == MPI_UNDEFINED || count < 0) {
         throw gem_exception(
-            g_error_streamer() << "In GMPICalls::probe(): Error!" << '\n'
-                               << "The message from rank " << status.MPI_SOURCE
+            g_error_streamer() << "The message from rank " << status.MPI_SOURCE
                                << " is longer than INT_MAX bytes" << '\n'
         );
     }
@@ -194,8 +192,7 @@ std::string GMPICalls::receive(const GMPIProbed &probed) {
 GMPIRequest GMPICalls::startSend(int rank, int tag, std::string_view bytes) {
     if(bytes.size() > static_cast<std::size_t>(INT_MAX)) {
         throw gem_exception(
-            g_error_streamer() << "In GMPICalls::startSend(): Error!" << '\n'
-                               << "A message of " << bytes.size()
+            g_error_streamer() << "A message of " << bytes.size()
                                << " bytes is longer than MPI can send at once" << '\n'
         );
     }

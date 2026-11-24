@@ -613,7 +613,7 @@ IF(GEM_BUILD_WITH_MPI_CONSUMER)
 		REFUSE "a second call of abortJob()")
 	gem_courtier_mpi_cascade_test(GCourtierMpiCascadeAbortWithoutMpi 1 M 42 abort-without-mpi
 		NO_LAUNCHER ARGS --update-configs
-		EXPECT "abortJob(): the submitter failed without MPI"
+		EXPECT "GMPICascade::abortJob" "the submitter failed without MPI"
 			"the process is ended with the exit code 42")
 	# ... and from inside setUp(), tearDown() or a member's serveRound() (one member there: one rank
 	# aborts, see the helper)

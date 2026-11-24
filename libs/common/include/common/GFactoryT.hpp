@@ -262,8 +262,7 @@ public:
 	  */
     virtual std::shared_ptr<GFactoryT<prod_type>> clone() const {
         throw gem_exception(
-            g_error_streamer() << "In GFactoryT<prod_type>::clone(): Error!" << '\n'
-                               << "Function was called when it shouldn't be." << '\n'
+            g_error_streamer() << "Function was called when it shouldn't be." << '\n'
                                << "This function is a trap." << '\n'
         );
     }

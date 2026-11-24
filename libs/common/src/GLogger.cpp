@@ -193,10 +193,7 @@ void GLogger::deliver_(
         call(*default_logger_);
     }
     else {
-        throw gem_exception(
-            g_error_streamer() << "In GLogger::log(): Error!" << '\n'
-                               << "No loggers found" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No loggers found" << '\n');
     }
 }
 
@@ -531,7 +528,6 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         else {
             throw gem_exception(
                 g_error_streamer()
-                << "In GLogStreamer::operator<<(const GManipulator&): Error!" << '\n'
                 << "Tried to log to one time log file without a file name specification" << '\n'
                 << "You need to supply a file name like this:" << '\n'
                 << "glogger(\"filename.txt\") << \"some log text\" << GFILE" << '\n'
