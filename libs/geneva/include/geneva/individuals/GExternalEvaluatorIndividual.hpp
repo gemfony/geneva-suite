@@ -109,10 +109,15 @@ constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
  * arguments with obvious meanings
  *
  * --init
- * --setup --init_values=[min/max/random] --output="setupFile.json"
- * --evaluate --input="paramsFile.json"   --output="result_file.json"
- * --archive  --input="archiveFile.json"
+ * --setup --initvalues=[min/max/random] --output=setupFile.json
+ * --evaluate --input=paramsFile.json   --output=result_file.json
+ * --archive  --input=archiveFile.json
  * --finalize
+ *
+ * The program is started without a shell (Gem::Common::runExternalCommand): each of these arguments
+ * reaches it as one argument, file names unquoted. The configured custom options ("custom_options")
+ * are placed before them, split at whitespace into separate arguments; quotes in them are not
+ * interpreted. A program that needs shell syntax is called through a script.
  *
  * The parameter / result / setup files exchanged with the external program are JSON documents
  * (see the shipped evaluator.py reference implementation for the schema). Hence the external

@@ -33,7 +33,9 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "common/GCommonEnums.hpp"
@@ -359,4 +361,119 @@ TEST_CASE(
     CHECK(std::filesystem::is_empty(dir));
 
     std::filesystem::remove_all(dir);
+}
+
+// ---------------------------------------------------------------------------
+// runExternalCommand -- programs are started without a shell. The tests run sh with a script of
+// their own as an ordinary program; "sh" is given without a directory, so the PATH lookup is
+// exercised too.
+
+namespace {
+std::string fileContent(std::filesystem::path const &p) {
+    std::ifstream in(p);
+    std::ostringstream content;
+    content << in.rdbuf();
+    return content.str();
+}
+} // anonymous namespace
+
+TEST_CASE(
+    "runExternalCommand: an argument with spaces arrives as one argument",
+    "[common][helper-nonT][external-command]"
+) {
+    // Regression: the former implementation joined the arguments into one string for system(), so
+    // the shell split "two  words here" into three arguments
+    auto const out = scratch("external-command-spaces.txt");
+    std::string full_command;
+    int const code = runExternalCommand(
+        "sh",
+        {"-c", R"(printf '%s|%s' "$#" "$1")", "sh", "two  words here"},
+        out,
+        full_command
+    );
+    CHECK(code == 0);
+    CHECK(fileContent(out) == "1|two  words here");
+    // Shown as a shell would need it: words with spaces or quotes in single quotes
+    CHECK(full_command.starts_with(
+        "sh -c 'printf '\\''%s|%s'\\'' \"$#\" \"$1\"' sh 'two  words here' > "
+    ));
+    std::filesystem::remove(out);
+}
+
+TEST_CASE(
+    "runExternalCommand: standard output and standard error go to the emptied output file",
+    "[common][helper-nonT][external-command]"
+) {
+    auto const out = scratch("external-command-output.txt");
+    {
+        std::ofstream old(out);
+        old << "content of an earlier run that must be gone";
+    }
+    std::string full_command;
+    int const code =
+        runExternalCommand("sh", {"-c", "echo to-stdout; echo to-stderr >&2"}, out, full_command);
+    CHECK(code == 0);
+    CHECK(fileContent(out) == "to-stdout\nto-stderr\n");
+    std::filesystem::remove(out);
+}
+
+TEST_CASE(
+    "runExternalCommand: returns the exit status or the signal that ended the program",
+    "[common][helper-nonT][external-command]"
+) {
+    std::string full_command;
+    CHECK(runExternalCommand("sh", {"-c", "exit 3"}, {}, full_command) == 3);
+    CHECK(runExternalCommand("sh", {"-c", "exit 0"}, {}, full_command) == 0);
+    CHECK(runExternalCommand("sh", {"-c", "kill -TERM $$"}, {}, full_command) == 15);
+}
+
+TEST_CASE(
+    "runExternalCommand: a missing program raises gem_exception",
+    "[common][helper-nonT][external-command]"
+) {
+    std::string full_command;
+    // With a directory part the path is used as given; without one PATH is searched
+    CHECK_THROWS_AS(
+        runExternalCommand("/gem-no-such-directory/gem-no-such-program", {"x"}, {}, full_command),
+        gem_exception
+    );
+    CHECK(full_command == "/gem-no-such-directory/gem-no-such-program x");
+    CHECK_THROWS_AS(
+        runExternalCommand("gem-no-such-program-in-path", {}, {}, full_command),
+        gem_exception
+    );
+}
+
+TEST_CASE(
+    "runExternalCommand: concurrent calls from several threads keep their own arguments and output",
+    "[common][helper-nonT][external-command]"
+) {
+    constexpr int n_threads = 8;
+    constexpr int calls_per_thread = 5;
+    std::vector<int> failures(n_threads, 0);
+    {
+        std::vector<std::jthread> threads;
+        for(int t = 0; t < n_threads; ++t) {
+            threads.emplace_back([t, &failures] {
+                auto const out = scratch("external-command-thread-" + std::to_string(t) + ".txt");
+                std::string const word = "thread " + std::to_string(t) + " says hello";
+                for(int i = 0; i < calls_per_thread; ++i) {
+                    std::string full_command;
+                    int const code = runExternalCommand(
+                        "sh",
+                        {"-c", R"(printf '%s' "$1"; exit "$2")", "sh", word, std::to_string(t % 3)},
+                        out,
+                        full_command
+                    );
+                    if(code != t % 3 or fileContent(out) != word) {
+                        ++failures[static_cast<std::size_t>(t)];
+                    }
+                }
+                std::filesystem::remove(out);
+            });
+        }
+    }
+    for(int t = 0; t < n_threads; ++t) {
+        CHECK(failures[static_cast<std::size_t>(t)] == 0);
+    }
 }

@@ -58,7 +58,8 @@ missing and how to fix it.
   recent GCC and a recent Clang, plus CMake, Doxygen and (optionally) OpenMPI.
 * **Boost 1.91.0 is built from source inside the image in C++23 mode**
   (`./b2 cxxflags="-std=c++23" ... install`) for the components Geneva needs:
-  `atomic, json, program_options, regex`. It is
+  `atomic, json, process, program_options, regex` (process with
+  `boost.process.fs=std`, see INSTALL). It is
   installed to `/opt/boost` in the image.
 * The **distro `libboost` packages are deliberately not used**: Ubuntu ships
   Boost 1.83 / 1.88 / 1.89, all older than the required **1.91**, and not

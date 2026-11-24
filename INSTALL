@@ -426,10 +426,16 @@ sudo ./b2 -j$(nproc) \
    variant=release \
    link=shared \
    threading=multi \
+   boost.process.fs=std \
    install
 
+boost.process.fs=std is needed as well: Geneva starts external programs through
+Boost.Process, and with this setting Boost.Process uses std::filesystem instead
+of Boost.Filesystem, which Geneva does not use otherwise. A Boost built without
+it does not link with Geneva (the libraries disagree about the path type).
+
 To build only the components Geneva uses, add:
-   --with-atomic --with-json --with-program_options --with-regex
+   --with-atomic --with-json --with-program_options --with-process --with-regex
 To match Geneva's compiler too, pass "--with-toolset=clang" to bootstrap.sh and
 "toolset=clang" to b2.
 

@@ -91,7 +91,14 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p);
 
 /******************************************************************************/
 /**
- * @brief Executes an external command on the operating system.
+ * @brief Runs an external program and waits for it to end.
+ *
+ * The program is started directly, without a shell: each element of the argument list reaches it as
+ * one argument, unchanged -- spaces and quotes included. Shell syntax (pipes, redirections, \$VAR,
+ * globs, quoting) is therefore not interpreted; a program that needs it is given a script to run. A
+ * program name without a directory part is looked up in PATH. Standard input is inherited; standard
+ * output and standard error go to the output file when one is given, otherwise they are inherited.
+ * It changes no process-wide signal disposition; several threads may call it at once.
  */
 int runExternalCommand(
     std::filesystem::path const &program,
