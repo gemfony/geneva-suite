@@ -91,7 +91,19 @@ INSTALL ( DIRECTORY ${_nn_data_dir}/ DESTINATION ${INSTALL_PREFIX_DATA}/examples
 # stall criterion after a couple of seconds.
 ADD_TEST ( NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
-SET_TESTS_PROPERTIES ( ${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300 )
+SET_TESTS_PROPERTIES ( ${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300
+	RESOURCE_LOCK GNeuralNetwork-workdir )
 GEM_TEST_SIZE(${EXECUTABLENAME} M)
+
+# The same individual loaded as a module by the generic optimizer (example 18). Nothing sets its
+# "trainingDataFile" option there, so it reads its default data file, ./DataSets/hyper_cube.dat,
+# materialized above; the test fails if the default names a file this example does not write. It
+# shares the working directory with the run above, hence the lock.
+ADD_TEST ( NAME ${EXECUTABLENAME}-module
+	COMMAND $<TARGET_FILE:GGenericOptimizer> --individual $<TARGET_FILE:GNeuralNetworkIndividual>
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
+SET_TESTS_PROPERTIES ( ${EXECUTABLENAME}-module PROPERTIES LABELS "geneva;example" TIMEOUT 300
+	RESOURCE_LOCK GNeuralNetwork-workdir )
+GEM_TEST_SIZE(${EXECUTABLENAME}-module M)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME} )

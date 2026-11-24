@@ -135,7 +135,7 @@ public:
     [[nodiscard]] std::string
     plot(const std::filesystem::path &plot_name = std::filesystem::path("empty")) const;
     /**
-     * @brief Writes the plot to a file
+     * @brief Writes the plot to a file; throws if the file cannot be opened or written
      */
     void writeToFile(const std::filesystem::path &file_name);
 
