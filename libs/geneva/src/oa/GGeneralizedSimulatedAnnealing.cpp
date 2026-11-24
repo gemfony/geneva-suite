@@ -40,6 +40,7 @@
 #include <tuple>
 #include <vector>
 
+#include "common/GChecks.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
@@ -264,6 +265,8 @@ void GGeneralizedSimulatedAnnealing::adjustPopulation_() {
  * count, derives the effective initial visiting temperature, seeds the chains (chain 0's current slot keeps the
  * registered start individual; the other chains' current slots are randomized uniformly inside the box;
  * each proposal slot is initialized from its current slot) and initializes the per-chain cooling clocks.
+ * A run resumed from a checkpoint keeps its chains and their clocks instead; the clocks are checked
+ * against the number of chains.
  */
 void GGeneralizedSimulatedAnnealing::init() {
     GOptimizationAlgorithmT<GGeneralizedSimulatedAnnealing>::init();
@@ -291,6 +294,19 @@ void GGeneralizedSimulatedAnnealing::init() {
     // Tsallis exponent T^{1/(3-qv)}, which collapses far too fast) is what keeps the step schedule
     // practical over a finite iteration budget -- broad early exploration, fine late refinement.
     t0_effective_ = (t0_ > 0.) ? t0_ : 1.;
+
+    if(this->resumedFromCheckpoint()) {
+        Gem::Common::checkThat(
+            chain_step_.size() == n_chains_ && chain_best_energy_.size() == n_chains_ &&
+                chain_stall_.size() == n_chains_,
+            "The chain state of the checkpoint does not fit the population: expected ",
+            n_chains_,
+            " chains, found ",
+            chain_step_.size()
+        );
+        markIndividualPositions();
+        return;
+    }
 
     // Seed the chains. Chain 0's current slot keeps the registered start individual unchanged; the other
     // chains' current slots are randomized uniformly inside the box. Each proposal slot is initialized

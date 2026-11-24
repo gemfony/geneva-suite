@@ -49,6 +49,7 @@
 #include "common/GCommonEnums.hpp"
 #include "common/testing/GStandardTests.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
+#include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
 
 namespace fs = std::filesystem;
@@ -279,4 +280,38 @@ TEST_CASE("A resumed Standard PSO 2011 goes on with its velocities and bests", "
     CHECK(numbers(started, "personal_best_fitness_") == std::vector<double>(5, UNSET));
     CHECK(numbers(started, "global_best_fitness_") == std::vector<double>{UNSET});
     CHECK(member(started, "velocities_") != member(run, "velocities_"));
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "A resumed generalized simulated annealing goes on with its chain clocks",
+    "[oa][resume]"
+) {
+    oa::GGeneralizedSimulatedAnnealing run;
+    run.setNChains(3);
+    auto const cp = runToCheckpoint(run);
+
+    auto const resumed = resumedSetupOf<oa::GGeneralizedSimulatedAnnealing>(cp);
+    for(auto const *key : {"chain_step_", "chain_best_energy_", "chain_stall_"}) {
+        INFO(key);
+        CHECK(member(resumed, key) == member(run, key));
+    }
+    checkRoundTrips(resumed);
+
+    // Another number of chains cannot go on with these clocks
+    oa::GGeneralizedSimulatedAnnealing other_size;
+    other_size.loadCheckpoint(cp);
+    fs::remove_all(cp.parent_path());
+    other_size.setNChains(4);
+    CHECK_THROWS_WITH(
+        other_size.optimize(other_size.getIteration() + 1),
+        Catch::Matchers::ContainsSubstring("does not fit the population")
+    );
+
+    // A new run starts every clock at the first step
+    auto const started = newSetupOf(run);
+    CHECK(numbers(started, "chain_step_") == std::vector<double>(3, 1.));
+    CHECK(numbers(started, "chain_best_energy_") == std::vector<double>(3, UNSET));
+    CHECK(numbers(started, "chain_stall_") == std::vector<double>(3, 0.));
 }
