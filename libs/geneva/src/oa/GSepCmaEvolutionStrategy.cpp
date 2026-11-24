@@ -34,12 +34,12 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <limits>
 #include <numeric>
 #include <random>
 #include <tuple>
 #include <vector>
 
+#include "common/GChecks.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
@@ -440,14 +440,11 @@ void GSepCmaEvolutionStrategy::sampleOffspring() {
 /******************************************************************************/
 /**
  * Submits all offspring to the one process consumer and waits for processed items. Mirrors the stock
- * EA's submission path (workOnPopulation reconciles the range in place); unprocessed / errored items
- * are dropped.
+ * EA's submission path (workOnPopulation reconciles the range in place): every offspring comes back
+ * evaluated, a failed one refilled with a marked substitute, so the population keeps its lambda members.
  */
 void GSepCmaEvolutionStrategy::evaluatePopulation_() {
-    auto status = this->workOnPopulation(0, this->size());
-
-    // Drop items a partial or errored return left unusable.
-    this->discardUnusableItems_(status);
+    this->workOnPopulation(0, this->size());
 }
 
 /******************************************************************************/
@@ -599,12 +596,13 @@ std::tuple<double, double> GSepCmaEvolutionStrategy::cycleLogic_() {
 
     // 2) Evaluate them through the one process consumer.
     evaluatePopulation_();
-
-    if(this->empty()) {
-        // All items got dropped (errors / incomplete); report a worst-case value.
-        double const wc = std::numeric_limits<double>::max();
-        return std::make_tuple(wc, wc);
-    }
+    Gem::Common::checkThat(
+        this->size() == lambda_,
+        "the population holds ",
+        this->size(),
+        " offspring after the evaluation, expected ",
+        lambda_
+    );
 
     // 3) Rank and select; update the search distribution.
     std::vector<std::size_t> ranked = rankPopulation();

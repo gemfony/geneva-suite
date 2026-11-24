@@ -121,18 +121,12 @@ std::tuple<double, double> GRandomSearch::cycleLogic_() {
 
 /******************************************************************************/
 /**
- * @brief Triggers fitness calculation of the whole population through the process consumer.
+ * @brief Triggers fitness calculation of the whole population through the process consumer. The
+ * consumer reconciles the batch by the submission policy (getSubmissionPolicy_()): under
+ * full-success-or-fatal every individual comes back evaluated, or the run ends.
  */
 void GRandomSearch::evaluatePopulation_() {
-    const auto status = this->workOnPopulation(0, this->size());
-
-    if(not status.is_complete || status.has_errors) {
-        throw gem_exception(
-            g_error_streamer() << "The population could not be fully evaluated (is_complete="
-                               << status.is_complete << ", has_errors=" << status.has_errors << ")."
-                               << '\n'
-        );
-    }
+    this->workOnPopulation(0, this->size());
 }
 
 /******************************************************************************/

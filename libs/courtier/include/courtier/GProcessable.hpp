@@ -132,7 +132,40 @@ struct ProcessingBegunMark {
     ~ProcessingBegunMark() = default;
 };
 
+/**
+ * @brief The two marks a work item carries for a failed evaluation (GSubmissionPolicy): that a consumer
+ * put the item into its slot in place of one whose evaluation failed or went missing (a substitute),
+ * and that the submitter forbids such a substitution for it. They belong to the object they were set
+ * on -- to the slot of a batch, not to its content -- and their value-semantics say so in ONE place,
+ * so the enclosing GProcessable can keep its special members defaulted:
+ *  - COPY construction -> the target carries neither mark (a clone is a new item);
+ *  - COPY assignment   -> the target KEEPS its own marks (a load or an absorbed return replaces the
+ *                         content of a slot, not its part in the submission);
+ *  - move              -> transferred, as usual;
+ *  - (de)serialization -> not serialized (transient, like the dispatch state).
+ */
+struct SubmissionMarks {
+    /// A consumer refilled the slot with a copy of an evaluated item
+    bool substitute = false;
+    /// The submitter forbids a substitute for this item
+    bool not_substitutable = false;
+
+    SubmissionMarks() = default;
+    SubmissionMarks(const SubmissionMarks & /* cp */) noexcept { /* a copy carries no marks */
+    }
+    SubmissionMarks(SubmissionMarks &&) noexcept = default;
+    // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- deliberate: assignment keeps our own marks (see block comment above)
+    SubmissionMarks &operator=(const SubmissionMarks & /* cp */) noexcept {
+        return *this; /* keep the marks of this slot */
+    }
+    SubmissionMarks &operator=(SubmissionMarks &&) noexcept = default;
+    ~SubmissionMarks() = default;
+};
+
 } // namespace detail
+
+template <typename processable_type>
+class GBaseConsumerT;
 
 /******************************************************************************/
 // An exception to be thrown if an exception was thrown during a work item's processing. It lives on the
@@ -167,11 +200,16 @@ class g_processing_exception : public gem_exception {
 class GProcessable {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Weft::access;
+    /// The consumer's reconciliation (GBaseConsumerT::processBatch()) sets and clears the mark of a
+    /// substitute; nothing else may.
+    template <typename processable_type>
+    friend class GBaseConsumerT;
 
     /**
      * @brief Serialises the non-generic lifecycle state (status, errors, routing ids, timing).
-     * The transient dispatch-scheduling state (dispatch_state_) and the transient mark of a begun
-     * processing (processing_begun_) are deliberately NOT serialised.
+     * The transient dispatch-scheduling state (dispatch_state_), the transient mark of a begun
+     * processing (processing_begun_) and the transient marks of a failed evaluation
+     * (submission_marks_) are deliberately NOT serialised.
      *
      * @tparam archive_type The GArchive codec type
      * @param ar The archive to (de)serialise the lifecycle state with
@@ -385,6 +423,38 @@ public:
     /** @brief @return The current per-batch dispatch/scheduling state (see setDispatchState()) */
     [[nodiscard]] dispatchState getDispatchState() const noexcept {
         return dispatch_state_;
+    }
+
+    /***************************************************************************/
+    // Substitutes for failed evaluations (see GSubmissionPolicy)
+
+    /**
+     * @brief Whether a consumer put this item into its slot in place of one whose evaluation failed or
+     * went missing: a copy of a successfully evaluated item of the same submission (on_unresolved::clone).
+     * The consumer sets it; it is cleared when the item is submitted again. A copy of the item does not
+     * carry it, and it is not serialized.
+     * @return true if this item is a substitute from its last submission
+     */
+    [[nodiscard]] bool isSubstitute() const noexcept {
+        return submission_marks_.substitute;
+    }
+
+    /**
+     * @brief Says whether a consumer may replace this item by a substitute when its evaluation fails or
+     * goes missing. An item that may not be replaced follows the strict rule whatever the policy: it is
+     * evaluated again within the policy's budgets (max_failed_retries, max_resubmissions), and the
+     * program ends if it still has no result. Set by the submitter before the submission (an
+     * evolutionary algorithm forbids it for its parents); kept until it is set again. A copy of the
+     * item does not carry it, and it is not serialized.
+     * @param substitutable false if a failed evaluation of this item may not be replaced by a substitute
+     */
+    void setSubstitutable(bool substitutable) noexcept {
+        submission_marks_.not_substitutable = not substitutable;
+    }
+
+    /** @brief @return Whether a consumer may replace this item by a substitute (see setSubstitutable()) */
+    [[nodiscard]] bool isSubstitutable() const noexcept {
+        return not submission_marks_.not_substitutable;
     }
 
     /***************************************************************************/
@@ -839,24 +909,35 @@ protected:
 
     CORRELATION_ID_TYPE correlation_id_ = CORRELATION_ID_TYPE();
 
-    /// Transient, server-side-only per-batch scheduling state for the networked consumers.
-    /// Deliberately NOT part of serialize() (the wire/clone never needs it; see dispatchState).
+    /// transient: server-side-only per-batch scheduling state of the networked consumers; the wire
+    /// and a clone never need it (see dispatchState).
     dispatchState dispatch_state_ = dispatchState::NONE;
 
     double pre_processing_time_ = 0.;  ///< Time needed for pre-processing (seconds)
     double processing_time_ = 0.;      ///< Time needed for the actual processing step (seconds)
     double post_processing_time_ = 0.; ///< Time needed for post-processing (seconds)
 
-    /// Transient: set when the first half of the processing lifecycle has run, until the second
-    /// half starts or the status is set from outside the lifecycle (assignStatus_()). Deliberately
-    /// NOT part of serialize(), like dispatch_state_, and never copied (see
-    /// detail::ProcessingBegunMark).
+    /// transient: belongs to one processing in this process -- set when the first half of the
+    /// processing lifecycle has run, until the second half starts or the status is set from outside
+    /// the lifecycle (assignStatus_()); never copied (see detail::ProcessingBegunMark).
     detail::ProcessingBegunMark processing_begun_;
 
     std::string
         stored_error_descriptions_; ///< Stores exceptions that may have occurred during processing
     processingStatus processing_status_ =
         processingStatus::UNPROCESSED; ///< By default no processing is initiated
+
+private:
+    /** @brief Marks or unmarks this item as a substitute (see isSubstitute()); the consumer's
+     *  reconciliation is the only caller.
+     *  @param substitute Whether the item stands in for one whose evaluation failed or went missing */
+    void setSubstitute_(bool substitute) noexcept {
+        submission_marks_.substitute = substitute;
+    }
+
+    /// transient: the marks of a failed evaluation belong to the slot of one submission; never
+    /// copied to a clone (see detail::SubmissionMarks).
+    detail::SubmissionMarks submission_marks_;
 };
 
 /******************************************************************************/

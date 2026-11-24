@@ -527,12 +527,8 @@ void GGeneralizedSimulatedAnnealing::applyAcceptance() {
  * stock EA's submission path (workOnPopulation reconciles the contiguous range in place).
  */
 void GGeneralizedSimulatedAnnealing::evaluatePopulation_() {
-    auto status = this->workOnPopulation(0, this->size());
-
-    this->requireCompleteEvaluation_(
-        status,
-        "GGeneralizedSimulatedAnnealing::evaluatePopulation_()"
-    );
+    // The consumer returns every slot evaluated (a failed one refilled with a marked substitute).
+    this->workOnPopulation(0, this->size());
 }
 
 /******************************************************************************/
@@ -573,9 +569,6 @@ std::tuple<double, double> GGeneralizedSimulatedAnnealing::cycleLogic_() {
 
     for(const auto & pos : *this) {
         auto &ind = (*pos);
-        if(ind.is_due_for_processing() || ind.has_errors()) {
-            continue;
-        }
         if(isBetter(
                ind.transformed_fitness(0),
                std::get<G_TRANSFORMED_FITNESS>(best_fitness),

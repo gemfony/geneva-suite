@@ -362,11 +362,11 @@ private:
     std::string resultImageDirectory_ = "./results/"; ///< The target directory for results
     bool emitBestOnly_{true}; ///< Whether images are written only for improved iterations
 
-    /// Off-thread writer for the rasterise + PNG output. Transient runtime state: it is created
-    /// lazily on first use and deliberately excluded from serialize/load_/compare_ (a std::future
-    /// is neither copyable nor comparable, and there is nothing meaningful to persist). Sole
-    /// ownership: the copy constructor above deliberately does not carry the writer over, so no
-    /// second owner of one writer ever exists.
+    /// transient: the off-thread writer for the rasterise + PNG output, runtime state. It is
+    /// created lazily on first use and deliberately excluded from serialize/load_/compare_ (a
+    /// std::future is neither copyable nor comparable, and there is nothing meaningful to
+    /// persist). Sole ownership: the copy constructor above deliberately does not carry the
+    /// writer over, so no second owner of one writer ever exists.
     std::unique_ptr<AsyncImageWriter>
         writer_; // NOLINT(misc-non-private-member-variables-in-classes)
 };

@@ -692,7 +692,8 @@ void GParChild::fixAfterJobSubmission() {
         );
     }
 
-    // Add missing individuals, as clones of the last item
+    // Add missing individuals, as clones of the last item. A submission through courtier returns a
+    // full range; only an evaluation outside it (the meta-EA's) erases failed individuals.
     if(this->size() < this->getDefaultPopulationSize()) {
         const std::size_t fix_size = this->getDefaultPopulationSize() - this->size();
         for(std::size_t i = 0; i < fix_size; i++) {

@@ -417,16 +417,17 @@ protected:
     std::uint32_t repulsion_threshold_ =
         DEFREPULSIONTHRESHOLD; ///< The number of stalls until the swarm algorithm switches to repulsion instead of attraction
 
-    double vel_max_ =
-        0.; ///< The dimensionless velocity cap (a fraction of the normalized unit interval); recomputed in init() (transient)
-    std::size_t n_fp_parms_ =
-        0; ///< The number of active floating point parameters; recomputed in init() (transient)
+    /// transient: the dimensionless velocity cap (a fraction of the normalized unit interval),
+    /// recomputed in init()
+    double vel_max_ = 0.;
+    /// transient: the number of active floating point parameters, recomputed in init()
+    std::size_t n_fp_parms_ = 0;
 
     double velocity_range_percentage_ =
         DEFAULTVELOCITYRANGEPERCENTAGE; ///< Indicates the percentage of a value range used for the initialization of the velocity
 
-    std::vector<std::shared_ptr<gen::GGenome>>
-        last_iteration_individuals_cnt_; ///< A temporary copy of the last iteration's individuals
+    /// transient: a copy of the last iteration's individuals, alive within one iteration
+    std::vector<std::shared_ptr<gen::GGenome>> last_iteration_individuals_cnt_;
 
 private:
     /***************************************************************************/

@@ -277,21 +277,27 @@ private:
     /***************************************************************************/
     // Internal swarm state (transient; rebuilt in init(), excluded from serialize/compare)
 
-    std::size_t n_fp_parms_ = 0; ///< The number of active floating point parameters (set in init())
+    /// transient: the number of active floating point parameters, set in init()
+    std::size_t n_fp_parms_ = 0;
 
-    std::vector<std::vector<double>> velocities_;     ///< Per-particle velocity vectors
-    std::vector<std::vector<double>> personal_bests_; ///< Per-particle personal-best positions
-    std::vector<double>
-        personal_best_fitness_; ///< Per-particle personal-best (minimization) fitness
+    /// transient: the per-particle velocity vectors, rebuilt in init()
+    std::vector<std::vector<double>> velocities_;
+    /// transient: the per-particle personal-best positions, rebuilt in init()
+    std::vector<std::vector<double>> personal_bests_;
+    /// transient: the per-particle personal-best (minimization) fitness, rebuilt in init()
+    std::vector<double> personal_best_fitness_;
 
-    std::vector<double> global_best_; ///< The globally best position found so far
-    double global_best_fitness_ = 0.; ///< The globally best (minimization) fitness
+    /// transient: the globally best position found so far, rebuilt in init()
+    std::vector<double> global_best_;
+    /// transient: the globally best (minimization) fitness, rebuilt in init()
+    double global_best_fitness_ = 0.;
 
-    std::vector<std::vector<bool>>
-        informs_; ///< informs_[i][j] == true iff particle i informs particle j
+    /// transient: informs_[i][j] == true iff particle i informs particle j, rebuilt in init()
+    std::vector<std::vector<bool>> informs_;
 
-    bool global_best_improved_ =
-        true; ///< Whether the global best improved in the previous iteration (gates topology rebuild)
+    /// transient: whether the global best improved in the previous iteration (gates the topology
+    /// rebuild), reset in init()
+    bool global_best_improved_ = true;
 };
 
 /******************************************************************************/

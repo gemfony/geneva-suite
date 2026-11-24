@@ -155,8 +155,10 @@ public:
     /***************************************************************************/
     /**
      * Evaluates and reconciles a batch in place. On return, every slot of the span holds a
-     * successfully evaluated item (possibly a clone, for tolerant policies). Terminates the
-     * program if the policy cannot be honoured.
+     * successfully evaluated item (possibly a clone, for tolerant policies, marked as a substitute:
+     * GProcessable::isSubstitute()). Terminates the program if the policy cannot be honoured, or if
+     * an item its submitter forbids to substitute (GProcessable::setSubstitutable()) stays
+     * unresolved.
      *
      * @param items The batch of (uniquely owned) work items to evaluate and reconcile, in place
      * @param policy The submission policy governing resubmit/retry/clone/terminate decisions
@@ -186,10 +188,12 @@ public:
         std::vector<std::size_t> failed_retries(n, 0);
         bool any_success = false;
 
-        // Mark every (non-null) slot due for processing. Null slots are treated as resolved.
+        // Mark every (non-null) slot due for processing; a substitute of an earlier submission is
+        // one no longer. Null slots are treated as resolved.
         for(auto &&[item, item_state] : std::views::zip(items, state)) {
             if(item) {
                 item->set_processing_status(processingStatus::DO_PROCESS);
+                item->setSubstitute_(false);
             }
             else {
                 item_state = slot::resolved;
@@ -269,12 +273,19 @@ public:
             );
         }
 
-        // Reconcile the unresolved slots per the policy.
+        // Reconcile the unresolved slots per the policy. An item its submitter forbids to substitute
+        // follows the strict rule: its budgets are spent, so the program ends.
         for(auto &&[item, item_state] : std::views::zip(items, state)) {
             if(item_state != slot::unresolved) {
                 continue;
             }
-            if(policy.unresolved_action == on_unresolved::clone) {
+            if(not item->isSubstitutable()) {
+                this->fatal_(
+                    "processBatch(): a work item that may not be substituted could not be "
+                    "evaluated (failed or missing) within the budgets of the submission policy."
+                );
+            }
+            else if(policy.unresolved_action == on_unresolved::clone) {
                 this->refill_slot_(item, items, clone_template);
             }
             else {
@@ -368,7 +379,8 @@ private:
      *  first successfully evaluated sibling in the batch. The substitution copies the source's content INTO
      *  the failed slot without relocating it (@c loadContentFrom) and then mints a fresh lineage id -- a
      *  refill is a NEW item, distinct from the failed original, so a very-late return for that
-     *  original never reunites with the substitute. Item types that need no address stability (the
+     *  original never reunites with the substitute. Either way the refill is marked as a substitute
+     *  (GProcessable::isSubstitute()), so the submitter sees that this evaluation went wrong. Item types that need no address stability (the
      *  containers of courtier's tests) return false from @c loadContentFrom and fall back to
      *  clone-and-replace, exactly as before. Keeping the address stable lets a submitter's
      *  concurrent per-item prefetch hold a snapshot of the batch's addresses across the submission.
@@ -403,6 +415,7 @@ private:
         else {
             dest = this->clone_item_(*src);
         }
+        dest->setSubstitute_(true);
     }
 
     /***************************************************************************/

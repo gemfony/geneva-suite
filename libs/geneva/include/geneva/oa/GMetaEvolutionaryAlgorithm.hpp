@@ -163,7 +163,7 @@ protected:
 private:
     /***************************************************************************/
     std::unique_ptr<Gem::Common::Concurrency::GThreadPool>
-        orchestration_pool_; ///< Transient: built on first use
+        orchestration_pool_; ///< transient: a run-time resource, built on first use
     unsigned int n_orchestration_threads_ =
         0; ///< Orchestration-pool size (0 == hardware concurrency)
 };

@@ -277,15 +277,15 @@ protected:
 
     /***************************************************************************/
     /**
-     * @brief The OA-owned adaption configuration in effect for this run: the externally-provided config
-     * (validated and adopted at init()). Transient run scratch: NOT serialized, NOT compared, NOT part of
-     * localMembers(); a clone re-adopts it at its own init(). Read-only during the parallel adaptChildren_,
-     * so it is shared safely.
+     * @brief transient: the OA-owned adaption configuration in effect for this run: the
+     * externally-provided config (validated and adopted at init()). Run scratch: NOT serialized,
+     * NOT compared, NOT part of localMembers(); a clone re-adopts it at its own init(). Read-only
+     * during the parallel adaptChildren_, so it is shared safely.
      */
     std::shared_ptr<GAdaptionConfigBase> adaption_config_;
 
     /**
-     * @brief An optionally externally-supplied adaption configuration (set via
+     * @brief transient: an optionally externally-supplied adaption configuration (set via
      * setAdaptionConfig() -- Go2 installs the one it holds for this algorithm's type). When present, init()
      * uses it (validating it against the population's genome) in place of the layout-derived default.
      * Transient run scratch: NOT serialized, NOT compared, NOT part of localMembers().
@@ -367,8 +367,8 @@ private:
     /***************************************************************************/
     // Data
 
-    std::uniform_int_distribution<std::size_t>
-        uniform_int_distribution_; ///< Access to uniformly distributed random numbers
+    /// transient: access to uniformly distributed random numbers, stateless between draws
+    std::uniform_int_distribution<std::size_t> uniform_int_distribution_;
 
     /***************************************************************************/
 };

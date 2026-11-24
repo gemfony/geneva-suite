@@ -200,6 +200,37 @@ INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/tests/gen
 
 
 #
+# Failed evaluations under the strict algorithms (max_failed_retries) and for the EA's parents. A run
+# that cannot go on ends the process through the consumer's fatal exit, so each scenario runs as a
+# subprocess and its output decides (an expression decides, so the exit status is not looked at).
+#
+ADD_EXECUTABLE(GFailedEvaluationExerciser GFailedEvaluationExerciser.cpp)
+# The default consumer comes from Geneva's module "stc" (see above)
+SET_TARGET_PROPERTIES(GFailedEvaluationExerciser PROPERTIES ENABLE_EXPORTS ON)
+TARGET_LINK_LIBRARIES(GFailedEvaluationExerciser ${GENEVA_LIBRARIES} ${Boost_LIBRARIES})
+INSTALL(TARGETS GFailedEvaluationExerciser DESTINATION ${INSTALL_PREFIX_DATA}/tests/geneva/UnitTests)
+
+FOREACH(_algorithm nm cgd ps)
+	ADD_TEST(NAME GFailedEvaluation_${_algorithm}_retried
+			COMMAND GFailedEvaluationExerciser --algorithm=${_algorithm} --retries=1)
+	SET_TESTS_PROPERTIES(GFailedEvaluation_${_algorithm}_retried PROPERTIES LABELS "geneva"
+			PASS_REGULAR_EXPRESSION "The run completed after one failed evaluation")
+	GEM_TEST_SIZE(GFailedEvaluation_${_algorithm}_retried S)
+
+	ADD_TEST(NAME GFailedEvaluation_${_algorithm}_ends
+			COMMAND GFailedEvaluationExerciser --algorithm=${_algorithm} --retries=0)
+	SET_TESTS_PROPERTIES(GFailedEvaluation_${_algorithm}_ends PROPERTIES LABELS "geneva"
+			PASS_REGULAR_EXPRESSION "FATAL: processBatch\\(\\): a work item could not be evaluated")
+	GEM_TEST_SIZE(GFailedEvaluation_${_algorithm}_ends S)
+ENDFOREACH()
+
+ADD_TEST(NAME GFailedEvaluation_ea-parent_ends
+		COMMAND GFailedEvaluationExerciser --algorithm=ea-parent)
+SET_TESTS_PROPERTIES(GFailedEvaluation_ea-parent_ends PROPERTIES LABELS "geneva"
+		PASS_REGULAR_EXPRESSION "FATAL: processBatch\\(\\): a work item that may not be substituted")
+GEM_TEST_SIZE(GFailedEvaluation_ea-parent_ends S)
+
+#
 # Take care of other particularities of this test
 #
 
