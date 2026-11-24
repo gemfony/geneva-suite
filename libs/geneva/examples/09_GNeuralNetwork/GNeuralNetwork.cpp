@@ -171,7 +171,8 @@ int main(int argc, char **argv) {
         auto const p = go.optimize()->getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
 
         //-----------------------------------------------------------------------
-        // Output the result- and the visualization-program (if available)
+        // Write the trained network as a C++ header, and the figure of its output over the
+        // input space as a ROOT macro (for a network with two input nodes)
         p->writeTrainedNetwork(resultProgram);
         p->writeVisualizationFile(visualizationFile);
         return 0;

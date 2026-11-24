@@ -37,16 +37,25 @@
  * (writeTrainedNetwork()) and the figure of the network's output (writeVisualizationFile()).
  */
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
+#include <cctype>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
+#include <set>
+#include <sstream>
 #include <string>
+#include <vector>
 
 #include <unistd.h> // getpid()
 
 #include "GNeuralNetworkTestData.hpp"
 #include "common/GExceptions.hpp"
+#include "dietrich/plotting/GPlotDesigner.hpp"
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 
 using Gem::Geneva::Individuals::GNeuralNetworkIndividual;
@@ -91,5 +100,103 @@ TEST_CASE(
     std::filesystem::create_directories(dir);
     ind.writeTrainedNetwork((dir / "trainedNetwork.hpp").string());
     CHECK(std::filesystem::exists(dir / "trainedNetwork.hpp"));
+    std::filesystem::remove_all(dir);
+}
+
+/******************************************************************************/
+// writeVisualizationFile() wrote a C++ program, which in turn wrote a ROOT macro; the program did
+// not compile as written (a Boost generator without its header), sampled y over the range of x,
+// and its ROOT macro drew no axes when the lowest band of the output was empty. The figure is now
+// drawn through dietrich: its data description -- the one every backend draws from -- holds one
+// colour-mapped surface on a regular grid over the whole range of the training data.
+TEST_CASE(
+    "The figure of the network's output covers the range of its training data",
+    "[individuals][nn]"
+) {
+    const GNeuralNetworkIndividual ind = makeIndividual();
+    Gem::Dietrich::GPlotDesigner gpd = ind.outputPlot();
+    gpd.setDataFormat(Gem::Dietrich::dataFormat::CSV);
+    std::istringstream csv(gpd.plot());
+
+    // The series headers and the data rows of the description
+    std::vector<std::string> series;
+    std::vector<std::array<double, 3>> rows;
+    for(std::string line; std::getline(csv, line);) {
+        if(line.starts_with("# series")) {
+            series.push_back(line);
+        }
+        else if(
+            not line.empty() and not line.starts_with('#') and
+            (std::isdigit(static_cast<unsigned char>(line.front())) != 0 or line.front() == '-')
+        ) {
+            std::array<double, 3> row{};
+            char comma = 0;
+            std::istringstream values(line);
+            values >> row[0] >> comma >> row[1] >> comma >> row[2];
+            REQUIRE(not values.fail());
+            rows.push_back(row);
+        }
+    }
+
+    REQUIRE(series.size() == 1);
+    CHECK(series[0].contains("plotkind=graph_3d"));
+    CHECK(series[0].contains("colour_map"));
+
+    constexpr std::size_t N = GNeuralNetworkIndividual::OUTPUT_PLOT_POINTS_PER_AXIS;
+    REQUIRE(rows.size() == N * N);
+
+    // A grid over the range the training data report (+-0.5 in both inputs for the test's
+    // hyper-cube), x and y each on their own range
+    std::set<double> xs;
+    std::set<double> ys;
+    std::set<std::array<double, 2>> points;
+    for(const auto &[x, y, output] : rows) {
+        xs.insert(x);
+        ys.insert(y);
+        points.insert({x, y});
+        CHECK(output >= 0.); // a sigmoid network's output
+        CHECK(output <= 1.);
+    }
+    const auto range = gind::nnTrainingDataStore()->getInitRange();
+    REQUIRE(range.size() == 2);
+    CHECK(xs.size() == N);
+    CHECK(ys.size() == N);
+    CHECK(points.size() == N * N);
+    CHECK(*xs.begin() == Catch::Approx(std::get<0>(range[0])));
+    CHECK(*xs.rbegin() == Catch::Approx(std::get<1>(range[0])));
+    CHECK(*ys.begin() == Catch::Approx(std::get<0>(range[1])));
+    CHECK(*ys.rbegin() == Catch::Approx(std::get<1>(range[1])));
+}
+
+/******************************************************************************/
+// The figure is written through the backend the caller chooses, ROOT by default.
+TEST_CASE(
+    "The figure of the network's output is written through any backend",
+    "[individuals][nn]"
+) {
+    const GNeuralNetworkIndividual ind = makeIndividual();
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path() / ("geneva-nn-figure-" + std::to_string(::getpid()));
+    std::filesystem::create_directories(dir);
+
+    const auto text_of = [](const std::filesystem::path &file) {
+        std::ifstream in(file);
+        return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    };
+
+    ind.writeVisualizationFile((dir / "visualization.C").string());
+    CHECK(text_of(dir / "visualization.C").contains("TGraph2D"));
+
+    ind.writeVisualizationFile(
+        (dir / "visualization.py").string(),
+        Gem::Dietrich::plotBackend::MATPLOTLIB
+    );
+    CHECK(text_of(dir / "visualization.py").contains("matplotlib"));
+
+    // A file that cannot be written is refused, not left unwritten in silence
+    CHECK_THROWS_AS(
+        ind.writeVisualizationFile((dir / "no-such-directory" / "visualization.C").string()),
+        gem_exception
+    );
     std::filesystem::remove_all(dir);
 }

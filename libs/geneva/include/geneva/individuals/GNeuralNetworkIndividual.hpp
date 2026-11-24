@@ -43,6 +43,7 @@
 #include <mutex>
 #include <numbers>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string_view>
 #include <tuple>
@@ -59,6 +60,7 @@
 #include "common/GGlobalOptionsT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GSingletonT.hpp"
+#include "dietrich/plotting/GPlotDesigner.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeArchitecture.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
@@ -934,10 +936,21 @@ public:
     }
 
     /***************************************************************************/
+    /** @brief The number of points per input dimension at which outputPlot() samples the network */
+    static constexpr std::size_t OUTPUT_PLOT_POINTS_PER_AXIS = 41;
+
     /**
-     * @brief Creates a program used for the visualization of optimization results.
+     * @brief The figure of the network's output over its two input dimensions, as a dietrich plot
      */
-    void writeVisualizationFile(const std::string &vis_file);
+    [[nodiscard]] Gem::Dietrich::GPlotDesigner outputPlot() const;
+    /**
+     * @brief Writes the figure of the network's output (outputPlot()) to a file, through a dietrich
+     * backend (a ROOT macro by default)
+     */
+    void writeVisualizationFile(
+        const std::string &vis_file,
+        Gem::Dietrich::plotBackend backend = Gem::Dietrich::plotBackend::ROOT
+    ) const;
     /**
      * @brief Creates a C++ output file for the trained network.
      */
@@ -1017,6 +1030,12 @@ private:
      * @brief The transfer function.
      */
     double transfer(const double &value) const;
+
+    /**
+     * @brief The forward pass: the values of the output nodes for one input pattern
+     */
+    [[nodiscard]] std::vector<double>
+    networkOutput(const std::vector<double> &w, std::span<const double> input) const;
 
     /**
      * @brief The semantic architecture (lazily built from n_d_; not serialised -- recoverable).
