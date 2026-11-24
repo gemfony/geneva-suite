@@ -52,11 +52,6 @@
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
 
-#ifdef GEM_TESTING
-#include "common/GSelfTestable.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
-#endif /* GEM_TESTING */
-
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
@@ -280,8 +275,7 @@ protected:
  *   European Journal of Operational Research, 185(3):1155-1173, 2008.
  */
 class GAntColonyOptimization // NOLINT(cppcoreguidelines-special-member-functions)
-  : public GOptimizationAlgorithmT<GAntColonyOptimization>
-  , public Gem::Common::GSelfTestable {
+  : public GOptimizationAlgorithmT<GAntColonyOptimization> {
 public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GAntColonyOptimization";
@@ -345,6 +339,11 @@ public:
     /** @brief Retrieves the evaporation / convergence-speed parameter xi */
     double getXi() const;
 
+    /** @brief Changes this algorithm for the standard tests: the base's change and its archive size.
+     *  @return Whether the algorithm was changed (always true) */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
@@ -367,10 +366,6 @@ protected:
     /** @brief Merges the freshly evaluated ants into the archive and truncates to k */
     virtual void updateArchive();
 
-    /** @brief Applies modifications to this object. This is needed for testing purposes */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
     /***************************************************************************/
 
 private:

@@ -39,11 +39,6 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
-#include <atomic>
-#include <memory>
-#ifdef GEM_TESTING
-#include "geneva/individuals/GTestIndividual1.hpp"
-#endif /* GEM_TESTING */
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeFixedSizePriorityQueue.hpp"
 #include "geneva/oa/GAdaption.hpp"
@@ -53,22 +48,20 @@
 #include "geneva/oa/GParChild.hpp"
 #include "geneva/oa/GParetoTools.hpp"
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <future>
 #include <iterator>
+#include <memory>
 #include <ostream>
 #include <ranges>
 #include <sstream>
 #include <tuple>
 #include <utility>
 #include <vector>
-
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
 
 /******************************************************************************/
 
@@ -833,84 +826,21 @@ void GType::sortMuCommaNuParetoMode() {
     this->selectParetoParents(/* include_parents = */ false);
 }
 
-/******************************************************************************/
-
-bool GType::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    if(GOptimizationAlgorithmBase::modify_GUnitTests_()) {
-        result = true;
-    }
-
+/**
+ * Changes this algorithm for the standard tests: the base's change and its sorting scheme.
+ *
+ * @return Whether the algorithm was changed (always true)
+ */
+bool GType::modifyForTest() {
+    GOptimizationAlgorithmBase::modifyForTest();
     if(sortingMode::MUPLUSNU_SINGLEEVAL == this->getSortingScheme()) {
         this->setSortingScheme(sortingMode::MUCOMMANU_SINGLEEVAL);
     }
     else {
         this->setSortingScheme(sortingMode::MUPLUSNU_SINGLEEVAL);
     }
-    result = true;
-
-    return result;
-
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GEvolutionaryAlgorithm::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
+    return true;
 }
-
-/******************************************************************************/
-
-void GType::fillWithObjects(const std::size_t &n_individuals) {
-#ifdef GEM_TESTING
-    CHECK_NOTHROW(this->clear());
-
-    for(std::size_t i = 0; i < n_individuals; i++) {
-        this->push_back(std::make_unique<Gem::Geneva::Individuals::GTestIndividual1>());
-    }
-
-    for(const auto &ind_ptr : *this) {
-        ind_ptr->randomInit(activityMode::ALLPARAMETERS);
-    }
-
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GEvolutionaryAlgorithm::fillWithObjects", "GEM_TESTING");
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
-
-// NOLINTNEXTLINE(readability-function-size) -- self-test entry point for GEvolutionaryAlgorithm: a sequence of independent, self-scoped CHECK blocks, one per EA-specific population/recombination scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-void GType::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    {
-        auto const p_test = this->template clone<GType>();
-        p_test->fillWithObjects(100);
-    }
-
-    {
-        auto const p_test = this->template clone<GType>();
-        for(std::size_t n_children = 5; n_children < 10; n_children++) {
-            for(std::size_t n_parents = 1; n_parents < n_children; n_parents++) {
-                CHECK_NOTHROW(p_test->clear());
-                p_test->fillWithObjects(n_parents + n_children);
-                CHECK_NOTHROW(p_test->setPopulationSizes(n_parents + n_children, n_parents));
-                CHECK(p_test->getNParents() == n_parents);
-                CHECK(p_test->getNChildren() == n_children);
-            }
-        }
-    }
-
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GEvolutionaryAlgorithm::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
 
 /******************************************************************************/
 

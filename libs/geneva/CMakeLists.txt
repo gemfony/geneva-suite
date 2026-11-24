@@ -62,6 +62,11 @@
 ADD_SUBDIRECTORY ( include/geneva )
 ADD_SUBDIRECTORY ( src )
 
+# The test individuals serve the unit tests and a benchmark, so they are declared for either.
+IF ( GEM_BUILD_TESTS OR GEM_BUILD_BENCHMARKS )
+	ADD_SUBDIRECTORY ( tests/individuals )
+ENDIF ()
+
 IF ( GEM_BUILD_TESTS )
 	ADD_SUBDIRECTORY ( tests )
 ENDIF ()

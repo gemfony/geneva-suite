@@ -48,10 +48,6 @@
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(
     Gem::Geneva::OptimizationAlgorithms::GGeneralizedSimulatedAnnealing
 ) // NOLINT
@@ -608,67 +604,14 @@ std::tuple<double, double> GGeneralizedSimulatedAnnealing::cycleLogic_() {
 
 /******************************************************************************/
 /**
- * Applies modifications to this object. This is needed for testing purposes.
+ * Changes this algorithm for the standard tests: the base's change and its visiting parameter q_v.
+ *
+ * @return Whether the algorithm was changed (always true)
  */
-bool GGeneralizedSimulatedAnnealing::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    if(GOptimizationAlgorithmBase::modify_GUnitTests_()) {
-        result = true;
-    }
-
+bool GGeneralizedSimulatedAnnealing::modifyForTest() {
+    GOptimizationAlgorithmBase::modifyForTest();
     this->setQv(this->getQv() + 0.01);
-    result = true;
-
-    return result;
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GGeneralizedSimulatedAnnealing::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * Performs self tests that are expected to succeed. This is needed for testing purposes.
- */
-// NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- self-test entry point for GGeneralizedSimulatedAnnealing: a sequence of independent, self-scoped CHECK blocks, one per SA strategy-parameter/annealing scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-void GGeneralizedSimulatedAnnealing::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    { // Test setting and retrieval of basic strategy parameters
-        auto const p_test = this->clone<GGeneralizedSimulatedAnnealing>();
-
-        CHECK_NOTHROW(p_test->setNChains(4));
-        CHECK(p_test->getNChains() == 4);
-
-        CHECK_NOTHROW(p_test->setQv(2.0));
-        CHECK(p_test->getQv() == 2.0);
-
-        CHECK_NOTHROW(p_test->setQa(-3.0));
-        CHECK(p_test->getQa() == -3.0);
-
-        CHECK_NOTHROW(p_test->setT0(5.0));
-        CHECK(p_test->getT0() == 5.0);
-
-        CHECK_NOTHROW(p_test->setReannealingSteps(50));
-        CHECK(p_test->getReannealingSteps() == 50);
-    }
-
-    { // Setting invalid strategy parameters must throw
-        auto const p_test = this->clone<GGeneralizedSimulatedAnnealing>();
-        CHECK_THROWS(p_test->setNChains(0)); // need at least 1 chain
-        CHECK_THROWS(p_test->setQv(1.0));    // q_v must be in ]1,3[
-        CHECK_THROWS(p_test->setQv(3.0));    // q_v must be in ]1,3[
-        CHECK_THROWS(p_test->setQa(1.0));    // q_a must not be exactly 1
-        CHECK_THROWS(p_test->setT0(-1.0));   // t0 must be >= 0
-    }
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GGeneralizedSimulatedAnnealing::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

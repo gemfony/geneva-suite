@@ -57,10 +57,8 @@ namespace Gem::Hap::detail {
 void countGpuRandomSource(
     bool engaged
 ) noexcept; ///< +1 when a source starts using the GPU, -1 when it stops
-[[nodiscard]] bool gpuRandomFailureSimulated() noexcept; ///< the GEM_TESTING failure hook
-void gpuRandomSourceStartStage(
-    GpuSourceStartStage stage
-); ///< the GEM_TESTING start hook (a no-op without it)
+[[nodiscard]] bool gpuRandomFailureSimulated() noexcept;   ///< the failure seam for tests
+void gpuRandomSourceStartStage(GpuSourceStartStage stage); ///< the start seam for tests
 
 /******************************************************************************/
 /**

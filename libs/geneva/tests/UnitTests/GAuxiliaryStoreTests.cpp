@@ -32,11 +32,11 @@
 #include <cstdint>
 #include <memory>
 
+#include "GTestIndividual3.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "courtier/GWireSerializationContext.hpp" // the wire scope + layout registry (scratch omission)
 #include "geneva/genome/GAuxiliaryStore.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/individuals/GTestIndividual3.hpp"
 
 using namespace Gem::Geneva::Genome;
 

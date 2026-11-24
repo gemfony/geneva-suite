@@ -32,33 +32,71 @@
  ********************************************************************************/
 
 #include <catch2/catch_template_test_macros.hpp>
+#include <catch2/catch_test_macros.hpp>
+
+#include <cstddef>
+#include <memory>
+#include <vector>
 
 // The class to be tested
-#include "../../GStarterIndividual.hpp"
+#include "GStarterIndividual.hpp"
 
-// Contains the necessary tests
-#include "Geneva_tests.hpp"
+// The standard tests of the installed collection
+#include "common/testing/GStandardTests.hpp"
 
-using namespace Gem;
-using namespace Gem::Hap;
 using namespace Gem::Geneva;
 
 /************************************************************************************************/
 
 TEMPLATE_TEST_CASE(
-    "StandardTests_no_failure_expected — GStarterIndividual",
+    "StandardTests_no_failure_expected -- GStarterIndividual",
     "[examples][starter][standard]",
     GStarterIndividual
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    STATIC_REQUIRE(Gem::Common::Testing::ModifiableForTest<TestType>);
+    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
 }
 
 TEMPLATE_TEST_CASE(
-    "StandardTests_failures_expected — GStarterIndividual",
+    "StandardTests_failures_expected -- GStarterIndividual",
     "[examples][starter][standard]",
     GStarterIndividual
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+}
+
+/************************************************************************************************/
+
+TEST_CASE(
+    "GStarterIndividual: the genome has one parameter per start value",
+    "[examples][starter]"
+) {
+    constexpr std::size_t n_entries = 100;
+    std::vector<double> const start_values(n_entries, 1.);
+    std::vector<double> const lower_boundaries(n_entries, 0.);
+    std::vector<double> const upper_boundaries(n_entries, 2.);
+
+    std::shared_ptr<GStarterIndividual> p_test;
+    CHECK_NOTHROW(
+        p_test = std::make_shared<GStarterIndividual>(
+            0, // the first individual
+            start_values,
+            lower_boundaries,
+            upper_boundaries
+        )
+    );
+    REQUIRE(p_test);
+    CHECK(p_test->countParameters<double>() == n_entries);
+}
+
+TEST_CASE("GStarterIndividual: the target function can be set and read", "[examples][starter]") {
+    GStarterIndividual p_test;
+
+    CHECK_NOTHROW(p_test.setTargetFunction(targetFunction::PARABOLA));
+    CHECK(targetFunction::PARABOLA == p_test.getTargetFunction());
+
+    CHECK_NOTHROW(p_test.setTargetFunction(targetFunction::NOISYPARABOLA));
+    CHECK(targetFunction::NOISYPARABOLA == p_test.getTargetFunction());
 }
 
 /************************************************************************************************/

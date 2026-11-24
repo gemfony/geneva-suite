@@ -45,15 +45,15 @@
 #include <unistd.h> // getpid()
 
 // All classes that will be tested in this file
+#include "GTestIndividual1.hpp"
+#include "GTestIndividual2.hpp"
+#include "GTestIndividual3.hpp"
 #include "geneva/individuals/GDelayIndividual.hpp"
 #include "geneva/individuals/GExternalEvaluatorIndividual.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/individuals/GMetaOptimizerIndividualT.hpp"
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
-#include "geneva/individuals/GTestIndividual2.hpp"
-#include "geneva/individuals/GTestIndividual3.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (probe types)
 // Optimization algorithms (each names its personality traits) and the store they register in
 #include "geneva/oa/GAntColonyOptimization.hpp"
@@ -73,39 +73,55 @@
 // Pluggable optimization monitors
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
-#include "Geneva_tests.hpp"
+#include "common/testing/GStandardTests.hpp"
 
 using namespace Gem::Geneva;
+using Gem::Common::Testing::GEqualityPrinter;
 
 // ============================================================================
-// TFactory_GUnitTests specializations for classes without a public default
-// constructor. The primary template (in common/GUnitTestFrameworkT.hpp) is a
-// free function template at global scope; these specializations must be
-// visible at the point the standard test is instantiated below.
+// TFactory_GUnitTests specializations for classes without a public default constructor. They must be
+// visible where the standard tests are instantiated below.
 // ============================================================================
 
-// gind::GTestIndividual2 — public ctor (size, PERFOBJECTTYPE).
+namespace Gem::Common::Testing {
+
+/** @brief gind::GTestIndividual2 -- public constructor (size, PERFOBJECTTYPE). */
 template <>
 inline std::shared_ptr<gind::GTestIndividual2> TFactory_GUnitTests<gind::GTestIndividual2>() {
-    std::shared_ptr<gind::GTestIndividual2> p;
-    CHECK_NOTHROW(
-        p = std::make_shared<gind::GTestIndividual2>(
-            std::size_t(100),
-            gind::PERFOBJECTTYPE::PERFGDOUBLEOBJECT
-        )
+    return std::make_shared<gind::GTestIndividual2>(
+        std::size_t(100),
+        gind::PERFOBJECTTYPE::PERFGDOUBLEOBJECT
     );
-    return p;
 }
 
-// gind::GLineFitIndividual — public ctor takes a vector of {x,y} sample points.
+/** @brief gind::GLineFitIndividual -- public constructor taking a vector of {x,y} sample points. */
 template <>
 inline std::shared_ptr<gind::GLineFitIndividual> TFactory_GUnitTests<gind::GLineFitIndividual>() {
     std::vector<std::tuple<double, double>> const
         data_points{{0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}};
-    std::shared_ptr<gind::GLineFitIndividual> p;
-    CHECK_NOTHROW(p = std::make_shared<gind::GLineFitIndividual>(data_points));
-    return p;
+    return std::make_shared<gind::GLineFitIndividual>(data_points);
 }
+
+/** @brief gind::GNeuralNetworkIndividual -- its default constructor is private; the parameterized one
+ *  is used with the default settings. */
+template <>
+inline std::shared_ptr<gind::GNeuralNetworkIndividual>
+TFactory_GUnitTests<gind::GNeuralNetworkIndividual>() {
+    return std::make_shared<gind::GNeuralNetworkIndividual>(
+        gind::GNN_DEF_MINVAR,
+        gind::GNN_DEF_MAXVAR,
+        gind::GNN_DEF_SIGMA,
+        gind::GNN_DEF_SIGMASIGMA,
+        gind::GNN_DEF_MINSIGMA,
+        gind::GNN_DEF_MAXSIGMA,
+        gind::GNN_DEF_ADPROB,
+        gind::GNN_DEF_ADAPTADPROB,
+        gind::GNN_DEF_MINADPROB,
+        gind::GNN_DEF_MAXADPROB
+    );
+}
+
+} // namespace Gem::Common::Testing
 
 // ============================================================================
 // The type lists. The algorithms are listed ONCE; their personality traits are derived from that list
@@ -159,9 +175,9 @@ using individual_types = std::tuple<
     gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>,
     gind::GNeuralNetworkIndividual>;
 
-/** @brief The concrete GGenomeConstraint subclasses defined in GFunctionIndividual.hpp. They do not override
- *  modify_GUnitTests_, so the standard test's (de)serialization round-trip block is skipped for them (it is
- *  covered by the focused round-trip TEST_CASEs below). */
+/** @brief The concrete GGenomeConstraint subclasses defined in GFunctionIndividual.hpp. Their own
+ *  members (the constants) are not changed by modifyForTest(), which they inherit from their root; the
+ *  focused round-trip TEST_CASEs below cover those members. */
 using constraint_types =
     std::tuple<gind::GDoubleSumConstraint, gind::GSphereConstraint, gind::GDoubleSumGapConstraint>;
 
@@ -203,6 +219,20 @@ void provideNeuralNetworkTrainingData() {
         std::filesystem::remove(file);
     });
 }
+
+/** @brief Every type of a list can be changed for the standard tests, so their round-trips run. */
+template <typename list_type>
+struct all_modifiable_for_test;
+template <typename... types>
+struct all_modifiable_for_test<std::tuple<types...>> {
+    static constexpr bool value = (Gem::Common::Testing::ModifiableForTest<types> && ...);
+};
+
+static_assert(all_modifiable_for_test<trait_types>::value);
+static_assert(all_modifiable_for_test<individual_types>::value);
+static_assert(all_modifiable_for_test<constraint_types>::value);
+static_assert(all_modifiable_for_test<algorithm_types>::value);
+static_assert(all_modifiable_for_test<monitor_types>::value);
 
 } // anonymous namespace
 
@@ -246,7 +276,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     trait_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -257,7 +287,7 @@ TEMPLATE_LIST_TEST_CASE(
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
         provideNeuralNetworkTrainingData();
     }
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -265,7 +295,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     constraint_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -273,7 +303,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     algorithm_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -281,7 +311,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     monitor_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
 }
 
 // ============================================================================
@@ -293,7 +323,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     trait_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -304,7 +334,7 @@ TEMPLATE_LIST_TEST_CASE(
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
         provideNeuralNetworkTrainingData();
     }
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -312,7 +342,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     constraint_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -320,7 +350,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     algorithm_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -328,14 +358,14 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     monitor_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
 }
 
 // ============================================================================
 // Targeted (de)serialization round-trips for the concrete GGenomeConstraint
-// subclasses in GFunctionIndividual.hpp. These types are run through the templated
-// standard test for clone/copy/load/compare, but that test skips the round-trip block
-// (they do not override modify_GUnitTests_), so the serialize path is validated here.
+// subclasses in GFunctionIndividual.hpp. The standard tests change them only through their
+// root's modifyForTest(), which does not reach their own constants; these cases set the constants
+// to non-default values, so the serialize path of the constants is validated here.
 // ============================================================================
 TEST_CASE("GDoubleSumConstraint round-trips in BINARY/JSON", "[geneva][serialization]") {
     using Gem::Common::serializationMode;
@@ -922,7 +952,7 @@ TEST_CASE(
     assigned = source;
 
     // A change to the source's monitor must not reach the assigned copy.
-    REQUIRE(member->modify_GUnitTests());
+    REQUIRE(member->modifyForTest());
     GEqualityPrinter const gep("collective-assignment", 0., Gem::Common::CE_WITH_MESSAGES);
     CHECK(gep.isEqual(assigned, constructed));
 }

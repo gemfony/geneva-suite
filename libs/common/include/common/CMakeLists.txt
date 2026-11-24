@@ -62,7 +62,6 @@ SET ( COMMONINCLUDES
 	GProviderT.hpp
 	GRecordLogTarget.hpp
 	GReflectiveInterfaceT.hpp
-	GSelfTestable.hpp
 	GSerializableFunctionObjectT.hpp
 	GSerializationHelperFunctionsT.hpp
 	GSingletonT.hpp
@@ -70,7 +69,6 @@ SET ( COMMONINCLUDES
 	GTupleIO.hpp
 	GTypeToStringT.hpp
 	GTypeTraitsT.hpp
-	GUnitTestFrameworkT.hpp
 )
 
 # The concurrency facilities (thread pool/group + MPMC queues) live in a distinct
@@ -106,8 +104,15 @@ SET ( COMMONRECORDINCLUDES
 	record/GTextSink.hpp
 )
 
+# The standard-test harness for Catch2 test programs: the common/testing/ sub-directory + the
+# Gem::Common::Testing namespace. No library includes it; it is installed with the rest of the tree so
+# that a project built on an installed collection tests its own types with it.
+SET ( COMMONTESTINGINCLUDES
+	testing/GStandardTests.hpp
+)
+
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
-ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${COMMONINCLUDES} ${COMMONCONCURRENCYINCLUDES} ${COMMONRECORDINCLUDES})
+ADD_CUSTOM_TARGET(CLION_ALL_COMMON_HEADERS SOURCES ${COMMONINCLUDES} ${COMMONCONCURRENCYINCLUDES} ${COMMONRECORDINCLUDES} ${COMMONTESTINGINCLUDES})
 
 
 # Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and

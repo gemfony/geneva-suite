@@ -80,11 +80,10 @@ constinit std::atomic<bool> g_producer_creation_fails{false};
 constinit std::atomic<std::size_t> g_producer_creations_to_pass{0};
 
 /**
- * Throws as a failing creation of a thread would, while the test hook asks for it. A no-op in builds
- * without GEM_TESTING.
+ * Throws as a failing creation of a thread would, while the test hook asks for it
+ * (failProducerThreadCreationsForTests()).
  */
 void producerThreadCreationHook() {
-#ifdef GEM_TESTING
     if(g_producer_creation_fails.load()) {
         std::size_t n_pass = g_producer_creations_to_pass.load();
         while(n_pass > 0 &&
@@ -97,7 +96,6 @@ void producerThreadCreationHook() {
             );
         }
     }
-#endif /* GEM_TESTING */
 }
 } // namespace
 
@@ -618,7 +616,6 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
  * producer threads, which may wait on it.
  */
 namespace {
-#ifdef GEM_TESTING
 struct GGpuSourceStartHold {
     std::atomic<bool> held{false};         ///< Whether starting sources wait at this stage
     std::atomic<std::size_t> n_reached{0}; ///< How many sources have reached this stage
@@ -638,7 +635,6 @@ std::array<GGpuSourceStartHold, 3> g_gpu_source_start_holds;
 GGpuSourceStartHold &gpuSourceStartHold(GpuSourceStartStage stage) {
     return g_gpu_source_start_holds.at(static_cast<std::size_t>(stage));
 }
-#endif /* GEM_TESTING */
 } // namespace
 
 /******************************************************************************/
@@ -716,38 +712,21 @@ std::size_t nGpuRandomSources() noexcept {
 }
 
 void simulateGpuRandomFailureForTests(bool fail) {
-#ifdef GEM_TESTING
     g_gpu_random_failure_simulated.store(fail);
-#else  /* GEM_TESTING */
-    std::ignore = fail;
-    Gem::Common::condnotset("Gem::Hap::simulateGpuRandomFailureForTests", "GEM_TESTING");
-#endif /* GEM_TESTING */
 }
 
 void failProducerThreadCreationsForTests(bool fail, std::size_t n_pass) {
-#ifdef GEM_TESTING
     g_producer_creation_fails.store(false);
     g_producer_creations_to_pass.store(n_pass);
     g_producer_creation_fails.store(fail);
-#else  /* GEM_TESTING */
-    std::ignore = fail;
-    std::ignore = n_pass;
-    Gem::Common::condnotset("Gem::Hap::failProducerThreadCreationsForTests", "GEM_TESTING");
-#endif /* GEM_TESTING */
 }
 
 void setProducerStartWarningPeriodsForTests(
     std::chrono::milliseconds first,
     std::chrono::milliseconds repeat
 ) {
-#ifdef GEM_TESTING
     g_producer_start_first_warning_ms.store(first.count());
     g_producer_start_repeat_warning_ms.store(repeat.count());
-#else  /* GEM_TESTING */
-    std::ignore = first;
-    std::ignore = repeat;
-    Gem::Common::condnotset("Gem::Hap::setProducerStartWarningPeriodsForTests", "GEM_TESTING");
-#endif /* GEM_TESTING */
 }
 
 namespace detail {
@@ -766,13 +745,12 @@ bool gpuRandomFailureSimulated() noexcept {
 
 /**
  * Marks that a bulk source starting on the GPU has reached a stage of its start, and holds it there while
- * a test asks for it (holdGpuRandomSourceStartsForTests()). A no-op in builds without GEM_TESTING. Only
- * called while a source starts, never on a refill.
+ * a test asks for it (holdGpuRandomSourceStartsForTests()). Only called while a source starts, never on
+ * a refill.
  *
  * @param stage The stage the source has reached
  */
-void gpuRandomSourceStartStage([[maybe_unused]] GpuSourceStartStage stage) {
-#ifdef GEM_TESTING
+void gpuRandomSourceStartStage(GpuSourceStartStage stage) {
     auto &h = gpuSourceStartHold(stage);
     const std::size_t n_before = h.n_reached.fetch_add(1);
     if(h.held.load() && n_before >= h.n_free.load()) {
@@ -782,7 +760,6 @@ void gpuRandomSourceStartStage([[maybe_unused]] GpuSourceStartStage stage) {
     if(h.fail.load() && stage != GpuSourceStartStage::START_FINISHED) {
         throw std::runtime_error("A start of a GPU random-number source failed (test hook)");
     }
-#endif /* GEM_TESTING */
 }
 } /* namespace detail */
 
@@ -794,7 +771,6 @@ void gpuRandomSourceStartStage([[maybe_unused]] GpuSourceStartStage stage) {
  * @param n_pass How many sources may pass the held stage before the others wait
  */
 void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold, std::size_t n_pass) {
-#ifdef GEM_TESTING
     auto &h = gpuSourceStartHold(stage);
     if(hold) {
         if(not h.held.load()) {
@@ -806,12 +782,6 @@ void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold, std
     else if(h.held.exchange(false)) {
         std::ignore = h.gate.count_down();
     }
-#else  /* GEM_TESTING */
-    std::ignore = stage;
-    std::ignore = hold;
-    std::ignore = n_pass;
-    Gem::Common::condnotset("Gem::Hap::holdGpuRandomSourceStartsForTests", "GEM_TESTING");
-#endif /* GEM_TESTING */
 }
 
 /**
@@ -821,13 +791,7 @@ void holdGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool hold, std
  * @param fail Whether they throw there
  */
 void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail) {
-#ifdef GEM_TESTING
     gpuSourceStartHold(stage).fail.store(fail);
-#else  /* GEM_TESTING */
-    std::ignore = stage;
-    std::ignore = fail;
-    Gem::Common::condnotset("Gem::Hap::failGpuRandomSourceStartsForTests", "GEM_TESTING");
-#endif /* GEM_TESTING */
 }
 
 /**
@@ -837,13 +801,7 @@ void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail) {
  * @return The number of sources that have reached the stage
  */
 std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage) {
-#ifdef GEM_TESTING
     return gpuSourceStartHold(stage).n_reached.load();
-#else  /* GEM_TESTING */
-    std::ignore = stage;
-    Gem::Common::condnotset("Gem::Hap::nGpuRandomSourceStartsForTests", "GEM_TESTING");
-    return 0;
-#endif /* GEM_TESTING */
 }
 
 /******************************************************************************/

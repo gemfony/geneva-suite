@@ -64,9 +64,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  *     using personality_traits_type = GFoo_PersonalityTraits;  // what getPersonalityTraits_() hands out
  *
  * The mixin holds NO data of its own; clone_() returns a GOptimizationAlgorithmBase pointer (the
- * hierarchy root, the default GReflectiveInterfaceT clone-return). Algorithm-specific self-tests come
- * through the Gem::Common::GSelfTestable facet, as for every other class. An algorithm
- * whose load_() is more than a member-wise copy (e.g. GSwarmAlgorithm's iteration-dependent
+ * hierarchy root, the default GReflectiveInterfaceT clone-return). An algorithm that adds settings
+ * declares its own modifyForTest() for the standard tests (see GOptimizationAlgorithmBase). An
+ * algorithm whose load_() is more than a member-wise copy (e.g. GSwarmAlgorithm's iteration-dependent
  * neighbourhood-best handling) overrides the generated load_() in the usual way.
  *
  * @tparam derived_type The concrete algorithm (CRTP).

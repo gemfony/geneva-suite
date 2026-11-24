@@ -32,10 +32,6 @@
 
 #include <string>
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(
     Gem::Geneva::OptimizationAlgorithms::GSepCmaEvolutionStrategy_PersonalityTraits
 ) // NOLINT
@@ -84,52 +80,13 @@ std::string GSepCmaEvolutionStrategy_PersonalityTraits::getMnemonic() const {
 
 /******************************************************************************/
 /**
- * @brief Applies modifications to this object. This is needed for testing purposes
+ * @brief Changes these traits for the standard tests: the selection rank.
  *
- * @return A boolean which indicates whether modifications were made
+ * @return Whether the traits were changed (always true)
  */
-bool GSepCmaEvolutionStrategy_PersonalityTraits::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
+bool GSepCmaEvolutionStrategy_PersonalityTraits::modifyForTest() {
     this->setRank(this->getRank() + 1);
-    result = true;
-
-    return result;
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GSepCmaEvolutionStrategy_PersonalityTraits::modify_GUnitTests",
-        "GEM_TESTING"
-    );
-    return false;
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to succeed. This is needed for testing purposes
- */
-void GSepCmaEvolutionStrategy_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    {
-        std::shared_ptr<GSepCmaEvolutionStrategy_PersonalityTraits> const p_test =
-            this->clone<GSepCmaEvolutionStrategy_PersonalityTraits>();
-
-        CHECK_NOTHROW(p_test->setRank(42));
-        CHECK(p_test->getRank() == 42);
-
-        p_test->resetParetoTag();
-        CHECK(p_test->isOnParetoFront());
-        p_test->setIsNotOnParetoFront();
-        CHECK(not p_test->isOnParetoFront());
-    }
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GSepCmaEvolutionStrategy_PersonalityTraits::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

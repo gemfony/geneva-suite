@@ -46,10 +46,6 @@
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GStandardPSO2011) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -328,7 +324,6 @@ std::vector<double> GStandardPSO2011::localBest(std::size_t particle) const {
 }
 
 /******************************************************************************/
-/******************************************************************************/
 /**
  * Updates the velocity and position of every particle using the SPSO-2011 hypersphere rule. Positions are
  * contained by the genome's write-fold on assignment (no explicit boundary clamping).
@@ -521,55 +516,14 @@ std::tuple<double, double> GStandardPSO2011::cycleLogic_() {
 
 /******************************************************************************/
 /**
- * Applies modifications to this object. This is needed for testing purposes.
+ * Changes this algorithm for the standard tests: the base's change and its number of informants.
+ *
+ * @return Whether the algorithm was changed (always true)
  */
-bool GStandardPSO2011::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    if(GOptimizationAlgorithmBase::modify_GUnitTests_()) {
-        result = true;
-    }
-
+bool GStandardPSO2011::modifyForTest() {
+    GOptimizationAlgorithmBase::modifyForTest();
     this->setNInformants(this->getNInformants() + 1);
-    result = true;
-
-    return result;
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GStandardPSO2011::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * Performs self tests that are expected to succeed. This is needed for testing purposes.
- */
-// NOLINTNEXTLINE(readability-function-size) -- self-test entry point for GStandardPSO2011: a sequence of independent, self-scoped CHECK blocks, one per PSO strategy-parameter scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-void GStandardPSO2011::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    { // Test setting and retrieval of basic strategy parameters
-        auto const p_test = this->clone<GStandardPSO2011>();
-
-        CHECK_NOTHROW(p_test->setSwarmSize(25));
-        CHECK(p_test->getSwarmSize() == 25);
-
-        CHECK_NOTHROW(p_test->setNInformants(5));
-        CHECK(p_test->getNInformants() == 5);
-    }
-
-    { // Setting an invalid swarm size / informant count must throw
-        auto const p_test = this->clone<GStandardPSO2011>();
-        CHECK_THROWS(p_test->setSwarmSize(1));
-        CHECK_THROWS(p_test->setNInformants(0));
-    }
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GStandardPSO2011::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

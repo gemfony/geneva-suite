@@ -101,19 +101,18 @@ gem_common_test(GModuleLoaderTests             S  GModuleLoaderTests.cpp)
 gem_common_test(GParserBuilderTests            S  GParserBuilderTests.cpp)
 gem_common_test(GProviderStoreTTests           S  GProviderStoreTTests.cpp)
 gem_common_test(GRecorderTests                 S  GRecorderTests.cpp)
-gem_common_test(GSelfTestableTests             S  GSelfTestableTests.cpp)
 gem_common_test(GSerializableFunctionObjectTTests
                                                   S  GSerializableFunctionObjectTTests.cpp)
 gem_common_test(GSerializationHelperFunctionsTTests
                                                   S  GSerializationHelperFunctionsTTests.cpp)
 gem_common_test(GSerializeTupleTTests          S  GSerializeTupleTTests.cpp)
 gem_common_test(GSingletonTTests               S  GSingletonTTests.cpp)
+gem_common_test(GStandardTestsTests            S  GStandardTestsTests.cpp)
 gem_common_test(GThreadGroupTests              S  GThreadGroupTests.cpp)
 gem_common_test(GThreadPoolTests               S  GThreadPoolTests.cpp)
 gem_common_test(GTupleIOTests                  S  GTupleIOTests.cpp)
 gem_common_test(GTypeToStringTTests            S  GTypeToStringTTests.cpp)
 gem_common_test(GTypeTraitsTTests              S  GTypeTraitsTTests.cpp)
-gem_common_test(GUnitTestFrameworkTTests       S  GUnitTestFrameworkTTests.cpp)
 
 # A real module for GModuleLoaderTests, built with the recipe of a genuine one (it links no
 # library of the collection). Its path reaches the test as a compile definition.

@@ -559,10 +559,13 @@ void setGpuRandomNumbersAllowed(bool allowed) noexcept;
  */
 [[nodiscard]] std::size_t nGpuRandomSources() noexcept;
 
+/*
+ * The functions marked "(test hook)" below are fault-injection seams for tests: they are always
+ * compiled, no production code calls them, and while no test switches them on they change nothing.
+ */
+
 /**
  * @brief Makes every GPU source behave as if its next CUDA call failed (test hook).
- *
- * Only available in builds with GEM_TESTING; otherwise it reports that the hook is unavailable.
  *
  * @param fail Whether GPU calls should be treated as failed
  */
@@ -586,8 +589,7 @@ enum class GpuSourceStartStage {
  *
  * Starting sources wait at a held stage until it is released, or for at most 60 seconds; the first
  * @p n_pass sources that reach the stage after it was held pass without waiting. Call it from one
- * thread only, and release every stage it held before the process ends. Only available in builds with
- * GEM_TESTING; otherwise it reports that the hook is unavailable.
+ * thread only, and release every stage it held before the process ends.
  */
 void holdGpuRandomSourceStartsForTests(
     GpuSourceStartStage stage,
@@ -600,16 +602,13 @@ void holdGpuRandomSourceStartsForTests(
  * failing call there would, or stops doing so (test hook).
  *
  * The exception is a std::runtime_error; the producer whose source throws ends, as on any other
- * exception. START_FINISHED cannot be made to throw. Only available in builds with GEM_TESTING;
- * otherwise it reports that the hook is unavailable.
+ * exception. START_FINISHED cannot be made to throw.
  */
 void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail);
 
 /**
  * @brief Reports how many bulk sources have reached the given stage of a GPU start since the process
  * began, including those held there (test hook).
- *
- * Only available in builds with GEM_TESTING; otherwise it reports that the hook is unavailable.
  */
 [[nodiscard]] std::size_t nGpuRandomSourceStartsForTests(GpuSourceStartStage stage);
 
@@ -618,8 +617,7 @@ void failGpuRandomSourceStartsForTests(GpuSourceStartStage stage, bool fail);
  * would, or stops doing so (test hook).
  *
  * While it is on, the first @p n_pass creations from the call on succeed and every later one throws a
- * std::system_error. Only available in builds with GEM_TESTING; otherwise it reports that the hook is
- * unavailable.
+ * std::system_error.
  *
  * @param fail Whether creations fail
  * @param n_pass How many creations succeed before the others fail
@@ -630,8 +628,7 @@ void failProducerThreadCreationsForTests(bool fail, std::size_t n_pass = 0);
  * @brief Sets how long the call that starts producer threads waits before its first warning about a
  * start that has not finished, and how long between the warnings that follow (test hook).
  *
- * The defaults are PRODUCERSTARTFIRSTWARNING and PRODUCERSTARTREPEATWARNING. Only available in builds
- * with GEM_TESTING; otherwise it reports that the hook is unavailable.
+ * The defaults are PRODUCERSTARTFIRSTWARNING and PRODUCERSTARTREPEATWARNING.
  *
  * @param first The wait before the first warning
  * @param repeat The wait between later warnings

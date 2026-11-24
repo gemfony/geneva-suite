@@ -66,26 +66,6 @@ include(CMakeFindDependencyMacro)
 # module is gone from CMake 4, and asking for it warns in every project that has not set CMP0167.
 find_dependency(Boost @GEM_MIN_BOOST_VERSION@ CONFIG COMPONENTS @GEM_BOOST_LIBS@)
 
-# The build flavor of this installation: TRUE if it was built with testing
-# support (GEM_BUILD_TESTS / the gcfg BUILDTESTCODE knob), FALSE otherwise.
-# It matters to a consumer twice:
-#
-#   - a testing-enabled libgemfony-geneva embeds Catch2-based test scaffolding
-#     and references Catch2 symbols, so it can only be consumed by linking
-#     Catch2 as well (handled right here);
-#   - only a testing-enabled install carries working self-test hook bodies. The
-#     hooks are declared unconditionally for ABI stability, but a non-testing
-#     build compiles their throwing "no test code" branch into the library, and
-#     a consumer defining GEM_TESTING for its own sources cannot change that.
-#     A consumer that drives the hooks therefore has to gate on this variable
-#     (see the quickstart's unit-test guard for the canonical example).
-#
-# FindGeneva.cmake, the MODULE-mode fallback, exports the same variable.
-set(GENEVA_TESTING @GEM_INSTALLED_WITH_TESTING@)
-if(GENEVA_TESTING)
-    find_dependency(Catch2 3)
-endif()
-
 # An installation built with the MPI consumer exports Geneva::courtier-mpi, whose
 # interface names MPI::MPI_CXX (its headers include mpi.h).
 set(GENEVA_MPI @GEM_INSTALLED_WITH_MPI@)

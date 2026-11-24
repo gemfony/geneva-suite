@@ -49,11 +49,6 @@
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
 #include "geneva/oa/GSepCmaEvolutionStrategy_PersonalityTraits.hpp"
 
-#ifdef GEM_TESTING
-#include "common/GSelfTestable.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
-#endif /* GEM_TESTING */
-
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
@@ -163,8 +158,7 @@ constexpr std::size_t DEFAULTSEPCMALAMBDA = 0;
  *   Selection for Evolution Strategies", Parallel Problem Solving from Nature (PPSN XI), 2010.
  */
 class GSepCmaEvolutionStrategy // NOLINT(cppcoreguidelines-special-member-functions)
-  : public GOptimizationAlgorithmT<GSepCmaEvolutionStrategy>
-  , public Gem::Common::GSelfTestable {
+  : public GOptimizationAlgorithmT<GSepCmaEvolutionStrategy> {
 public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GSepCmaEvolutionStrategy";
@@ -262,6 +256,11 @@ public:
     /** @brief Retrieves the current global step size (sigma). @return the current sigma */
     double getSigma() const;
 
+    /** @brief Changes this algorithm for the standard tests: the base's change, the initial sigma and the
+     *  diagonal-CMA switch. @return Whether the algorithm was changed (always true) */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
@@ -280,11 +279,6 @@ protected:
     void init() override;
     /** @brief Does any necessary finalization work */
     void finalize() override;
-
-    /** @brief Applies modifications to this object */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
     /***************************************************************************/
 
 private:

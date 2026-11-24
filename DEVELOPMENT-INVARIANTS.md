@@ -195,9 +195,9 @@ special-purpose code you find, and only descend to the specific when the general
 When a **genuine defect surfaces during development** — a compilation error, a crash, an assertion, or a
 logical/numeric failure — fixing it is **not enough**: add a test that pins the problem down so it cannot
 silently return. The test must **fail on the unfixed code and pass once the fix is in** (verify both when
-practical), and it lives with the code it guards (a unit test in the owning library's suite; the existing
-per-class `specificTests*_GUnitTests_` hooks — the opt-in `Gem::Common::GSelfTestable` facet — and the
-`[net]`/serialization round-trip suites are the natural homes). This applies to problems *found while working*, not only to tickets — the moment you understand why
+practical), and it lives with the code it guards (a unit test in the owning library's suite; the test
+file of the class it guards and the `[net]`/serialization round-trip suites are the natural homes).
+This applies to problems *found while working*, not only to tickets — the moment you understand why
 something broke, encode that understanding as a test. A defect you cannot yet reproduce is triaged first
 (Invariant 7); once reproduced, the reproduction becomes the regression test.
 
@@ -258,6 +258,7 @@ here) nor for any other activity that could leave a footprint in the tree:
   "Pristine" means `git status` shows nothing *because* stray files were removed **and** intended new files
   were staged — never because an intended file was silently dropped. Stage new build-relevant files the
   moment they are created, so the build system and every reviewer see them.
+- The user-local IDE files that Invariant 24 names as an exception do not count against a pristine tree.
 
 *Why:* stray files silently become part of the repository, mask real changes in `git status`, get
 accidentally committed, and make "is the tree clean?" — the precondition for a trustworthy diff, build, and
@@ -454,6 +455,9 @@ and configuration for a mechanism that no longer exists — is litter and does n
   working directory (Inv 3, Inv 17). When one appears in-tree, it is removed and the activity relocated, not
   gitignored-and-tolerated in place. (`.gitignore` is a backstop against accidental commits, not a licence to
   let generated files accumulate on disk.)
+  Excepted are the user-local IDE files that tools read only from the source directory --
+  `CMakeUserPresets.json` (CMake reads user presets only there), `.idea/`, `.vscode/` and `.clangd`: they
+  stay untracked and are listed in `.gitignore`. (Maintainer decision, 2026-11-24.)
 - **A config is removed when the mechanism it configures is gone.** Replacing or retiring a mechanism deletes
   its configuration in the same change (Inv 20 applied to config): a `.project` for a build system abandoned a
   decade ago, a config key for a removed option, a preset for a deleted target. An orphaned config outlives

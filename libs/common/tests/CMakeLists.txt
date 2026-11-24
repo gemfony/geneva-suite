@@ -27,13 +27,6 @@
 #
 ################################################################################
 
-# Test support shared by the unit tests of the libraries above common (geneva, dietrich): the
-# header-only GEqualityPrinter in support/. An INTERFACE target that carries the include path and
-# depends on common only, so every library that may use common may link it.
-ADD_LIBRARY ( gem-test-support INTERFACE )
-TARGET_INCLUDE_DIRECTORIES ( gem-test-support INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/support )
-TARGET_LINK_LIBRARIES ( gem-test-support INTERFACE ${COMMON_LIBNAME} )
-
 ADD_SUBDIRECTORY ( UnitTests )
 ADD_SUBDIRECTORY ( ManualTests )
 

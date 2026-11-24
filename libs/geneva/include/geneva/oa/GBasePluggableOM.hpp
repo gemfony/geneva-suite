@@ -111,6 +111,13 @@ public:
      */
     [[nodiscard]] bool getUseRawEvaluation() const;
 
+    /**
+     * @brief Changes this monitor for the standard tests: whether it reports raw evaluations. A
+     *  monitor that adds members calls this function and changes its own.
+     * @return Whether the monitor was changed (always true)
+     */
+    bool modifyForTest();
+
 protected:
     /************************************************************************/
     /**
@@ -131,10 +138,6 @@ protected:
     // Gem::Common::GReflectiveInterfaceBaseT base (clone_ stays pure -- this is the abstract
     // category root) from class_name and the localMembers_() declaration above.
 
-    /**
-     * @brief Applies modifications to this object. This is needed for testing purposes.
-     */
-    bool modify_GUnitTests_();
     /***************************************************************************/
     // Data
 

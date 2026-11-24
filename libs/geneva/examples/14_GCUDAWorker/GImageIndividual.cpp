@@ -37,10 +37,6 @@
 #include "geneva/oa/GAdaption.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GImageIndividual) // NOLINT
 namespace Gem::Geneva {
 /******************************************************************************/
@@ -414,58 +410,8 @@ std::vector<double> GImageIndividual::evaluate() {
 }
 
 /******************************************************************************/
-/**
-	 * Applies modifications to this object. This is needed for testing purposes
-	 *
-	 * @return A boolean which indicates whether modifications were made
-	 */
-bool GImageIndividual::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    // Call the parent classes' functions. This already random-initialises every genome parameter, so
-    // the object is changed. The Gauss adaptor configuration is OA-owned and not exercised here (the
-    // individual carries no adaptor data).
-    gen::GGenome::modify_GUnitTests_();
-
-    return true;
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GImageIndividual::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
 
 /******************************************************************************/
-/**
-	 * Performs self tests that are expected to succeed. This is needed for testing purposes
-	 */
-void GImageIndividual::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    using namespace Gem::Geneva;
-
-    // Call the parent classes' functions
-    gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-
-    const std::size_t NTESTS = 100;
-
-    //------------------------------------------------------------------------------
-
-    {
-        // Test that repeated extraction of an object's data results in the same output
-        auto const p_test = this->clone<GImageIndividual>();
-
-        const auto circles = p_test->getTriangleData();
-
-        for(std::size_t i = 0; i < NTESTS; i++) {
-            auto circles_new = p_test->getTriangleData();
-            REQUIRE(circles_new == circles);
-        }
-    }
-
-    //------------------------------------------------------------------------------
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GImageIndividual::modify_GUnitTests", "GEM_TESTING");
-#endif                  /* GEM_TESTING */
-}
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -950,15 +896,3 @@ void GImageIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-
-#ifdef GEM_TESTING
-
-template <>
-std::shared_ptr<Gem::Geneva::GImageIndividual>
-TFactory_GUnitTests<Gem::Geneva::GImageIndividual>() {
-    // Create an image individual factory and create the first individual
-    Gem::Geneva::GImageIndividualFactory f("../../config/GImageIndividual.json");
-    return f.get_as<Gem::Geneva::GImageIndividual>();
-}
-
-#endif /* GEM_TESTING */

@@ -30,7 +30,6 @@
 #pragma once
 
 #include "common/GReflectiveInterfaceT.hpp"
-#include "common/GSelfTestable.hpp"
 #include "dietrich/plotting/GDataCollectors.hpp"
 
 namespace Gem::Dietrich {
@@ -42,8 +41,7 @@ namespace Gem::Dietrich {
  * in a 2D plot.
  */
 class GGraph2D
-  : public Gem::Common::GReflectiveInterfaceT<GGraph2D, GDataCollector2T<double, double>>
-  , public Gem::Common::GSelfTestable {
+  : public Gem::Common::GReflectiveInterfaceT<GGraph2D, GDataCollector2T<double, double>> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -68,10 +66,11 @@ public:
     /**********************************************************************/
     // Defaulted constructors, destructor and assignment operators
 
-    /** @brief Applies test-only modifications: the base members plus this graph's plot mode and a
+    /** @brief Changes this object for the standard tests: the base members plus this graph's plot mode and a
      *  data point. Never invoked on rendered objects. */
-    bool modify_GUnitTests_() override {
-        GBasePlotter::modify_GUnitTests_();
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest() {
+        GBasePlotter::modifyForTest();
         this->setPlotMode(graphPlotMode::SCATTER);
         this->add(1.0, 2.0);
         return true;
@@ -173,8 +172,7 @@ private:
  * This results in a 2D plot.
  */
 class GGraph2ED
-  : public Gem::Common::GReflectiveInterfaceT<GGraph2ED, GDataCollector2ET<double, double>>
-  , public Gem::Common::GSelfTestable {
+  : public Gem::Common::GReflectiveInterfaceT<GGraph2ED, GDataCollector2ET<double, double>> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -196,10 +194,11 @@ public:
     /**********************************************************************/
     // Defaulted constructors, destructor and assignment operators
 
-    /** @brief Applies test-only modifications: the base members plus an (x, ex, y, ey) data point.
+    /** @brief Changes this object for the standard tests: the base members plus an (x, ex, y, ey) data point.
      *  Never invoked on rendered objects. */
-    bool modify_GUnitTests_() override {
-        GBasePlotter::modify_GUnitTests_();
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest() {
+        GBasePlotter::modifyForTest();
         this->add(1.0, 0.1, 2.0, 0.2);
         return true;
     }
@@ -292,8 +291,7 @@ private:
  * only allows a single plot mode. This results in a 3D plot.
  */
 class GGraph3D
-  : public Gem::Common::GReflectiveInterfaceT<GGraph3D, GDataCollector3T<double, double, double>>
-  , public Gem::Common::GSelfTestable {
+  : public Gem::Common::GReflectiveInterfaceT<GGraph3D, GDataCollector3T<double, double, double>> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -320,10 +318,11 @@ public:
     /*********************************************************************/
     // Defaulted constructors, destructor and assignment operators
 
-    /** @brief Applies test-only modifications: the base members plus an (x, y, z) data point.
+    /** @brief Changes this object for the standard tests: the base members plus an (x, y, z) data point.
      *  Never invoked on rendered objects. */
-    bool modify_GUnitTests_() override {
-        GBasePlotter::modify_GUnitTests_();
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest() {
+        GBasePlotter::modifyForTest();
         this->add(1.0, 2.0, 3.0);
         return true;
     }
@@ -476,8 +475,7 @@ private:
  */
 class GGraph4D
   : public Gem::Common::
-        GReflectiveInterfaceT<GGraph4D, GDataCollector4T<double, double, double, double>>
-  , public Gem::Common::GSelfTestable {
+        GReflectiveInterfaceT<GGraph4D, GDataCollector4T<double, double, double, double>> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -504,10 +502,11 @@ public:
     /*********************************************************************/
     // Defaulted constructors, destructor and assignment operators
 
-    /** @brief Applies test-only modifications: the base members plus an (x, y, z, w) data point.
+    /** @brief Changes this object for the standard tests: the base members plus an (x, y, z, w) data point.
      *  Never invoked on rendered objects. */
-    bool modify_GUnitTests_() override {
-        GBasePlotter::modify_GUnitTests_();
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest() {
+        GBasePlotter::modifyForTest();
         this->add(1.0, 2.0, 3.0, 4.0);
         return true;
     }
@@ -630,8 +629,7 @@ private:
  * TODO: Add ability to add markers!
  */
 class GFunctionPlotter1D
-  : public Gem::Common::GReflectiveInterfaceT<GFunctionPlotter1D, GBasePlotter>
-  , public Gem::Common::GSelfTestable {
+  : public Gem::Common::GReflectiveInterfaceT<GFunctionPlotter1D, GBasePlotter> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -653,13 +651,6 @@ class GFunctionPlotter1D
 public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GFunctionPlotter1D";
-
-    /** @brief Applies test-only modifications. This plotter adds no state of its own that the
-     *  standard tests could perturb, so it opts into the self-test facet purely to keep the base
-     *  plotter's perturbation -- and with it the generic round-trip check -- in effect. */
-    bool modify_GUnitTests_() override {
-        return GBasePlotter::modify_GUnitTests_();
-    }
 
     /**
 	 * @brief The standard constructor
@@ -755,8 +746,7 @@ private:
  * A wrapper for the ROOT TF2 2d-function plotter
  */
 class GFunctionPlotter2D
-  : public Gem::Common::GReflectiveInterfaceT<GFunctionPlotter2D, GBasePlotter>
-  , public Gem::Common::GSelfTestable {
+  : public Gem::Common::GReflectiveInterfaceT<GFunctionPlotter2D, GBasePlotter> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -780,13 +770,6 @@ class GFunctionPlotter2D
 public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GFunctionPlotter2D";
-
-    /** @brief Applies test-only modifications. This plotter adds no state of its own that the
-     *  standard tests could perturb, so it opts into the self-test facet purely to keep the base
-     *  plotter's perturbation -- and with it the generic round-trip check -- in effect. */
-    bool modify_GUnitTests_() override {
-        return GBasePlotter::modify_GUnitTests_();
-    }
 
     /**
 	 * @brief The standard constructor

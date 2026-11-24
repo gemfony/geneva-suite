@@ -49,11 +49,6 @@
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
 #include "geneva/oa/GStandardPSO2011_PersonalityTraits.hpp"
 
-#ifdef GEM_TESTING
-#include "common/GSelfTestable.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
-#endif /* GEM_TESTING */
-
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
@@ -170,8 +165,7 @@ constexpr std::size_t DEFAULTSPSOK = 3; ///< The default number of particles eac
  * - M. Clerc, "Standard Particle Swarm Optimisation", 2012 (the SPSO-2011 specification).
  */
 class GStandardPSO2011 // NOLINT(cppcoreguidelines-special-member-functions)
-  : public GOptimizationAlgorithmT<GStandardPSO2011>
-  , public Gem::Common::GSelfTestable {
+  : public GOptimizationAlgorithmT<GStandardPSO2011> {
 public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GStandardPSO2011";
@@ -222,6 +216,11 @@ public:
     /** @brief Allows to set the number of particles each particle informs (K, at least 1) */
     void setNInformants(std::size_t n_informants);
 
+    /** @brief Changes this algorithm for the standard tests: the base's change and its number of informants.
+     *  @return Whether the algorithm was changed (always true) */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
@@ -239,10 +238,6 @@ protected:
     /** @brief Does any necessary finalization work */
     void finalize() override;
 
-    /** @brief Applies modifications to this object. This is needed for testing purposes */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
     /***************************************************************************/
 
 private:

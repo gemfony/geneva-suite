@@ -52,7 +52,6 @@
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GParserBuilder.hpp"
-#include "common/GSelfTestable.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeMultiConstraint.hpp"
@@ -119,9 +118,7 @@ constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
  * (see the shipped evaluator.py reference implementation for the schema). Hence the external
  * program needs to read and write this JSON format.
  */
-class GExternalEvaluatorIndividual
-  : public gen::GGenomeT<GExternalEvaluatorIndividual>
-  , public Gem::Common::GSelfTestable {
+class GExternalEvaluatorIndividual : public gen::GGenomeT<GExternalEvaluatorIndividual> {
     ///////////////////////////////////////////////////////////////////////
 
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin
@@ -277,38 +274,6 @@ public:
 
 protected:
     /***************************************************************************/
-    /**
-     * @brief Applies modifications to this object. This is needed for testing purposes
-     *
-     * This class contributes no checks of its own; it opts into the self-test facet so that the
-     * category root's modify_GUnitTests_() keeps running for it under the standard tests.
-     */
-    bool modify_GUnitTests_() override {
-#ifdef GEM_TESTING
-        return gen::GGenome::modify_GUnitTests_();
-#else  /* GEM_TESTING */
-        Gem::Common::condnotset("GExternalEvaluatorIndividual::modify_GUnitTests", "GEM_TESTING");
-        return false;
-#endif /* GEM_TESTING */
-    }
-
-    /***************************************************************************/
-    /**
-     * @brief Performs self tests that are expected to succeed. This is needed for testing purposes
-     *
-     * This class contributes no checks of its own; it opts into the self-test facet so that the
-     * category root's specificTestsNoFailureExpected_GUnitTests_() keeps running for it under the standard tests.
-     */
-    void specificTestsNoFailureExpected_GUnitTests_() override {
-#ifdef GEM_TESTING
-        gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-#else  /* GEM_TESTING */
-        Gem::Common::condnotset(
-            "GExternalEvaluatorIndividual::specificTestsNoFailureExpected_GUnitTests",
-            "GEM_TESTING"
-        );
-#endif /* GEM_TESTING */
-    }
 
     /***************************************************************************/
     /**

@@ -75,16 +75,11 @@ project.
 Optional unit test
 --------------------------------------------------------------------
 
-The unit test under Tests/UnitTests uses Catch2 together with the
-internal Geneva test scaffolding header (Geneva_tests.hpp), which is
-part of the Geneva *sources* and is not installed. The test target is
-built only when Catch2 v3 and that header are available AND the
-installed Geneva itself was built with test code (the BUILDTESTCODE
-knob / GEM_BUILD_TESTS; find_package(Geneva) reports the flavor as
-GENEVA_TESTING). Against an install built without test code the
-individual's self-test hooks are present but throw by design, and a
-consumer cannot compile that away, so the test is skipped with a STATUS
-message naming the reason. When this directory is built in place
-(inside a Geneva checkout) the scaffolding header is found
-automatically; otherwise its location can be supplied via
--DGENEVA_TEST_INCLUDE_DIR=<path-to-libs/geneva/tests/UnitTests>.
+The unit test under Tests/UnitTests runs the standard tests of the
+installed collection (the header common/testing/GStandardTests.hpp)
+on GStarterIndividual -- construction, copying, cloning, loading and
+(de-)serialization -- and the individual's own test cases. The
+standard tests change the individual with its modifyForTest()
+function first, so that a copy or round-trip that loses a member
+shows. The test target is built when Catch2 v3 is found; otherwise it
+is skipped with a STATUS message.

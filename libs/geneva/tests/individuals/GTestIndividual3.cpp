@@ -27,7 +27,7 @@
  *
  ********************************************************************************/
 
-#include "geneva/individuals/GTestIndividual3.hpp"
+#include "GTestIndividual3.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -42,11 +42,8 @@
 #include <ranges>
 #include <vector>
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::Individuals::GTestIndividual3) // NOLINT
+
 namespace Gem::Geneva::Individuals {
 
 constexpr std::size_t GTI_DEF_NITEMS = 300;
@@ -163,74 +160,6 @@ std::shared_ptr<float[]> GTestIndividual3::getPlainData() const {
 
     // Let the audience know
     return result;
-}
-
-/******************************************************************************/
-/**
- * @brief Applies modifications to this object. This is needed for testing purposes
- *
- * @return A boolean which indicates whether modifications were made
- */
-bool GTestIndividual3::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    bool result = false;
-
-    // Call the parent classes' functions
-    if(gen::GGenome::modify_GUnitTests_()) {
-        result = true;
-    }
-
-    // Change the parameter settings
-    result = true;
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GTestIndividual3::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to succeed. This is needed for testing purposes
- */
-// NOLINTNEXTLINE(readability-function-size) -- self-test entry point for GTestIndividual3: a sequence of independent, self-scoped CHECK blocks, one per plain-data-extraction scenario; same one-function-per-test-phase convention used identically across every individual/OA self-test in this codebase
-void GTestIndividual3::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    using namespace Gem::Geneva;
-
-    // Call the parent classes' functions
-    gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-
-    constexpr std::size_t ntests = 100;
-
-    //------------------------------------------------------------------------------
-
-    { // Test that repeated extraction of an object's data results in the same output
-        std::shared_ptr<GTestIndividual3> p;
-        std::shared_ptr<float[]> result_old;
-        std::shared_ptr<float[]> result_new;
-
-        CHECK_NOTHROW(p = std::make_shared<GTestIndividual3>());
-        CHECK_NOTHROW(result_old = p->getPlainData());
-        for(std::size_t i = 0; i < ntests; i++) {
-            CHECK_NOTHROW(result_new = p->getPlainData());
-            for(std::size_t m = 0; m < GTI_DEF_NITEMS * 10; m++) {
-                CHECK((result_old.get())[m] == (result_new.get())[m]);
-            }
-        }
-    }
-
-    //------------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GTestIndividual3::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
 }
 
 /******************************************************************************/

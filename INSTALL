@@ -274,8 +274,8 @@ ctest -j$(nproc)
 
 Every test is always registered; none is hidden behind a switch. What decides
 whether a given run includes a test is its SIZE -- one label per test, chosen
-from its measured runtime, so the choice is made when the tests are run rather
-than when the tree is configured:
+from its measured runtime (with the one exception named below), so the choice
+is made when the tests are run rather than when the tree is configured:
 
   S    under 1 second
   M    1 to 10 seconds
@@ -293,12 +293,16 @@ ctest -j$(nproc) -L XL          once per larger piece of work, and not before
 Tests also carry descriptive labels, which are informational only and never
 decide whether a test runs: the owning library (common, hap, weft, dietrich,
 courtier, geneva), "example" for the end-to-end runs of libs/*/examples/,
-and "benchmark" for the three programs whose whole purpose is a
-convergence- or throughput-scale measurement (GOptimizationBenchmark,
-GParallelisationOverhead and, in a GPU-consumer build, GCUDAOptBenchmark).
-Those three happen to be the XL set today, but it is their size that keeps them
-out of a commit gate, not their name -- a benchmark turned down to ten seconds
-would be an L and would gate like any other L.
+and "benchmark" for the runs of the programs whose whole purpose is a
+convergence- or throughput-scale measurement and for the checks of their tools.
+The longest of them (GOptimizationBenchmark, GParallelisationOverhead with its
+reference run and, in a GPU-consumer build, GCUDAOptBenchmark) are XL, but it
+is their size that keeps them out of a commit gate, not their name -- a
+benchmark turned down to ten seconds would be an L and would gate like any
+other L. The exception are the three convergence shards of GenevaStandardTests
+(ea-highdim10k, ea-highdim, gsa): they are XL because they are convergence-scale
+runs (Invariant 22 in DEVELOPMENT-INVARIANTS.md), not because of their time,
+and run before a release rather than in the commit gate.
 
 Adding a test? Measure it and give it a size. Run it once on an otherwise idle
 machine with "ctest -j1 -R <name>" -- serial, because under -j a test's reported

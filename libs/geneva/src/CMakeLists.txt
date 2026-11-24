@@ -78,16 +78,6 @@ SET ( OPTIMIZATIONSOURCES
 	GPersonalityTraits.cpp
 )
 
-# GTestIndividual1 is a LIBRARY-INTERNAL test fixture: GEvolutionaryAlgorithm's GEM_TESTING self-test
-# (fillWithObjects) instantiates it. It is therefore compiled into the library, but ONLY under
-# GEM_BUILD_TESTS (-DGEM_TESTING) -- a production build omits it, so libgemfony-geneva still ships zero
-# concrete individuals. Its GEM_TESTING-only test consumers (GenevaStandardTests) link the library and get it
-# from there. GTestIndividual2 and GTestIndividual3 are NOT used by the library; they are packaged as object
-# libraries below.
-IF(GEM_BUILD_TESTS)
-	SET(OPTIMIZATIONSOURCES ${OPTIMIZATIONSOURCES} individuals/GTestIndividual1.cpp)
-ENDIF()
-
 # The reusable sample individuals are packaged, NOT compiled into the geneva library (DA1: libgemfony-geneva
 # ships zero concrete GGenome subclasses). Each MODE-both declaration builds an OBJECT library
 # <name>-obj (linked by the individual's compile-in consumers -- examples / tests / benchmarks) and a
@@ -139,21 +129,6 @@ GENEVA_DECLARE_INDIVIDUAL(GMetaOptimizerIndividualT
 	MODE    compile
 	SOURCES individuals/GMetaOptimizerIndividualT.cpp)
 
-# GTestIndividual2 / GTestIndividual3 are serialization / auxiliary-store test fixtures used ONLY by external
-# test and benchmark targets (never by the library). They are packaged MODE compile -- an object library each
-# consumer links -- and built only when something can consume them: GTestIndividual2 by the unit tests and the
-# GSerializationOverhead / GRandomWalk benchmarks-and-manual-tests; GTestIndividual3 by the unit tests only.
-IF(GEM_BUILD_TESTS OR GEM_BUILD_BENCHMARKS)
-	GENEVA_DECLARE_INDIVIDUAL(GTestIndividual2
-		MODE    compile
-		SOURCES individuals/GTestIndividual2.cpp)
-ENDIF()
-IF(GEM_BUILD_TESTS)
-	GENEVA_DECLARE_INDIVIDUAL(GTestIndividual3
-		MODE    compile
-		SOURCES individuals/GTestIndividual3.cpp)
-ENDIF()
-
 ADD_LIBRARY ( ${GENEVA_LIBNAME} SHARED ${OPTIMIZATIONSOURCES} )
 
 SET_TARGET_PROPERTIES(
@@ -187,20 +162,6 @@ TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${DIETRICH_LIBNAME})
 # library (libdl) on platforms that provide it; it is otherwise header-only, so libdl is its only
 # link-time requirement here. (The module loader itself is common's.)
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
-
-IF ( GEM_BUILD_TESTS )
-	# When built with testing support (-DGEM_TESTING), the library embeds
-	# Catch2-based test scaffolding (GTestIndividual*, GUnitTestFrameworkT) and
-	# therefore references Catch2 symbols. Consumers of such a testing-enabled
-	# install must link Catch2 too, so the requirement is propagated through the
-	# public interface (both in-tree and exported). The installed config package
-	# re-finds Catch2 accordingly (see GenevaConfig.cmake.in / GENEVA_TESTING).
-	TARGET_LINK_LIBRARIES(
-		${GENEVA_LIBNAME}
-		INTERFACE
-		Catch2::Catch2
-	)
-ENDIF ()
 
 INSTALL ( TARGETS ${GENEVA_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
 

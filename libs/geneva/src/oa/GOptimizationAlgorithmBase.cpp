@@ -38,7 +38,6 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
-#include "common/GSelfTestable.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "common/GStopRequest.hpp" // stopRequested()
 #include "courtier/GCourtierEnums.hpp"
@@ -2391,35 +2390,19 @@ bool GOptimizationAlgorithmBase::stallCounterThresholdExceeded() const {
 
 /******************************************************************************/
 /**
- * Applies modifications to this object. This is needed for testing purposes
+ * Changes this algorithm for the standard tests: its maximum iteration, and every member of its
+ * population through GGenome::modifyForTest() (the genome-level change; it does not reach members a
+ * derived individual adds).
  *
- * @return A boolean which indicates whether modifications were made
+ * @return Whether the algorithm was changed (always true)
  */
-bool GOptimizationAlgorithmBase::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    // Try to change the objects contained in the collection. The population is heterogeneous and
-    // its element type -- the gen::GGenome category root -- deliberately does not carry the
-    // self-test facet, so an element contributes only if it opted into GSelfTestable. Skipping the
-    // others is the correct semantics: it is exactly what the facet's no-op default produced when
-    // the hooks still sat on every object.
+bool GOptimizationAlgorithmBase::modifyForTest() {
     for(auto const &o_ptr : *this) {
-        if(auto *self_testable = dynamic_cast<Gem::Common::GSelfTestable *>(o_ptr.get());
-           self_testable != nullptr && self_testable->modify_GUnitTests()) {
-            result = true;
-        }
+        o_ptr->modifyForTest();
     }
 
     this->setMaxIteration(this->getMaxIteration() + 1);
-    result = true;
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GOptimizationAlgorithmBase<>::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

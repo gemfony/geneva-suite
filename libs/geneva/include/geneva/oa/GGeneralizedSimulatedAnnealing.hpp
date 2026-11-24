@@ -50,11 +50,6 @@
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
 
-#ifdef GEM_TESTING
-#include "common/GSelfTestable.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
-#endif /* GEM_TESTING */
-
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
@@ -229,8 +224,7 @@ constexpr std::size_t GSA_PROPOSAL = 1;
  *   233(3):216-220, 1997.
  */
 class GGeneralizedSimulatedAnnealing // NOLINT(cppcoreguidelines-special-member-functions)
-  : public GOptimizationAlgorithmT<GGeneralizedSimulatedAnnealing>
-  , public Gem::Common::GSelfTestable {
+  : public GOptimizationAlgorithmT<GGeneralizedSimulatedAnnealing> {
 public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GGeneralizedSimulatedAnnealing";
@@ -306,6 +300,11 @@ public:
     /** @brief Retrieves the cooling timescale */
     double getCoolingTimescale() const;
 
+    /** @brief Changes this algorithm for the standard tests: the base's change and its visiting parameter q_v.
+     *  @return Whether the algorithm was changed (always true) */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     // Virtual or overridden protected functions
@@ -328,10 +327,6 @@ protected:
     /** @brief Applies the generalized acceptance rule, cools and reanneals each chain */
     virtual void applyAcceptance();
 
-    /** @brief Applies modifications to this object. This is needed for testing purposes */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
     /***************************************************************************/
 
 private:

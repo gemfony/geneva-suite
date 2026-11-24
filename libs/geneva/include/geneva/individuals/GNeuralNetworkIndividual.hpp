@@ -58,9 +58,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GGlobalOptionsT.hpp"
 #include "common/GLogger.hpp"
-#include "common/GSelfTestable.hpp"
 #include "common/GSingletonT.hpp"
-#include "common/GUnitTestFrameworkT.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeArchitecture.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
@@ -537,9 +535,7 @@ inline std::shared_ptr<networkData> createNetworkData(
  * With this individual you can use Genevas optimization algorithms instead of the
  * standard back-propagation algorithm to train feed-forward neural networks.
  */
-class GNeuralNetworkIndividual
-  : public gen::GGenomeT<GNeuralNetworkIndividual>
-  , public Gem::Common::GSelfTestable {
+class GNeuralNetworkIndividual : public gen::GGenomeT<GNeuralNetworkIndividual> {
     /////////////////////////////////////////////////////////////////////////////
 
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
@@ -999,45 +995,22 @@ protected:
     std::vector<double> evaluate() final;
 
     /***************************************************************************/
+
+public:
     /**
-     * @brief Applies modifications to this object. This is needed for testing purposes.
+     * @brief Changes this individual for the standard tests: the genome's change and the transfer
+     * function, the one member this class serializes.
      *
-     * Besides the category root's perturbation it switches the transfer function, so that the standard
-     * tests see the one member this class serializes.
-     *
-     * @return true: the object was modified
+     * @return Whether the individual was changed (always true)
      */
-    bool modify_GUnitTests_() override {
-#ifdef GEM_TESTING
-        gen::GGenome::modify_GUnitTests_();
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest() {
+        gen::GGenome::modifyForTest();
         t_f_ =
             (t_f_ == transferFunction::SIGMOID) ? transferFunction::RBF : transferFunction::SIGMOID;
         return true;
-#else  /* GEM_TESTING */
-        Gem::Common::condnotset("GNeuralNetworkIndividual::modify_GUnitTests", "GEM_TESTING");
-        return false;
-#endif /* GEM_TESTING */
     }
 
-    /***************************************************************************/
-    /**
-     * @brief Performs self tests that are expected to succeed. This is needed for testing purposes.
-     *
-     * This class contributes no checks of its own; it opts into the self-test facet so that the
-     * category root's checks run for it under the standard tests.
-     */
-    void specificTestsNoFailureExpected_GUnitTests_() override {
-#ifdef GEM_TESTING
-        gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-#else  /* GEM_TESTING */
-        Gem::Common::condnotset(
-            "GNeuralNetworkIndividual::specificTestsNoFailureExpected_GUnitTests",
-            "GEM_TESTING"
-        );
-#endif /* GEM_TESTING */
-    }
-
-public:
     /**
      * @brief Builds the (shared, immutable) semantic architecture for a given network geometry.
      */
@@ -1108,40 +1081,5 @@ std::shared_ptr<Gem::Geneva::Individuals::networkData> TFactory_GSingletonT();
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// For testing purposes
-
-#ifdef GEM_TESTING
-
-/**
- * @brief Factory specialization that creates GNeuralNetworkIndividual objects for the unit tests.
- *
- * As Gem::Geneva::Individuals::GNeuralNetworkIndividual has a private default constructor, we
- * provide a specialization of the factory function that constructs it via the parameterized
- * constructor using the default settings.
- *
- * @return A newly created GNeuralNetworkIndividual, wrapped in a shared_ptr
- */
-template <>
-inline std::shared_ptr<Gem::Geneva::Individuals::GNeuralNetworkIndividual>
-TFactory_GUnitTests<Gem::Geneva::Individuals::GNeuralNetworkIndividual>() {
-    return std::make_shared<Gem::Geneva::Individuals::GNeuralNetworkIndividual>(
-        Gem::Geneva::Individuals::GNN_DEF_MINVAR,
-        Gem::Geneva::Individuals::GNN_DEF_MAXVAR,
-        Gem::Geneva::Individuals::GNN_DEF_SIGMA,
-        Gem::Geneva::Individuals::GNN_DEF_SIGMASIGMA,
-        Gem::Geneva::Individuals::GNN_DEF_MINSIGMA,
-        Gem::Geneva::Individuals::GNN_DEF_MAXSIGMA,
-        Gem::Geneva::Individuals::GNN_DEF_ADPROB,
-        Gem::Geneva::Individuals::GNN_DEF_ADAPTADPROB,
-        Gem::Geneva::Individuals::GNN_DEF_MINADPROB,
-        Gem::Geneva::Individuals::GNN_DEF_MAXADPROB
-    );
-}
-
-#endif /* GEM_TESTING */
-
-/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-
 /******************************************************************************/

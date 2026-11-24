@@ -51,7 +51,6 @@
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "common/GSelfTestable.hpp"
 #include "common/record/GCsvSink.hpp"
 #include "common/record/GRecorder.hpp"
 #include "dietrich/plotting/GDataLog.hpp"
@@ -189,8 +188,7 @@ const std::string GMETAOPT_DEF_SUBEACONFIG =
  */
 template <typename ind_type = Gem::Geneva::Individuals::GFunctionIndividual>
 class GMetaOptimizerIndividualT // NOLINT(cppcoreguidelines-special-member-functions)
-  : public gen::GGenomeT<GMetaOptimizerIndividualT<ind_type>>
-  , public Gem::Common::GSelfTestable {
+  : public gen::GGenomeT<GMetaOptimizerIndividualT<ind_type>> {
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
     // the private localMembers_() below (load_/compare_/clone_/name_ are generated from it). serialize()
@@ -579,6 +577,26 @@ public:
             typename ind_type::FACTORYTYPE>(factory->clone());
     }
 
+    /***************************************************************************/
+    /**
+     * @brief Changes this individual for the standard tests: the genome's change and, once the genome
+     * is built, an adaption of its values with the authored meta configuration.
+     *
+     * @return Whether the individual was changed (always true)
+     */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest() {
+        gen::GGenome::modifyForTest();
+        if(this->template countParameters<std::int32_t>() +
+               this->template countParameters<double>() >
+           0) {
+            // The genome is structure-only; drive the self-owned adaption via the authored meta config.
+            Gem::Geneva::OptimizationAlgorithms::StandaloneAdapter(*this, getAdaptionConfig())
+                .adapt(*this);
+        }
+        return true;
+    }
+
 protected:
     /***************************************************************************/
     /**
@@ -923,70 +941,6 @@ protected:
     }
 
     /***************************************************************************/
-    /**
-     * Applies modifications to this object.
-     *
-     * @return A boolean indicating whether any modifications were made
-     */
-    bool modify_GUnitTests_() override {
-#ifdef GEM_TESTING
-
-        bool result = false;
-
-        // Call the parent classes' functions
-        if(gen::GGenome::modify_GUnitTests_()) {
-            result = true;
-        }
-
-        // Change the parameter settings (only when the genome has actually been built). The adaption
-        // state + logic are OA-owned; a standalone individual drives them via a self-owned
-        // scratch + config (StandaloneAdapter).
-        if(this->template countParameters<std::int32_t>() +
-               this->template countParameters<double>() >
-           0) {
-            // The genome is structure-only; drive the self-owned adaption via the authored meta config.
-            Gem::Geneva::OptimizationAlgorithms::StandaloneAdapter(*this, getAdaptionConfig())
-                .adapt(*this);
-            result = true;
-        }
-
-        // Let the audience know whether we have changed the content
-        return result;
-
-#else  /* GEM_TESTING */
-        Gem::Common::condnotset(
-            "GMetaOptimizerIndividualT<ind_type>::modify_GUnitTests()",
-            "GEM_TESTING"
-        );
-        return false;
-#endif /* GEM_TESTING */
-    }
-
-    /***************************************************************************/
-    /**
-     * Performs self tests that are expected to succeed.
-     */
-    void specificTestsNoFailureExpected_GUnitTests_() override {
-#ifdef GEM_TESTING
-        using namespace Gem::Geneva;
-
-        // Call the parent classes' functions
-        gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-
-        //------------------------------------------------------------------------------
-
-        {
-            /* nothing. Add test cases here that are expected to succeed. */
-        }
-
-        //------------------------------------------------------------------------------
-#else  /* GEM_TESTING */
-        Gem::Common::condnotset(
-            "GMetaOptimizerIndividualT<ind_type>::specificTestsNoFailureExpected_GUnitTests()",
-            "GEM_TESTING"
-        );
-#endif /* GEM_TESTING */
-    }
 
 private:
     /***************************************************************************/
@@ -1603,8 +1557,7 @@ constexpr std::size_t P_YDIM = 1400;
  */
 template <typename ind_type>
 class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
-  : public oa::GBasePluggableOM
-  , public Gem::Common::GSelfTestable {
+  : public oa::GBasePluggableOM {
     // Make sure this class can only be instantiated if individual_type is an optimizable entity
     // (the monitor reads individuals only through the genome-agnostic interface, so any genome model
     // -- tree or flat -- qualifies).
@@ -1765,32 +1718,6 @@ protected:
 
         // React on deviations from the expectation
         token.evaluate();
-    }
-
-    /***************************************************************************/
-    /**
-     * Applies modifications to this object. This is needed for testing purposes
-     *
-     * @return A boolean which indicates whether modifications were made
-     */
-    bool modify_GUnitTests_() override {
-#ifdef GEM_TESTING
-
-        bool result = false;
-
-        // Call the parent classes' functions
-        if(oa::GBasePluggableOM::modify_GUnitTests_()) {
-            result = true;
-        }
-
-        // no local data -- nothing to change
-
-        return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-        Gem::Common::condnotset("GOptOptMonitorT<ind_type>::modify_GUnitTests", "GEM_TESTING");
-        return false;
-#endif                  /* GEM_TESTING */
     }
 
     /***************************************************************************/

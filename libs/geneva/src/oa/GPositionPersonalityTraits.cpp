@@ -43,23 +43,13 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
 /**
- * @brief Applies modifications to this object. This is needed for testing purposes.
+ * @brief Changes these traits for the standard tests: the population position.
  *
- * @return true if the object was modified, false otherwise (or when GEM_TESTING is disabled)
+ * @return Whether the traits were changed (always true)
  */
-bool GPositionPersonalityTraits::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
+bool GPositionPersonalityTraits::modifyForTest() {
     this->setPopulationPosition(this->getPopulationPosition() + 1);
-    result = true;
-
-    return result;
-
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GPositionPersonalityTraits::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

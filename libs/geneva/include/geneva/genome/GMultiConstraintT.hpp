@@ -193,6 +193,18 @@ public:
         allow_negative_ = allow_negative;
     }
 
+    /***************************************************************************/
+    /**
+     * @brief Changes this check for the standard tests: it switches whether negative values are valid.
+     * A check that adds members calls this function and changes its own.
+     *
+     * @return Whether the check was changed (always true)
+     */
+    bool modifyForTest() {
+        this->setAllowNegative(not this->getAllowNegative());
+        return true;
+    }
+
 protected:
     /***************************************************************************/
     /**
@@ -242,28 +254,6 @@ protected:
     // category root) from class_name and the localMembers_() declaration above.
 
     /***************************************************************************/
-    /**
-     * @brief Applies modifications to this object. This is needed for testing purposes.
-     *
-     * @return A boolean indicating whether this object was actually modified
-     */
-    bool modify_GUnitTests_() {
-#ifdef GEM_TESTING
-        // This is the category root; there is no modifiable parent class above it.
-        bool result = false;
-
-        if(not this->getAllowNegative()) {
-            this->setAllowNegative(true);
-            result = true;
-        }
-
-        return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-        Gem::Common::condnotset("GPreEvaluationValidityCheckT<>::modify_GUnitTests", "GEM_TESTING");
-        return false;
-#endif                  /* GEM_TESTING */
-    }
 
 private:
     /***************************************************************************/

@@ -498,3 +498,39 @@ TEST_CASE("GProcessingTimesLogger refuses histograms without bins", "[monitor][o
     CHECK_THROWS_AS(Gem::Geneva::GProcessingTimesLogger(10, 0), gem_exception);
     CHECK_NOTHROW(Gem::Geneva::GProcessingTimesLogger(10, 10));
 }
+
+/******************************************************************************/
+// The test-access point of GProgressPlotterT: its landscape sink is private, and no public function
+// shows which sink an assigned plotter draws on.
+
+namespace Gem::Geneva {
+struct GProgressPlotterTestAccess {
+    template <typename fp_type>
+    static std::shared_ptr<detail::GLandscapePlotSink> &
+    landscapeSink(GProgressPlotterT<fp_type> &p) {
+        return p.landscape_sink_;
+    }
+};
+} // namespace Gem::Geneva
+
+TEST_CASE(
+    "GProgressPlotter: an assigned plotter keeps its own landscape sink",
+    "[geneva][monitors]"
+) {
+    // Regression: the implicit assignment took the source's sink, so a chain drew its landscape there
+    using Gem::Geneva::GProgressPlotterTestAccess;
+    Gem::Geneva::GProgressPlotter source;
+    GProgressPlotterTestAccess::landscapeSink(source) =
+        std::make_shared<Gem::Geneva::detail::GLandscapePlotSink>(
+            Gem::Dietrich::GDataLog("landscape", 1, 1),
+            Gem::Dietrich::GDataLog::SeriesId{0}
+        );
+    Gem::Geneva::GProgressPlotter assigned;
+    assigned = source;
+    CHECK(
+        GProgressPlotterTestAccess::landscapeSink(assigned) !=
+        GProgressPlotterTestAccess::landscapeSink(source)
+    );
+}
+
+/******************************************************************************/

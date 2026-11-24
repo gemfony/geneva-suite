@@ -59,7 +59,6 @@
 #include "common/GGlobalOptionsT.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GSingletonT.hpp"
-#include "common/GUnitTestFrameworkT.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
@@ -67,7 +66,6 @@
 
 // Example-local headers
 #include "GImageScalar.hpp"
-#include "common/GSelfTestable.hpp"
 
 namespace Gem::Geneva {
 
@@ -137,9 +135,7 @@ std::ostream &operator<<(std::ostream &, const CircleTriangle &);
      * that most closely resembles a given picture. It was developed
      * for evaluation using CUDA on a GPU.
      */
-class GImageIndividual final
-  : public gen::GGenomeT<GImageIndividual>
-  , public Gem::Common::GSelfTestable {
+class GImageIndividual final : public gen::GGenomeT<GImageIndividual> {
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
     // the private localMembers_() below (from which serialize/load_/compare_/clone_/name_ are generated).
@@ -283,10 +279,6 @@ private:
     bool mutateAlphaChannel_{GII_DEF_MUTATE_ALPHA_CHANNEL};
 
 protected:
-    /** @brief Applies modifications to this object. */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed. */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
 };
 
 /******************************************************************************/
@@ -304,13 +296,6 @@ using GImageIndividualFactory = Gem::Geneva::Genome::GIndividualFactory<GImageIn
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 } /* namespace Gem::Geneva */
-
-#ifdef GEM_TESTING
-
-template <>
-std::shared_ptr<Gem::Geneva::GImageIndividual> TFactory_GUnitTests<Gem::Geneva::GImageIndividual>();
-
-#endif /* GEM_TESTING */
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

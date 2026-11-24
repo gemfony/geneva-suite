@@ -75,8 +75,7 @@ IF(NOT GENEVA_INDIVIDUAL_MODULE_INCLUDED)
 	# reference pattern of example 18. The .so carries the problem code + its archive registration + the
 	# gem_module_manifest() entry point, and links NONE of the Geneva libraries -- it needs only their
 	# HEADERS at compile time and resolves their symbols from the host process at load (the loader uses
-	# RTLD_GLOBAL). Linking no Geneva libs also sidesteps the non-PIC static Catch2 that a testing-enabled
-	# Geneva pulls in as a usage requirement, which cannot go into a shared object.
+	# RTLD_GLOBAL).
 	#
 	# The module keeps the "lib" prefix (CMake MODULE libraries drop it by default) so the artifact is named
 	# lib<target>.so, matching the individual-plugin convention. The caller's own source directory is on the
@@ -91,23 +90,6 @@ IF(NOT GENEVA_INDIVIDUAL_MODULE_INCLUDED)
 		SET_TARGET_PROPERTIES(${_target} PROPERTIES PREFIX "lib")
 		TARGET_COMPILE_FEATURES(${_target} PRIVATE cxx_std_${GENEVA_INDIVIDUAL_CXX_STANDARD})
 		TARGET_COMPILE_OPTIONS(${_target} PRIVATE ${GENEVA_INDIVIDUAL_ABI_OPTIONS})
-		# A loadable module is a production artifact and must NEVER carry the test framework: a
-		# testing-enabled Geneva build defines GEM_TESTING tree-wide (ADD_DEFINITIONS), which would pull
-		# Catch2 (REQUIRE/CHECK) into any individual whose *_GUnitTests_ bodies use it -- and since the module
-		# links no Geneva libraries and the loader dlopens RTLD_NOW (eager), those unresolvable Catch2 symbols
-		# would abort the load. Undefine GEM_TESTING for the module so its sources compile the non-testing
-		# branch.
-		#
-		# This is ABI-safe by CONSTRUCTION, not by discipline. The self-test hooks live on their own
-		# opt-in interface, Gem::Common::GSelfTestable (libs/common/include/common/GSelfTestable.hpp),
-		# which a class inherits UNCONDITIONALLY or not at all -- no member of it is preprocessor-gated, so
-		# core and module can never disagree about its layout. The category roots an individual actually
-		# derives from (GGenome, GPersonalityTraits, GOptimizationAlgorithmBase, ...) do not inherit it, so
-		# an individual that writes no tests has no test-related slots at all; one that does write them
-		# inherits the same interface on both sides of the GEM_TESTING line, with only the BODIES of its
-		# overrides conditional. The GSelfTestableTests unit test pins the "not a base of GCommonInterfaceT"
-		# half of this guarantee.
-		TARGET_COMPILE_OPTIONS(${_target} PRIVATE -UGEM_TESTING)
 		# Boost_INCLUDE_DIRS is read here (call time), not when this module was included, so it is set even
 		# if Boost is found after this module (in-tree) / by the config package's find_dependency (out-of-tree).
 		TARGET_INCLUDE_DIRECTORIES(${_target} PRIVATE

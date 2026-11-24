@@ -48,7 +48,6 @@
 
 // Geneva headers go here
 #include "common/GArchiveNamed.hpp"
-#include "common/GSelfTestable.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "weft/GArchivePolymorphic.hpp"
@@ -137,9 +136,7 @@ private:
  * raw_fitness() are needed, so the monitor is problem-type-agnostic and can be registered by a program
  * that loads the concrete image individual from a runtime module (it never names GImageIndividual).
  */
-class GImagePOM final
-  : public oa::GBasePluggableOM
-  , public Gem::Common::GSelfTestable {
+class GImagePOM final : public oa::GBasePluggableOM {
     ///////////////////////////////////////////////////////////////////////
 
     /**
@@ -252,19 +249,6 @@ protected:
     }
 
     /***************************************************************************/
-    /** @brief Applies modifications to this object. This is needed for testing purposes */
-    bool modify_GUnitTests_() override {
-#ifdef GEM_TESTING
-        bool result = false;
-        if(oa::GBasePluggableOM::modify_GUnitTests_()) {
-            result = true;
-        }
-        return result;
-#else  /* GEM_TESTING */
-        condnotset("GImagePOM::modify_GUnitTests", "GEM_TESTING");
-        return false;
-#endif /* GEM_TESTING */
-    }
 
 private:
     /***************************************************************************/

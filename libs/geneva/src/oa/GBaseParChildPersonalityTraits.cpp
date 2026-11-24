@@ -38,10 +38,6 @@
 #include <cstdint>
 #include <memory>
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(
     Gem::Geneva::OptimizationAlgorithms::GBaseParChildPersonalityTraits
 ) // NOLINT
@@ -71,8 +67,6 @@ std::string GBaseParChildPersonalityTraits::getMnemonic() const {
 }
 
 /******************************************************************************/
-
-/******************************************************************************/
 /**
  * @brief Checks whether this is a parent individual
  *
@@ -83,7 +77,7 @@ bool GBaseParChildPersonalityTraits::isParent() const {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -98,7 +92,7 @@ std::uint32_t GBaseParChildPersonalityTraits::getParentCounter() const {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -117,7 +111,7 @@ bool GBaseParChildPersonalityTraits::setIsParent() {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -136,7 +130,7 @@ bool GBaseParChildPersonalityTraits::setIsChild() {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -151,7 +145,7 @@ void GBaseParChildPersonalityTraits::setParentId(const std::size_t &parent_id) {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -177,8 +171,7 @@ std::size_t GBaseParChildPersonalityTraits::getParentId() const {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
- * Tested in GBaseParChildPersonalityTraits::specificTestsFailuresExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -193,7 +186,7 @@ bool GBaseParChildPersonalityTraits::parentIdSet() const {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
@@ -206,150 +199,20 @@ void GBaseParChildPersonalityTraits::unsetParentId() {
 }
 
 /* ----------------------------------------------------------------------------------
- * Tested in GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests()
- * Tested in GBaseParChildPersonalityTraits::specificTestsFailuresExpected_GUnitTests()
+ * Tested in GPersonalityTraitsTests.cpp (geneva's unit tests)
  * ----------------------------------------------------------------------------------
  */
 
 /******************************************************************************/
 /**
- * @brief Applies modifications to this object. This is needed for testing purposes
+ * @brief Changes these traits for the standard tests: the base's change and the parent counter.
  *
- * @return true if any modifications were made, false otherwise
+ * @return Whether the traits were changed (always true)
  */
-bool GBaseParChildPersonalityTraits::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    // Call the parent class'es function
-    if(GPositionPersonalityTraits::modify_GUnitTests_()) {
-        result = true;
-    }
-
-    // A relatively harmless modification is a change of the parentCounter variable
+bool GBaseParChildPersonalityTraits::modifyForTest() {
+    GPositionPersonalityTraits::modifyForTest();
     parent_counter_++;
-    result = true;
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GBaseParChildPersonalityTraits::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to succeed. This is needed for testing purposes
- */
-// NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- self-test entry point for GBaseParChildPersonalityTraits: a sequence of independent, self-scoped CHECK blocks, one per parent/child-state and personality-trait scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-void GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    // --------------------------------------------------------------------------
-
-    { // Check that it is possible to mark this as a parent or child-entity
-        std::shared_ptr<GBaseParChildPersonalityTraits> const p_test =
-            this->clone<GBaseParChildPersonalityTraits>();
-
-        // Mark this object as belonging to a parent and check the correct setting
-        CHECK_NOTHROW(p_test->setIsParent());
-        CHECK(p_test->isParent() == true);
-
-        // Mark this object as belonging to a child and check the correct setting
-        CHECK_NOTHROW(p_test->setIsChild());
-        CHECK(p_test->isParent() == false);
-    }
-
-    // --------------------------------------------------------------------------
-
-    { // Check that the parent counter is incremented or reset correctly
-        std::shared_ptr<GBaseParChildPersonalityTraits> const p_test =
-            this->clone<GBaseParChildPersonalityTraits>();
-
-        // Mark this object as belonging to a child and check the correct setting
-        CHECK_NOTHROW(p_test->setIsChild());
-        CHECK(p_test->isParent() == false);
-
-        // Check that the parent counter is now 0
-        CHECK(p_test->getParentCounter() == 0);
-
-        // Mark the individual as a parent a number of times and check the parent counter
-        for(std::uint32_t i = 1; i <= 10; i++) {
-            CHECK_NOTHROW(p_test->setIsParent());
-            CHECK(p_test->getParentCounter() == i);
-        }
-
-        // Mark the individual as a child and check the parent counter again
-        CHECK_NOTHROW(p_test->setIsChild());
-        CHECK(p_test->isParent() == false);
-
-        // Check that the parent counter is now 0
-        CHECK(p_test->getParentCounter() == 0);
-    }
-
-    // --------------------------------------------------------------------------
-
-    { // Check setting and retrieval of the individual's position in the population
-        std::shared_ptr<GBaseParChildPersonalityTraits> const p_test =
-            this->clone<GBaseParChildPersonalityTraits>();
-
-        for(std::size_t i = 0; i < 10; i++) {
-            CHECK_NOTHROW(p_test->setPopulationPosition(i));
-            CHECK(p_test->getPopulationPosition() == i);
-        }
-    }
-
-    // --------------------------------------------------------------------------
-
-    { // Test setting and retrieval of valid parent ids
-        std::shared_ptr<GBaseParChildPersonalityTraits> const p_test =
-            this->clone<GBaseParChildPersonalityTraits>();
-
-        for(std::size_t i = 0; i < 10; i++) {
-            CHECK_NOTHROW(p_test->setParentId(i));
-            CHECK(p_test->getParentId() == i);
-            CHECK(p_test->parentIdSet() == true);
-            CHECK_NOTHROW(p_test->unsetParentId());
-            CHECK(p_test->parentIdSet() == false);
-        }
-    }
-
-    // --------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GBaseParChildPersonalityTraits::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to fail. This is needed for testing purposes
- */
-void GBaseParChildPersonalityTraits::specificTestsFailuresExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    // --------------------------------------------------------------------------
-
-    { // Test that retrieval of the parent id throws, if the id isn't set
-        std::shared_ptr<GBaseParChildPersonalityTraits> const p_test =
-            this->clone<GBaseParChildPersonalityTraits>();
-
-        CHECK_NOTHROW(p_test->unsetParentId());
-        CHECK_THROWS_AS((p_test->getParentId()), gem_exception);
-    }
-
-    // --------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GBaseParChildPersonalityTraits::specificTestsFailuresExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

@@ -628,6 +628,13 @@ public:
      */
     bool cp_personality_fits(const std::filesystem::path &p) const;
 
+    /**
+     * @brief Changes this algorithm for the standard tests (common/testing/GStandardTests.hpp): its
+     *  maximum iteration, and every member of its population through GGenome::modifyForTest(). An
+     *  algorithm that adds settings calls this function and changes its own.
+     */
+    bool modifyForTest();
+
 protected:
     /***************************************************************************/
     // Some data
@@ -685,8 +692,6 @@ protected:
     /** @brief The number of threads used for parallel organizational work. */
     std::uint16_t n_threads_ = Gem::Common::DEFAULTNHARDWARETHREADS;
 
-    /** @brief Applies modifications to this object */
-    bool modify_GUnitTests_();
     /***************************************************************************/
 
     /**

@@ -116,9 +116,6 @@ SET ( INDIVIDUALS_INCLUDES
     individuals/GLineFitIndividual.hpp
     individuals/GMetaOptimizerIndividualT.hpp
     individuals/GNeuralNetworkIndividual.hpp
-    individuals/GTestIndividual1.hpp
-    individuals/GTestIndividual2.hpp
-    individuals/GTestIndividual3.hpp
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
@@ -129,8 +126,3 @@ ADD_CUSTOM_TARGET(CLION_ALL_GENEVA_HEADERS SOURCES ${OPTIMIZATIONINCLUDES} ${OA_
 # includes. (The SET lists above are retained only to populate the CLion header target for IDE indexing.)
 INSTALL ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION ${INSTALL_PREFIX_INCLUDES}/geneva
 	FILES_MATCHING PATTERN "*.hpp" )
-
-# GEqualityPrinter.hpp (the only former include/geneva/tests/ header) is
-# pure test scaffolding: it lives in libs/common/tests/support/ (target
-# gem-test-support, internal only, never installed), shared by geneva's and
-# dietrich's unit tests.

@@ -27,7 +27,7 @@
  *
  ********************************************************************************/
 
-#include "geneva/individuals/GTestIndividual2.hpp"
+#include "GTestIndividual2.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -171,55 +171,6 @@ std::vector<double> GTestIndividual2::evaluate() {
         0.,
         std::plus{}
     )};
-}
-
-/******************************************************************************/
-/**
- * @brief Applies modifications to this object. This is needed for testing purposes
- *
- * @return A boolean which indicates whether modifications were made
- */
-bool GTestIndividual2::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    bool result = false;
-
-    // Call the parent classes' functions
-    if(gen::GGenome::modify_GUnitTests_()) {
-        result = true;
-    }
-
-    // Change the parameter settings
-    result = true;
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GTestIndividual2::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to succeed. This is needed for testing purposes
- */
-void GTestIndividual2::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    using namespace Gem::Geneva;
-
-    // Call the parent classes' functions
-    gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-
-    //------------------------------------------------------------------------------
-    //------------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GTestIndividual2::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
 }
 
 /******************************************************************************/

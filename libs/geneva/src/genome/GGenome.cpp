@@ -49,10 +49,6 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "hap/GRandomLeasePool.hpp"
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 #include "common/GParserBuilder.hpp"
 #include "geneva/GFaultInjector.hpp" // the pluggable, process-global evaluation fault injector
 #include <chrono>
@@ -555,61 +551,22 @@ std::string GGenome::toCSV(
 
 /******************************************************************************/
 /**
- * @brief Applies modifications to this object. This is needed for testing purposes.
- * @return true if modifications were made, false otherwise
+ * @brief Changes this genome for the standard tests: its parameter values and its assigned iteration.
+ * @return Whether the genome was changed (always true)
  */
-bool GGenome::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    if(this->randomInit(activityMode::ALLPARAMETERS)) {
-        result = true;
-    }
+bool GGenome::modifyForTest() {
+    this->randomInit(activityMode::ALLPARAMETERS);
 
     // Guarantee an observable change to a compared member even for individuals with no randomisable
     // parameters (e.g. GDelayIndividual), so the clone-independence / serialize-round-trip tests remain
     // meaningful. This bumps assigned_iteration_ (a compared base member) -- the data-oriented successor
     // of the old n_stalls_ bump, which was retired when stall bookkeeping moved wholly onto the OA.
     this->setAssignedIteration(this->getAssignedIteration() + 1);
-    result = true;
-
-    return result;
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GGenome::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to succeed. This is needed for testing purposes.
- */
-// NOLINTNEXTLINE(readability-function-size) -- a self-contained unit-test function (Catch2 CHECK blocks); each {} block is an independent assertion group, standard test-function shape
-void GGenome::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    {
-        auto const p_test = this->clone<GGenome>();
-        CHECK_NOTHROW(p_test->setMaxMode(maxMode::MAXIMIZE));
-        CHECK(p_test->getMaxMode() == maxMode::MAXIMIZE);
-        CHECK_NOTHROW(p_test->setMaxMode(maxMode::MINIMIZE));
-        CHECK(p_test->getMaxMode() == maxMode::MINIMIZE);
-    }
-    {
-        auto const p_test = this->clone<GGenome>();
-        for(std::uint32_t i = 1; i < 10; i++) {
-            CHECK_NOTHROW(p_test->setAssignedIteration(i));
-            CHECK(p_test->getAssignedIteration() == i);
-        }
-    }
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GGenome::specificTestsNoFailureExpected_GUnitTests", "GEM_TESTING");
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-
 /******************************************************************************/
 // ---- Processing, evaluation results, fitness and problem policy ----
 

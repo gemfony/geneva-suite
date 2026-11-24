@@ -51,6 +51,9 @@ SET ( ${EXECUTABLENAME}_SRCS
 	GLateReturnIntegrationTests.cpp
 	GFaultInjectorTests.cpp
 	GNeuralNetworkDataTests.cpp
+	GPersonalityTraitsTests.cpp
+	GSepCmaEvolutionStrategyTests.cpp
+	GTestIndividualsTests.cpp
 )
 
 ADD_EXECUTABLE(${EXECUTABLENAME}
@@ -65,7 +68,6 @@ SET(LIBRARIES_TO_LINK
 		${GENEVA_LIBRARIES}
 		${Boost_LIBRARIES}
 		Catch2::Catch2WithMain
-		gem-test-support
 		# These individuals are no longer compiled into the geneva library; the tests construct and serialize
 		# them directly, so they link the individuals' object libraries (which carry their GEM_REGISTER_ARCHIVABLE).
 		GLineFitIndividual-obj
@@ -74,7 +76,8 @@ SET(LIBRARIES_TO_LINK
 		GDelayIndividual-obj
 		GFunctionIndividual-obj
 		GMetaOptimizerIndividualT-obj
-		# GTestIndividual2/3 are packaged as object libraries (GTestIndividual1 stays in the GEM_TESTING library).
+		# The test individuals (libs/geneva/tests/individuals)
+		GTestIndividual1-obj
 		GTestIndividual2-obj
 		GTestIndividual3-obj)
 
@@ -86,7 +89,7 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 #
 # Deliberately broken modules, for the loader's negative paths. Each is a real shared object, built with
 # exactly the recipe a genuine module uses (GENEVA_ADD_INDIVIDUAL_MODULE: no Geneva libraries linked,
-# -UGEM_TESTING, pinned ABI flags), carrying one specific defect. The unit tests really dlopen them, so the
+# pinned ABI flags), carrying one specific defect. The unit tests really dlopen them, so the
 # rejection is proved through the whole loader path rather than against a hand-made in-process struct.
 # Their paths are handed to the test executable as compile definitions -- nothing has to be installed, and
 # the tests skip themselves if this wiring is ever dropped. The three consumer modules among them are

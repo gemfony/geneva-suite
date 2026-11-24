@@ -42,13 +42,6 @@
 #include <functional>
 #include <ranges>
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/matchers/catch_matchers.hpp>
-#include <catch2/matchers/catch_matchers_floating_point.hpp>
-#include <utility>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GStarterIndividual) // NOLINT
 namespace Gem::Geneva {
 
@@ -238,124 +231,16 @@ double GStarterIndividual::noisyParabola(const std::vector<double> &parVec) cons
 
 /******************************************************************************/
 /**
- * Applies modifications to this object. This function is only useful
- * if you wish to run unit tests with your individual.
+ * @brief Changes this individual for the standard tests: the genome's change (which random-initialises
+ * every parameter) and the target function, the one member this class adds.
  *
- * @return A boolean indicating whether
+ * @return Whether the individual was changed (always true)
  */
-bool GStarterIndividual::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    // Call the parent classes' functions
-    if(gen::GGenome::modify_GUnitTests_()) {
-        result = true;
-    }
-
-    // The parent's modify_GUnitTests_() already random-initialises every genome parameter, so the
-    // object is changed. The Gauss adaptor configuration is OA-owned and is not exercised here (the
-    // individual carries no adaptor data).
-    result = true;
-
-    // Let the audience know whether we have changed the content
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GStarterIndividual::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * Performs self tests that are expected to succeed. This function is only useful
- * if you wish to run unit tests with your individual.
- */
-void GStarterIndividual::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    using namespace Gem::Geneva;
-
-    // Call the parent classes' functions
-    gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-
-    //------------------------------------------------------------------------------
-
-    {
-        const std::size_t NENTRIES = 100;
-
-        // Check standard construction and that the genome is built with one parameter per start value
-        std::vector<double> startValues;
-        std::vector<double> lowerBoundaries;
-        std::vector<double> upperBoundaries;
-
-        for(std::size_t n = 0; n < NENTRIES; n++) {
-            startValues.push_back(1.);
-            lowerBoundaries.push_back(0.);
-            upperBoundaries.push_back(2.);
-        }
-
-        std::shared_ptr<GStarterIndividual> p_test;
-        CHECK_NOTHROW(
-            p_test = std::shared_ptr<GStarterIndividual>(new GStarterIndividual(
-                0 // indicates the first individual
-                ,
-                startValues,
-                lowerBoundaries,
-                upperBoundaries
-            ))
-        );
-
-        CHECK(p_test->countParameters<double>() == NENTRIES);
-    }
-
-    //------------------------------------------------------------------------------
-
-    { // Test setting and retrieval of the target function valie
-        auto p_test = this->clone<GStarterIndividual>();
-
-        CHECK_NOTHROW(p_test->setTargetFunction(targetFunction::PARABOLA));
-        CHECK(targetFunction::PARABOLA == p_test->getTargetFunction());
-
-        CHECK_NOTHROW(p_test->setTargetFunction(targetFunction::NOISYPARABOLA));
-        CHECK(targetFunction::NOISYPARABOLA == p_test->getTargetFunction());
-    }
-
-    //------------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GStarterIndividual::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * Performs self tests that are expected to fail. This function is only useful
- * if you wish to run unit tests with your individual.
- */
-void GStarterIndividual::specificTestsFailuresExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    using namespace Gem::Geneva;
-
-    //------------------------------------------------------------------------------
-
-    {
-        /* Nothing. Add test cases here that are expected to fail.
-			Enclose with a CHECK_THROWS_AS, using the expected
-			exception type as an additional argument. See the
-			Catch2 documentation for further information */
-    }
-
-    //------------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GStarterIndividual::specificTestsFailuresExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
+bool GStarterIndividual::modifyForTest() {
+    gen::GGenome::modifyForTest();
+    targetFunction_ = (targetFunction_ == targetFunction::PARABOLA) ? targetFunction::NOISYPARABOLA
+                                                                    : targetFunction::PARABOLA;
+    return true;
 }
 
 /******************************************************************************/

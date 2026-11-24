@@ -84,25 +84,13 @@ void GBasePluggableOM::informationFunction(
 
 /******************************************************************************/
 /**
- * @brief Applies modifications to this object. This is needed for testing purposes
+ * @brief Changes this monitor for the standard tests: whether it reports raw evaluations.
  *
- * @return A boolean which indicates whether modifications were made
+ * @return Whether the monitor was changed (always true)
  */
-bool GBasePluggableOM::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    // This is the category root; there is no modifiable parent class.
-
-    this->setUseRawEvaluation(!this->getUseRawEvaluation());
-    result = true;
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GBasePluggableOM", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
+bool GBasePluggableOM::modifyForTest() {
+    this->setUseRawEvaluation(not this->getUseRawEvaluation());
+    return true;
 }
 
 /******************************************************************************/
