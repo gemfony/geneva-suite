@@ -65,7 +65,7 @@ double minOnly_transformed_fitness(const gen::GGenome &item, std::size_t id = 0)
  * @brief Checks whether the first individual is better than the second.
  *
  * The comparison uses the main (first) fitness criterion via minOnly_transformed_fitness(); both
- * individuals are assumed to share the same maxMode (cross-checked in DEBUG builds).
+ * individuals must share the same maxMode (checked).
  */
 bool isBetter(
     const std::shared_ptr<gen::GGenome> &x_ptr,

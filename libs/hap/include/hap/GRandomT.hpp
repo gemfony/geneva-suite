@@ -46,6 +46,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GLogger.hpp"
 #include "hap/GQuarantineSource.hpp"
 #include "hap/GRandomBase.hpp"
@@ -259,7 +260,7 @@ private:
     /**
 	 * @brief (Re-)Initialization of the local random number container p_.
 	 *
-	 * Checks (in DEBUG builds) that a valid GRandomFactory still exists, then
+	 * Checks that a valid GRandomFactory still exists, then
 	 * retries getNewRandomContainer() on the factory until a valid container is
 	 * obtained (each factory call waits a bounded time for a container; see
 	 * GRandomFactory::getNewRandomContainer()).
@@ -268,17 +269,7 @@ private:
         // Make sure we get rid of the old container
         // p_.reset(); No longer needed with std::unique_ptr
 
-#ifdef DEBUG
-        if(not grf_) {
-            throw gem_exception(
-                g_error_streamer() << "No connection to GRandomFactory object." << '\n'
-            );
-        }
-#endif /* DEBUG */
-
-#ifdef DEBUG
-        std::uint32_t n_retries = 0;
-#endif /* DEBUG */
+        Gem::Common::checkThat(nullptr != grf_, "No connection to GRandomFactory object.");
 
         // Try until a valid container has been received. getNewRandomContainer() waits at most
         // DEFAULTFACTORYGETWAIT for a container (after the start of the producers, which the first call
@@ -300,17 +291,7 @@ private:
                     << "no further random-number containers will be produced." << '\n'
                 );
             }
-#ifdef DEBUG
-            n_retries++;
-#endif /* DEBUG */
         }
-
-#ifdef DEBUG
-        if(n_retries > 1) {
-            std::cout << "Info: Had to try " << n_retries
-                      << " times to retrieve a valid random number container." << '\n';
-        }
-#endif /* DEBUG */
     }
 
     /***************************************************************************/

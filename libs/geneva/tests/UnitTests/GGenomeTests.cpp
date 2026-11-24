@@ -763,6 +763,14 @@ TEST_CASE("GGenome: value round-trip (streamline / assignValueVector)", "[flat]"
 }
 
 /******************************************************************************/
+// The size check was compiled only in Debug builds; it now runs in every build.
+TEST_CASE("GGenome: assignValueVector with the wrong number of values throws", "[flat]") {
+    Sphere ind(4);
+    CHECK_THROWS_AS(ind.assignValueVector<double>(std::vector<double>{1., 2., 3.}), gem_exception);
+    CHECK_THROWS_AS(ind.assignValueVector<double>(std::vector<double>(5, 1.)), gem_exception);
+}
+
+/******************************************************************************/
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent property (the constrained-fold helpers map values into their range) exercised across many boundary/interior inputs in a tight data-driven loop; the length is input breadth, not branching complexity
 TEST_CASE("Constrained fold helpers map into range", "[flat]") {
     // FP: half-open [lo, hi)

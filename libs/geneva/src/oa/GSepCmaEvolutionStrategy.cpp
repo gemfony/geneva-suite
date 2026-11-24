@@ -447,7 +447,7 @@ void GSepCmaEvolutionStrategy::evaluatePopulation_() {
     auto status = this->workOnPopulation(0, this->size());
 
     // Drop items a partial or errored return left unusable.
-    this->discardUnusableItems_(status, "GSepCmaEvolutionStrategy::evaluatePopulation_()");
+    this->discardUnusableItems_(status);
 }
 
 /******************************************************************************/

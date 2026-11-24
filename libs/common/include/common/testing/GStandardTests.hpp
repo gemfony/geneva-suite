@@ -498,7 +498,7 @@ void StandardTests_no_failure_expected() { // NOLINT(readability-identifier-nami
 /******************************************************************************/
 /**
  * @brief The standard tests that should lead to a failure for every reflective value type. Most
- * notably, loading an object from itself throws in DEBUG mode.
+ * notably, loading an object from itself throws.
  *
  * @tparam T The tested type
  */
@@ -508,9 +508,7 @@ void StandardTests_failures_expected() { // NOLINT(readability-identifier-naming
 
     std::shared_ptr<T> const t_ptr = TFactory_GUnitTests<T>();
     REQUIRE(t_ptr);
-#ifdef DEBUG
     CHECK_THROWS_AS(t_ptr->load(t_ptr), gem_exception);
-#endif
 }
 
 /******************************************************************************/

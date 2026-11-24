@@ -50,6 +50,7 @@
 // Boost header files go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -574,7 +575,7 @@ public:
     /******************************************************************************/
     /**
      * This function converts an individual at a given position to the derived
-     * type and returns it. In DEBUG mode, the function will check whether the
+     * type and returns it. The function checks whether the
      * requested position exists.
      *
      * @tparam target_type The concrete individual type the entry should be converted to
@@ -583,14 +584,13 @@ public:
      */
     template <typename target_type>
     std::shared_ptr<target_type> individual_cast(std::size_t pos) const {
-#ifdef DEBUG
-        if(pos >= this->size()) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to access position " << pos
-                                   << " which is >= array size " << this->size() << '\n'
-            );
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            pos < this->size(),
+            "position ",
+            pos,
+            " >= population size ",
+            this->size()
+        );
 
         // The population owns each individual by unique_ptr. Callers (pluggable monitors) only read the
         // individual transiently, so hand back a NON-OWNING shared_ptr view (no-op deleter) of the live
@@ -725,13 +725,9 @@ protected:
     /**
      * @brief Applies the "tolerant" evaluation policy after a submission: erases the individuals a
      * partial or errored return left unusable (still due for processing, or error-flagged), so the
-     * population continues with evaluated individuals only. In DEBUG builds the number of erased
-     * individuals is logged. See requireCompleteEvaluation_().
+     * population continues with evaluated individuals only. See requireCompleteEvaluation_().
      */
-    void discardUnusableItems_(
-        const Gem::Courtier::submission_status_t &status,
-        const std::string &caller
-    );
+    void discardUnusableItems_(const Gem::Courtier::submission_status_t &status);
 
     /**
      * @brief Drains the consumer's late-return buffer and returns only the late returns that are SAFE

@@ -90,10 +90,6 @@ MACRO (
 		ENDIF()
 	ENDIF()
 
-	# CMake sets the variable 'NDEBUG' for Release modi, but Geneva uses
-	# '#ifdef DEBUG' for compiling debugging code...
-	SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -DDEBUG")
-
 	# The Sanitize option falls back to Debug on unsupported platforms
 	SET(CMAKE_CXX_FLAGS_SANITIZE ${CMAKE_CXX_FLAGS_DEBUG} CACHE
 	    STRING "Flags used by the C++ compiler during sanitize builds" FORCE)

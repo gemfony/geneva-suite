@@ -54,6 +54,7 @@
 
 // Geneva headers go here
 
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
@@ -183,21 +184,14 @@ public:
     /**
 	  * @brief Returns the next random number from the package.
 	  *
-	  * Advances the internal read position. In DEBUG builds an exhausted
-	  * container throws; in release builds the caller must ensure the container
-	  * is not empty() beforehand.
+	  * Advances the internal read position. The caller ensures the container is
+	  * not empty() beforehand; only a build without NDEBUG checks it (this runs once
+	  * per random number, so the check is a GEM_DEBUG_CHECK).
 	  *
 	  * @return The next raw random value, then increments the read position
 	  */
     G_CPU_BASE_GENERATOR::result_type next() {
-#ifdef DEBUG
-        if(empty()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Invalid current_pos_: " << current_pos_ << " / " << DEFAULTARRAYSIZE << '\n'
-            );
-        }
-#endif
+        GEM_DEBUG_CHECK(not empty(), "next() on an exhausted container of ", DEFAULTARRAYSIZE);
 
         return r_[current_pos_++];
     }

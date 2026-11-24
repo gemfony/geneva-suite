@@ -195,3 +195,17 @@ TEST_CASE(
     CHECK_FALSE(hit_on_error);
     CHECK(bad.getProcessingStatus() == processingStatus::ERROR_FLAGGED);
 }
+
+/******************************************************************************/
+// The size check of markAsProcessedWith() was compiled only in Debug builds; it now runs in every
+// build, so a result vector of the wrong size can no longer be stored unnoticed.
+TEST_CASE(
+    "GProcessingContainerT::markAsProcessedWith(): a result vector of the wrong size throws",
+    "[proc][status]"
+) {
+    StatusProbeContainer c(StatusProbeContainer::Mode::SUCCEED);
+    CHECK_THROWS_AS(c.markAsProcessedWith({1., 2.}), gem_exception);
+    CHECK(c.is_due_for_processing());
+    CHECK_NOTHROW(c.markAsProcessedWith({3.}));
+    CHECK(c.is_processed());
+}

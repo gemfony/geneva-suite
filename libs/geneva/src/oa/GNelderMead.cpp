@@ -34,6 +34,7 @@
 #include <cmath>
 #include <limits>
 
+#include "common/GChecks.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -56,6 +57,8 @@
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GNelderMead) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 /**
@@ -817,14 +820,13 @@ void GNelderMead::adjustPopulation_() {
         }
     }
 
-#ifdef DEBUG
-    if(this->size() != total_size) {
-        throw gem_exception(
-            g_error_streamer() << "Population size is " << this->size() << '\n'
-                               << "but expected " << total_size << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        this->size() == total_size,
+        "population size ",
+        this->size(),
+        ", expected ",
+        total_size
+    );
 }
 
 /******************************************************************************/

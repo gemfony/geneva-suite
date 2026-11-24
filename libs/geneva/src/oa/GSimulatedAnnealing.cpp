@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/oa/GSimulatedAnnealing.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -63,6 +64,8 @@ GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GSimulatedAnnealing
 /******************************************************************************/
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,20 +220,20 @@ void GSimulatedAnnealing::evaluatePopulation_() {
     // to be worked on
     std::tuple<std::size_t, std::size_t> range = getEvaluationRange_();
 
-#ifdef DEBUG
     // There should be no situation in which a "clean" child is submitted
     // through this function. There MAY be situations, where in the first iteration
     // parents are clean, e.g. when they were extracted from another optimization.
-    for(std::size_t i = this->getNParents(); i < this->size(); i++) {
-        if(not this->at(i)->is_due_for_processing()) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to evaluate children in range " << std::get<0>(range)
-                                   << " - " << std::get<1>(range) << '\n'
-                                   << "but found \"clean\" individual in position " << i << '\n'
-            );
-        }
-    }
-#endif
+    GEM_DEBUG_CHECK(
+        std::ranges::all_of(
+            *this | std::views::drop(this->getNParents()),
+            [](auto const &ind_ptr) { return ind_ptr->is_due_for_processing(); }
+        ),
+        "a child in range ",
+        std::get<0>(range),
+        " - ",
+        std::get<1>(range),
+        " is not due for processing"
+    );
 
     //--------------------------------------------------------------------------------
     // Submit the [start, end) evaluation range and wait for results. courtier marks the span
@@ -239,7 +242,7 @@ void GSimulatedAnnealing::evaluatePopulation_() {
 
     //--------------------------------------------------------------------------------
     // Take care of unprocessed items, if these exist. We simply remove them and continue.
-    this->discardUnusableItems_(status, "GSimulatedAnnealing::evaluatePopulation_()");
+    this->discardUnusableItems_(status);
 
     //--------------------------------------------------------------------------------
     // Now fix the population -- it may be smaller than its nominal size
@@ -257,16 +260,15 @@ void GSimulatedAnnealing::selectBest_() {
     // Let parents know they are parents
     this->markParents();
 
-#ifdef DEBUG
     // Make sure our population is not smaller than its nominal size -- this
     // should have been taken care of in fixAfterJobSubmission() .
-    if(this->size() < this->getDefaultPopulationSize()) {
-        throw gem_exception(
-            g_error_streamer() << "Size of population is smaller than expected: " << this->size()
-                               << " / " << this->getDefaultPopulationSize() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        this->size() >= this->getDefaultPopulationSize(),
+        "population size ",
+        this->size(),
+        " is smaller than ",
+        this->getDefaultPopulationSize()
+    );
 
     ////////////////////////////////////////////////////////////
     // At this point we have a sorted list of individuals and can take care of

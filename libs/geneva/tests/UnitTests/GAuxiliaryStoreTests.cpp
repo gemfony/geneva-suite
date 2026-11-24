@@ -33,6 +33,7 @@
 #include <memory>
 
 #include "GTestIndividual3.hpp"
+#include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "courtier/GWireSerializationContext.hpp" // the wire scope + layout registry (scratch omission)
 #include "geneva/genome/GAuxiliaryStore.hpp"
@@ -84,6 +85,18 @@ TEST_CASE(
     // clearScratch drops the blocks
     s.clearScratch();
     CHECK_FALSE(s.hasAux(KEY));
+}
+
+/******************************************************************************/
+// The lookup of a POD block was checked only in Debug builds; a release build dereferenced the end
+// iterator for a missing key. Both checks now run in every build.
+TEST_CASE("GAuxiliaryStore POD blocks: a missing key or another POD type throws", "[aux]") {
+    GAuxiliaryStore s;
+    CHECK_THROWS_AS(s.metaRecords<AuxGaussRecord>(KEY), gem_exception);
+
+    s.installAuxBlock<AuxGaussRecord>(KEY, 3);
+    CHECK_NOTHROW(s.metaRecords<AuxGaussRecord>(KEY));
+    CHECK_THROWS_AS(s.metaRecords<std::uint8_t>(KEY), gem_exception);
 }
 
 /******************************************************************************/

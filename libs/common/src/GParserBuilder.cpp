@@ -49,6 +49,7 @@
 #include <vector>
 
 // Other Geneva headers whose symbols are used directly
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
@@ -260,18 +261,7 @@ GParsableI &GParsableI::operator<<(std::ios_base &(*val)(std::ios_base &)) {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<(commentLevel const &cl) {
-#ifdef DEBUG
-    if(comment_.empty()) {
-        throw gem_exception(g_error_streamer() << "No comments in vector" << '\n');
-    }
-
-    if(comment_.size() <= cl.getCommentLevel()) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid comment level " << cl.getCommentLevel()
-                               << " requested, where the maximum is " << comment_.size() - 1 << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(cl.getCommentLevel() < comment_.size(), "no comment at level ", cl.getCommentLevel());
 
     cl_ = cl.getCommentLevel();
     return *this;
@@ -288,18 +278,7 @@ GParsableI &GParsableI::operator<<(commentLevel const &cl) {
  * @return A reference to this object (to allow chaining)
  */
 GParsableI &GParsableI::operator<<([[maybe_unused]] nextComment const &nc) {
-#ifdef DEBUG
-    if(comment_.empty()) {
-        throw gem_exception(g_error_streamer() << "No comments in vector" << '\n');
-    }
-
-    if(comment_.size() <= (cl_ + 1)) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid comment level " << cl_ + 1
-                               << " requested, where the maximum is " << comment_.size() - 1 << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(cl_ + 1 < comment_.size(), "no comment at level ", cl_ + 1);
 
     // Increment the comment level
     cl_++;
@@ -1125,9 +1104,7 @@ GCLParsableI &GParserBuilder::registerCLFlag(
     bool &flag,
     std::string const &comment
 ) {
-#ifdef DEBUG
-    assertNotRegistered_(option_name, cl_parameter_proxies_, "registerCLFlag()");
-#endif /* DEBUG */
+    checkNotRegistered_(option_name, cl_parameter_proxies_);
     return addCLProxy_(std::make_shared<GCLSemanticParsableParameter>(
         option_name,
         comment,

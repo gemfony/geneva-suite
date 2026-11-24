@@ -51,6 +51,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
@@ -457,16 +458,12 @@ auto getMinMax(const std::vector<std::tuple<tuple_element_type...>> &ext_dat) {
  * @brief Calculates the mean value from a std::vector of (floating point) values.
  *
  * @tparam T The element type; must support addition and division by a scalar
- * @param par_vec The vector of values for which the mean should be calculated (must be non-empty in DEBUG)
+ * @param par_vec The vector of values for which the mean should be calculated (must be non-empty)
  * @return The arithmetic mean of the values stored in par_vec
  */
 template <typename T>
 T GMean(const std::vector<T> &par_vec) {
-#ifdef DEBUG
-    if(par_vec.empty()) {
-        throw gem_exception(g_error_streamer() << "par_vec has size 0" << '\n');
-    }
-#endif /* DEBUG */
+    checkThat(not par_vec.empty(), "par_vec has size 0");
 
     T mean = T(0);
     for(const auto &v : par_vec) {
@@ -488,7 +485,7 @@ T GMean(const std::vector<T> &par_vec) {
  */
 template <typename T>
 auto GStandardDeviation(const std::vector<T> &par_vec) {
-    // GMean will throw in DEBUG mode if par_vec is empty
+    // GMean throws if par_vec is empty
     T mean = GMean(par_vec);
     T sigma = T(0);
 
@@ -535,7 +532,7 @@ constexpr std::size_t PowSmallPosInt() {
  * @brief Subtracts the second vector from the first, element by element, in place.
  *
  * Note that we assume here that T understands operator- . After this function has been
- * called, @p a will have changed. In DEBUG mode a size mismatch throws.
+ * called, @p a will have changed. A size mismatch throws.
  *
  * @tparam T The element type; must support binary subtraction
  * @param a The vector from whose elements numbers will be subtracted (modified in place)
@@ -543,13 +540,7 @@ constexpr std::size_t PowSmallPosInt() {
  */
 template <typename T>
 void subtractVec(std::vector<T> &a, const std::vector<T> &b) {
-#ifdef DEBUG
-    if(a.size() != b.size()) {
-        throw gem_exception(
-            g_error_streamer() << "Found invalid sizes: " << a.size() << " / " << b.size() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(a.size() == b.size(), "Found invalid sizes: ", a.size(), " / ", b.size());
 
     std::transform(a.begin(), a.end(), b.begin(), a.begin(), [](const T &x, const T &y) {
         return x - y;
@@ -561,7 +552,7 @@ void subtractVec(std::vector<T> &a, const std::vector<T> &b) {
  * @brief Adds the second vector to the first, element by element, in place.
  *
  * Note that we assume here that T understands operator+ . After this function has been
- * called, @p a will have changed. In DEBUG mode a size mismatch throws.
+ * called, @p a will have changed. A size mismatch throws.
  *
  * @tparam T The element type; must support binary addition
  * @param a The vector to whose elements numbers will be added (modified in place)
@@ -569,13 +560,7 @@ void subtractVec(std::vector<T> &a, const std::vector<T> &b) {
  */
 template <typename T>
 void addVec(std::vector<T> &a, const std::vector<T> &b) {
-#ifdef DEBUG
-    if(a.size() != b.size()) {
-        throw gem_exception(
-            g_error_streamer() << "Found invalid sizes: " << a.size() << " / " << b.size() << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(a.size() == b.size(), "Found invalid sizes: ", a.size(), " / ", b.size());
 
     std::transform(a.begin(), a.end(), b.begin(), a.begin(), [](const T &x, const T &y) {
         return x + y;
@@ -850,7 +835,7 @@ bool isClose(fp_type val, fp_type target = 0, fp_type margin = static_cast<fp_ty
  *   f(var) = barrier * var / (steepness + |var|)
  * which maps ℝ → (-barrier, +barrier) antisymmetrically and approaches its
  * asymptotes polynomially (not exponentially). Uses long double internally
- * for precision near the barrier. Precondition: steepness > 0 (checked in DEBUG).
+ * for precision near the barrier. Precondition: steepness > 0 (checked).
  *
  * @tparam fp_type The floating point type of the argument and result
  * @param var       Input value
@@ -860,14 +845,7 @@ bool isClose(fp_type val, fp_type target = 0, fp_type margin = static_cast<fp_ty
  */
 template <std::floating_point fp_type>
 fp_type grational_sigmoid(fp_type var, fp_type barrier, fp_type steepness) {
-#ifdef DEBUG
-    if(steepness <= fp_type(0)) {
-        throw gem_exception(
-            g_error_streamer() << "grational_sigmoid(): steepness must be > 0, got " << steepness
-                               << '\n'
-        );
-    }
-#endif
+    checkThat(steepness > fp_type(0), "steepness must be > 0, got ", steepness);
     const auto lvar = static_cast<long double>(var);
     const auto lbarrier = static_cast<long double>(barrier);
     const auto lsteepness = static_cast<long double>(steepness);

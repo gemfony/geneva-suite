@@ -157,6 +157,14 @@ TEST_CASE(
     CHECK(v.size() <= 1u); // boost::split semantics differ across versions
 }
 
+TEST_CASE(
+    "splitString: a separator of more than one character throws",
+    "[common][helper-nonT][split]"
+) {
+    CHECK_THROWS_AS(splitString("a,b", ",;"), gem_exception);
+    CHECK_THROWS_AS(splitString("a,b", ""), gem_exception);
+}
+
 TEST_CASE("stringToUIntVec: parses comma-separated unsigned ints", "[common][helper-nonT][split]") {
     auto v = stringToUIntVec("1,2,3,4", ',');
     REQUIRE(v.size() == 4);

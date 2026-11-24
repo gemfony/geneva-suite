@@ -233,12 +233,12 @@ CheckOptions:
   # be avoided at all costs" and "defines may not be used for specific
   # values". cppcoreguidelines-macro-usage flags both.
   # Allowed: G_API_* visibility macros, GEM_* build guards, G_DEPRECATED,
-  # GSQUARED utility macro, GEM_* config macros, the geneva library's GENEVA_*
-  # macros and DEBUG.
+  # GSQUARED utility macro, GEM_* config macros, GEM_DEBUG_CHECK (only a macro
+  # can leave its condition unevaluated) and the geneva library's GENEVA_* macros.
   # Also allowed (cannot be constexpr): LOGEXIT captures the source location
   # at the exit site; MIN_BOOST_VERSION is a
   # preprocessor version gate that must be a #define (used in #if).
-  cppcoreguidelines-macro-usage.AllowedRegexp: '^(DEBUG|G_.*|GEM_.*|GENEVA_.*|GSQUARED|LOGEXIT|MIN_BOOST_VERSION)$'
+  cppcoreguidelines-macro-usage.AllowedRegexp: '^(G_.*|GEM_.*|GENEVA_.*|GSQUARED|LOGEXIT|MIN_BOOST_VERSION)$'
 
   # Performance.
   performance-for-range-copy.WarnOnAllAutoCopies: 'true'

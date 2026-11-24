@@ -139,6 +139,21 @@ TEST_CASE("GParserBuilder: fresh instance reports zero options", "[common][parse
     CHECK(gpb.numberOfCLOptions() == 0);
 }
 
+TEST_CASE("GParserBuilder: an option registered twice throws", "[common][parser-builder]") {
+    GParserBuilder gpb;
+    int answer = 0;
+    bool flag = false;
+    gpb.registerFileParameter<int>("answer", answer, 42, VAR_IS_ESSENTIAL);
+    CHECK_THROWS_AS(
+        gpb.registerFileParameter<int>("answer", answer, 43, VAR_IS_ESSENTIAL),
+        gem_exception
+    );
+    gpb.registerCLFlag("flag", flag, "a flag");
+    CHECK_THROWS_AS(gpb.registerCLFlag("flag", flag, "the same flag"), gem_exception);
+    CHECK(gpb.numberOfFileOptions() == 1);
+    CHECK(gpb.numberOfCLOptions() == 1);
+}
+
 // ---------------------------------------------------------------------------
 // registerFileParameter (reference form): default value applied when missing.
 

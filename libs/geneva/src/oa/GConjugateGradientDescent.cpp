@@ -36,6 +36,7 @@
 #include <ostream>
 #include <sstream>
 
+#include "common/GChecks.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
@@ -61,6 +62,8 @@
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GConjugateGradientDescent) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 /**
@@ -465,14 +468,12 @@ void GConjugateGradientDescent::updateParentIndividuals() {
         std::vector<double> parm_vec;
         this->at(i)->streamlineFPInternal(parm_vec, activityMode::ACTIVEONLY);
 
-#ifdef DEBUG
-        if(this->at(i)->is_due_for_processing() || (this->at(i)->has_errors())) {
-            throw gem_exception(
-                g_error_streamer() << "Found individual in position " << i
-                                   << " which is unprocessed or has errors" << '\n'
-            );
-        }
-#endif /* DEBUG */
+        checkThat(
+            not this->at(i)->is_due_for_processing() && not this->at(i)->has_errors(),
+            "individual ",
+            i,
+            " is unprocessed or has errors"
+        );
 
         const double parent_fitness = minOnly_transformed_fitness((*this->at(i)));
 
@@ -994,16 +995,11 @@ void GConjugateGradientDescent::addConfigurationOptions_(Gem::Common::GParserBui
 void GConjugateGradientDescent::evaluatePopulation_() {
     using namespace Gem::Courtier;
 
-#ifdef DEBUG
-    for(auto const &[pos, item_ptr] : *this | std::views::enumerate) {
-        if(this->afterFirstIteration() && !item_ptr->is_due_for_processing()) {
-            throw gem_exception(
-                g_error_streamer() << "Found individual on position " << pos
-                                   << " which is not due for processing" << '\n'
-            );
-        }
-    }
-#endif /* DEBUG */
+    GEM_DEBUG_CHECK(
+        not this->afterFirstIteration() ||
+            std::ranges::all_of(*this, [](auto const &p) { return p->is_due_for_processing(); }),
+        "an individual is not due for processing"
+    );
 
     auto status = this->workOnPopulation(0, this->data_cnt_.size());
 
@@ -1022,21 +1018,18 @@ void GConjugateGradientDescent::init() {
     // To be performed before any other action
     GOptimizationAlgorithmBase::init();
 
-#ifdef DEBUG
-    if(step_size_ <= 0. || step_size_ > 1000.) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid value of step_size_: " << step_size_ << '\n'
-                               << "Must be in the range ]0.:1000.]" << '\n'
-        );
-    }
-
-    if(finite_step_ <= 0. || finite_step_ > 1000.) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid value of finite_step_: " << finite_step_ << '\n'
-                               << "Must be in the range ]0.:1000.]" << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        step_size_ > 0. && step_size_ <= 1000.,
+        "step_size_ ",
+        step_size_,
+        " is outside ]0:1000]"
+    );
+    checkThat(
+        finite_step_ > 0. && finite_step_ <= 1000.,
+        "finite_step_ ",
+        finite_step_,
+        " is outside ]0:1000]"
+    );
 
     updateDerivedQuantities();
     resetCGState();
@@ -1217,19 +1210,15 @@ void GConjugateGradientDescent::adjustPopulation_() {
     n_fp_parms_first_ = this->requireFloatingPointGenome_("GConjugateGradientDescent");
     const std::size_t n_start = this->size();
 
-#ifdef DEBUG
-    for(std::size_t i = 1; i < this->size(); i++) {
-        if(this->at(i)->countFPParameters(activityMode::ACTIVEONLY) != n_fp_parms_first_) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Found individual in position " << i << " with different" << '\n'
-                << "number of floating point parameters than the first one: "
-                << this->at(i)->countFPParameters(activityMode::ACTIVEONLY) << "/"
-                << n_fp_parms_first_ << '\n'
-            );
-        }
-    }
-#endif
+    GEM_DEBUG_CHECK(
+        std::ranges::all_of(
+            *this,
+            [this](auto const &p) {
+                return p->countFPParameters(activityMode::ACTIVEONLY) == n_fp_parms_first_;
+            }
+        ),
+        "an individual has another number of floating point parameters than the first one"
+    );
 
     // Each starting point needs one perturbed child per probe per direction: 1 (forward difference) or
     // 2 (central difference, forward + backward) probes. Population = starting points + their children.
@@ -1256,15 +1245,13 @@ void GConjugateGradientDescent::adjustPopulation_() {
         }
     }
 
-#ifdef DEBUG
-    if(this->size() != n_starting_points_ * (children_per_sp + 1)) {
-        throw gem_exception(
-            g_error_streamer() << "Population size is " << this->size() << '\n'
-                               << "but expected " << n_starting_points_ * (children_per_sp + 1)
-                               << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        this->size() == n_starting_points_ * (children_per_sp + 1),
+        "population size ",
+        this->size(),
+        ", expected ",
+        n_starting_points_ * (children_per_sp + 1)
+    );
 }
 
 /******************************************************************************/

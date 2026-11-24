@@ -29,6 +29,7 @@
 
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
@@ -68,6 +69,8 @@
 /******************************************************************************/
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -1377,14 +1380,7 @@ void GOptimizationAlgorithmBase::updateGlobalBestsPQ_(
 ) {
     constexpr bool donotreplace = false;
 
-#ifdef DEBUG
-    if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer()
-            << "Tried to retrieve the best individuals even though the population is empty." << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(not this->empty(), "Tried to retrieve the best individuals of an empty population");
 
     // We simply offer all individuals to the archive -- it admits only the processed ones, keeps only
     // the best, and holds independent copies, so a later generation cannot mutate what was recorded.
@@ -1406,14 +1402,7 @@ void GOptimizationAlgorithmBase::updateIterationBestsPQ_(
 ) {
     constexpr bool replace = true;
 
-#ifdef DEBUG
-    if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer()
-            << "Tried to retrieve the best individuals even though the population is empty." << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(not this->empty(), "Tried to retrieve the best individuals of an empty population");
 
     // We simply offer all individuals to the archive. They will automatically be sorted.
     best_individuals.addClone(this->data_cnt_, replace);
@@ -1526,36 +1515,18 @@ void GOptimizationAlgorithmBase::requireCompleteEvaluation_(
  * erased from the population.
  *
  * @param status The executor status returned by the submission
- * @param caller The calling function's name, used in the DEBUG log lines
  */
 void GOptimizationAlgorithmBase::discardUnusableItems_(
-    const Gem::Courtier::submission_status_t &status,
-    [[maybe_unused]] const std::string &caller
+    const Gem::Courtier::submission_status_t &status
 ) {
     if(not status.is_complete) {
-        [[maybe_unused]] const std::size_t n_erased =
-            std::erase_if(data_cnt_, [](const std::unique_ptr<gen::GGenome> &p) -> bool {
-                return (p->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS);
-            });
-
-#ifdef DEBUG
-        glogger << "In " << caller << ": " << '\n'
-                << "Removed " << n_erased << " unprocessed work items in iteration "
-                << this->getIteration() << '\n'
-                << GLOGGING;
-#endif
+        std::erase_if(data_cnt_, [](const std::unique_ptr<gen::GGenome> &p) -> bool {
+            return (p->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS);
+        });
     }
 
     if(status.has_errors) {
-        [[maybe_unused]] const std::size_t n_erased =
-            std::erase_if(data_cnt_, [](const auto &p) -> bool { return p->has_errors(); });
-
-#ifdef DEBUG
-        glogger << "In " << caller << ": " << '\n'
-                << "Removed " << n_erased << " erroneous work items in iteration "
-                << this->getIteration() << '\n'
-                << GLOGGING;
-#endif
+        std::erase_if(data_cnt_, [](const auto &p) -> bool { return p->has_errors(); });
     }
 }
 

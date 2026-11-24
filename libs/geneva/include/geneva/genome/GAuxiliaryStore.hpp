@@ -47,6 +47,7 @@
 
 // Geneva headers go here
 #include "common/GArchiveNamed.hpp" // archive_named / archive_named_binary (named member / base emitters)
+#include "common/GChecks.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GMemberReflectionT.hpp" // make_member / serialize_members / g_load_members
 #include "geneva/GPersonalityTraits.hpp"
@@ -353,7 +354,7 @@ private:
 
     /***************************************************************************/
     /**
-     * @brief Looks up a POD block, sanity-checking its stride and type tag in DEBUG mode. The explicit
+     * @brief Looks up a POD block, checking that it exists and its stride and type tag. The explicit
      * object parameter lets the store's constness flow to the returned block reference.
      *
      * @param key The key identifying the auxiliary POD block
@@ -362,47 +363,23 @@ private:
      * @return A reference to the matching auxiliary block (const iff *this is const)
      */
     template <typename self_type>
-    auto &fetch(
-        this self_type &&self,
-        AuxKey key,
-        [[maybe_unused]] std::size_t pod_size,
-        [[maybe_unused]] std::uint32_t pod_tag
-    ) {
+    auto &fetch(this self_type &&self, AuxKey key, std::size_t pod_size, std::uint32_t pod_tag) {
         auto it = self.pods_.find(key);
-#ifdef DEBUG
-        self.verify(it != self.pods_.end(), key, pod_size, pod_tag, it);
-#endif
-        return it->second;
-    }
-#ifdef DEBUG
-    /**
-     * @brief Throws if a fetched POD block is absent or its stride / type tag disagrees with the caller's POD type
-     *
-     * @tparam it_type The map iterator type pointing at the looked-up block
-     * @param found Whether the lookup found a block under the key
-     * @param key The key that was looked up (for the error message)
-     * @param pod_size The expected record stride (sizeof of the caller's POD type)
-     * @param pod_tag The expected type tag of the caller's POD type (0 on a deserialised block is treated as type-unchecked)
-     * @param it An iterator to the looked-up block (valid only when found is true)
-     */
-    template <typename it_type>
-    void
-    verify(bool found, AuxKey key, std::size_t pod_size, std::uint32_t pod_tag, it_type it) const {
-        if(not found) {
-            throw gem_exception(g_error_streamer() << "no aux block under key " << key << '\n');
-        }
+        Gem::Common::checkThat(it != self.pods_.end(), "no aux block under key ", key);
         // The stride (== sizeof(POD)) is always checked; the type tag is only checked when present (a
         // deserialised block has tag 0, see AuxBlock::serialize -- the per-process typeid hash cannot be
         // compared across a checkpoint, so it is treated as "type-unchecked").
-        if(it->second.stride != pod_size || (it->second.tag != 0 && it->second.tag != pod_tag)) {
-            throw gem_exception(
-                g_error_streamer()
-                << "POD type mismatch for key " << key << '\n'
-                << "stride " << it->second.stride << " vs sizeof " << pod_size << '\n'
-            );
-        }
+        Gem::Common::checkThat(
+            it->second.stride == pod_size && (it->second.tag == 0 || it->second.tag == pod_tag),
+            "POD type mismatch for key ",
+            key,
+            ": stride ",
+            it->second.stride,
+            " vs sizeof ",
+            pod_size
+        );
+        return it->second;
     }
-#endif
 
     /***************************************************************************/
     // Data

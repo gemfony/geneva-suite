@@ -48,6 +48,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
@@ -278,13 +279,10 @@ public:
      * @param n_runs_per_optimization The number of optimization runs per sub-optimization (must be > 0)
      */
     void setNRunsPerOptimization(std::size_t n_runs_per_optimization) {
-#ifdef DEBUG
-        if(0 == n_runs_per_optimization) {
-            throw gem_exception(
-                g_error_streamer() << "Requested number of sub-optimizations is 0" << '\n'
-            );
-        }
-#endif
+        Gem::Common::checkThat(
+            0 != n_runs_per_optimization,
+            "Requested number of sub-optimizations is 0"
+        );
 
         n_runs_per_optimization_ = n_runs_per_optimization;
     }

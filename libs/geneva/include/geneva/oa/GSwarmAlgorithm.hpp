@@ -39,6 +39,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GExceptions.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -270,15 +271,13 @@ public:
     template <typename individual_type>
         requires std::derived_from<individual_type, gen::GGenome>
     std::unique_ptr<individual_type> getBestNeighborhoodIndividual(std::size_t neighborhood) {
-#ifdef DEBUG
-        // Check that the neighborhood is in a valid range
-        if(neighborhood >= n_neighborhoods_) {
-            throw gem_exception(
-                g_error_streamer() << "Requested neighborhood which does not exist: "
-                                   << neighborhood << " / " << n_neighborhoods_ << '\n'
-            );
-        }
-#endif /* DEBUG */
+        Gem::Common::checkThat(
+            neighborhood < n_neighborhoods_,
+            "no neighborhood ",
+            neighborhood,
+            " among ",
+            n_neighborhoods_
+        );
 
         // clone<>() deep-copies and checks the conversion internally (throws on a type mismatch)
         return neighborhood_bests_cnt_[neighborhood]->template clone<individual_type>();

@@ -49,6 +49,7 @@
 
 // Geneva headers go here
 #include "common/GArchiveNamed.hpp" // archive_named (named-member emitter)
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -1544,15 +1545,7 @@ public:
         requires HasRandomAccess<ContainerType>
     {
         std::size_t const min_size = std::min(this->size(), cp.size());
-
-#ifdef DEBUG
-        if(pos >= min_size) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Invalid position " << pos << " / " << this->size() << " / " << cp.size() << '\n'
-            );
-        }
-#endif /* DEBUG */
+        checkThat(pos < min_size, "Invalid position ", pos, " / ", this->size(), " / ", cp.size());
 
         for(std::size_t i = pos; i < min_size; ++i) {
             std::swap(data_cnt_[i], cp.data_cnt_[i]);

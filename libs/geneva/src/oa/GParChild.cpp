@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/oa/GParChild.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -52,6 +53,8 @@
 #include <vector>
 
 namespace Gem::Geneva::OptimizationAlgorithms {
+
+using Gem::Common::checkThat;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,14 +158,13 @@ std::size_t GParChild::getDefaultNChildren() const {
 std::size_t GParChild::getNProcessableItems_() const {
     std::tuple<std::size_t, std::size_t> range = this->getEvaluationRange_();
 
-#ifdef DEBUG
-    if(std::get<1>(range) <= std::get<0>(range)) {
-        throw gem_exception(
-            g_error_streamer() << "Upper boundary of range <= lower boundary: "
-                               << std::get<1>(range) << "/" << std::get<0>(range) << '\n'
-        );
-    }
-#endif /* DEBUG */
+    checkThat(
+        std::get<0>(range) < std::get<1>(range),
+        "empty evaluation range ",
+        std::get<0>(range),
+        " - ",
+        std::get<1>(range)
+    );
 
     return std::get<1>(range) - std::get<0>(range);
 }
@@ -726,24 +728,22 @@ std::string GParChild::name_() const {
  * @brief This function is called from GOptimizationAlgorithmBase::optimize() and performs the
  * actual recombination, based on the recombination schemes defined by the user.
  *
- * Note that, in DEBUG mode, this implementation will enforce a minimum number of children,
+ * Note that this implementation will enforce a minimum number of children,
  * as implied by the initial sizes of the population and the number of parents
  * present. If individuals can get lost in your setting, you must add mechanisms
  * to "repair" the population.
  */
 void GParChild::recombine() {
-#ifdef DEBUG
     // We require at this stage that at least the default number of
     // children is present. If individuals can get lost in your setting,
     // you must add mechanisms to "repair" the population.
-    if((this->size() - n_parents_) < default_n_children_) {
-        throw gem_exception(
-            g_error_streamer() << "Too few children. Got " << this->size() - n_parents_ << ","
-                               << '\n'
-                               << "but was expecting at least " << default_n_children_ << '\n'
-        );
-    }
-#endif
+    checkThat(
+        this->size() - n_parents_ >= default_n_children_,
+        "Too few children: ",
+        this->size() - n_parents_,
+        " < ",
+        default_n_children_
+    );
 
     // Do the actual recombination
     doRecombine();
@@ -814,15 +814,7 @@ std::tuple<double, double> GParChild::cycleLogic_() {
     // find out the best individuals of the population
     selectBest_();
 
-#ifdef DEBUG
-    // The dirty flag of this individual shouldn't be set
-    if(not this->at(0)->is_processed()) {
-        throw gem_exception(
-            g_error_streamer() << "Expected clean individual in best position" << '\n'
-        );
-    }
-
-#endif /* DEBUG */
+    checkThat(this->at(0)->is_processed(), "Expected a processed individual in the best position");
 
     // Return the primary fitness of the best individual in the collection
     return this->at(0)->getFitnessTuple();

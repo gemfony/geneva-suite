@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/GenevaHelperFunctions.hpp"
+#include "common/GChecks.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "geneva/GOptimizationEnums.hpp"
@@ -78,7 +79,7 @@ double minOnly_transformed_fitness(
  * @brief Checks whether the first individual is better than the second.
  *
  * The comparison is done with the first (main) fitness criterion via minOnly_transformed_fitness().
- * In a DEBUG build both items are cross-checked to share the same maxMode.
+ * Both items are checked to share the same maxMode.
  *
  * @param x_ptr The work item tested for being the better one
  * @param y_ptr The work item it is compared against
@@ -88,18 +89,13 @@ bool isBetter(
     const std::shared_ptr<gen::GGenome> &x_ptr,
     const std::shared_ptr<gen::GGenome> &y_ptr
 ) {
-#ifdef DEBUG
-    const auto x_mode = x_ptr->getMaxMode();
-    const auto y_mode = y_ptr->getMaxMode();
-    // Cross-check that both work items have the same maxMode
-    if(x_mode != y_mode) {
-        // Throw an exception
-        throw gem_exception(
-            g_error_streamer() << "Got different maxMode-settings: " << x_mode << " / " << y_mode
-                               << '\n'
-        );
-    }
-#endif
+    Gem::Common::checkThat(
+        x_ptr->getMaxMode() == y_ptr->getMaxMode(),
+        "Got different maxMode-settings: ",
+        x_ptr->getMaxMode(),
+        " / ",
+        y_ptr->getMaxMode()
+    );
 
     // We assume that both items have the same maxMode and simply compare the "minOnly-Fitness"
     return minOnly_transformed_fitness(*x_ptr) < minOnly_transformed_fitness(*y_ptr);

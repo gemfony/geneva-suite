@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "GTestIndividual3.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
@@ -141,14 +142,13 @@ std::shared_ptr<float[]> GTestIndividual3::getPlainData() const {
     std::vector<double> par_vec;
     this->streamline<double>(par_vec);
 
-#ifdef DEBUG
-    if(par_vec.size() != 10 * GTI_DEF_NITEMS) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid number of double parameters " << par_vec.size() << " / "
-                               << (10 * GTI_DEF_NITEMS) << '\n'
-        );
-    }
-#endif /* DEBUG */
+    Gem::Common::checkThat(
+        par_vec.size() == 10 * GTI_DEF_NITEMS,
+        "Invalid number of double parameters ",
+        par_vec.size(),
+        " / ",
+        10 * GTI_DEF_NITEMS
+    );
 
     // The array-aware shared_ptr<float[]> uses delete[] by itself -- no custom deleter needed
     std::shared_ptr<float[]> result(new float[10 * GTI_DEF_NITEMS]);

@@ -184,8 +184,8 @@ public:
     /***************************************************************************/
     /**
 	  * Triggers the creation of objects of the desired type and converts them
-	  * to a given target type. Throws if production yields nothing; in DEBUG
-	  * builds also if the conversion is unsuccessful.
+	  * to a given target type. Throws if production yields nothing; without
+	  * NDEBUG also if the conversion is unsuccessful.
 	  *
 	  * @tparam target_type The type the produced algorithm should be converted to
 	  * @return A converted copy of the desired production type
