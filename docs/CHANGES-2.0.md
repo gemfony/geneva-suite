@@ -122,7 +122,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   evaluators; the bundled `evaluator.py` was rewritten to match).
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
   materialize/refresh their config files with `--update-configs` (programs without Geneva's
-  launcher honor it too).
+  launcher honor it too: `Gem::Common::finishConfigEmission()` logs the end of the pass and the
+  program's `main()` returns after it; a Go2 program ends inside `optimize()`).
 - **A parameter entry of the wrong form is refused.** Each parameter is an object with a
   `"value"` -- a list for a vector or array parameter -- as in
   `"scan_randomly": { "value": false }`; a combined parameter is an object of such entries. A
