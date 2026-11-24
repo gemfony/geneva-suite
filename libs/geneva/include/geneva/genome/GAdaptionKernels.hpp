@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -238,6 +239,23 @@ std::size_t adaptGaussGroup(
 
 /******************************************************************************/
 /**
+ * @brief Adds a step, computed in 64 bits, to an int32 parameter value. The sum saturates at the
+ * limits of int32: the parameter stays int32, and a constrained one folds into its range afterwards.
+ *
+ * @param v The value
+ * @param step The step
+ * @return The value moved by the step, within the limits of int32
+ */
+inline std::int32_t addStepSaturated(std::int32_t v, std::int64_t step) {
+    return static_cast<std::int32_t>(std::clamp<std::int64_t>(
+        std::int64_t{v} + step,
+        std::numeric_limits<std::int32_t>::min(),
+        std::numeric_limits<std::int32_t>::max()
+    ));
+}
+
+/******************************************************************************/
+/**
  * The integer Gauss kernel: the mutation mathematics of GIntGaussAdaptorT (used e.g. by
  * GInt32GaussAdaptor), re-expressed in the same stateless (config, state, values) style as the FP
  * Gauss kernel. The self-adaption wrapper is IDENTICAL to the FP Gauss kernel -- the adaption
@@ -247,7 +265,8 @@ std::size_t adaptGaussGroup(
  * adds a truncated gaussian integer step, with a guaranteed minimal change of +/-1 when the truncated step
  * is zero (mirroring GIntGaussAdaptorT::customAdaptions). There is NO fold in the kernel -- a
  * constrained integer folds into its range on read (GGenome / foldConstrainedInt), exactly as the
- * tree applies it via GConstrainedIntT.
+ * tree applies it via GConstrainedIntT. The step and the sum are computed in 64 bits (a range as wide
+ * as int32 gives steps beyond int32); the sum saturates at the limits of int32 (addStepSaturated()).
  *
  * @param cfg The static, shared Gauss configuration for this group (sigma is a double; bounds, rates, mode).
  * @param st The per-individual evolving Gauss state (current sigma / adaption probability / counter); updated in place.
@@ -261,7 +280,7 @@ inline std::size_t adaptGaussIntGroup(
     const GaussConfig<double> &cfg,
     GaussState<double> &st,
     std::span<std::int32_t> values,
-    std::int32_t range,
+    std::int64_t range,
     Gem::Hap::GRandomBase &gr
 ) {
     Gem::Hap::g_normal_distribution<double> normal;
@@ -317,14 +336,18 @@ inline std::size_t adaptGaussIntGroup(
 
     // The value step (truncate(range * N(0, sigma)) with a guaranteed +/-1 minimal change), mirroring
     // GIntGaussAdaptorT::customAdaptions.
+    // The step is bounded before its conversion (defined for any sigma); a larger one saturates anyway.
     auto gauss_int_step = [&](std::int32_t &v) {
-        auto addition = static_cast<std::int32_t>(
-            static_cast<double>(range) * normal(gr, n_param(0., st.sigma))
-        );
+        constexpr double STEP_LIMIT = 4294967296.; // 2^32, the width of int32
+        auto addition = static_cast<std::int64_t>(std::clamp(
+            static_cast<double>(range) * normal(gr, n_param(0., st.sigma)),
+            -STEP_LIMIT,
+            STEP_LIMIT
+        ));
         if(addition == 0) { // Enforce a minimal change of 1.
             addition = bernoulli(gr, b_param(0.5)) ? 1 : -1;
         }
-        v += addition;
+        v = addStepSaturated(v, addition);
     };
 
     std::size_t n_adapted = 0;
@@ -422,12 +445,7 @@ inline std::size_t adaptFlipIntGroup(
 
     // The value step: +1 / -1 chosen 50/50 (matches GNumFlipAdaptorT::customAdaptions).
     auto flip_step = [&](std::int32_t &v) {
-        if(bernoulli(gr, b_param(0.5))) {
-            v += 1;
-        }
-        else {
-            v -= 1;
-        }
+        v = addStepSaturated(v, bernoulli(gr, b_param(0.5)) ? 1 : -1);
     };
 
     std::size_t n_adapted = 0;
