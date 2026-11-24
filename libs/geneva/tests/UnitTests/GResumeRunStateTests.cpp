@@ -37,11 +37,13 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <limits>
 #include <optional>
 #include <random>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 #include <boost/json.hpp>
@@ -50,6 +52,7 @@
 #include "common/testing/GStandardTests.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/oa/GAntColonyOptimization.hpp"
+#include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
 
@@ -238,12 +241,17 @@ fs::path runToCheckpoint(oa_type &alg) {
 /**
  * @brief Resumes a probe from a checkpoint up to the end of its setup.
  * @param cp The checkpoint
+ * @param configure Gives the probe the job settings a run needs (an adaption config)
  * @return The algorithm as the setup of the resumed run left it
  */
 template <typename oa_type>
-oa_type resumedSetupOf(fs::path const &cp) {
+oa_type resumedSetupOf(
+    fs::path const &cp,
+    std::type_identity_t<std::function<void(oa_type &)>> const &configure = [](oa_type &) {}
+) {
     GSetupProbe<oa_type> probe;
     probe.loadCheckpoint(cp);
+    configure(probe);
     return setupOf(probe, probe.getIteration() + 1);
 }
 
@@ -270,12 +278,17 @@ void checkRoundTrips(oa_type const &alg) {
  * @brief Starts a new run on a probe that holds the state of an earlier run, up to the end of its
  * setup.
  * @param earlier The algorithm of the earlier run
+ * @param configure Gives the probe the job settings a run needs (an adaption config)
  * @return The algorithm as the setup of the new run left it
  */
 template <typename oa_type>
-oa_type newSetupOf(oa_type const &earlier) {
+oa_type newSetupOf(
+    oa_type const &earlier,
+    std::type_identity_t<std::function<void(oa_type &)>> const &configure = [](oa_type &) {}
+) {
     GSetupProbe<oa_type> probe;
     probe.load(earlier);
+    configure(probe);
     return setupOf(probe, 0);
 }
 
@@ -398,4 +411,37 @@ TEST_CASE("A resumed ant colony optimization goes on with its archive", "[oa][re
     // A new run starts with an empty archive, which its first iteration fills from the seeds
     auto const started = newSetupOf(run);
     CHECK(numbersNamed(started, "archive_", "fitness").empty());
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "A resumed evolutionary algorithm goes on with its global step size and evolution path",
+    "[oa][resume]"
+) {
+    auto const adaption_config = lineFit().getAdaptionConfig();
+    auto const configure = [&adaption_config](oa::GEvolutionaryAlgorithm &alg) {
+        alg.setAdaptionConfig(adaption_config);
+    };
+    oa::GEvolutionaryAlgorithm run;
+    run.setPopulationSizes(8, 2);
+    run.setStepControl(oa::stepControl::CSA);
+    configure(run);
+    auto const cp = runToCheckpoint(run);
+    REQUIRE(numbers(run, "p_sigma_") != std::vector<double>{0.}); // the controller has moved
+
+    auto const resumed = resumedSetupOf<oa::GEvolutionaryAlgorithm>(cp, configure);
+    fs::remove_all(cp.parent_path());
+    CHECK(resumed.getGlobalSigma() == run.getGlobalSigma());
+    CHECK(member(resumed, "p_sigma_") == member(run, "p_sigma_"));
+    checkRoundTrips(resumed);
+
+    // A new run starts from the seed sigma of the adaption config, as a new algorithm does
+    oa::GEvolutionaryAlgorithm brand_new;
+    brand_new.setPopulationSizes(8, 2);
+    brand_new.setStepControl(oa::stepControl::CSA);
+    brand_new.push_back(lineFit().clone());
+    auto const started = newSetupOf(run, configure);
+    CHECK(numbers(started, "p_sigma_") == std::vector<double>{0.});
+    CHECK(started.getGlobalSigma() == newSetupOf(brand_new, configure).getGlobalSigma());
 }

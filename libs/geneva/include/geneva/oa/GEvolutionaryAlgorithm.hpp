@@ -230,7 +230,9 @@ private:
             Gem::Common::make_member("sorting_mode_", self.sorting_mode_),
             Gem::Common::make_member("step_control_", self.step_control_),
             Gem::Common::make_member("learning_rate_c_", self.learning_rate_c_),
-            Gem::Common::make_member("recombine_sigma_", self.recombine_sigma_)
+            Gem::Common::make_member("recombine_sigma_", self.recombine_sigma_),
+            Gem::Common::make_member("global_sigma_", self.global_sigma_),
+            Gem::Common::make_member("p_sigma_", self.p_sigma_)
         );
     }
 
@@ -259,8 +261,9 @@ public:
     /** @brief Retrieves the step-size-control strategy. @return The configured strategy. */
     stepControl getStepControl() const;
 
-    /** @brief The current global step size of the ONE_FIFTH / CSA controllers (run scratch;
-     *  seeded at init from the slots' representative sigma, updated once per generation).
+    /** @brief The current global step size of the ONE_FIFTH / CSA controllers (run state; a new
+     *  run seeds it at init from the slots' representative sigma, a resumed run keeps it; updated
+     *  once per generation).
      *  Primarily an observability hook for monitors and tests.
      *  @return The controllers' current global sigma (1.0 while no controller is active). */
     double getGlobalSigma() const noexcept {
@@ -392,18 +395,18 @@ private:
     bool inline_evaluation_ = false;
 
     /***************************************************************************/
-    // Transient run scratch for the global-sigma controllers (ONE_FIFTH / CSA). NOT serialized / compared
-    // / part of localMembers(): rebuilt at init() from the seed sigma in the adaption config.
-    /// transient: the single global step size (ONE_FIFTH / CSA), rebuilt in init()
-    double global_sigma_ = 1.;
-    /// transient: the CSA evolution-path accumulator (scalar proxy), rebuilt in init()
-    double p_sigma_ = 0.;
+    // The run state of the global-sigma controllers (ONE_FIFTH / CSA): init() seeds it for a new run
+    // from the sigma in the slots' scratch and keeps it for a resumed one.
+    double global_sigma_ = 1.; ///< The single global step size (ONE_FIFTH / CSA)
+    double p_sigma_ = 0.;      ///< The CSA evolution-path accumulator (scalar proxy)
     /// transient: the offspring success rate (fraction of children beating their own parent),
-    /// measured before selection reorders the population (see measureOffspringSuccess_)
+    /// measured anew before selection reorders the population (see measureOffspringSuccess_)
     double last_p_success_ = 0.;
-    /// transient: whether at least one generation's success rate has been measured (warm-up guard)
+    /// transient: whether at least one generation's success rate has been measured (warm-up guard);
+    /// the first generation of every job, a resumed one as well, measures none
     bool controller_warmed_up_ = false;
-    /// transient: the adapted dimension n the controller reasons about, set in init()
+    /// transient: the adapted dimension n the controller reasons about, derived from the adaption
+    /// config in init()
     std::size_t controller_dim_ = 0;
 
     /***************************************************************************/
