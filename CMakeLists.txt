@@ -109,11 +109,69 @@ if(NOT HAP_RANDOM_SOURCE STREQUAL "queue")
 	string(TOUPPER "HAP_DEFAULT_SOURCE_${HAP_RANDOM_SOURCE}=1" GEM_HAP_PUBLIC_DEFINE)
 endif()
 
-# Set ON to instrument the Common library and its tests with coverage flags
-# (--coverage on GCC, -fprofile-instr-generate -fcoverage-mapping on Clang).
-# Used together with the `coverage` make target to produce gcovr reports.
-# Costs a noticeable amount of runtime; leave OFF for normal builds.
-option(GEM_BUILD_WITH_COVERAGE "Instrument Common library + tests for code coverage" OFF)
+# Coverage: ON instruments all libraries, tests and programs with clang's source-based coverage;
+# the target "coverage" then runs the tests without the XL ones and reports the line coverage of
+# each library (CMakeModules/RunCoverage.cmake). Costs run time; leave OFF for normal builds. CUDA
+# is switched off: its programs link through the CUDA host compiler, which lacks clang's profile
+# runtime. Set here, before the CUDA detection below.
+option(GEM_BUILD_WITH_COVERAGE "Instrument all libraries and tests for clang source-based coverage" OFF)
+IF (GEM_BUILD_WITH_COVERAGE)
+	IF (NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+		MESSAGE(FATAL_ERROR "GEM_BUILD_WITH_COVERAGE needs clang (source-based coverage, llvm-cov); "
+			"the C++ compiler is ${CMAKE_CXX_COMPILER_ID}. Choose COMPILER=\"clang\" in genevaConfig.gcfg.")
+	ENDIF ()
+	# The LLVM tools of the compiler's release: first from the directory clang really lives in.
+	GET_FILENAME_COMPONENT(_gem_clang_dir "${CMAKE_CXX_COMPILER}" REALPATH)
+	GET_FILENAME_COMPONENT(_gem_clang_dir "${_gem_clang_dir}" DIRECTORY)
+	FIND_PROGRAM(GEM_LLVM_PROFDATA llvm-profdata HINTS "${_gem_clang_dir}")
+	FIND_PROGRAM(GEM_LLVM_COV llvm-cov HINTS "${_gem_clang_dir}")
+	IF (NOT GEM_LLVM_PROFDATA OR NOT GEM_LLVM_COV)
+		MESSAGE(FATAL_ERROR "GEM_BUILD_WITH_COVERAGE needs llvm-profdata and llvm-cov of clang "
+			"${CMAKE_CXX_COMPILER_VERSION} (Debian/Ubuntu: the package llvm-<major version>).")
+	ENDIF ()
+	SET(GEM_SKIP_CUDA ON)
+	STRING(APPEND CMAKE_CXX_FLAGS " -fprofile-instr-generate -fcoverage-mapping")
+	FOREACH (_gem_kind EXE SHARED MODULE)
+		STRING(APPEND CMAKE_${_gem_kind}_LINKER_FLAGS " -fprofile-instr-generate")
+	ENDFOREACH ()
+	MESSAGE(STATUS "Coverage ENABLED: all C++ code instrumented, CUDA off, tools ${GEM_LLVM_COV}")
+
+	# The programs and libraries of the build, whose coverage mappings llvm-cov reads: written when
+	# every directory has been processed.
+	FUNCTION(_gem_write_coverage_objects)
+		SET(_dirs "${PROJECT_SOURCE_DIR}")
+		SET(_files "")
+		WHILE (_dirs)
+			LIST(POP_FRONT _dirs _dir)
+			GET_PROPERTY(_sub DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
+			LIST(APPEND _dirs ${_sub})
+			GET_PROPERTY(_targets DIRECTORY "${_dir}" PROPERTY BUILDSYSTEM_TARGETS)
+			FOREACH (_t IN LISTS _targets)
+				GET_TARGET_PROPERTY(_type ${_t} TYPE)
+				IF (_type MATCHES "^(EXECUTABLE|SHARED_LIBRARY|MODULE_LIBRARY)$")
+					LIST(APPEND _files "$<TARGET_FILE:${_t}>")
+				ENDIF ()
+			ENDFOREACH ()
+		ENDWHILE ()
+		LIST(JOIN _files "\n" _content)
+		FILE(GENERATE OUTPUT "${PROJECT_BINARY_DIR}/CMakeFiles/gem-coverage-objects.txt"
+			CONTENT "${_content}\n")
+	ENDFUNCTION()
+	CMAKE_LANGUAGE(DEFER CALL _gem_write_coverage_objects)
+
+	ADD_CUSTOM_TARGET(coverage
+		COMMAND ${CMAKE_COMMAND}
+			-DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DBINARY_DIR=${PROJECT_BINARY_DIR}
+			-DOBJECTS_FILE=${PROJECT_BINARY_DIR}/CMakeFiles/gem-coverage-objects.txt
+			-DCTEST=${CMAKE_CTEST_COMMAND}
+			-DLLVM_PROFDATA=${GEM_LLVM_PROFDATA} -DLLVM_COV=${GEM_LLVM_COV}
+			-P ${PROJECT_SOURCE_DIR}/CMakeModules/RunCoverage.cmake
+		WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+		COMMENT "Running the tests without XL and measuring the line coverage of each library"
+		USES_TERMINAL
+		VERBATIM
+	)
+ENDIF ()
 
 # Probe for an optional CUDA toolchain.  If nvcc is found, CUDA examples and
 # benchmarks are added to the build automatically; if not, the rest of the
@@ -571,52 +629,6 @@ ADD_CUSTOM_TARGET( "geneva"             DEPENDS ${GENEVA_LIBNAME}            COM
 
 # Custom target for building all the libraries but no examples nor tests
 ADD_CUSTOM_TARGET( "core"               DEPENDS ${GEM_LIBNAMES}           COMMENT "Building all the Geneva libraries.")
-
-################################################################################
-# Coverage target (Common library only). Only meaningful when configured with
-# -DGEM_BUILD_WITH_COVERAGE=ON. Builds the Common library and its tests,
-# runs them under CTest (label "common"), and produces both an HTML report
-# under <build>/coverage/common/ and a text summary on the terminal. Fails
-# if the line-coverage drops below GEM_COVERAGE_LINE_THRESHOLD (default
-# 90; override at configure time to relax during early test development).
-SET(GEM_COVERAGE_LINE_THRESHOLD 90 CACHE STRING
-    "Minimum acceptable line-coverage percentage for the Common library")
-SET(GEM_COVERAGE_BRANCH_THRESHOLD 80 CACHE STRING
-    "Minimum acceptable branch-coverage percentage for the Common library")
-IF (GEM_BUILD_WITH_COVERAGE)
-    FIND_PROGRAM(GCOVR_EXECUTABLE NAMES gcovr)
-    IF (NOT GCOVR_EXECUTABLE)
-        MESSAGE(WARNING "GEM_BUILD_WITH_COVERAGE=ON but gcovr was not "
-                "found in PATH; the `coverage` make target will not work.")
-    ENDIF ()
-    # Filter: only the Common library's headers and sources count. (The plotting
-    # code now lives in the separate dietrich library and is covered there.)
-    SET(_GEM_COV_FILTER
-        "--filter=${PROJECT_SOURCE_DIR}/libs/common/include/common/.*"
-        "--filter=${PROJECT_SOURCE_DIR}/libs/common/src/.*")
-    ADD_CUSTOM_TARGET( "coverage"
-        COMMAND ${CMAKE_COMMAND} -E make_directory
-                "${CMAKE_BINARY_DIR}/coverage/common"
-        COMMAND ${CMAKE_CTEST_COMMAND} -L common --output-on-failure
-        # --gcov-ignore-errors: needed because gcovr scans every .gcno in
-        # the build tree and stumbles over CUDA / system-header artefacts
-        # that don't resolve a working directory. Those files are outside
-        # the filter anyway; this just silences the noise.
-        COMMAND ${GCOVR_EXECUTABLE}
-                --root "${PROJECT_SOURCE_DIR}"
-                ${_GEM_COV_FILTER}
-                --gcov-ignore-errors=no_working_dir_found
-                --print-summary
-                --txt "${CMAKE_BINARY_DIR}/coverage/common/summary.txt"
-                --html-details "${CMAKE_BINARY_DIR}/coverage/common/index.html"
-                --fail-under-line ${GEM_COVERAGE_LINE_THRESHOLD}
-                --fail-under-branch ${GEM_COVERAGE_BRANCH_THRESHOLD}
-                "${CMAKE_BINARY_DIR}"
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Building, running, and measuring Common-library coverage."
-        VERBATIM
-    )
-ENDIF ()
 
 ################################################################################
 # Add sub-directories

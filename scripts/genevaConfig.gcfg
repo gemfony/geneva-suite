@@ -114,10 +114,12 @@ BUILDGPUCONSUMER="auto"
 # Tri-state: "auto" (build it when the Boost in use has Boost.MQTT5) | "on" (require it) | "off".
 BUILDMQTTCONSUMER="auto"
 
-# Whether to instrument the Common library and its tests with code-coverage
-# flags (--coverage for GCC, -fprofile-instr-generate -fcoverage-mapping for
-# Clang). Used together with the `coverage` make target to produce gcovr
-# reports. Costs noticeable runtime; leave OFF for production builds.
+# Whether to instrument all libraries, tests and programs with clang's
+# source-based coverage (needs COMPILER="clang" and the LLVM tools llvm-profdata
+# and llvm-cov; switches CUDA off). After building, "make coverage" runs the
+# tests without the XL ones (in parallel with CTEST_PARALLEL_LEVEL=<n> in the
+# environment) and reports the line coverage of each library below
+# <build>/coverage/. Costs noticeable runtime; leave OFF for production builds.
 WITHCOVERAGE="0"
 
 # Build with a code sanitizer (developer diagnostics). One of:
