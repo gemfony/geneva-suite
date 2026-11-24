@@ -27,41 +27,12 @@
 #
 ################################################################################
 
-# The umbrella header re-exports the full plotting stack.
-SET ( DIETRICHINCLUDES
-	GPlotDesigner.hpp
-)
+# The IDE's header target (a workaround for a CLion problem, CPP270 in the JetBrains issue tracker):
+# every header below this directory, found again whenever one is added or removed.
+FILE(GLOB_RECURSE DIETRICHINCLUDES CONFIGURE_DEPENDS "*.hpp" "*.cuh")
+ADD_CUSTOM_TARGET(CLION_ALL_DIETRICH_HEADERS SOURCES ${DIETRICHINCLUDES})
 
-# The plotting subsystem lives in focused headers under dietrich/plotting/;
-# dietrich/GPlotDesigner.hpp remains as an umbrella that includes them.
-SET ( DIETRICHPLOTTINGINCLUDES
-	plotting/GBasePlotter.hpp
-	plotting/GDataCollectors.hpp
-	plotting/GDataLog.hpp
-	plotting/GDecorators.hpp
-	plotting/GGraphPlots.hpp
-	plotting/GHistogramPlots.hpp
-	plotting/GPlotDesigner.hpp
-	plotting/GPlotEmitter.hpp
-	plotting/GPlotEnums.hpp
-	plotting/GPlotSink.hpp
-	plotting/GPlotSpec.hpp
-)
-
-# Library-private plotting headers: shared across the dietrich implementation TUs but NOT part of the
-# documented public API. NOTE that the wholesale INSTALL(DIRECTORY ... *.hpp) rule below (Inv 19)
-# still ships them -- the detail/ path only marks them as off-limits; do not include them from
-# outside the dietrich sources. Listed here so IDEs surface them.
-SET ( DIETRICHPLOTTINGDETAILINCLUDES
-	plotting/detail/GPlotDetail.hpp
-)
-
-# This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker
-ADD_CUSTOM_TARGET(CLION_ALL_DIETRICH_HEADERS SOURCES
-	${DIETRICHINCLUDES} ${DIETRICHPLOTTINGINCLUDES}
-	${DIETRICHPLOTTINGDETAILINCLUDES})
-
-# Directory install: ship the whole header tree (Inv 19), so the installed interface is self-contained and
-# cannot drift. (The SET lists above are retained only for the CLion header target / IDE indexing.)
+# Directory install: ship the whole header tree (Inv 19), so the installed interface is
+# self-contained and cannot drift.
 INSTALL ( DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/ DESTINATION ${INSTALL_PREFIX_INCLUDES}/dietrich
 	FILES_MATCHING PATTERN "*.hpp" )

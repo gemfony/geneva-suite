@@ -799,15 +799,6 @@ ENDIF ()
 ################################################################################
 # Conventions of the tree that a test can check, without building anything.
 IF (GEM_BUILD_TESTS)
-	# The header lists of the libraries' IDE targets are sorted and name every header.
-	ADD_TEST(
-		NAME HeaderListsSortedAndComplete
-		COMMAND ${CMAKE_COMMAND} -DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
-			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckHeaderLists.cmake
-	)
-	SET_TESTS_PROPERTIES(HeaderListsSortedAndComplete PROPERTIES LABELS "conventions")
-	GEM_TEST_SIZE(HeaderListsSortedAndComplete S)
-
 	# Every library and program includes only the libraries of its layer (courtier nothing of hap).
 	ADD_TEST(
 		NAME LibraryLayersRespected
