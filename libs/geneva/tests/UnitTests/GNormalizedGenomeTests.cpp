@@ -544,8 +544,11 @@ TEST_CASE(
     // overflowed for ranges wider than INT32_MAX. They are computed in 64 bits; the values stay int32.
     constexpr std::int32_t MIN32 = std::numeric_limits<std::int32_t>::min();
     constexpr std::int32_t MAX32 = std::numeric_limits<std::int32_t>::max();
-    for(auto const &[lo, hi] : {std::pair{0, MAX32}, std::pair{-2'000'000'000, 2'000'000'000},
-                                std::pair{MIN32, 0}, std::pair{MIN32 + 1, MAX32 - 1}}) {
+    for(auto const &[lo, hi] :
+        {std::pair{0, MAX32},
+         std::pair{-2'000'000'000, 2'000'000'000},
+         std::pair{MIN32, 0},
+         std::pair{MIN32 + 1, MAX32 - 1}}) {
         std::vector<std::int32_t> xs{MIN32, MIN32 + 1, -1, 0, 1, MAX32 - 1, MAX32};
         if(lo > MIN32) {
             xs.push_back(lo - 1);

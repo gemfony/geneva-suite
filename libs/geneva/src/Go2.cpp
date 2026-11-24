@@ -436,7 +436,6 @@ void Go2::refreshAllConfigs_() {
             glogger << "could not refresh the individual config: " << e.what() << '\n' << GWARNING;
         }
     }
-
 }
 
 /******************************************************************************/

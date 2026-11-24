@@ -112,9 +112,9 @@ namespace {
  */
 template <typename algorithm_ptr_type>
 struct GCheckpointFile {
-    std::string personality;       ///< The personality type of the algorithm that wrote the file
-    algorithm_ptr_type algorithm;  ///< The algorithm; left empty when it is not read (see serialize())
-    std::string read_algorithm_of; ///< Loading only: the algorithm is read only for this personality
+    std::string personality;       ///< The type of the algorithm that wrote the file
+    algorithm_ptr_type algorithm;  ///< The algorithm; empty when it is not read (serialize())
+    std::string read_algorithm_of; ///< Loading only: the algorithm is read only for this type
 
     /** @brief (De-)serializes the head and -- when saving, or when the head names
      *  read_algorithm_of -- the algorithm
