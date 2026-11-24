@@ -57,6 +57,7 @@
 #include <string>
 #include <type_traits>
 #include <typeinfo>
+#include <utility>
 #include <vector>
 
 // Catch2 headers go here
@@ -84,7 +85,8 @@ namespace Gem::Common::Testing {
  * @return A std::shared_ptr to a newly created T object
  */
 template <typename T>
-std::shared_ptr<T> TFactory_GUnitTests() {
+std::shared_ptr<T>
+TFactory_GUnitTests() { // NOLINT(readability-identifier-naming): established name
     std::shared_ptr<T> p;
 
     try {
@@ -114,7 +116,10 @@ std::shared_ptr<T> TFactory_GUnitTests() {
 class GEqualityPrinter {
 public:
     GEqualityPrinter(const GEqualityPrinter &) = delete;
+    GEqualityPrinter(GEqualityPrinter &&) = delete;
     GEqualityPrinter &operator=(const GEqualityPrinter &) = delete;
+    GEqualityPrinter &operator=(GEqualityPrinter &&) = delete;
+    ~GEqualityPrinter() = default;
 
     /***************************************************************************/
     /**
@@ -122,12 +127,12 @@ public:
      *
      * @param caller The name of the calling entity
      * @param limit Used in floating point comparisons to check similarity
-     * @param emitMessages Determines whether messages should be emitted upon error
+     * @param emit_messages Determines whether messages should be emitted upon error
      */
-    GEqualityPrinter(const std::string &caller, const double &limit, const bool &emitMessages)
-      : caller_(caller)
+    GEqualityPrinter(std::string caller, double limit, bool emit_messages)
+      : caller_(std::move(caller))
       , limit_(limit)
-      , emit_messages_(emitMessages) { /* nothing */
+      , emit_messages_(emit_messages) { /* nothing */
     }
 
     /***************************************************************************/
@@ -141,7 +146,7 @@ public:
      */
     template <typename gem_type>
         requires Gem::Common::gemfony_common_interface<gem_type>
-    bool isEqual(const gem_type &x, const gem_type &y) const {
+    [[nodiscard]] bool isEqual(const gem_type &x, const gem_type &y) const {
         try {
             x.compare(y, Gem::Common::expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
             return true;
@@ -165,7 +170,7 @@ public:
         requires std::derived_from<
             gem_simplecontainer_type,
             Gem::Common::GPodContainerT<typename gem_simplecontainer_type::value_type>>
-    bool isEqual(
+    [[nodiscard]] bool isEqual(
         const gem_simplecontainer_type &x,
         const std::vector<typename gem_simplecontainer_type::value_type> &y
     ) const {
@@ -191,7 +196,7 @@ public:
      */
     template <typename gem_type>
         requires Gem::Common::gemfony_common_interface<gem_type>
-    bool isSimilar(const gem_type &x, const gem_type &y) const {
+    [[nodiscard]] bool isSimilar(const gem_type &x, const gem_type &y) const {
         try {
             x.compare(y, Gem::Common::expectation::FP_SIMILARITY, CE_DEF_SIMILARITY_DIFFERENCE);
             return true;
@@ -215,7 +220,7 @@ public:
         requires std::derived_from<
             gem_simplecontainer_type,
             Gem::Common::GPodContainerT<typename gem_simplecontainer_type::value_type>>
-    bool isSimilar(
+    [[nodiscard]] bool isSimilar(
         const gem_simplecontainer_type &x,
         const std::vector<typename gem_simplecontainer_type::value_type> &y
     ) const {
@@ -262,7 +267,7 @@ private:
  * base with such a function declares its own, calls the base's and changes its own members.
  */
 template <typename T>
-concept modifiable_for_test = requires(T &t) {
+concept ModifiableForTest = requires(T &t) {
     { t.modifyForTest() } -> std::same_as<bool>;
 };
 
@@ -275,7 +280,7 @@ concept modifiable_for_test = requires(T &t) {
  */
 template <typename T>
 bool modifyForTestIfAvailable(T &t) {
-    if constexpr(modifiable_for_test<T>) {
+    if constexpr(ModifiableForTest<T>) {
         return t.modifyForTest();
     }
     else {
@@ -293,7 +298,171 @@ bool modifyForTestIfAvailable(T &t) {
  * element_type of the std::shared_ptr returned by the public (inherited) clone() method.
  */
 template <typename T>
-using category_root_t = typename decltype(std::declval<const T &>().clone())::element_type;
+using category_root_t = decltype(std::declval<const T &>().clone())::element_type;
+
+/******************************************************************************/
+/**
+ * @brief The steps of the standard tests, one function each. A test program calls
+ * StandardTests_no_failure_expected() / StandardTests_failures_expected() below; the steps are
+ * public so that a program can run one of them on its own.
+ */
+
+/**
+ * @brief Creates an object for the standard tests and changes it, if its type allows it.
+ * @return The (changed) object
+ */
+template <typename T>
+std::shared_ptr<T> makeChangedForTest() {
+    std::shared_ptr<T> t_ptr;
+    REQUIRE_NOTHROW(t_ptr = TFactory_GUnitTests<T>());
+    REQUIRE(t_ptr);
+    REQUIRE_NOTHROW(modifyForTestIfAvailable(*t_ptr));
+    return t_ptr;
+}
+
+/**
+ * @brief Checks that a copy equals its original and is its only owner's object.
+ * @param gep The comparator
+ * @param copy The copy (a clone, a loaded or an assigned object)
+ * @param original The object it was made from
+ */
+template <typename root_type>
+void checkCopyOf(
+    GEqualityPrinter const &gep,
+    std::shared_ptr<root_type> const &copy,
+    std::shared_ptr<root_type> const &original
+) {
+    CHECK(gep.isEqual(*copy, *original));
+    CHECK(gep.isSimilar(*copy, *original));
+    CHECK(copy.use_count() == 1);
+    CHECK(original.use_count() == 1);
+}
+
+/** @brief Copy construction gives an equal object. @param gep The comparator */
+template <typename T>
+void testCopyConstruction(GEqualityPrinter const &gep) {
+    std::shared_ptr<T> const original = makeChangedForTest<T>();
+    std::shared_ptr<T> copy;
+    REQUIRE_NOTHROW(copy = std::make_shared<T>(*original));
+    checkCopyOf(gep, copy, original);
+}
+
+/**
+ * @brief Cloning through the category root gives an equal object. The change runs through T before
+ * the upcast: modifyForTest() is not virtual, so only T's own function changes T's own members.
+ * @param gep The comparator
+ */
+template <typename T>
+void testCloneToCategoryRoot(GEqualityPrinter const &gep) {
+    std::shared_ptr<category_root_t<T>> const original = makeChangedForTest<T>();
+    std::shared_ptr<category_root_t<T>> clone;
+    REQUIRE_NOTHROW(clone = original->clone());
+    checkCopyOf(gep, clone, original);
+}
+
+/** @brief Cloning to T gives an equal object. @param gep The comparator */
+template <typename T>
+void testCloneToTarget(GEqualityPrinter const &gep) {
+    std::shared_ptr<T> const original = makeChangedForTest<T>();
+    std::shared_ptr<T> clone;
+    REQUIRE_NOTHROW(clone = original->template clone<T>());
+    checkCopyOf(gep, clone, original);
+}
+
+/** @brief Loading through a std::shared_ptr gives an equal object. @param gep The comparator */
+template <typename T>
+void testLoadThroughPointer(GEqualityPrinter const &gep) {
+    std::shared_ptr<T> const original = makeChangedForTest<T>();
+    std::shared_ptr<T> const loaded = TFactory_GUnitTests<T>();
+    REQUIRE(loaded);
+    REQUIRE_NOTHROW(loaded->load(original));
+    checkCopyOf(gep, loaded, original);
+}
+
+/** @brief Loading through a reference gives an equal object. @param gep The comparator */
+template <typename T>
+void testLoadThroughReference(GEqualityPrinter const &gep) {
+    std::shared_ptr<T> const original = makeChangedForTest<T>();
+    std::shared_ptr<T> const loaded = TFactory_GUnitTests<T>();
+    REQUIRE(loaded);
+    REQUIRE_NOTHROW(loaded->load(*original));
+    checkCopyOf(gep, loaded, original);
+}
+
+/**
+ * @brief Copy assignment gives an equal object. A copy assignment written by hand restates the member
+ * list beside localMembers_(); comparing the assigned object with its source catches a member the
+ * assignment forgot. A type without a copy assignment has nothing here to drift.
+ * @param gep The comparator
+ */
+template <typename T>
+void testCopyAssignment(GEqualityPrinter const &gep) {
+    if constexpr(std::is_copy_assignable_v<T>) {
+        std::shared_ptr<T> const original = makeChangedForTest<T>();
+        std::shared_ptr<T> const assigned = TFactory_GUnitTests<T>();
+        REQUIRE(assigned);
+        REQUIRE_NOTHROW(*assigned = *original);
+        checkCopyOf(gep, assigned, original);
+    }
+}
+
+/**
+ * @brief Prints why a round-trip was not run.
+ * @param way "Internal" (the object's own functions) or "External" (the Gem::Common helpers)
+ * @param mode The serialization mode
+ */
+template <typename T>
+void reportSkippedRoundTrip(std::string const &way, Gem::Common::serializationMode mode) {
+    std::cout << way << " (de-)serialization test for object with name " << typeid(T).name()
+              << " not run because the object could not be changed / mode "
+              << static_cast<int>(mode) << '\n';
+}
+
+/**
+ * @brief A changed object survives a round-trip through its own toString() / fromString(). It needs a
+ * changed object: an unchanged one equals a fresh one, so a round-trip that loses everything would pass.
+ * @param gep The comparator
+ * @param mode The serialization mode
+ */
+template <typename T>
+void testOwnRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMode mode) {
+    std::shared_ptr<T> const original = TFactory_GUnitTests<T>();
+    REQUIRE(original);
+    std::shared_ptr<T> const restored = TFactory_GUnitTests<T>();
+    REQUIRE(restored);
+
+    if(not modifyForTestIfAvailable(*original)) {
+        reportSkippedRoundTrip<T>("Internal", mode);
+        return;
+    }
+    CHECK(not gep.isEqual(*original, *restored));
+    REQUIRE_NOTHROW(restored->fromString(original->toString(mode), mode));
+    CHECK(gep.isSimilar(*original, *restored));
+}
+
+/**
+ * @brief A changed object survives a round-trip through the Gem::Common helpers (which courtier uses).
+ * @param gep The comparator
+ * @param mode The serialization mode
+ */
+template <typename T>
+void testHelperRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMode mode) {
+    std::shared_ptr<T> const original = TFactory_GUnitTests<T>();
+    REQUIRE(original);
+    std::shared_ptr<T> const fresh = TFactory_GUnitTests<T>();
+    REQUIRE(fresh);
+
+    if(not modifyForTestIfAvailable(*original)) {
+        reportSkippedRoundTrip<T>("External", mode);
+        return;
+    }
+    CHECK(not gep.isEqual(*original, *fresh));
+    std::string const serialized_object = Gem::Common::sharedPtrToString(original, mode);
+    std::shared_ptr<T> const restored =
+        Gem::Common::sharedPtrFromString<T>(serialized_object, mode);
+    REQUIRE(restored);
+    CHECK(gep.isSimilar(*original, *restored));
+}
 
 /******************************************************************************/
 /**
@@ -302,198 +471,31 @@ using category_root_t = typename decltype(std::declval<const T &>().clone())::el
  * Construction, copy construction, cloning (to the category root and to T), loading (through a pointer
  * and a reference), copy assignment and (de-)serialization round-trips in both modes (GEM_BINARY,
  * GEM_JSON), through the object's own functions and through the Gem::Common helpers. The round-trips
- * run only when the object could be changed (see modifiable_for_test).
+ * run only when the object could be changed (see ModifiableForTest).
  *
  * @tparam T The tested type
  */
 template <typename T>
-void StandardTests_no_failure_expected() {
+void StandardTests_no_failure_expected() { // NOLINT(readability-identifier-naming): established name
     // The test cases are generated from type lists and named by index; name the type in every failure.
     INFO("Tested type: " << typeid(T).name());
-    using root_t = category_root_t<T>;
-    GEqualityPrinter gep(
+    GEqualityPrinter const gep(
         "StandardTests_no_failure_expected",
         std::pow(10, -7),
         Gem::Common::CE_WITH_MESSAGES
     );
 
-    //---------------------------------------------------------------------------
-    // Tests of construction, loading, cloning, ...
-
-    { // Default construction and copy construction
-        std::shared_ptr<T> T_ptr, T_ptr_cp;
-
-        REQUIRE_NOTHROW(T_ptr = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr);
-
-        // Make sure the object is not in pristine condition
-        REQUIRE_NOTHROW(modifyForTestIfAvailable(*T_ptr));
-
-        REQUIRE_NOTHROW(T_ptr_cp = std::make_shared<T>(*T_ptr));
-
-        CHECK(gep.isEqual(*T_ptr_cp, *T_ptr));
-        CHECK(gep.isSimilar(*T_ptr_cp, *T_ptr));
-
-        CHECK(T_ptr.use_count() == 1);
-        CHECK(T_ptr_cp.use_count() == 1);
-
-        REQUIRE_NOTHROW(T_ptr.reset());
-        REQUIRE_NOTHROW(T_ptr_cp.reset());
-    }
-
-    { // Cloning to the category root
-        std::shared_ptr<root_t> T_ptr, T_ptr_clone;
-
-        // The change runs through T: modifyForTest() is not virtual, so only T's own function changes
-        // T's own members.
-        {
-            std::shared_ptr<T> T_derived;
-            REQUIRE_NOTHROW(T_derived = TFactory_GUnitTests<T>());
-            REQUIRE(T_derived);
-            REQUIRE_NOTHROW(modifyForTestIfAvailable(*T_derived));
-            T_ptr = T_derived; // the sole remaining owner once T_derived goes out of scope
-        }
-        REQUIRE(T_ptr);
-
-        REQUIRE_NOTHROW(T_ptr_clone = T_ptr->clone());
-
-        CHECK(gep.isEqual(*T_ptr_clone, *T_ptr));
-        CHECK(gep.isSimilar(*T_ptr_clone, *T_ptr));
-
-        CHECK(T_ptr.use_count() == 1);
-        CHECK(T_ptr_clone.use_count() == 1);
-
-        REQUIRE_NOTHROW(T_ptr.reset());
-        REQUIRE_NOTHROW(T_ptr_clone.reset());
-    }
-
-    { // Cloning to a target type
-        std::shared_ptr<T> T_ptr, T_ptr_clone;
-
-        REQUIRE_NOTHROW(T_ptr = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr);
-        REQUIRE_NOTHROW(modifyForTestIfAvailable(*T_ptr));
-
-        REQUIRE_NOTHROW(T_ptr_clone = T_ptr->template clone<T>());
-
-        CHECK(gep.isEqual(*T_ptr_clone, *T_ptr));
-        CHECK(gep.isSimilar(*T_ptr_clone, *T_ptr));
-
-        CHECK(T_ptr.use_count() == 1);
-        CHECK(T_ptr_clone.use_count() == 1);
-
-        REQUIRE_NOTHROW(T_ptr.reset());
-        REQUIRE_NOTHROW(T_ptr_clone.reset());
-    }
-
-    { // Loading through a std::shared_ptr
-        std::shared_ptr<T> T_ptr, T_ptr_load;
-
-        REQUIRE_NOTHROW(T_ptr = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr);
-        REQUIRE_NOTHROW(modifyForTestIfAvailable(*T_ptr));
-
-        REQUIRE_NOTHROW(T_ptr_load = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr_load);
-        REQUIRE_NOTHROW(T_ptr_load->load(T_ptr));
-
-        CHECK(gep.isEqual(*T_ptr_load, *T_ptr));
-        CHECK(gep.isSimilar(*T_ptr_load, *T_ptr));
-
-        CHECK(T_ptr.use_count() == 1);
-        CHECK(T_ptr_load.use_count() == 1);
-
-        REQUIRE_NOTHROW(T_ptr.reset());
-        REQUIRE_NOTHROW(T_ptr_load.reset());
-    }
-
-    { // Loading through a reference
-        std::shared_ptr<T> T_ptr, T_ptr_load;
-
-        REQUIRE_NOTHROW(T_ptr = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr);
-        REQUIRE_NOTHROW(modifyForTestIfAvailable(*T_ptr));
-
-        REQUIRE_NOTHROW(T_ptr_load = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr_load);
-        REQUIRE_NOTHROW(T_ptr_load->load(*T_ptr));
-
-        CHECK(gep.isEqual(*T_ptr_load, *T_ptr));
-        CHECK(gep.isSimilar(*T_ptr_load, *T_ptr));
-
-        CHECK(T_ptr.use_count() == 1);
-        CHECK(T_ptr_load.use_count() == 1);
-
-        REQUIRE_NOTHROW(T_ptr.reset());
-        REQUIRE_NOTHROW(T_ptr_load.reset());
-    }
-
-    // Copy assignment (operator=). A copy assignment written by hand restates the member list beside
-    // localMembers_(); comparing the assigned object with its source is what catches a member the
-    // assignment forgot. A type without a copy assignment has nothing here to drift.
-    if constexpr(std::is_copy_assignable_v<T>) {
-        std::shared_ptr<T> T_ptr, T_ptr_assign;
-
-        REQUIRE_NOTHROW(T_ptr = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr);
-        REQUIRE_NOTHROW(modifyForTestIfAvailable(*T_ptr));
-
-        REQUIRE_NOTHROW(T_ptr_assign = TFactory_GUnitTests<T>());
-        REQUIRE(T_ptr_assign);
-        REQUIRE_NOTHROW(*T_ptr_assign = *T_ptr);
-
-        CHECK(gep.isEqual(*T_ptr_assign, *T_ptr));
-        CHECK(gep.isSimilar(*T_ptr_assign, *T_ptr));
-    }
-
-    //---------------------------------------------------------------------------
-    // (De-)serialization in both modes, through the object's own functions and through the
-    // Gem::Common helpers (which courtier uses). Each needs a changed object: an unchanged one equals a
-    // fresh one, so a round-trip that loses everything would pass.
+    testCopyConstruction<T>(gep);
+    testCloneToCategoryRoot<T>(gep);
+    testCloneToTarget<T>(gep);
+    testLoadThroughPointer<T>(gep);
+    testLoadThroughReference<T>(gep);
+    testCopyAssignment<T>(gep);
 
     for(auto const mode :
         {Gem::Common::serializationMode::GEM_BINARY, Gem::Common::serializationMode::GEM_JSON}) {
-        { // The object's own functions
-            std::shared_ptr<T> T_ptr1 = TFactory_GUnitTests<T>();
-            REQUIRE(T_ptr1);
-            std::shared_ptr<T> T_ptr2 = TFactory_GUnitTests<T>();
-            REQUIRE(T_ptr2);
-
-            if(modifyForTestIfAvailable(*T_ptr1)) {
-                CHECK(not gep.isEqual(*T_ptr1, *T_ptr2));
-
-                REQUIRE_NOTHROW(T_ptr2->fromString(T_ptr1->toString(mode), mode));
-                CHECK(gep.isSimilar(*T_ptr1, *T_ptr2));
-            }
-            else {
-                std::cout << "Internal (de-)serialization test for object with name "
-                          << typeid(T).name()
-                          << " not run because the object could not be changed / mode "
-                          << static_cast<int>(mode) << '\n';
-            }
-        }
-
-        { // The Gem::Common helpers
-            std::shared_ptr<T> T_ptr1 = TFactory_GUnitTests<T>();
-            REQUIRE(T_ptr1);
-            std::shared_ptr<T> T_ptr2 = TFactory_GUnitTests<T>();
-            REQUIRE(T_ptr2);
-
-            if(modifyForTestIfAvailable(*T_ptr1)) {
-                CHECK(not gep.isEqual(*T_ptr1, *T_ptr2));
-
-                std::string const serialized_object = Gem::Common::sharedPtrToString(T_ptr1, mode);
-                T_ptr2 = Gem::Common::sharedPtrFromString<T>(serialized_object, mode);
-                REQUIRE(T_ptr2);
-                CHECK(gep.isSimilar(*T_ptr1, *T_ptr2));
-            }
-            else {
-                std::cout << "External (de-)serialization test for object with name "
-                          << typeid(T).name()
-                          << " not run because the object could not be changed / mode "
-                          << static_cast<int>(mode) << '\n';
-            }
-        }
+        testOwnRoundTrip<T>(gep, mode);
+        testHelperRoundTrip<T>(gep, mode);
     }
 }
 
@@ -505,13 +507,13 @@ void StandardTests_no_failure_expected() {
  * @tparam T The tested type
  */
 template <typename T>
-void StandardTests_failures_expected() {
+void StandardTests_failures_expected() { // NOLINT(readability-identifier-naming): established name
     INFO("Tested type: " << typeid(T).name());
 
-    std::shared_ptr<T> T_ptr1 = TFactory_GUnitTests<T>();
-    REQUIRE(T_ptr1);
+    std::shared_ptr<T> const t_ptr = TFactory_GUnitTests<T>();
+    REQUIRE(t_ptr);
 #ifdef DEBUG
-    CHECK_THROWS_AS(T_ptr1->load(T_ptr1), gem_exception);
+    CHECK_THROWS_AS(t_ptr->load(t_ptr), gem_exception);
 #endif
 }
 

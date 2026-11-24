@@ -96,7 +96,7 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Root(*this);
+        return new Root(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -115,6 +115,7 @@ public:
     }
 
     /** @brief Changes the root's member and this class's own @return true */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
     bool modifyForTest() {
         Root::modifyForTest();
         label_ += "_m";
@@ -139,7 +140,7 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Derived(*this);
+        return new Derived(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -173,7 +174,7 @@ protected:
 
 private:
     [[nodiscard]] Unchangeable *clone_() const override {
-        return new Unchangeable(*this);
+        return new Unchangeable(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -220,10 +221,10 @@ TEST_CASE(
     "GStandardTests: modifyForTest() is found when it is public",
     "[common][standard-tests]"
 ) {
-    STATIC_REQUIRE(modifiable_for_test<Root>);
-    STATIC_REQUIRE(modifiable_for_test<Derived>);
-    STATIC_REQUIRE_FALSE(modifiable_for_test<Unchangeable>);
-    STATIC_REQUIRE_FALSE(modifiable_for_test<HiddenModify>);
+    STATIC_REQUIRE(ModifiableForTest<Root>);
+    STATIC_REQUIRE(ModifiableForTest<Derived>);
+    STATIC_REQUIRE_FALSE(ModifiableForTest<Unchangeable>);
+    STATIC_REQUIRE_FALSE(ModifiableForTest<HiddenModify>);
 }
 
 TEST_CASE(

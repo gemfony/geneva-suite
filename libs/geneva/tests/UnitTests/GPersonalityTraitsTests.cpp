@@ -124,15 +124,11 @@ TEST_CASE(
     CHECK(p_test.noPositionUpdate() == true);
 
     // Reading resets the flag
-    bool no_position_update = false;
-    CHECK_NOTHROW(no_position_update = p_test.checkNoPositionUpdateAndReset());
-    CHECK(no_position_update == true);
+    CHECK(p_test.checkNoPositionUpdateAndReset() == true);
     CHECK(p_test.noPositionUpdate() == false);
 
     // Read again: "false" stays
-    no_position_update = true;
-    CHECK_NOTHROW(no_position_update = p_test.checkNoPositionUpdateAndReset());
-    CHECK(no_position_update == false);
+    CHECK(p_test.checkNoPositionUpdateAndReset() == false);
     CHECK(p_test.noPositionUpdate() == false);
 }
 

@@ -213,7 +213,7 @@ void runStandardTestsNoFailureExpected() {
         Gem::Geneva::Tests::StandardTests_no_failure_expected<T>();
     }
     else {
-        static_assert(Gem::Common::Testing::modifiable_for_test<T>);
+        static_assert(Gem::Common::Testing::ModifiableForTest<T>);
         Gem::Common::Testing::StandardTests_no_failure_expected<T>();
     }
 }

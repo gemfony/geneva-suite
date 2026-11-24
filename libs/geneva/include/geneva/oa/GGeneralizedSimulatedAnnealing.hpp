@@ -302,6 +302,7 @@ public:
 
     /** @brief Changes this algorithm for the standard tests: the base's change and its visiting parameter q_v.
      *  @return Whether the algorithm was changed (always true) */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
     bool modifyForTest();
 
 protected:

@@ -127,6 +127,7 @@ public:
 
     /** @brief Changes these traits for the standard tests: the base's change and the parent counter.
      *  @return Whether the traits were changed (always true) */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
     bool modifyForTest();
 
 protected:
