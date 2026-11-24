@@ -278,7 +278,8 @@ private:
         if(not backendAvailable(kind)) {
             throw gem_exception(
                 g_error_streamer()
-                << "The '" << toString(kind) << "' backend was not compiled into this build (its"
+                << "The '" << Gem::Common::enumName(kind)
+                << "' backend was not compiled into this build (its"
                 << " toolkit was not found at configure time)." << '\n'
                 << "The GPU consumer is device-only; to run on the CPU use a CPU consumer instead"
                 << " (e.g. --consumer stc), which runs the work item's own process()." << '\n'

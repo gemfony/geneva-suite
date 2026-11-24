@@ -54,7 +54,7 @@
 #include "common/GLogger.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp" // fkToStr, describeException()
+#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GServerSessionLogic.hpp"      // GWakeFn, GCheckoutResult
 #include "courtier/GWireCodec.hpp"               // scope-wrapped (de)serialization, HELLO
 #include "courtier/GWireProtocolT.hpp"           // the WORK tag
@@ -269,7 +269,7 @@ private:
             this->protocolError_(
                 *peer,
                 "a frame of a kind a client does not send: " +
-                    Gem::Courtier::fkToStr(command_container_.kind())
+                    std::string(Gem::Common::enumName(command_container_.kind()))
             );
             return;
         }

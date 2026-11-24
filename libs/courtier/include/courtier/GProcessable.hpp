@@ -48,13 +48,12 @@
 // Boost headers
 
 // Geneva headers
-#include "common/GArchiveNamed.hpp"          // archive_named (named-member emitter)
-#include "common/GErrorStreamer.hpp"         // g_error_streamer
+#include "common/GArchiveNamed.hpp"  // archive_named (named-member emitter)
+#include "common/GErrorStreamer.hpp" // g_error_streamer
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "courtier/GCourtierEnums.hpp"           // processingStatus, dispatchState, the id typedefs
-#include "courtier/GCourtierHelperFunctions.hpp" // psToStr
-#include "courtier/GProcessingOutcome.hpp"       // the transportable lifecycle record
+#include "courtier/GCourtierEnums.hpp"     // processingStatus, dispatchState, the id typedefs
+#include "courtier/GProcessingOutcome.hpp" // the transportable lifecycle record
 
 namespace Gem::Courtier {
 
@@ -211,8 +210,8 @@ public:
     }
 
     /** @brief @return A string representation of the current processing status (debugging) */
-    [[nodiscard]] std::string getProcessingStatusAsStr() const noexcept {
-        return psToStr(processing_status_);
+    [[nodiscard]] std::string getProcessingStatusAsStr() const {
+        return std::string(Gem::Common::enumName(processing_status_));
     }
 
     /** @brief @return true if the item carries the PROCESSED flag */
@@ -290,8 +289,9 @@ public:
         if(not allowed) {
             throw gem_exception(
                 g_error_streamer()
-                << "Got invalid target processing status " << psToStr(target_ps) << '\n'
-                << "for the current state of " << psToStr(processing_status_) << '\n'
+                << "Got invalid target processing status " << Gem::Common::enumName(target_ps)
+                << '\n'
+                << "for the current state of " << Gem::Common::enumName(processing_status_) << '\n'
             );
         }
 

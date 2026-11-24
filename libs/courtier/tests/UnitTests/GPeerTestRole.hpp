@@ -41,7 +41,7 @@
 #include <vector>
 
 // Geneva headers go here
-#include "GInProcessTestSupport.hpp" // endName(), closeName()
+#include "common/GCommonEnums.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
 /******************************************************************************/
@@ -109,7 +109,10 @@ public:
                 },
             .onClosed =
                 [self](GPeerEnd end, GPeerClose how, std::string_view) {
-                    self->note_("closed:" + endName(end) + ":" + closeName(how));
+                    self->note_(
+                        "closed:" + std::string(Gem::Common::enumName(end)) + ":" +
+                        std::string(Gem::Common::enumName(how))
+                    );
                     self->n_closed_.fetch_add(1);
                 },
         };

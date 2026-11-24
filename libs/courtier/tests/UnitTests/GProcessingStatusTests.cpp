@@ -43,11 +43,18 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <initializer_list>
+#include <sstream>
+#include <string_view>
+#include <utility>
 #include <vector>
 
 #include "common/GSerializableFunctionObjectT.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GProcessingContainerT.hpp"
+#include "courtier/gpu/GGPUKernelSpec.hpp"
+#include "courtier/mpi/GMPICascadeConfig.hpp"
+#include "courtier/transport/GPeerI.hpp"
 
 using namespace Gem::Courtier;
 
@@ -208,4 +215,71 @@ TEST_CASE(
     CHECK(c.is_due_for_processing());
     CHECK_NOTHROW(c.markAsProcessedWith({3.}));
     CHECK(c.is_processed());
+}
+
+/******************************************************************************/
+// The names of courtier's enums (enum_names_v): every name is pinned, as logs and messages quote
+// them, and each name leads back to its value.
+namespace {
+/** @brief Checks that an enum's table holds exactly the expected names, both ways */
+template <typename E>
+void checkNames(std::initializer_list<std::pair<E, std::string_view>> expected) {
+    REQUIRE(Gem::Common::enum_names_v<E>.size() == expected.size());
+    for(auto const &[value, name] : expected) {
+        CHECK(Gem::Common::enumName(value) == name);
+        CHECK(Gem::Common::enumFromName<E>(name) == value);
+    }
+}
+} // namespace
+
+TEST_CASE("courtier's enums: every value has its name", "[proc][status][names]") {
+    using Gem::Courtier::Consumers::GPeerClose;
+    using Gem::Courtier::Consumers::GPeerEnd;
+    using Gem::Courtier::GPU::BackendKind;
+    checkNames<processingStatus>(
+        {{processingStatus::UNPROCESSED, "UNPROCESSED"},
+         {processingStatus::DO_PROCESS, "DO_PROCESS"},
+         {processingStatus::PROCESSED, "PROCESSED"},
+         {processingStatus::EXCEPTION_CAUGHT, "EXCEPTION_CAUGHT"},
+         {processingStatus::ERROR_FLAGGED, "ERROR_FLAGGED"}}
+    );
+    checkNames<GFrameKind>(
+        {{GFrameKind::NONE, "NONE"},
+         {GFrameKind::PULL, "PULL"},
+         {GFrameKind::WORK, "WORK"},
+         {GFrameKind::RESULT, "RESULT"},
+         {GFrameKind::HELLO, "HELLO"}}
+    );
+    checkNames<run_state>(
+        {{run_state::INIT, "INIT"}, {run_state::RUN, "RUN"}, {run_state::FINALLY, "FINALLY"}}
+    );
+    checkNames<processRole>(
+        {{processRole::SUBMITTER, "SUBMITTER"},
+         {processRole::CLIENT, "CLIENT"},
+         {processRole::BYSTANDER, "BYSTANDER"}}
+    );
+    checkNames<GMPICascadeLayout>(
+        {{GMPICascadeLayout::SUBMITTER_AND_GROUPS, "SUBMITTER_AND_GROUPS"},
+         {GMPICascadeLayout::GROUPS_ONLY, "GROUPS_ONLY"}}
+    );
+    checkNames<GPeerEnd>(
+        {{GPeerEnd::CLOSED_HERE, "CLOSED_HERE"},
+         {GPeerEnd::CLOSED_THERE, "CLOSED_THERE"},
+         {GPeerEnd::SILENT, "SILENT"},
+         {GPeerEnd::FAILED, "FAILED"}}
+    );
+    checkNames<GPeerClose>(
+        {{GPeerClose::NORMAL, "NORMAL"},
+         {GPeerClose::ERROR, "ERROR"},
+         {GPeerClose::RUN_ENDED, "RUN_ENDED"}}
+    );
+    checkNames<BackendKind>({{BackendKind::CUDA, "cuda"}});
+    CHECK(Gem::Courtier::GPU::backendKindFromString("cuda") == BackendKind::CUDA);
+    CHECK_THROWS_AS(Gem::Courtier::GPU::backendKindFromString("cpu"), gem_exception);
+
+    std::ostringstream status;
+    status << processingStatus::EXCEPTION_CAUGHT;
+    CHECK(status.str() == "processingStatus::EXCEPTION_CAUGHT");
+    StatusProbeContainer c(StatusProbeContainer::Mode::SUCCEED);
+    CHECK(c.getProcessingStatusAsStr() == "DO_PROCESS");
 }

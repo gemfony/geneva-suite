@@ -76,8 +76,6 @@ using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
 using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GPeerI;
-using Gem::Courtier::Tests::closeName;
-using Gem::Courtier::Tests::endName;
 using Gem::Courtier::Tests::GInProcessConnector;
 using Gem::Courtier::Tests::GInProcessFaults;
 using Gem::Courtier::Tests::GInProcessListener;
@@ -229,7 +227,8 @@ private:
                     [self](GPeerEnd end, GPeerClose how, std::string_view) {
                         self->open_.store(false);
                         const std::scoped_lock lock(self->mutex_);
-                        self->closed_ = endName(end) + ":" + closeName(how);
+                        self->closed_ = std::string(Gem::Common::enumName(end)) + ":" +
+                                        std::string(Gem::Common::enumName(how));
                     },
             }
         );

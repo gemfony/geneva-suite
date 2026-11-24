@@ -113,22 +113,6 @@ std::string_view callsOf(processRole role) {
 
 /******************************************************************************/
 /**
- * @brief The name of a layout, for messages.
- * @param layout The layout
- * @return Its name
- */
-std::string_view layoutName(GMPICascadeLayout layout) {
-    switch(layout) {
-    case GMPICascadeLayout::SUBMITTER_AND_GROUPS:
-        return "SUBMITTER_AND_GROUPS";
-    case GMPICascadeLayout::GROUPS_ONLY:
-        return "GROUPS_ONLY";
-    }
-    return "an unknown layout";
-}
-
-/******************************************************************************/
-/**
  * @brief What a program has to add when the role of a lead or the submitter was not confirmed,
  * for messages.
  * @return The advice
@@ -468,7 +452,7 @@ void GMPICascade::requireRole(processRole consumer_role) {
               "beast), and the job without the MPI consumer.";
     throw gem_exception(
         g_error_streamer() << "Base rank " << base_rank_ << " of a cascade laid out "
-                           << layoutName(config_.layout)
+                           << Gem::Common::enumName(config_.layout)
                            << ": the consumer gave this process the role of "
                            << roleName(consumer_role) << ", the cascade the role of "
                            << roleName(role_) << '\n'

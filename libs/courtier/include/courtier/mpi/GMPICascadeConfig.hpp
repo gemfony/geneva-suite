@@ -65,6 +65,20 @@ enum class GMPICascadeLayout : Gem::Common::ENUMBASETYPE {
     GROUPS_ONLY = 1 ///< every rank belongs to a group; the leads reach their work otherwise
 };
 
+} /* namespace Gem::Courtier */
+
+namespace Gem::Common {
+/** @brief The names of the layouts (see enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::GMPICascadeLayout> =
+    std::to_array<std::pair<Gem::Courtier::GMPICascadeLayout, std::string_view>>(
+        {{Gem::Courtier::GMPICascadeLayout::SUBMITTER_AND_GROUPS, "SUBMITTER_AND_GROUPS"},
+         {Gem::Courtier::GMPICascadeLayout::GROUPS_ONLY, "GROUPS_ONLY"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Courtier {
+
 /******************************************************************************/
 /**
  * @brief Refuses poll pauses that a polled wait cannot use: it starts at @p pause_min and doubles
