@@ -37,7 +37,7 @@
 #include <vector>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // backupExistingFile(), timeAndPlace()
+#include "common/GCommonHelperFunctions.hpp" // backupExistingFile()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 

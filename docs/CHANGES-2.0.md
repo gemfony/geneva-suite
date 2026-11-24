@@ -745,6 +745,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **dietrich: `dietrich/plotting/GPlots.hpp` was removed.** `dietrich/GPlotDesigner.hpp` is the
   one umbrella header; a file that needs only some plot types includes `GDataCollectors.hpp`,
   `GGraphPlots.hpp` or `GHistogramPlots.hpp` from `dietrich/plotting/`.
+- **common: one way to raise an error, reported where it is handled** (source-breaking). An
+  error is raised with `throw gem_exception(g_error_streamer() << ...)`; the message names the
+  time, file, line and function of the throw. `raiseException`, the `GEXCEPTION` manipulator,
+  `GLogger::throwException()` and the first two arguments of `g_error_streamer` (`DO_LOG` /
+  `NO_LOG`, `timeAndPlace()`) are gone. Nothing is logged at the throw: an error a caller handles
+  prints nothing, and one is written to the log and to `GEM-EXCEPTION.log` once, where it ends a
+  task (the new manipulator `GERROR`, which does not throw) or the program (the fatal report).
+  `logType::EXCEPTION` is now `logType::ERROR_REPORT`.
 
 ## 8. Checkpointing
 

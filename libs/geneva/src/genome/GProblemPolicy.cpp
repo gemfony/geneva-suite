@@ -69,9 +69,8 @@ void GProblemPolicy::registerConstraint(
 ) {
     if(not c_ptr) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GProblemPolicy::registerConstraint(): Error!" << '\n'
-            << "Tried to register an empty constraint object" << '\n'
+            g_error_streamer() << "In GProblemPolicy::registerConstraint(): Error!" << '\n'
+                               << "Tried to register an empty constraint object" << '\n'
         );
     }
 

@@ -109,9 +109,8 @@ bool isUnsigned(const std::string &s) {
  */
 [[noreturn]] void fail(const std::string &raw) {
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GParameterPropertyParser::parse(): Error!" << '\n'
-        << "Could not parse parameter-property fragment: " << raw << '\n'
+        g_error_streamer() << "In GParameterPropertyParser::parse(): Error!" << '\n'
+                           << "Could not parse parameter-property fragment: " << raw << '\n'
     );
 }
 
@@ -161,7 +160,7 @@ readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::st
     for(std::size_t k = first; k < tok.size(); ++k) {
         if(not isUnsigned(tok[k])) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GParameterPropertyParser::parse(): Error!" << '\n'
                 << "\"" << tok[k] << "\" in (" << raw << ") is not a step count." << '\n'
                 << "A parameter-scan specification carries no label or name: a variable is"
@@ -290,10 +289,10 @@ void GParameterPropertyParser::parse() {
     // We only accept a single "simple-scan" entry. Complain, if more than one was found.
     if(s_spec_vec_.size() > 1) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParameterPropertyParser::parse(): Error!" << '\n'
-            << "Found " << s_spec_vec_.size() << " simple scan entries where a" << '\n'
-            << "maximum of 1 is allowed" << '\n'
+            g_error_streamer() << "In GParameterPropertyParser::parse(): Error!" << '\n'
+                               << "Found " << s_spec_vec_.size() << " simple scan entries where a"
+                               << '\n'
+                               << "maximum of 1 is allowed" << '\n'
         );
     }
     if(s_spec_vec_.size() ==
@@ -471,10 +470,11 @@ std::size_t GParameterPropertyParser::getNSimpleScanItems() const {
 #ifdef DEBUG
     if(s_spec_vec_.size() > 1) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParameterPropertyParser::getNSimpleScanItems() const: Error!" << '\n'
-            << "Found " << s_spec_vec_.size() << " simple scan entries where a" << '\n'
-            << "maximum of 1 is allowed" << '\n'
+            g_error_streamer() << "In GParameterPropertyParser::getNSimpleScanItems() const: Error!"
+                               << '\n'
+                               << "Found " << s_spec_vec_.size() << " simple scan entries where a"
+                               << '\n'
+                               << "maximum of 1 is allowed" << '\n'
         );
     }
 #endif

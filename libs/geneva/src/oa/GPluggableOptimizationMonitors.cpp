@@ -275,9 +275,8 @@ void GCollectiveMonitor::registerPluggableOM(const std::shared_ptr<oa::GBasePlug
     }
     else {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GCollectiveMonitor::registerPluggableOM(): Error!" << '\n'
-            << "Got empty pointer to pluggable optimization monitor." << '\n'
+            g_error_streamer() << "In GCollectiveMonitor::registerPluggableOM(): Error!" << '\n'
+                               << "Got empty pointer to pluggable optimization monitor." << '\n'
         );
     }
 }
@@ -842,9 +841,8 @@ std::tuple<std::uint32_t, std::uint32_t> GProcessingTimesLogger::getCanvasDimens
 void GProcessingTimesLogger::setNBinsX(std::size_t n_bins_x) {
     if(n_bins_x == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GProcessingTimesLogger::setNBinsX(): Error!" << '\n'
-            << "n_bins_x is set to 0" << '\n'
+            g_error_streamer() << "In GProcessingTimesLogger::setNBinsX(): Error!" << '\n'
+                               << "n_bins_x is set to 0" << '\n'
         );
     }
     n_bins_x_ = n_bins_x;
@@ -869,9 +867,8 @@ std::size_t GProcessingTimesLogger::getNBinsX() const {
 void GProcessingTimesLogger::setNBinsY(std::size_t n_bins_y) {
     if(n_bins_y == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GProcessingTimesLogger::setNBinsY(): Error!" << '\n'
-            << "n_bins_y is set to 0" << '\n'
+            g_error_streamer() << "In GProcessingTimesLogger::setNBinsY(): Error!" << '\n'
+                               << "n_bins_y is set to 0" << '\n'
         );
     }
     n_bins_y_ = n_bins_y;

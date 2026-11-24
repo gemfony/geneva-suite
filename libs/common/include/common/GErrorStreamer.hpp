@@ -70,11 +70,6 @@ timeAndPlace(std::source_location const &loc = std::source_location::current()) 
 } /* namespace Gem::Common */
 
 /******************************************************************************/
-// The former first argument of g_error_streamer, while the call sites are converted.
-inline constexpr bool DO_LOG = true;
-inline constexpr bool NO_LOG = false;
-
-/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
@@ -102,16 +97,6 @@ public:
       : where_and_when_(Gem::Common::timeAndPlace(loc)) { /* nothing */
     }
     //! [coding-empty-body]
-
-    /**************************************************************************/
-    /**
-	  * @brief The former form of the constructor, while the call sites are converted.
-	  *
-	  * @param where_and_when A "where and when" string (from timeAndPlace()) put in front of the message
-	  */
-    g_error_streamer(bool /*do_log*/, std::string where_and_when)
-      : where_and_when_(std::move(where_and_when)) { /* nothing */
-    }
 
     /*************************************************************************/
     // Deleted or defaulted constructors, destructor and assignment operators

@@ -188,9 +188,8 @@ public:
     void setSteepness(double steepness) {
         if(steepness <= 0.) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GProblemPolicy::setSteepness(): Error!" << '\n'
-                << "Invalid value of steepness parameter: " << steepness << '\n'
+                g_error_streamer() << "In GProblemPolicy::setSteepness(): Error!" << '\n'
+                                   << "Invalid value of steepness parameter: " << steepness << '\n'
             );
         }
         sigmoid_steepness_ = steepness;
@@ -207,9 +206,8 @@ public:
     void setBarrier(double barrier) {
         if(barrier <= 0.) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GProblemPolicy::setBarrier(): Error!" << '\n'
-                << "Invalid value of barrier parameter: " << barrier << '\n'
+                g_error_streamer() << "In GProblemPolicy::setBarrier(): Error!" << '\n'
+                                   << "Invalid value of barrier parameter: " << barrier << '\n'
             );
         }
         sigmoid_extremes_ = barrier;

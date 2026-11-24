@@ -223,9 +223,8 @@ public:
         // Check whether values have been provided
         if(startValues.empty()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GStarterIndividual::addContent(): Error!" << '\n'
-                << "No parameters given" << '\n'
+                g_error_streamer() << "In GStarterIndividual::addContent(): Error!" << '\n'
+                                   << "No parameters given" << '\n'
             );
         }
 
@@ -233,7 +232,7 @@ public:
         if(startValues.size() != lowerBoundaries.size() ||
            startValues.size() != upperBoundaries.size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GStarterIndividual::addContent(): Error!" << '\n'
                 << "Invalid sizes" << startValues.size() << " / " << lowerBoundaries.size() << " / "
                 << upperBoundaries.size() << '\n'

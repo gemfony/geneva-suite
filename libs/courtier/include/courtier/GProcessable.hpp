@@ -49,7 +49,6 @@
 
 // Geneva headers
 #include "common/GArchiveNamed.hpp"          // archive_named (named-member emitter)
-#include "common/GCommonHelperFunctions.hpp" // timeAndPlace
 #include "common/GErrorStreamer.hpp"         // g_error_streamer
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"

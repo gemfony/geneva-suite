@@ -130,9 +130,9 @@ void GSimulatedAnnealing::addConfigurationOptions_(Gem::Common::GParserBuilder &
 void GSimulatedAnnealing::setTDegradationStrength(double alpha) {
     if(alpha <= 0. || alpha >= 1.) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSimulatedAnnealing::setTDegradationStrength(const double&):" << '\n'
-            << "alpha must be in (0,1) for SA cooling; got: " << alpha << '\n'
+            g_error_streamer() << "In GSimulatedAnnealing::setTDegradationStrength(const double&):"
+                               << '\n'
+                               << "alpha must be in (0,1) for SA cooling; got: " << alpha << '\n'
         );
     }
 
@@ -158,9 +158,8 @@ double GSimulatedAnnealing::getTDegradationStrength() const {
 void GSimulatedAnnealing::setT0(double t0) {
     if(t0 <= 0.) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSimulatedAnnealing::setT0(const double&):" << '\n'
-            << "Got negative start temperature: " << t0 << '\n'
+            g_error_streamer() << "In GSimulatedAnnealing::setT0(const double&):" << '\n'
+                               << "Got negative start temperature: " << t0 << '\n'
         );
     }
 
@@ -197,9 +196,8 @@ void GSimulatedAnnealing::populationSanityChecks_() const {
     // in the parent class.
     if(this->n_parents_ == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSimulatedAnnealing::populationSanityChecks(): Error!" << '\n'
-            << "Number of parents is set to 0"
+            g_error_streamer() << "In GSimulatedAnnealing::populationSanityChecks(): Error!" << '\n'
+                               << "Number of parents is set to 0"
         );
     }
 
@@ -208,11 +206,11 @@ void GSimulatedAnnealing::populationSanityChecks_() const {
     std::size_t const pop_size = this->getPopulationSize();
     if(pop_size < 2 * this->n_parents_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSimulatedAnnealing::populationSanityChecks() :" << '\n'
-            << "Requested size of population is too small :" << pop_size << " " << this->n_parents_
-            << '\n'
-            << "Simulated annealing needs at least as many children as parents." << '\n'
+            g_error_streamer() << "In GSimulatedAnnealing::populationSanityChecks() :" << '\n'
+                               << "Requested size of population is too small :" << pop_size << " "
+                               << this->n_parents_ << '\n'
+                               << "Simulated annealing needs at least as many children as parents."
+                               << '\n'
         );
     }
 }
@@ -235,7 +233,7 @@ void GSimulatedAnnealing::evaluatePopulation_() {
     for(std::size_t i = this->getNParents(); i < this->size(); i++) {
         if(not this->at(i)->is_due_for_processing()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GSimulatedAnnealing::evaluatePopulation_(): Error!" << '\n'
                 << "Tried to evaluate children in range " << std::get<0>(range) << " - "
                 << std::get<1>(range) << '\n'
@@ -275,10 +273,9 @@ void GSimulatedAnnealing::selectBest_() {
     // should have been taken care of in fixAfterJobSubmission() .
     if(this->size() < this->getDefaultPopulationSize()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSimulatedAnnealing::selectBest(): Error!" << '\n'
-            << "Size of population is smaller than expected: " << this->size() << " / "
-            << this->getDefaultPopulationSize() << '\n'
+            g_error_streamer() << "In GSimulatedAnnealing::selectBest(): Error!" << '\n'
+                               << "Size of population is smaller than expected: " << this->size()
+                               << " / " << this->getDefaultPopulationSize() << '\n'
         );
     }
 #endif /* DEBUG */

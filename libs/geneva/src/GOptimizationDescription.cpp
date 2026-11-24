@@ -147,7 +147,7 @@ void GOptimizationDescription::addOptions(Gem::Common::GParserBuilder &gpb) {
         };
         if(not taken_.individual or not same(named.front(), taken_.individual_module)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GOptimizationDescription::addOptions(): Error!" << '\n'
                 << "'" << named.front().string()
                 << "' was given as the optimization problem (--individual), but the module"

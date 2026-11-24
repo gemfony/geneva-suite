@@ -261,7 +261,7 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
             (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->tryGet(wid, blob);
         if(not have || blob.empty()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GGenome::load(): Error!" << '\n'
                 << "An id-only layout reference could not be resolved: the layout is not held here."
                 << '\n'
@@ -526,7 +526,7 @@ private:
 #ifdef DEBUG
             if(scale > T(0) && not(stored >= T(-0.5) && stored < T(0.5))) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GGenome::externalValue(): Error!" << '\n'
                     << "Internal coordinate " << stored << " of bounded parameter " << k
                     << " is outside the canonical interval [-0.5, 0.5) -- a write path failed to "
@@ -572,7 +572,7 @@ private:
             const bool above = allow_upper_bound ? (x > ch.upper[k]) : not(x < ch.upper[k]);
             if(below || above) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GGenome::externalToInternalChecked(): Error!" << '\n'
                     << "External value " << x << " is outside the "
                     << (allow_upper_bound ? "range [" : "half-open range [") << ch.lower[k] << ", "
@@ -1202,7 +1202,7 @@ public:
 #ifdef DEBUG
         if(not scratch_->personalityRef()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GGenome::getPersonalityTraits<personality_type>() : Empty personality "
                    "pointer found"
                 << '\n'
@@ -1221,7 +1221,7 @@ public:
 #ifdef DEBUG
         if(not scratch_->personalityRef()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GGenome::getPersonalityTraits() : Empty personality pointer found" << '\n'
             );
         }
@@ -1235,7 +1235,7 @@ public:
     void setPersonality(std::shared_ptr<GPersonalityTraits> gpt) {
         if(not gpt) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GGenome::setPersonality() : Empty personality pointer passed" << '\n'
             );
         }
@@ -1291,10 +1291,9 @@ public:
 #ifdef DEBUG
         if(countParameters<par_type>() != par_vec.size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GGenome::assignValueVector():" << '\n'
-                << "Sizes don't match: " << countParameters<par_type>() << " / " << par_vec.size()
-                << '\n'
+                g_error_streamer() << "In GGenome::assignValueVector():" << '\n'
+                                   << "Sizes don't match: " << countParameters<par_type>() << " / "
+                                   << par_vec.size() << '\n'
             );
         }
 #endif /* DEBUG */
@@ -1382,7 +1381,7 @@ public:
 #ifdef DEBUG
         if(n_double + n_float != par_vec.size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GGenome::assignFPValueVector():" << '\n'
                 << "Sizes don't match: " << (n_double + n_float) << " / " << par_vec.size() << '\n'
             );
@@ -1459,7 +1458,7 @@ public:
 #ifdef DEBUG
         if(n_double + n_float != par_vec.size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GGenome::assignFPValueVectorInternal():" << '\n'
                 << "Sizes don't match: " << (n_double + n_float) << " / " << par_vec.size() << '\n'
             );

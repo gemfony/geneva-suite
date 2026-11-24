@@ -204,11 +204,10 @@ public:
         }
         catch(std::overflow_error &e) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GDataCollectorT::operator&(const T&): Error!" << '\n'
-                << "Encountered invalid cast with Gem::Common::narrow," << '\n'
-                << "with the message " << '\n'
-                << e.what() << '\n'
+                g_error_streamer() << "In GDataCollectorT::operator&(const T&): Error!" << '\n'
+                                   << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                                   << "with the message " << '\n'
+                                   << e.what() << '\n'
             );
         }
 
@@ -297,7 +296,7 @@ public:
             }
             catch(std::overflow_error &e) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GDataCollectorT::operator&(const std::vector<T>&): Error!" << '\n'
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                     << "with the message " << '\n'
@@ -331,7 +330,7 @@ public:
             }
             catch(std::overflow_error &e) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GDataCollectorT::operator&(std::span<const T>): Error!" << '\n'
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                     << "with the message " << '\n'
@@ -522,7 +521,7 @@ public:
     [[nodiscard]] auto getMinMaxElements() const {
         if(this->currentSize() == 0) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GDataCollectorT::getMinMaxElements(): Error!" << '\n'
                 << "Cannot determine the data range of an empty collector." << '\n'
             );
@@ -583,7 +582,7 @@ public:
         if constexpr(((std::is_same_v<Ts, double> || std::is_same_v<Ts, std::int32_t>) && ...)) {
             if(row.size() != n_axes) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GDataCollectorT::appendRow(): Error!" << '\n'
                     << "row size " << row.size() << " != axis count " << n_axes << '\n'
                 );
@@ -696,11 +695,10 @@ private:
         }
         catch(std::overflow_error &e) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GDataCollectorT::appendRow(): Error!" << '\n'
-                << "Encountered invalid cast with Gem::Common::narrow," << '\n'
-                << "with the message " << '\n'
-                << e.what() << '\n'
+                g_error_streamer() << "In GDataCollectorT::appendRow(): Error!" << '\n'
+                                   << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                                   << "with the message " << '\n'
+                                   << e.what() << '\n'
             );
         }
     }
@@ -779,11 +777,10 @@ private:
         }
         catch(std::overflow_error &e) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GDataCollectorT::operator&(tuple): Error!" << '\n'
-                << "Encountered invalid cast with Gem::Common::narrow," << '\n'
-                << "with the message " << '\n'
-                << e.what() << '\n'
+                g_error_streamer() << "In GDataCollectorT::operator&(tuple): Error!" << '\n'
+                                   << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                                   << "with the message " << '\n'
+                                   << e.what() << '\n'
             );
         }
     }

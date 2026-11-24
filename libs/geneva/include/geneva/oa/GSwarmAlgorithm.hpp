@@ -274,7 +274,7 @@ public:
         // Check that the neighborhood is in a valid range
         if(neighborhood >= n_neighborhoods_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GSwarmAlgorithm::getBestNeighborhoodIndividual<>() : Error" << '\n'
                 << "Requested neighborhood which does not exist: " << neighborhood << " / "
                 << n_neighborhoods_ << '\n'

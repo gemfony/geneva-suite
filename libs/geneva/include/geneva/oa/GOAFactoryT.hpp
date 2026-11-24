@@ -195,7 +195,7 @@ public:
         std::shared_ptr<oa_type> const p = Gem::Common::GFactoryT<oa_type>::get();
         if(not p) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GOAFactoryT<>::get<target_type>(): the factory produced no algorithm" << '\n'
             );
         }
@@ -212,7 +212,7 @@ public:
     registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr) {
         if(not cc_ptr) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GOptiomizationAlgorithmFactoryT<T>::registerContentCreator(): Error!" << '\n'
                 << "Tried to register an empty pointer" << '\n'
             );
@@ -233,10 +233,9 @@ public:
         }
         else {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In FactoryT<>::registerPluggableOM(): Tried to "
-                   "register empty pluggable optimization monitor"
-                << '\n'
+                g_error_streamer() << "In FactoryT<>::registerPluggableOM(): Tried to "
+                                      "register empty pluggable optimization monitor"
+                                   << '\n'
             );
         }
     }
@@ -320,9 +319,9 @@ public:
             return Gem::Common::narrow<std::uint32_t>(max_iteration_cl_);
         }
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::getMaxIterationCL(): Error!" << '\n'
-            << "max_iteration_cl_ wasn't set" << '\n'
+            g_error_streamer() << "In GOptimizationAlgorithmBase<>::getMaxIterationCL(): Error!"
+                               << '\n'
+                               << "max_iteration_cl_ wasn't set" << '\n'
         );
 
         // Make the compiler happy
@@ -360,7 +359,7 @@ public:
             return Gem::Common::narrow<std::uint32_t>(max_stall_iteration_cl_);
         }
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GOptimizationAlgorithmBase<>::getMaxStallIterationCL(): Error!" << '\n'
             << "max_stall_iteration_cl_ wasn't set" << '\n'
         );
@@ -402,9 +401,8 @@ public:
             return max_duration;
         }
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::getMaxTimeCL(): Error!" << '\n'
-            << "max_seconds_cl_ wasn't set" << '\n'
+            g_error_streamer() << "In GOptimizationAlgorithmBase<>::getMaxTimeCL(): Error!" << '\n'
+                               << "max_seconds_cl_ wasn't set" << '\n'
         );
 
         // Make the compiler happy

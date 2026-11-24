@@ -119,9 +119,8 @@ bool GSepCmaEvolutionStrategy::getParetoMode() const {
 void GSepCmaEvolutionStrategy::setInitialSigma(double initial_sigma) {
     if(initial_sigma <= 0.) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSepCmaEvolutionStrategy::setInitialSigma(): Error!" << '\n'
-            << "Got invalid initial sigma " << initial_sigma << '\n'
+            g_error_streamer() << "In GSepCmaEvolutionStrategy::setInitialSigma(): Error!" << '\n'
+                               << "Got invalid initial sigma " << initial_sigma << '\n'
         );
     }
     initial_sigma_ = initial_sigma;
@@ -210,10 +209,11 @@ void GSepCmaEvolutionStrategy::determineDimension() {
 
     if(n_ == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSepCmaEvolutionStrategy::determineDimension(): Error!" << '\n'
-            << "The individual exposes no floating point parameters; sep-CMA-ES" << '\n'
-            << "requires a continuous (double / float) genome." << '\n'
+            g_error_streamer() << "In GSepCmaEvolutionStrategy::determineDimension(): Error!"
+                               << '\n'
+                               << "The individual exposes no floating point parameters; sep-CMA-ES"
+                               << '\n'
+                               << "requires a continuous (double / float) genome." << '\n'
         );
     }
 }
@@ -302,10 +302,10 @@ void GSepCmaEvolutionStrategy::setUpStrategyParameters() {
 void GSepCmaEvolutionStrategy::adjustPopulation_() {
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSepCmaEvolutionStrategy::adjustPopulation_(): Error!" << '\n'
-            << "No individuals found in the population. You need to add at least" << '\n'
-            << "one individual before the call to optimize()." << '\n'
+            g_error_streamer() << "In GSepCmaEvolutionStrategy::adjustPopulation_(): Error!" << '\n'
+                               << "No individuals found in the population. You need to add at least"
+                               << '\n'
+                               << "one individual before the call to optimize()." << '\n'
         );
     }
 

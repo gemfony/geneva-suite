@@ -37,7 +37,6 @@
 #include <string_view>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // timeAndPlace()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"

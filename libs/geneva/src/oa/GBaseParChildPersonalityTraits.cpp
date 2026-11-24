@@ -58,9 +58,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  */
 std::string GBaseParChildPersonalityTraits::getMnemonic() const {
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GBaseParChildPersonalityTraits::getMnemonic(): Error!" << '\n'
-        << "This function should never have been called" << '\n'
+        g_error_streamer() << "In GBaseParChildPersonalityTraits::getMnemonic(): Error!" << '\n'
+                           << "This function should never have been called" << '\n'
     );
 
     return "none";
@@ -161,9 +160,8 @@ std::size_t GBaseParChildPersonalityTraits::getParentId() const {
         return parent_id_;
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GBaseParChildPersonalityTraits::getParentId():" << '\n'
-        << "parent_id_ is unset" << '\n'
+        g_error_streamer() << "In GBaseParChildPersonalityTraits::getParentId():" << '\n'
+                           << "parent_id_ is unset" << '\n'
     );
 
     // Make the compiler happy

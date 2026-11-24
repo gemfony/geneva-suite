@@ -148,10 +148,9 @@ private:
     void checkSize(std::size_t n) const {
         if(n < rows_ * cols_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GGridArchitecture: Error!" << '\n'
-                << "Individual has " << n << " FP values, but the " << rows_ << "x" << cols_
-                << " grid needs " << (rows_ * cols_) << '\n'
+                g_error_streamer() << "In GGridArchitecture: Error!" << '\n'
+                                   << "Individual has " << n << " FP values, but the " << rows_
+                                   << "x" << cols_ << " grid needs " << (rows_ * cols_) << '\n'
             );
         }
     }

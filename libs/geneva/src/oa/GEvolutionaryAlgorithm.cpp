@@ -193,7 +193,7 @@ void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_indivi
 #ifdef DEBUG
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GEvolutionaryAlgorithm::updateGlobalBestsPQ_() :" << '\n'
             << "Tried to retrieve the best individuals even though the population is empty." << '\n'
         );
@@ -231,7 +231,7 @@ void GType::updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_ind
 #ifdef DEBUG
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "GEvolutionaryAlgorithm::updateIterationBestsPQ_() :" << '\n'
             << "Tried to retrieve the best individuals even though the population is empty." << '\n'
         );
@@ -303,9 +303,9 @@ void GType::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
 void GType::populationSanityChecks_() const {
     if(this->n_parents_ == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GEvolutionaryAlgorithm::populationSanityChecks(): Error!" << '\n'
-            << "Number of parents is set to 0"
+            g_error_streamer() << "In GEvolutionaryAlgorithm::populationSanityChecks(): Error!"
+                               << '\n'
+                               << "Number of parents is set to 0"
         );
     }
 
@@ -321,7 +321,7 @@ void GType::populationSanityChecks_() const {
         error << "In GEvolutionaryAlgorithm::populationSanityChecks() :" << '\n'
               << "Requested size of population is too small :" << pop_size << " "
               << this->n_parents_ << '\n';
-        throw gem_exception(g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << error.str());
+        throw gem_exception(g_error_streamer() << error.str());
     }
 }
 
@@ -334,7 +334,7 @@ void GType::evaluatePopulation_() {
     for(std::size_t i = this->getNParents(); i < this->size(); i++) {
         if(not this->at(i)->is_due_for_processing()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GEvolutionaryAlgorithm::evaluatePopulation_(): Error!" << '\n'
                 << "Tried to evaluate children in range " << std::get<0>(range) << " - "
                 << std::get<1>(range) << '\n'
@@ -347,10 +347,9 @@ void GType::evaluatePopulation_() {
     // Go2 chain holds every individual the one before handed over, and selectBest_() reduces it.
     if(this->size() < this->getDefaultPopulationSize()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GEvolutionaryAlgorithm::evaluatePopulation_(): Error!" << '\n'
-            << "Size of data vector (" << this->size() << ") should be at least "
-            << this->getDefaultPopulationSize() << '\n'
+            g_error_streamer() << "In GEvolutionaryAlgorithm::evaluatePopulation_(): Error!" << '\n'
+                               << "Size of data vector (" << this->size() << ") should be at least "
+                               << this->getDefaultPopulationSize() << '\n'
         );
     }
 #endif
@@ -368,10 +367,11 @@ void GType::selectBest_() {
 #ifdef DEBUG
     if((this->size() - this->n_parents_) < this->default_n_children_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GEvolutionaryAlgorithm::select():" << '\n'
-            << "Too few children. Got " << (this->size() - this->getNParents()) << "," << '\n'
-            << "but was expecting at least " << this->getDefaultNChildren() << '\n'
+            g_error_streamer() << "In GEvolutionaryAlgorithm::select():" << '\n'
+                               << "Too few children. Got " << (this->size() - this->getNParents())
+                               << "," << '\n'
+                               << "but was expecting at least " << this->getDefaultNChildren()
+                               << '\n'
         );
     }
 #endif /* DEBUG */
@@ -423,10 +423,9 @@ void GType::selectBest_() {
 #ifdef DEBUG
     if(this->size() < this->getDefaultPopulationSize()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GEvolutionaryAlgorithm::selectBest(): Error!" << '\n'
-            << "Size of population is smaller than expected: " << this->size() << " / "
-            << this->getDefaultPopulationSize() << '\n'
+            g_error_streamer() << "In GEvolutionaryAlgorithm::selectBest(): Error!" << '\n'
+                               << "Size of population is smaller than expected: " << this->size()
+                               << " / " << this->getDefaultPopulationSize() << '\n'
         );
     }
 #endif /* DEBUG */

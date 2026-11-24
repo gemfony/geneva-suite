@@ -390,7 +390,7 @@ private:
     verify(bool found, AuxKey key, std::size_t pod_size, std::uint32_t pod_tag, it_type it) const {
         if(not found) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GAuxiliaryStore::metaRecords(): no aux block under key " << key << '\n'
             );
         }
@@ -399,7 +399,7 @@ private:
         // compared across a checkpoint, so it is treated as "type-unchecked").
         if(it->second.stride != pod_size || (it->second.tag != 0 && it->second.tag != pod_tag)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GAuxiliaryStore::metaRecords(): POD type mismatch for key " << key << '\n'
                 << "stride " << it->second.stride << " vs sizeof " << pod_size << '\n'
             );

@@ -734,10 +734,9 @@ inline scriptKind classifyForScript(
         break;
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In " << where << ": Error!" << '\n'
-        << "the " << backend_name << " backend does not support " << p.getPlotterName()
-        << "; use the ROOT backend for it" << '\n'
+        g_error_streamer() << "In " << where << ": Error!" << '\n'
+                           << "the " << backend_name << " backend does not support "
+                           << p.getPlotterName() << "; use the ROOT backend for it" << '\n'
     );
 }
 
@@ -771,7 +770,7 @@ inline void validateScriptPads(
             if(sp->plotSpec().projection.value_or(surfaceProjection::NONE) !=
                surfaceProjection::NONE) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In " << where << ": Error!" << '\n'
                     << "an overlay (" << sp->getPlotterName()
                     << ") requests a surface projection -- "
@@ -780,7 +779,7 @@ inline void validateScriptPads(
             }
             if(isThreeDimensionalScript(k) != isThreeDimensionalScript(sk)) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In " << where << ": Error!" << '\n'
                     << "a 2-d and a 3-d graph cannot share a single " << backend_name << " pad ("
                     << p->getPlotterName() << " vs. " << sp->getPlotterName() << ")" << '\n'

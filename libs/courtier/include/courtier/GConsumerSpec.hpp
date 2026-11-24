@@ -43,7 +43,6 @@
 #include <boost/core/demangle.hpp>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // timeAndPlace()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 

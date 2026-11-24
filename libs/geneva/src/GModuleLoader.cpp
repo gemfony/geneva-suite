@@ -74,7 +74,7 @@ void registerOAContribution(
     const std::string mnemonic = provider->getMnemonic();
     if(not registerOptimizationAlgorithm(provider)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description
             << " contributes an optimization algorithm with mnemonic '" << mnemonic << "'," << '\n'
@@ -100,7 +100,7 @@ void registerMarshallerContribution(
     const std::string device_target = provider->getMnemonic();
     if(not Gem::Courtier::GPU::marshallerProviderStore()->setOnce(device_target, provider)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In Gem::Geneva::loadModule(): Error!" << '\n'
             << "The module " << context.description
             << " contributes a GPU marshaller for device target '" << device_target << "'," << '\n'
@@ -132,11 +132,10 @@ std::vector<GContributionHandler> genevaContributionHandlers(LoadedModule &taken
                  *seen = context.path;
                  if(taken.individual or twice) {
                      throw gem_exception(
-                         g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                         << "In Gem::Geneva::loadModule(): Error!" << '\n'
-                         << "The module " << context.description
-                         << " contributes a second individual;"
-                         << " a program has one optimization problem." << '\n'
+                         g_error_streamer() << "In Gem::Geneva::loadModule(): Error!" << '\n'
+                                            << "The module " << context.description
+                                            << " contributes a second individual;"
+                                            << " a program has one optimization problem." << '\n'
                      );
                  }
              },

@@ -205,7 +205,7 @@ int main(int argc, char **argv) {
 
             default:
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "Error in main(): Incorrect object type requested: " << o << std::endl
                 );
                 break;

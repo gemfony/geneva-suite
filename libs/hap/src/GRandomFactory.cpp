@@ -558,9 +558,8 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
 #ifdef DEBUG
                 if(not p) {
                     throw gem_exception(
-                        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                        << "In GRandomFactory::producer(): Error!" << '\n'
-                        << "Got empty recycling pointer" << '\n'
+                        g_error_streamer() << "In GRandomFactory::producer(): Error!" << '\n'
+                                           << "Got empty recycling pointer" << '\n'
                     );
                 }
 

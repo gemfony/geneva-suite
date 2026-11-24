@@ -226,11 +226,13 @@ std::size_t GSwarmAlgorithm::getFirstNIPosVec(
     // function, so the check is expressed through the argument, not the n_neighborhoods_ member.)
     if(neighborhood >= vec.size()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::getFirstNIPosVec():" << '\n'
-            << "Received id " << neighborhood << " of a neighborhood which does not exist:" << '\n'
-            << "the neighborhood-size vector has " << vec.size() << " entries," << '\n'
-            << "hence the maximum allowed id is " << vec.size() - 1 << "." << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::getFirstNIPosVec():" << '\n'
+                               << "Received id " << neighborhood
+                               << " of a neighborhood which does not exist:" << '\n'
+                               << "the neighborhood-size vector has " << vec.size() << " entries,"
+                               << '\n'
+                               << "hence the maximum allowed id is " << vec.size() - 1 << "."
+                               << '\n'
         );
     }
 #endif
@@ -261,12 +263,13 @@ std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const
 #ifdef DEBUG
     if(neighborhood >= n_neighborhoods_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::getLastNIPos():" << '\n'
-            << "Received id " << neighborhood << " of a neighborhood which does not exist." << '\n'
-            << "The number of neighborhoods is " << n_neighborhoods_ << " ." << '\n'
-            << "hence the maximum allowed value of the id is " << n_neighborhoods_ - 1 << "."
-            << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::getLastNIPos():" << '\n'
+                               << "Received id " << neighborhood
+                               << " of a neighborhood which does not exist." << '\n'
+                               << "The number of neighborhoods is " << n_neighborhoods_ << " ."
+                               << '\n'
+                               << "hence the maximum allowed value of the id is "
+                               << n_neighborhoods_ - 1 << "." << '\n'
         );
     }
 #endif
@@ -284,19 +287,17 @@ void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &in
 #ifdef DEBUG
     if(not ind_ptr) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updatePersonalBest():" << '\n'
-            << "Got empty ind_ptr" << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updatePersonalBest():" << '\n'
+                               << "Got empty ind_ptr" << '\n'
         );
     }
 
     if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updatePersonalBest():" << '\n'
-            << "ind_ptr is unprocessed or has errors: " << '\n'
-            << "is_due_for_processing() == " << ind_ptr->is_due_for_processing()
-            << ", has_errors() == " << ind_ptr->has_errors() << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updatePersonalBest():" << '\n'
+                               << "ind_ptr is unprocessed or has errors: " << '\n'
+                               << "is_due_for_processing() == " << ind_ptr->is_due_for_processing()
+                               << ", has_errors() == " << ind_ptr->has_errors() << '\n'
         );
     }
 #endif /* DEBUG */
@@ -321,17 +322,15 @@ void GSwarmAlgorithm::updatePersonalBestIfBetter(const std::unique_ptr<gen::GGen
 #ifdef DEBUG
     if(not ind_ptr) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updatePersonalBestIfBetter():" << '\n'
-            << "Got empty ind_ptr" << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updatePersonalBestIfBetter():" << '\n'
+                               << "Got empty ind_ptr" << '\n'
         );
     }
 
     if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updatePersonalBestIfBetter(): Error!" << '\n'
-            << "dirty flag of individual is set." << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updatePersonalBestIfBetter(): Error!" << '\n'
+                               << "dirty flag of individual is set." << '\n'
         );
     }
 #endif /* DEBUG */
@@ -573,12 +572,12 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
     if(afterFirstIteration() && last_iteration_individuals_cnt_.size() !=
                                     default_n_neighborhood_members_ * n_neighborhoods_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
-            << "last_iteration_individuals_cnt_ has incorrect size! Expected" << '\n'
-            << "default_n_neighborhood_members_*n_neighborhoods_ = "
-            << default_n_neighborhood_members_ * n_neighborhoods_ << '\n'
-            << "but found " << last_iteration_individuals_cnt_.size() << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
+                               << "last_iteration_individuals_cnt_ has incorrect size! Expected"
+                               << '\n'
+                               << "default_n_neighborhood_members_*n_neighborhoods_ = "
+                               << default_n_neighborhood_members_ * n_neighborhoods_ << '\n'
+                               << "but found " << last_iteration_individuals_cnt_.size() << '\n'
         );
     }
 #endif /* DEBUG */
@@ -641,7 +640,7 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
                 // a release build when every first-iteration work item failed to return.
                 if(this->empty()) {
                     throw gem_exception(
-                        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                        g_error_streamer()
                         << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
                         << "No items returned in the first iteration; cannot seed the swarm."
                         << '\n'
@@ -675,10 +674,10 @@ void GSwarmAlgorithm::adjustNeighborhoods() {
     // Check that the population has the expected size
     if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
-            << "The population has an incorrect size of " << this->size() << ", expected "
-            << n_neighborhoods_ * default_n_neighborhood_members_ << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::adjustNeighborhoods(): Error!" << '\n'
+                               << "The population has an incorrect size of " << this->size()
+                               << ", expected "
+                               << n_neighborhoods_ * default_n_neighborhood_members_ << '\n'
         );
     }
 #endif
@@ -743,7 +742,7 @@ void GSwarmAlgorithm::updatePositions() {
     for(std::size_t n = 0; n < n_neighborhoods_; n++) {
         if(n_neighborhood_members_cnt_[n] != default_n_neighborhood_members_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
                 << "n_neighborhood_members_cnt_[" << n << "] has invalid size "
                 << n_neighborhood_members_cnt_[n] << '\n'
@@ -753,7 +752,7 @@ void GSwarmAlgorithm::updatePositions() {
 
         if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
                 << "The population has an incorrect size of " << this->size() << ", expected "
                 << n_neighborhoods_ * default_n_neighborhood_members_ << '\n'
@@ -774,11 +773,10 @@ void GSwarmAlgorithm::updatePositions() {
     // Cross-check that we have the nominal amount of individuals
     if(this->size() != n_neighborhoods_ * default_n_neighborhood_members_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
-            << "Invalid number of individuals found." << '\n'
-            << "Expected " << n_neighborhoods_ * default_n_neighborhood_members_ << " but got "
-            << this->size() << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
+                               << "Invalid number of individuals found." << '\n'
+                               << "Expected " << n_neighborhoods_ * default_n_neighborhood_members_
+                               << " but got " << this->size() << '\n'
         );
     }
 #endif /* DEBUG */
@@ -789,17 +787,15 @@ void GSwarmAlgorithm::updatePositions() {
         if(afterFirstIteration()) {
             if(not neighborhood_bests_cnt_[n]) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GSwarmAlgorithm::updatePositions():" << '\n'
-                    << "neighborhood_bests_cnt_[" << n << "] is empty." << '\n'
+                    g_error_streamer() << "In GSwarmAlgorithm::updatePositions():" << '\n'
+                                       << "neighborhood_bests_cnt_[" << n << "] is empty." << '\n'
                 );
             }
 
             if(n == 0 && not global_best_ptr_) { // Only check for the first n
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GSwarmAlgorithm::updatePositions():" << '\n'
-                    << "global_best_ptr_ is empty." << '\n'
+                    g_error_streamer() << "In GSwarmAlgorithm::updatePositions():" << '\n'
+                                       << "global_best_ptr_ is empty." << '\n'
                 );
             }
         }
@@ -807,10 +803,9 @@ void GSwarmAlgorithm::updatePositions() {
         // Check that the number if individuals in each neighborhoods has the expected value
         if(n_neighborhood_members_cnt_[n] != default_n_neighborhood_members_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
-                << "Invalid number of members in neighborhood " << n << ": "
-                << n_neighborhood_members_cnt_[n] << '\n'
+                g_error_streamer() << "In GSwarmAlgorithm::updatePositions(): Error!" << '\n'
+                                   << "Invalid number of members in neighborhood " << n << ": "
+                                   << n_neighborhood_members_cnt_[n] << '\n'
             );
         }
 #endif /* DEBUG */
@@ -879,9 +874,8 @@ void GSwarmAlgorithm::updateIndividualPositions(
     // Do some error checking
     if(not ind) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
-            << "Found empty individual \"ind\"" << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
+                               << "Found empty individual \"ind\"" << '\n'
         );
     }
 #endif /* DEBUG */
@@ -894,25 +888,22 @@ void GSwarmAlgorithm::updateIndividualPositions(
 #ifdef DEBUG
     if(not personal_best) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
-            << "Found empty individual \"personal_best\"" << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
+                               << "Found empty individual \"personal_best\"" << '\n'
         );
     }
 
     if(not neighborhood_best) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
-            << "Found empty individual \"neighborhood_best\"" << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
+                               << "Found empty individual \"neighborhood_best\"" << '\n'
         );
     }
 
     if(not global_best) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
-            << "Found empty individual \"global_best\"" << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::updateIndividualPositions():" << '\n'
+                               << "Found empty individual \"global_best\"" << '\n'
         );
     }
 
@@ -1128,7 +1119,7 @@ std::tuple<double, double> GSwarmAlgorithm::findBests() {
     for(auto const &[pos, ind_ptr] : *this | std::views::enumerate) {
         if(ind_ptr->is_due_for_processing() || ind_ptr->has_errors()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GSwarmAlgorithm::findBests(): Error!" << '\n'
                 << "Found individual in position " << pos << " in iteration "
                 << this->getIteration() << '\n'
@@ -1183,7 +1174,7 @@ void GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(maxMode m) {
         if(first_counter == last_counter) {
             if(inFirstIteration()) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(): Error!" << '\n'
                     << "No item of neighborhood " << n
                     << " returned in the first iteration; cannot seed its best." << '\n'
@@ -1295,11 +1286,10 @@ void GSwarmAlgorithm::adjustPopulation_() {
 
     if(current_size == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::adjustPopulation() :" << '\n'
-            << "No individuals found in the population." << '\n'
-            << "You need to add at least one individual before" << '\n'
-            << "the call to optimize<>()" << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::adjustPopulation() :" << '\n'
+                               << "No individuals found in the population." << '\n'
+                               << "You need to add at least one individual before" << '\n'
+                               << "the call to optimize<>()" << '\n'
         );
     }
     if(current_size == 1) {
@@ -1374,10 +1364,11 @@ void GSwarmAlgorithm::adjustPopulation_() {
     // indeed have at least the required number of individuals
     if(this->size() < default_pop_size) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::adjustPopulation() :" << '\n'
-            << "Expected at least a population size of " << default_pop_size << '\n'
-            << "but found a size of " << this->size() << ", which is too small." << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::adjustPopulation() :" << '\n'
+                               << "Expected at least a population size of " << default_pop_size
+                               << '\n'
+                               << "but found a size of " << this->size() << ", which is too small."
+                               << '\n'
         );
     }
 #endif /* DEBUG */
@@ -1403,9 +1394,9 @@ void GSwarmAlgorithm::fillUpNeighborhood1() {
     // Do some error checking
     if(this->size() != n_neighborhoods_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::fillUpNeighborhood1():" << '\n'
-            << "Invalid size: " << this->size() << " Expected " << n_neighborhoods_ << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::fillUpNeighborhood1():" << '\n'
+                               << "Invalid size: " << this->size() << " Expected "
+                               << n_neighborhoods_ << '\n'
         );
     }
 
@@ -1426,9 +1417,8 @@ void GSwarmAlgorithm::fillUpNeighborhood1() {
 #ifdef DEBUG
                 if(not(*(this->begin() + n + 1))) {
                     throw gem_exception(
-                        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                        << "In GSwarmAlgorithm::fillUpNeighborhood1():" << '\n'
-                        << "Found empty position " << n << '\n'
+                        g_error_streamer() << "In GSwarmAlgorithm::fillUpNeighborhood1():" << '\n'
+                                           << "Found empty position " << n << '\n'
                     );
                 }
 #endif /* DEBUG */
@@ -1532,9 +1522,9 @@ void GSwarmAlgorithm::setVelocityRangePercentage(double velocity_range_percentag
     // Do some error checking
     if(velocity_range_percentage <= 0. || velocity_range_percentage > 1.) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm::setVelocityRangePercentage()" << '\n'
-            << "Invalid velocity_range_percentage: " << velocity_range_percentage << '\n'
+            g_error_streamer() << "In GSwarmAlgorithm::setVelocityRangePercentage()" << '\n'
+                               << "Invalid velocity_range_percentage: " << velocity_range_percentage
+                               << '\n'
         );
     }
 
