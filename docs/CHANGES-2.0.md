@@ -599,6 +599,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   smart-pointer `operator<<` overloads of the example/library individuals take a
   `const std::unique_ptr<T>&`, and `GExternalEvaluatorIndividual::archive()` takes a
   `std::vector<std::unique_ptr<GExternalEvaluatorIndividual>>`.
+- **The EA's iteration accessors describe the last iteration** (behaviour change): in the
+  single-criterion sorting modes `getBestIterationIndividual(s)()` returned the best of all
+  iterations so far, as the global accessors do; the iteration archive is now replaced in every
+  iteration, as in the other algorithms and the Pareto modes.
 - **Several public headers moved to sit with the layer they belong to** (source-breaking
   `#include`-path changes; update the paths). The flat-genome / entity headers moved from
   `geneva/ind/` to `geneva/genome/`; the entity multi-constraint headers (`GMultiConstraintT`,
