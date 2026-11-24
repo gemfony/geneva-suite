@@ -195,9 +195,9 @@ special-purpose code you find, and only descend to the specific when the general
 When a **genuine defect surfaces during development** — a compilation error, a crash, an assertion, or a
 logical/numeric failure — fixing it is **not enough**: add a test that pins the problem down so it cannot
 silently return. The test must **fail on the unfixed code and pass once the fix is in** (verify both when
-practical), and it lives with the code it guards (a unit test in the owning library's suite; the existing
-per-class `specificTests*_GUnitTests_` hooks — the opt-in `Gem::Common::GSelfTestable` facet — and the
-`[net]`/serialization round-trip suites are the natural homes). This applies to problems *found while working*, not only to tickets — the moment you understand why
+practical), and it lives with the code it guards (a unit test in the owning library's suite; the test
+file of the class it guards and the `[net]`/serialization round-trip suites are the natural homes).
+This applies to problems *found while working*, not only to tickets — the moment you understand why
 something broke, encode that understanding as a test. A defect you cannot yet reproduce is triaged first
 (Invariant 7); once reproduced, the reproduction becomes the regression test.
 
