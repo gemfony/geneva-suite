@@ -99,7 +99,9 @@ public:
     ~Go2() override = default;
 
     /**
-     * @brief Specifies whether only the best individuals of a population should be copied to the next algorithm.
+     * @brief Specifies whether only the best individuals of an algorithm go on to the next algorithm
+     * of the chain (the default), or its whole last population. The results of
+     * getBestGlobalIndividual(s)() are the bests of the whole run either way.
      */
     //! [coding-naming-example#2]
     void setCopyBestIndividualsOnly(bool copy_best_individuals_only);
@@ -239,11 +241,11 @@ private:
      */
     std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const final;
     /**
-     * @brief Retrieves the best individual found in the current iteration.
+     * @brief Retrieves the best individual of the last iteration of the chain's last algorithm.
      */
     std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const final;
     /**
-     * @brief Retrieves a list of the best individuals found in the current iteration.
+     * @brief Retrieves the best individuals of the last iteration of the chain's last algorithm.
      */
     std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const final;
 
@@ -297,6 +299,10 @@ private:
     void runAlgorithmChain(std::uint32_t first_algorithm_offset);
     /** @brief Sorts the collected individuals by their (min-only transformed) fitness */
     void sortIndividualsByFitness();
+    /** @brief The bests of the whole run, best first, from the archives of the chain's algorithms */
+    std::vector<std::unique_ptr<gen::GGenome>> bestsOfRun_() const;
+    /** @brief The last algorithm of the chain; throws if the chain has not run */
+    GOABase const &lastAlgorithm_() const;
 
     /**
      * @brief Resolves a list of algorithm mnemonics against oaFactoryStore() and appends the produced
@@ -309,7 +315,6 @@ private:
 
     //---------------------------------------------------------------------------
     // Internal parameters
-    bool sorted_ = false; ///< Indicates whether local individuals have been sorted
     std::uint32_t total_iterations_ =
         0; ///< The iterations of the chain so far: the chain offset of the next algorithm, and getIteration_()
     /// Whether only the best individuals of an algorithm are copied to the next one

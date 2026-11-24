@@ -42,6 +42,7 @@
 #include <cstddef>
 #include <limits>
 #include <memory>
+#include <set>
 #include <string_view>
 #include <tuple>
 #include <vector>
@@ -50,6 +51,7 @@
 #include "common/GParserBuilder.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
 #include "geneva/GOptimizationEnums.hpp"
+#include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeMultiConstraint.hpp"
@@ -537,6 +539,75 @@ TEST_CASE("ea MUNU1PRETAIN never loses its best parent", "[ea][oa]") {
         }
     }
     CHECK(n_worse == 0);
+}
+
+/******************************************************************************/
+
+TEST_CASE("ea's iteration archive holds the last iteration only", "[ea][oa]") {
+    // The iteration archive is replaced in every iteration, so getBestIterationIndividual() returns
+    // the best of the last iteration -- the fitness the EA reports as getBestCurrentPrimaryFitness().
+    // With comma selection and a large fixed step the last iteration is often worse than an earlier
+    // one. Regression: in the single-criterion modes the EA added to the archive without replacing
+    // it, so it accumulated like the global archive and handed out the best of all iterations.
+    std::size_t n_lost = 0; // runs whose last iteration was worse than the best found
+    for(std::size_t run = 0; run < 20; ++run) {
+        auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        p->setPopulationSizes(5, 1);
+        p->setMaxIteration(6);
+        p->setMaxStallIteration(0);
+        p->setReportIteration(0);
+        p->setSortingScheme(Gem::Geneva::sortingMode::MUCOMMANU_SINGLEEVAL);
+        HighDimSphere<5> const src;
+        p->push_back(src.clone());
+        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+        cfg->groupDouble(0).gauss(0.3, 0., 1e-3, 1., 1.); // a large step that does not adapt
+        p->setAdaptionConfig(cfg);
+        p->optimize();
+
+        double const iteration_best = Gem::Geneva::minOnly_transformed_fitness(
+            *p->getBestIterationIndividual<gen::GGenome>()
+        );
+        CHECK(
+            iteration_best ==
+            std::get<Gem::Geneva::G_TRANSFORMED_FITNESS>(p->getBestCurrentPrimaryFitness())
+        );
+        if(iteration_best >
+           Gem::Geneva::minOnly_transformed_fitness(*p->getBestGlobalIndividual<gen::GGenome>())) {
+            ++n_lost;
+        }
+    }
+    // The case that tells the two archives apart occurred (best of N runs, Invariant 18)
+    CHECK(n_lost > 0);
+}
+
+/******************************************************************************/
+
+TEST_CASE("ea's global archive holds no individual twice under plus selection", "[ea][oa]") {
+    // With plus selection a parent that no child beats stays, and is offered to the global archive
+    // again in every iteration; the archive keeps one entry per set of parameter values. Regression:
+    // it removed only the same object offered twice, so every copy of a surviving parent stayed
+    // and getBestGlobalIndividuals() returned it several times (e.g. 4 + 5 of 10 entries).
+    for(std::size_t run = 0; run < 5; ++run) {
+        auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        p->setPopulationSizes(5, 1);
+        p->setMaxIteration(30);
+        p->setMaxStallIteration(0);
+        p->setReportIteration(0);
+        p->setSortingScheme(Gem::Geneva::sortingMode::MUPLUSNU_SINGLEEVAL);
+        HighDimSphere<5> const src;
+        p->push_back(src.clone());
+        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+        cfg->groupDouble(0).gauss(0.3, 0., 1e-3, 1., 1.); // a large step: few children win
+        p->setAdaptionConfig(cfg);
+        p->optimize();
+
+        std::set<std::vector<double>> seen;
+        for(auto const &ind : p->getBestGlobalIndividuals<gen::GGenome>()) {
+            std::vector<double> values;
+            ind->streamline<double>(values);
+            CHECK(seen.insert(values).second);
+        }
+    }
 }
 
 /******************************************************************************/

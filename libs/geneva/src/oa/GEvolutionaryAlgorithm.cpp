@@ -217,7 +217,7 @@ void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_indivi
 /******************************************************************************/
 
 void GType::updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals) {
-    constexpr bool donotreplace = false;
+    // The archive describes this iteration only: its content is replaced, in every mode
     constexpr bool replace = true;
 
     checkThat(not this->empty(), "Tried to retrieve the best individuals of an empty population");
@@ -229,7 +229,7 @@ void GType::updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_ind
         best_individuals.addClone(
             this->data_cnt_.begin(),
             this->data_cnt_.begin() + this->getNParents(),
-            donotreplace
+            replace
         );
     } break;
 
