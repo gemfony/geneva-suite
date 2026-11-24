@@ -322,8 +322,9 @@ using Gem::Common::operator>>;
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// A global singleton giving access to the training data.
-// See also the definition of TFactory_GSingletonT<Gem::Geneva::Individuals::networkData>
+// A global singleton giving access to the training data. Process-wide, so that every individual
+// shares one copy of the data (it never travels with an individual; see the definition of
+// TFactory_GSingletonT<Gem::Geneva::Individuals::networkData>, which loads it)
 using GDatStore = Gem::Common::GSingletonT<Gem::Geneva::Individuals::networkData>;
 /**
  * @brief Accessor for the global training-data singleton.
@@ -1059,7 +1060,8 @@ using GNeuralNetworkIndividualFactory =
 
 namespace Gem::Common {
 
-// A global store for network configuration data
+// A global store for network configuration data: process-wide, because it tells the training-data
+// singleton above which file to load
 using GNNOptStore = GSingletonT<GGlobalOptionsT<std::string>>;
 /**
  * @brief Accessor for the global neural-network options singleton.

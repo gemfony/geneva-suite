@@ -289,10 +289,10 @@ private:
         // yet), so we retry. Once the factory has been FINALIZED, however, its buffers are closed for
         // good and no container will ever arrive again -- retrying would then busy-spin at 100% CPU
         // forever. Distinguish the terminal case and fail fast with a clear exception instead of
-        // hanging. (Defensive: the factory is a process-global singleton finalized only by its own
-        // destructor at process exit, so a live run never reaches this; it converts a would-be
-        // deadlock into a diagnosable error should the factory ever be shut down out from under a
-        // still-drawing consumer.)
+        // hanging. (Defensive: the factory is a process-global singleton finalized only at the end
+        // of the process, by hap's lifecycle guard, so a live run never reaches this; it converts a
+        // would-be deadlock into a diagnosable error should the factory ever be shut down out from
+        // under a still-drawing consumer.)
         while(not(p_ = grf_->getNewRandomContainer())) {
             if(grf_->finalized()) {
                 throw gem_exception(
