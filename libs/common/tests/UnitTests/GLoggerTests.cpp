@@ -95,8 +95,8 @@ TEST_CASE("GManipulator: stores log type with no accompanying info", "[common][l
 }
 
 TEST_CASE("GManipulator: stores accompanying info when provided", "[common][logger]") {
-    GManipulator const m("call-site-info", logType::EXCEPTION);
-    CHECK(m.getLogType() == logType::EXCEPTION);
+    GManipulator const m("call-site-info", logType::ERROR_REPORT);
+    CHECK(m.getLogType() == logType::ERROR_REPORT);
     CHECK(m.hasAccompInfo());
     CHECK(m.getAccompInfo() == "call-site-info");
 }
@@ -235,30 +235,16 @@ TEST_CASE("GLogger::logWithSource: forwards to logWithSource on each target", "[
     CHECK(t1->messages[0] == "[modX] payload\n");
 }
 
-TEST_CASE(
-    "GLogger::throwException: throws gem_exception with the supplied text",
-    "[common][logger]"
-) {
-    GLogger g;
-    try {
-        g.throwException("forwarded-error");
-        FAIL("expected throw");
-    }
-    catch(gem_exception const &e) {
-        CHECK(std::string(e.what()).contains("forwarded-error"));
-    }
-}
-
 // ---------------------------------------------------------------------------
-// LOCATIONSTRING / GEXCEPTION / GWARNING / GLOGGING / GFILE / GSTDOUT / GSTDERR
+// LOCATIONSTRING / GERROR / GWARNING / GLOGGING / GFILE / GSTDOUT / GSTDERR
 // macros — only check that they compile and yield the expected log type.
 
 TEST_CASE(
     "GLogger macros: each produces a GManipulator of the expected type",
     "[common][logger][macros]"
 ) {
-    GManipulator const gex = GEXCEPTION;
-    CHECK(gex.getLogType() == logType::EXCEPTION);
+    GManipulator const gex = GERROR;
+    CHECK(gex.getLogType() == logType::ERROR_REPORT);
     GManipulator const gterm = GTERMINATION;
     CHECK(gterm.getLogType() == logType::TERMINATION);
     GManipulator const gwarn = GWARNING;
@@ -284,31 +270,10 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // GLogStreamer::operator<<(GManipulator&): switch arms.
 //
-// These go through the real `glogger` singleton (the gem_exception path
-// writes a `GEM-EXCEPTION.log` file as a side-effect; the warning/logging
-// paths go to the registered targets — by default the console). We don't
-// assert on the file content; we just hit the code so it's instrumented.
-// TERMINATION is deliberately NOT exercised — it would call std::terminate().
-
-TEST_CASE("GLogStreamer << GEXCEPTION throws a gem_exception", "[common][logger][manipulator]") {
-    // Ensure the side-effect log file does not survive between test runs.
-    std::error_code ec;
-    std::filesystem::remove("GEM-EXCEPTION.log", ec);
-
-    bool caught = false;
-    try {
-        glogger << "test-payload " << 123 << '\n' << GEXCEPTION;
-        FAIL("expected gem_exception");
-    }
-    catch(gem_exception const &e) {
-        caught = true;
-        // Message must include the streamed payload.
-        CHECK(std::string(e.what()).contains("test-payload"));
-    }
-    CHECK(caught);
-
-    std::filesystem::remove("GEM-EXCEPTION.log", ec);
-}
+// These go through the real `glogger` singleton (the warning/logging paths go to the registered
+// targets -- by default the console). GERROR is tested in GErrorReportTests, in a working
+// directory of its own, as it writes GEM-EXCEPTION.log. TERMINATION is deliberately NOT exercised
+// -- it would call std::terminate().
 
 TEST_CASE(
     "GLogStreamer << GWARNING does not throw; emits to the logger sink",

@@ -44,7 +44,6 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
-#include <source_location>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -62,7 +61,9 @@
 /******************************************************************************/
 /**
  * General exception class to be thrown in the case of severe errors
- * in the Geneva library collection.
+ * in the Geneva library collection. It is raised in one way,
+ * throw gem_exception(g_error_streamer() << ...) (common/GErrorStreamer.hpp),
+ * which puts the time and place of the throw in front of the message.
  */
 class gem_exception : public std::runtime_error {
 public:
@@ -86,41 +87,6 @@ class g_expectation_violation : public gem_exception {
 public:
     using gem_exception::gem_exception;
 };
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * @brief This define allows easy access to throwing exceptions.
- *
- * It captures the current source location, wraps the supplied message in a
- * formatted error banner and throws a gem_exception carrying the result.
- *
- * @param E A streamable expression describing the error (inserted into an ostringstream)
- */
-#define raiseException(E)                                                                          \
-    {                                                                                              \
-        std::source_location const _gem_source_loc = std::source_location::current();              \
-        std::ostringstream error;                                                                  \
-        error << '\n'                                                                              \
-              << "================================================" << '\n'                        \
-              << "ERROR" << '\n'                                                                   \
-              << "in file " << _gem_source_loc.file_name() << '\n'                                 \
-              << "near line " << _gem_source_loc.line() << " (function "                           \
-              << _gem_source_loc.function_name() << ")" << " with description:" << '\n'            \
-              << '\n'                                                                              \
-              << E /* NOLINT(bugprone-macro-parentheses) */ << '\n'                                \
-              << '\n'                                                                              \
-              << "If you suspect that this error is due to Geneva," << '\n'                        \
-              << "then please consider filing a bug via" << '\n'                                   \
-              << "http://www.gemfony.eu (link \"Bug Reports\") or" << '\n'                         \
-              << "through http://www.launchpad.net/geneva" << '\n'                                 \
-              << '\n'                                                                              \
-              << "We appreciate your help!" << '\n'                                                \
-              << "The Geneva team" << '\n'                                                         \
-              << "================================================" << '\n';                       \
-        throw(gem_exception(error.str()));                                                         \
-    }
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

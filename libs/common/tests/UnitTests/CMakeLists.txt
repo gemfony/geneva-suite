@@ -83,6 +83,7 @@ gem_common_test(GCommonMathHelperFunctionsTTests
                                                   S  GCommonMathHelperFunctionsTTests.cpp)
 gem_common_test(GContainerTTests               S  GContainerTTests.cpp)
 gem_common_test(GDefaultValueTTests            S  GDefaultValueTTests.cpp)
+gem_common_test(GErrorReportTests              S  GErrorReportTests.cpp)
 gem_common_test(GErrorStreamerTests            S  GErrorStreamerTests.cpp)
 gem_common_test(GExceptionsTests               S  GExceptionsTests.cpp)
 gem_common_test(GExpectationChecksTTests       S  GExpectationChecksTTests.cpp)

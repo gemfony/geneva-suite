@@ -79,9 +79,8 @@ std::string place(std::source_location const &where) {
  */
 [[noreturn]] void refuse(std::string const &name, std::string const &reason) {
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GRecorder::stream(): Error!" << '\n'
-        << "The stream \"" << name << "\" cannot be declared: " << reason << '\n'
+        g_error_streamer() << "In GRecorder::stream(): Error!" << '\n'
+                           << "The stream \"" << name << "\" cannot be declared: " << reason << '\n'
     );
 }
 
@@ -242,12 +241,11 @@ void GRecorder::addSink(std::string const &name, std::shared_ptr<GSink> sink) {
     const std::scoped_lock lk(mutex_);
     if(const auto it = streams_.find(name); it != streams_.end()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GRecorder::addSink(): Error!" << '\n'
             << "The stream \"" << name << "\" is open already (declared at "
             << place(it->second->declarer())
-            << "): a sink is added before the stream is declared, so that it gets every row"
-            << '\n'
+            << "): a sink is added before the stream is declared, so that it gets every row" << '\n'
         );
     }
     added_sinks_[name].push_back(std::move(sink));

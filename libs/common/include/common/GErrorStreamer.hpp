@@ -33,22 +33,44 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
-#include <filesystem>
-#include <fstream>
+#include <ios>
+#include <source_location>
 #include <sstream>
 #include <string>
 
 // Boost header files go here
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp"
-#include "common/GLogger.hpp"
+
+namespace Gem::Common {
 
 /******************************************************************************/
-// Syntactic sugar. `inline constexpr` so the constants have a single
-// definition across all translation units that include this header
-// (plain `const` at namespace scope gives each TU its own copy and
-// risks ODR mismatches in a future refactor).
+/**
+ * @brief Converts the current time to a string.
+ */
+std::string currentTimeAsString();
+
+/******************************************************************************/
+/**
+ * Returns a "Recorded on <time> / in File <file> at line <line> (<function>)"
+ * string describing the call site via C++20 std::source_location. The defaulted
+ * source_location captures the caller. g_error_streamer puts it in front of every
+ * error message, so a message names its place without a hand-typed prefix.
+ *
+ * @param loc The call-site source location (defaulted to std::source_location::current(), i.e. the caller)
+ * @return A string describing the current time and the call site (file, line, function)
+ */
+[[nodiscard]] inline std::string
+timeAndPlace(std::source_location const &loc = std::source_location::current()) {
+    return std::string("Recorded on ") + currentTimeAsString() + "\n" + "in File " +
+           loc.file_name() + " at line " + std::to_string(loc.line()) + " (" + loc.function_name() +
+           ") :\n";
+}
+
+} /* namespace Gem::Common */
+
+/******************************************************************************/
+// The former first argument of g_error_streamer, while the call sites are converted.
 inline constexpr bool DO_LOG = true;
 inline constexpr bool NO_LOG = false;
 
@@ -56,34 +78,43 @@ inline constexpr bool NO_LOG = false;
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * A simple wrapper around a std::ostringstream, so we can more easily send data to a string
- * when throwing an exception. The class may optionally duplicate data and send it
- * to the global logger. This will happen during string conversion, so we may simply
- * construct a g_error_streamer object inside of a throw()-call.
+ * The one way to raise an error in the collection:
+ *
+ *     throw gem_exception(g_error_streamer() << "What went wrong" << '\n');
+ *
+ * A simple wrapper around a std::ostringstream that records where it was made. Its conversion
+ * to a string, done when the exception is built, puts the time and the place of the throw
+ * (timeAndPlace(): file, line and function) in front of the streamed message. Nothing is
+ * logged here: an error is logged where it is finally handled -- the fatal report for an
+ * error that ends the program (common/GFatalReport.hpp), GERROR (common/GLogger.hpp) where an
+ * error ends a task -- so an error that a caller catches and handles prints nothing.
  */
 class g_error_streamer {
 public:
     /**************************************************************************/
     /**
-	  * @brief Constructs the streamer, optionally enabling duplication to the global logger.
+	  * @brief Constructs the streamer and records the time and place of the call.
 	  *
-	  * We may optionally instruct the class to also log to the global logger
-	  * during string conversion.
-	  *
-	  * @param do_log If true, the wrapped message is also sent to the global logger when converted to a string (use DO_LOG / NO_LOG)
-	  * @param where_and_when A "where and when" location string (e.g. from timeAndPlace()) prepended to the logged message
+	  * @param loc The place of the throw (defaulted to the caller's location)
 	  */
     //! [coding-empty-body]
-    explicit g_error_streamer(bool do_log, std::string where_and_when)
-      : do_log_(do_log)
-      , where_and_when_(std::move(where_and_when)) { /* nothing */
+    explicit g_error_streamer(std::source_location const &loc = std::source_location::current())
+      : where_and_when_(Gem::Common::timeAndPlace(loc)) { /* nothing */
     }
     //! [coding-empty-body]
 
-    /*************************************************************************/
-    // Defaulted or deleted constructors, destructor and assignment operators
+    /**************************************************************************/
+    /**
+	  * @brief The former form of the constructor, while the call sites are converted.
+	  *
+	  * @param where_and_when A "where and when" string (from timeAndPlace()) put in front of the message
+	  */
+    g_error_streamer(bool /*do_log*/, std::string where_and_when)
+      : where_and_when_(std::move(where_and_when)) { /* nothing */
+    }
 
-    g_error_streamer() = default;
+    /*************************************************************************/
+    // Deleted or defaulted constructors, destructor and assignment operators
 
     g_error_streamer(const g_error_streamer &) = delete;
     g_error_streamer &operator=(g_error_streamer &) = delete;
@@ -153,31 +184,7 @@ public:
 
     /**************************************************************************/
     /**
-	  * @brief Converts the accumulated message to a string, optionally logging it.
-	  *
-	  * Automatic conversion to a string. The function will optionally send the
-	  * output to the global logger.
-	  *
-	  * IMPORTANT — exception-safety contract: this conversion runs file I/O
-	  * and re-enters the global logger when @c do_log_ is true. The canonical
-	  * use site is inside @c throw gem_exception(g_error_streamer(...) <<
-	  * ... ); — i.e. the conversion happens while building the exception, *before*
-	  * stack-unwinding starts, so any throw originating here is the primary
-	  * (and only) in-flight exception. Callers MUST NOT trigger this conversion
-	  * from inside a destructor that is itself running during unwinding (a
-	  * second throw under those conditions calls @c std::terminate). If you
-	  * need an allocation-free read of the wrapped message during unwinding,
-	  * call @c content() (no logging) instead of converting.
-	  *
-	  * @return A string with the content of the wrapped string_error_streamer object.
-	  */
-    /**************************************************************************/
-    /**
-	  * @brief Returns the wrapped message without any I/O or logger re-entry.
-	  *
-	  * Returns the wrapped streamer's contents WITHOUT triggering any I/O
-	  * or logger re-entry. Safe to call from unwinding contexts where the
-	  * implicit @c operator std::string() conversion would be hazardous.
+	  * @brief Returns the streamed message without the time and place.
 	  *
 	  * @return A copy of the currently accumulated message string
 	  */
@@ -185,39 +192,24 @@ public:
         return ostream_.str();
     }
 
-    operator std::string() const { // NOLINT
-        using namespace Gem::Common;
-        if(do_log_) {
-            glogger(std::filesystem::path(exception_file_))
-                << "========================================================" << '\n'
-                << "Error!" << '\n'
-                << '\n'
-                << where_and_when_ << '\n'
-                << ostream_.str() << '\n'
-                << '\n'
-                << "If you suspect that there is an underlying problem with the" << '\n'
-                << "Ge library collection, then please consider filing a bug." << '\n'
-                << '\n'
-                << "We appreciate your help!" << '\n'
-                << "The Geneva team" << '\n'
-                << '\n'
-                << "========================================================" << '\n'
-                << GFILE;
-        }
-        return ostream_.str();
+    /**************************************************************************/
+    /**
+	  * @brief The message of the exception: the time and place of the throw, then the streamed
+	  * message.
+	  *
+	  * @return The time and place of the throw followed by the streamed message
+	  */
+    operator std::string() const { // NOLINT -- implicit on purpose: gem_exception is built from it
+        return where_and_when_ + ostream_.str();
     }
 
 private:
     /**************************************************************************/
     // Data
     std::ostringstream ostream_;
-    bool do_log_ = NO_LOG;
-    const std::string exception_file_ = "./GEM-EXCEPTION.log";
-    std::string where_and_when_;
+    std::string where_and_when_; ///< The time and place of the throw (timeAndPlace())
 
     /**************************************************************************/
 };
 
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/

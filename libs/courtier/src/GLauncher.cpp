@@ -56,12 +56,13 @@ void claimItemType(const std::type_info &item_type) {
         record->getOrCompute([&] { return std::string(item_type.name()); });
     if(claimed != item_type.name()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Courtier::claimItemType(): Error!" << '\n'
-            << "A launcher for the item type " << boost::core::demangle(item_type.name())
-            << " was built in a process whose items are of the type "
-            << boost::core::demangle(claimed.c_str()) << "." << '\n'
-            << "A process distributes one kind of item, through one consumer." << '\n'
+            g_error_streamer() << "In Gem::Courtier::claimItemType(): Error!" << '\n'
+                               << "A launcher for the item type "
+                               << boost::core::demangle(item_type.name())
+                               << " was built in a process whose items are of the type "
+                               << boost::core::demangle(claimed.c_str()) << "." << '\n'
+                               << "A process distributes one kind of item, through one consumer."
+                               << '\n'
         );
     }
 }

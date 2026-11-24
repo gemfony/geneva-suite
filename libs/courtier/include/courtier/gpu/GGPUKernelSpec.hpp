@@ -68,7 +68,7 @@ inline BackendKind backendKindFromString(const std::string &s) {
         return BackendKind::CUDA;
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        g_error_streamer()
         << "In Gem::Courtier::GPU::backendKindFromString(): Error!" << '\n'
         << "Unknown GPU backend '" << s << "'. The GPU consumer is device-only; the only backend is"
         << " 'cuda'." << '\n'

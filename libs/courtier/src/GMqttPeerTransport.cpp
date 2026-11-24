@@ -219,10 +219,9 @@ std::chrono::milliseconds limitFor(std::chrono::seconds keep_alive) {
 GMqttOptions checked(GMqttOptions options) {
     if(options.topic.empty() || options.topic.find_first_of("+#") != std::string::npos) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << options.name << ": \"" << options.topic
-            << "\" cannot be the prefix of the MQTT"
-            << " topics (it must not be empty and must hold no wildcard)" << '\n'
+            g_error_streamer() << "In " << options.name << ": \"" << options.topic
+                               << "\" cannot be the prefix of the MQTT"
+                               << " topics (it must not be empty and must hold no wildcard)" << '\n'
         );
     }
     return options;
@@ -1050,9 +1049,8 @@ void GMqttListener::start(boost::asio::any_io_executor executor, on_peer_type on
     on_peer_ = nullptr;
     handler_executor_ = boost::asio::any_io_executor{};
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In " << name_ << ": no MQTT broker could be reached at " << options_.host << ":"
-        << options_.port << ": " << why << '\n'
+        g_error_streamer() << "In " << name_ << ": no MQTT broker could be reached at "
+                           << options_.host << ":" << options_.port << ": " << why << '\n'
     );
 }
 

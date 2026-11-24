@@ -191,9 +191,8 @@ void GToken::registerErrorMessage(std::string const &m) {
     }
     else {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GToken::registerErrorMessage(): Error" << '\n'
-            << "Tried to register empty error message" << '\n'
+            g_error_streamer() << "In GToken::registerErrorMessage(): Error" << '\n'
+                               << "Tried to register empty error message" << '\n'
         );
     }
 }

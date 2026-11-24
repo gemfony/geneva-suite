@@ -30,28 +30,23 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <iomanip>
+#include <source_location>
 #include <string>
 
 #include "common/GErrorStreamer.hpp"
 
 TEST_CASE(
-    "g_error_streamer: DO_LOG / NO_LOG constants have the expected values",
-    "[common][error-streamer]"
-) {
-    static_assert(DO_LOG == true);
-    static_assert(NO_LOG == false);
-}
-
-TEST_CASE(
-    "g_error_streamer: default construction yields an empty content",
+    "g_error_streamer: default construction yields an empty content; the conversion holds the "
+    "place",
     "[common][error-streamer]"
 ) {
     g_error_streamer const s;
     CHECK(s.content().empty());
 
-    // Implicit conversion path (without logging) should also be empty.
+    // The conversion (the message of the exception) is the time and place of the construction
     std::string const converted = static_cast<std::string>(s);
-    CHECK(converted.empty());
+    CHECK(converted.starts_with("Recorded on "));
+    CHECK(converted.contains("GErrorStreamerTests.cpp"));
 }
 
 TEST_CASE(
@@ -94,19 +89,18 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "g_error_streamer: explicit ctor stores where-and-when prefix but content() omits it",
+    "g_error_streamer: the conversion puts the time and place in front while content() omits them",
     "[common][error-streamer]"
 ) {
-    // Only the implicit-to-string conversion uses where_and_when_ — and even
-    // then only when do_log is true. The cheap, allocation-only content()
-    // accessor must not surface it.
-    g_error_streamer s(NO_LOG, "Recorded somewhere/sometime\n");
+    g_error_streamer s(std::source_location::current());
     s << "payload";
 
     CHECK(s.content() == "payload");
 
-    std::string converted = static_cast<std::string>(s);
-    CHECK(converted == "payload");
+    const std::string converted = static_cast<std::string>(s);
+    CHECK(converted.starts_with("Recorded on "));
+    CHECK(converted.contains("GErrorStreamerTests.cpp at line "));
+    CHECK(converted.ends_with(":\npayload"));
 }
 
 TEST_CASE(

@@ -1103,12 +1103,11 @@ private:
             2;
         if(ms < 0 || ms > max_ms) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GNetworkedConsumerT::applyTimeoutConfig(): Error!" << '\n'
-                << "The value " << ms << " of \"" << key << "\" is not a time limit: it must be"
-                << '\n'
-                << "0 (no limit) or a positive number of milliseconds up to " << max_ms << "."
-                << '\n'
+                g_error_streamer() << "In GNetworkedConsumerT::applyTimeoutConfig(): Error!" << '\n'
+                                   << "The value " << ms << " of \"" << key
+                                   << "\" is not a time limit: it must be" << '\n'
+                                   << "0 (no limit) or a positive number of milliseconds up to "
+                                   << max_ms << "." << '\n'
             );
         }
         return std::chrono::milliseconds(ms);

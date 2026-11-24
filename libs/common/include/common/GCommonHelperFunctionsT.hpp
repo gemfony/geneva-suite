@@ -327,9 +327,8 @@ void ptrDifferenceCheck(const T *p1, const T *p2) {
 #ifdef DEBUG
     if(nullptr != p1 && p1 == p2) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Common::ptrDifferenceCheck<T>(): "
-            << "p1 and p2 point to the same object!" << '\n'
+            g_error_streamer() << "In Gem::Common::ptrDifferenceCheck<T>(): "
+                               << "p1 and p2 point to the same object!" << '\n'
         );
     }
 #endif
@@ -349,9 +348,8 @@ void ptrDifferenceCheck(const std::shared_ptr<T> &p1, const std::shared_ptr<T> &
 #ifdef DEBUG
     if(p1 && p1.get() == p2.get()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Common::ptrDifferenceCheck<T>(): "
-            << "Smart pointers p1 and p2 point to the same object!" << '\n'
+            g_error_streamer() << "In Gem::Common::ptrDifferenceCheck<T>(): "
+                               << "Smart pointers p1 and p2 point to the same object!" << '\n'
         );
     }
 #endif
@@ -381,9 +379,9 @@ const target_type *g_ptr_conversion(const base_type *convert_ptr) {
         return p;
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In g_ptr_conversion(): invalid conversion from " << typeid(base_type).name() << " to "
-        << typeid(target_type).name() << '\n'
+        g_error_streamer() << "In g_ptr_conversion(): invalid conversion from "
+                           << typeid(base_type).name() << " to " << typeid(target_type).name()
+                           << '\n'
     );
     return nullptr;
 #else
@@ -410,9 +408,9 @@ std::shared_ptr<target_type> g_ptr_conversion(const std::shared_ptr<base_type> &
         return p;
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In g_ptr_conversion(): invalid conversion from " << typeid(base_type).name() << " to "
-        << typeid(target_type).name() << '\n'
+        g_error_streamer() << "In g_ptr_conversion(): invalid conversion from "
+                           << typeid(base_type).name() << " to " << typeid(target_type).name()
+                           << '\n'
     );
 #else
     return std::static_pointer_cast<target_type>(convert_ptr);
@@ -764,9 +762,8 @@ std::vector<std::tuple<split1_type, split2_type>>
 splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
     if(std::string(sep1) == std::string(sep2)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In splitStringT(): sep1 and sep2 are identical: \"" << sep1 << "\" / \"" << sep2
-            << "\"" << '\n'
+            g_error_streamer() << "In splitStringT(): sep1 and sep2 are identical: \"" << sep1
+                               << "\" / \"" << sep2 << "\"" << '\n'
         );
     }
 
@@ -776,7 +773,7 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
 #ifdef DEBUG
         if(2 != sub.size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In splitStringT(): expected 2 sub-fragments, got " << sub.size() << '\n'
             );
         }
@@ -806,18 +803,14 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
 template <typename map_type>
 decltype(auto) getMapItem(map_type &&m, const std::string &key) {
     if(m.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In getMapItem(): map is empty" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "In getMapItem(): map is empty" << '\n');
     }
     auto it = m.find(key);
     if(it != m.end()) {
         return std::forward_like<map_type>(it->second);
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In getMapItem(): key \"" << key << "\" not found" << '\n'
+        g_error_streamer() << "In getMapItem(): key \"" << key << "\" not found" << '\n'
     );
 }
 

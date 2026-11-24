@@ -169,9 +169,8 @@ An empty body — common for an intentionally empty constructor — is marked as
 the emptiness reads as deliberate:
 
 ```cpp
-explicit g_error_streamer(bool do_log, std::string where_and_when)
-    : do_log_(do_log)
-    , where_and_when_(std::move(where_and_when)) { /* nothing */ }
+explicit g_error_streamer(std::source_location const &loc = std::source_location::current())
+    : where_and_when_(Gem::Common::timeAndPlace(loc)) { /* nothing */ }
 ```
 
 ## 4. Naming

@@ -338,14 +338,14 @@ void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
     const std::scoped_lock lock(round_mutex_);
     if(released_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GMPICascade::lead(): Error!" << '\n'
             << "The group was released (release()); lead() comes before the first round" << '\n'
         );
     }
     if(announced_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GMPICascade::lead(): Error!" << '\n'
             << "A round was announced already; lead() comes before the first round, so that "
             << "its setUp() pairs with the members' setUp()" << '\n'
@@ -353,9 +353,8 @@ void GMPICascade::lead(GMPIGroupLifecycleI &lifecycle) {
     }
     if(lifecycle_ != nullptr) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::lead(): Error!" << '\n'
-            << "lead() was called before; a group is set up once" << '\n'
+            g_error_streamer() << "In GMPICascade::lead(): Error!" << '\n'
+                               << "lead() was called before; a group is set up once" << '\n'
         );
     }
     lifecycle_ = &lifecycle;
@@ -456,10 +455,10 @@ void GMPICascade::requireConfirmedRole_(std::string_view where) {
 void GMPICascade::requireRole(processRole consumer_role) {
     if(role_ == processRole::BYSTANDER) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::requireRole(): Error!" << '\n'
-            << "This process (base rank " << base_rank_ << ") is a member of the cascade; a member "
-            << "has no consumer, it calls serve()" << '\n'
+            g_error_streamer() << "In GMPICascade::requireRole(): Error!" << '\n'
+                               << "This process (base rank " << base_rank_
+                               << ") is a member of the cascade; a member "
+                               << "has no consumer, it calls serve()" << '\n'
         );
     }
     if(consumer_role == role_) {
@@ -472,12 +471,13 @@ void GMPICascade::requireRole(processRole consumer_role) {
             : "Start every lead with --client and a networked consumer (for example --consumer "
               "beast), and the job without the MPI consumer.";
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GMPICascade::requireRole(): Error!" << '\n'
-        << "Base rank " << base_rank_ << " of a cascade laid out " << layoutName(config_.layout)
-        << ": the consumer gave this process the role of " << roleName(consumer_role)
-        << ", the cascade the role of " << roleName(role_) << '\n'
-        << remedy << '\n'
+        g_error_streamer() << "In GMPICascade::requireRole(): Error!" << '\n'
+                           << "Base rank " << base_rank_ << " of a cascade laid out "
+                           << layoutName(config_.layout)
+                           << ": the consumer gave this process the role of "
+                           << roleName(consumer_role) << ", the cascade the role of "
+                           << roleName(role_) << '\n'
+                           << remedy << '\n'
     );
 }
 
@@ -512,7 +512,7 @@ void GMPICascade::abortJob(int code, std::string_view reason) {
         glogger << "In GMPICascade, abortJob(): " << reason << '\n'
                 << "MPI is not in use: the process is ended with the exit code " << code << "."
                 << '\n'
-                << GWARNING;
+                << GERROR;
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the process ends in any case
     }
@@ -572,7 +572,7 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
             std::rethrow_exception(failure);
         }
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GMPICascade::GMPICascade(): Error!" << '\n'
             << "Rank 0 of the base communicator could not provide the cascade's configuration"
             << '\n'
@@ -689,9 +689,9 @@ void GMPICascade::announceRound_() {
     this->requireConfirmedRole_("round()");
     if(released_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::round(): Error!" << '\n'
-            << "The group was released (release()); no round follows the stop" << '\n'
+            g_error_streamer() << "In GMPICascade::round(): Error!" << '\n'
+                               << "The group was released (release()); no round follows the stop"
+                               << '\n'
         );
     }
     announced_ = true;
@@ -867,7 +867,7 @@ bool GMPICascade::waitForRound_() {
 void GMPICascade::requireMpi_(std::string_view where) const {
     if(not environment_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GMPICascade::" << where << ": Error!" << '\n'
             << "The cascade makes no MPI call while the configuration files are emitted "
             << "(--update-configs), so " << where << " cannot be used" << '\n'
@@ -885,11 +885,11 @@ void GMPICascade::requireMpi_(std::string_view where) const {
 void GMPICascade::requireCascadeRole_(processRole needed, std::string_view where) const {
     if(role_ != needed) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPICascade::" << where << ": Error!" << '\n'
-            << where << " is called on " << roleName(needed) << " of the cascade, but this "
-            << "process (base rank " << base_rank_ << ") is " << roleName(role_) << "; "
-            << callsOf(role_) << '\n'
+            g_error_streamer() << "In GMPICascade::" << where << ": Error!" << '\n'
+                               << where << " is called on " << roleName(needed)
+                               << " of the cascade, but this "
+                               << "process (base rank " << base_rank_ << ") is " << roleName(role_)
+                               << "; " << callsOf(role_) << '\n'
         );
     }
 }

@@ -506,9 +506,8 @@ GMPIListener::GMPIListener(std::shared_ptr<GMPICallsI> calls, GMPIPeerOptions op
   , options_(std::move(options)) {
     if(not calls_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPIListener::GMPIListener(): Error!" << '\n'
-            << "No calls to MPI were given" << '\n'
+            g_error_streamer() << "In GMPIListener::GMPIListener(): Error!" << '\n'
+                               << "No calls to MPI were given" << '\n'
         );
     }
 }
@@ -550,14 +549,13 @@ GMPIListener::~GMPIListener() {
 void GMPIListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
     if(core_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << options_.name << ": Error!" << '\n'
-            << "The listener has been started before" << '\n'
+            g_error_streamer() << "In " << options_.name << ": Error!" << '\n'
+                               << "The listener has been started before" << '\n'
         );
     }
     if(calls_->size() < 2) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In " << options_.name << ": Error!" << '\n'
             << "The MPI consumer has no client rank: its communicator holds this rank only, "
                "which submits the work. The work is evaluated on the other ranks of the job, and "
@@ -810,10 +808,10 @@ GMPIConnector::GMPIConnector(std::shared_ptr<GMPICallsI> calls, GMPIPeerOptions 
   , options_(std::move(options)) {
     if(not calls_ || calls_->rank() == RANK_MASTER_NODE) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GMPIConnector::GMPIConnector(): Error!" << '\n'
-            << (calls_ ? "The submitter's rank has no connector" : "No calls to MPI were given")
-            << '\n'
+            g_error_streamer() << "In GMPIConnector::GMPIConnector(): Error!" << '\n'
+                               << (calls_ ? "The submitter's rank has no connector"
+                                          : "No calls to MPI were given")
+                               << '\n'
         );
     }
 }

@@ -161,9 +161,8 @@ T cfgReadWhole(std::string const &s, std::string const &key) {
     iss >> val;
     if(negative_unsigned || iss.fail() || not(iss >> std::ws).eof()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "The configuration entry \"" << key << "\" has the value \"" << s
-            << "\", which is not " << cfgExpectedValue<T>() << '\n'
+            g_error_streamer() << "The configuration entry \"" << key << "\" has the value \"" << s
+                               << "\", which is not " << cfgExpectedValue<T>() << '\n'
         );
     }
     return val;
@@ -192,9 +191,8 @@ T cfgScalarFromString(std::string const &s, std::string const &key) {
             return false;
         }
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "The configuration entry \"" << key << "\" has the value \"" << s
-            << "\", which is not a boolean (true, false, 1 or 0)" << '\n'
+            g_error_streamer() << "The configuration entry \"" << key << "\" has the value \"" << s
+                               << "\", which is not a boolean (true, false, 1 or 0)" << '\n'
         );
     }
     else if constexpr(std::is_same_v<T, std::int8_t> || std::is_same_v<T, std::uint8_t>) {
@@ -205,11 +203,10 @@ T cfgScalarFromString(std::string const &s, std::string const &key) {
         auto const val = cfgReadWhole<wider>(s, key);
         if(not std::in_range<T>(val)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "The configuration entry \"" << key << "\" has the value \"" << s
-                << "\", which is not an integer from "
-                << static_cast<wider>(std::numeric_limits<T>::min()) << " to "
-                << static_cast<wider>(std::numeric_limits<T>::max()) << '\n'
+                g_error_streamer() << "The configuration entry \"" << key << "\" has the value \""
+                                   << s << "\", which is not an integer from "
+                                   << static_cast<wider>(std::numeric_limits<T>::min()) << " to "
+                                   << static_cast<wider>(std::numeric_limits<T>::max()) << '\n'
             );
         }
         return static_cast<T>(val);
@@ -267,10 +264,9 @@ boost::json::value cfgScalarToJson(T const &v) {
     boost::json::value const &found
 ) {
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "The configuration entry \"" << key
-        << "\" has the wrong form: " << boost::json::serialize(found) << '\n'
-        << "Expected " << expected << '\n'
+        g_error_streamer() << "The configuration entry \"" << key
+                           << "\" has the wrong form: " << boost::json::serialize(found) << '\n'
+                           << "Expected " << expected << '\n'
     );
 }
 
@@ -789,7 +785,7 @@ public:
     void registerCallBackFunction(std::move_only_function<void(parameter_type)> call_back) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GSingleParsableParameter::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
             );
@@ -829,7 +825,7 @@ private:
         if(this->hasComments()) {
             if(this->numberOfComments() != 1) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GFileSingleParsableParameterT<>::save_to(): Error!" << '\n'
                     << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
                 );
@@ -849,7 +845,7 @@ private:
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GSingleParsableParameter::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
@@ -1082,7 +1078,7 @@ public:
     void registerCallBackFunction(std::move_only_function<void(par0_type, par1_type)> call_back) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileCombinedParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
             );
@@ -1131,7 +1127,7 @@ private:
         // Check that we have the right number of comments
         if(this->hasComments() && this->numberOfComments() != 2) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileCombinedParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 2 comments but got " << this->numberOfComments() << '\n'
             );
@@ -1164,7 +1160,7 @@ private:
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileCombinedParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
@@ -1351,7 +1347,7 @@ public:
     registerCallBackFunction(std::move_only_function<void(std::vector<parameter_type>)> call_back) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileVectorParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
             );
@@ -1401,7 +1397,7 @@ private:
         // Check that we have the right number of comments
         if(this->hasComments() && this->numberOfComments() != 1) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileVectorParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
             );
@@ -1439,7 +1435,7 @@ private:
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileVectorParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
@@ -1621,7 +1617,7 @@ public:
     ) {
         if(not call_back) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileArrayParsableParameterT::registerCallBackFunction(): Error" << '\n'
                 << "Tried to register an empty call-back function" << '\n'
             );
@@ -1666,7 +1662,7 @@ private:
         // Check that we have the right number of comments
         if(this->hasComments() && this->numberOfComments() != 1) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileArrayParsableParameterT<>::save_to(): Error!" << '\n'
                 << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
             );
@@ -1675,9 +1671,8 @@ private:
         // Do some error checking
         if(GArrayParT<parameter_type, N>::def_val_arr_.empty()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFileArrayParsableParameterT::save_to(): Error!" << '\n'
-                << "You need to provide at least one default value" << '\n'
+                g_error_streamer() << "In GFileArrayParsableParameterT::save_to(): Error!" << '\n'
+                                   << "You need to provide at least one default value" << '\n'
             );
         }
 
@@ -1710,7 +1705,7 @@ private:
     void executeCallBackFunction_() override {
         if(not call_back_func_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFileArrayParsableParameterT::executeCallBackFunction_(): Error" << '\n'
                 << "Tried to execute call-back function without a stored function" << '\n'
             );
@@ -2175,7 +2170,7 @@ public:
         // Check that we have indeed received an item
         if(not parm_object) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GParameterObject::resetFileParameterDefaults(GSingleParmT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
@@ -2274,7 +2269,7 @@ public:
         // Check that we have indeed received an item
         if(not parm_object) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GParameterObject::resetFileParameterDefaults(GCombinedParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
@@ -2384,7 +2379,7 @@ public:
         // Check that we have indeed received an item
         if(not parm_object) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GParameterObject::resetFileParameterDefaults(GVectorParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
@@ -2505,7 +2500,7 @@ public:
         // Check that we have indeed received an item
         if(not parm_object) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GParameterObject::resetFileParameterDefaults(GArrayParT): Error!" << '\n'
                 << "Parameter object couldn't be found" << '\n'
             );
@@ -2648,7 +2643,7 @@ private:
         auto it = findProxyByName_(proxies, option_name);
         if(it != proxies.end()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GParserBuilder::" << caller << ": Error!" << '\n'
                 << "Parameter " << option_name << " has already been registered" << '\n'
             );

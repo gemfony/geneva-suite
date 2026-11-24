@@ -223,7 +223,7 @@ private:
         for(std::size_t i = 1; i < items.size(); ++i) {
             if(marshaller_->itemDimension(items[i]) != dim_sz) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GGPUConsumerT::dispatch_(): Error!" << '\n'
                     << "The GPU consumer requires a UNIFORM item geometry across a batch, but item "
                     << i << " has " << marshaller_->itemDimension(items[i])
@@ -278,7 +278,7 @@ private:
         BackendKind const kind = cfg_.backendKind();
         if(not backendAvailable(kind)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In Gem::Courtier::GPU::GGPUConsumerT::ensureBackend_(): Error!" << '\n'
                 << "The '" << toString(kind) << "' backend was not compiled into this build (its"
                 << " toolkit was not found at configure time)." << '\n'

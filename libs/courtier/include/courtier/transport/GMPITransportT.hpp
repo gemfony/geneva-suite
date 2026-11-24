@@ -132,14 +132,14 @@ private:
     requireClient_(std::shared_ptr<GMPIEnvironment> environment) {
         if(not environment) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GMPIConsumerWorkerNodeT<>::GMPIConsumerWorkerNodeT(): Error!" << '\n'
                 << "The MPI environment must not be empty" << '\n'
             );
         }
         if(environment->role() != Gem::Courtier::processRole::CLIENT) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GMPIConsumerWorkerNodeT<>::GMPIConsumerWorkerNodeT(): Error!" << '\n'
                 << "The MPI client is built on a process whose role is CLIENT only; this process "
                 << "has the role " << static_cast<int>(environment->role()) << '\n'

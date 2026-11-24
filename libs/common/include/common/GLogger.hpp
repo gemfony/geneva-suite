@@ -69,6 +69,7 @@
 
 // Geneva header files go here
 #include "common/GCommonEnums.hpp"
+#include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GSingletonT.hpp"
 #include "common/GTupleIO.hpp"
@@ -120,8 +121,8 @@ public:
     /**
      * @brief Logs a message of a given severity; unless overridden, as log(message)
      *
-     * GLogger calls this overload: GLOGGING passes logType::LOGGING, GWARNING logType::WARNING and
-     * LOGEXIT logType::EXIT. A target that has a use for the severity overrides it.
+     * GLogger calls this overload: GLOGGING passes logType::LOGGING, GWARNING logType::WARNING,
+     * GERROR logType::ERROR_REPORT and LOGEXIT logType::EXIT. A target that has a use for the severity overrides it.
      *
      * @param message The log message to be emitted by the target
      * @param severity The kind of message
@@ -277,10 +278,9 @@ public:
             released = std::exchange(default_logger_, gblt);
         }
         else {
-            raiseException(
-                "In GLogger::setDefaultLogTarget(): Error!"
-                << '\n'
-                << "Tried to register empty default logger" << '\n'
+            throw gem_exception(
+                g_error_streamer() << "In GLogger::setDefaultLogTarget(): Error!" << '\n'
+                                   << "Tried to register empty default logger" << '\n'
             );
         }
     }
@@ -301,9 +301,9 @@ public:
             log_cnt_.push_back(gblt);
         }
         else {
-            raiseException(
-                "In GLogger::addLogTarget(): Error!" << '\n'
-                                                     << "Tried to register empty logger" << '\n'
+            throw gem_exception(
+                g_error_streamer() << "In GLogger::addLogTarget(): Error!" << '\n'
+                                   << "Tried to register empty logger" << '\n'
             );
         }
     }
@@ -346,22 +346,6 @@ public:
         std::string const &extension,
         logType severity = logType::LOGGING
     ) const;
-
-    /***************************************************************************/
-    /**
-		 * @brief Throws an exception from a global position
-		 *
-		 * This prevents exceptions thrown from within threads from getting lost. It
-		 * takes no lock, so that stack-unwinding exception handlers (which may re-enter
-		 * the logger) cannot deadlock against it.
-		 *
-		 * @param error The error message carried by the thrown gem_exception
-		 */
-    void throwException(std::string const &error) {
-        // The error message has already been built by the caller and no logger-protected
-        // state is touched here, so no lock is needed.
-        throw(gem_exception(error));
-    }
 
     /***************************************************************************/
     /**
@@ -616,29 +600,6 @@ public:
     /****************************************************************************/
 
 private:
-    /**
-	  * Retrieve a string representing the current time and date. Note that
-	  * this function is duplicated from a function in GCommonHelperFunctions.hpp
-	  * in order to break circular header inclusion.
-	  *
-	  * @return A string representing the current time and date
-	  */
-    static std::string currentTimeAsString() {
-        std::ostringstream oss;
-        std::time_t const now =
-            std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
-        struct tm time_info{};
-
-#if defined(_MSC_VER) && (_MSC_VER >= 1020)
-        localtime_s(&time_info, &now);
-#else // We assume a POSIX-compliant platform
-        localtime_r(&now, &time_info);
-#endif
-
-        oss << std::put_time(&time_info, "%c");
-        return oss.str();
-    }
-
     std::ostringstream oss_;         ///< Holds the actual streamed data
     std::string extension_;          ///< Additional information about the logging source
     std::filesystem::path log_file_; ///< The name of a manually specified log file
@@ -721,7 +682,7 @@ namespace Gem::Common {
  *
  * Returns an "in file <file> near line <line> (<function>)" string describing the
  * call site via C++20 std::source_location -- the function name is now included.
- * Used directly by the GEXCEPTION / GTERMINATION / GWARNING / GSTDERR manipulators.
+ * Used directly by the GERROR / GTERMINATION / GWARNING / GSTDERR manipulators.
  *
  * @param loc The source location to describe (defaults to the caller's location)
  * @return A human-readable string naming the file, line and function of the call site
@@ -731,10 +692,27 @@ locationString(std::source_location const &loc = std::source_location::current()
     return std::string("in file ") + loc.file_name() + std::string(" near line ") +
            std::to_string(loc.line()) + " (" + loc.function_name() + ")";
 }
+
+/**
+ * @brief Appends an error report -- the time, @p where and @p what -- to GEM-EXCEPTION.log in the
+ * working directory
+ *
+ * The file is appended to across runs; if it cannot be opened, the report goes to std::cerr. An
+ * error is recorded once, where it is finally handled: GERROR (an error that ends a task) and the
+ * fatal report (an error that ends the program, common/GFatalReport.hpp) write through this
+ * function; throwing and rethrowing write nothing. It takes no lock of the logger, so that the
+ * fatal report can use it.
+ *
+ * @param where Where the error was handled, e.g. from locationString(); may be empty
+ * @param what The error, e.g. the message of the exception
+ */
+void recordError(std::string_view where, std::string_view what);
 } // namespace Gem::Common
 
-#define GEXCEPTION                                                                                 \
-    Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::EXCEPTION)
+// Reports an error where it is finally handled -- where it ends a task or the program: through the
+// log targets, and appended to GEM-EXCEPTION.log (see Gem::Common::recordError()). It does not throw.
+#define GERROR                                                                                     \
+    Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::ERROR_REPORT)
 #define GTERMINATION                                                                               \
     Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::TERMINATION)
 #define GWARNING                                                                                   \

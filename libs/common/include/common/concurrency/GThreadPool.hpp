@@ -39,6 +39,7 @@
 #include <exception>
 #include <functional>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <shared_mutex>
@@ -194,7 +195,7 @@ public:
             // the future rather than losing it silently.
             promise_ptr->set_exception(
                 std::make_exception_ptr(gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GThreadPool::async_schedule(): submission after the pool was closed"
                     << '\n'
                 ))
@@ -207,8 +208,8 @@ public:
     /**
      * Fire-and-forget submission: schedules the task but returns no future and
      * allocates no promise. As there is no result channel, an exception thrown by
-     * the task is caught and logged -- never propagated, which would terminate the
-     * worker thread. Use this for tasks whose result and success the caller does
+     * the task ends it here and is reported (GERROR: logged and recorded in
+     * GEM-EXCEPTION.log) -- never propagated, which would terminate the worker thread. Use this for tasks whose result and success the caller does
      * not need to observe; it still participates in wait().
      *
      * @tparam F The callable type to be invoked on a worker thread
@@ -224,16 +225,15 @@ public:
                 (void)f(std::move(args)...); // any return value is discarded
             }
             catch(std::exception const &e) {
-                glogger << "In GThreadPool::post(): a fire-and-forget task threw:" << '\n'
+                glogger << "A fire-and-forget task ended with an error:" << '\n'
                         << e.what() << '\n'
-                        << "No future to carry it -- logged and ignored." << '\n'
-                        << GWARNING;
+                        << GERROR;
             }
             catch(...) {
-                glogger << "In GThreadPool::post(): a fire-and-forget task threw a"
-                        << " non-std exception." << '\n'
-                        << "No future to carry it -- logged and ignored." << '\n'
-                        << GWARNING;
+                glogger << "A fire-and-forget task ended with an exception that is not a "
+                           "std::exception."
+                        << '\n'
+                        << GERROR;
             }
         };
         if(not enqueue(std::move_only_function<void()>(std::move(task)))) {
@@ -252,9 +252,10 @@ public:
      * batch is used to wait for exactly this batch -- not the whole pool -- so it is safe when the pool is
      * shared (e.g. several algorithms submitting concurrently). @p per_item is invoked CONCURRENTLY, once
      * per element, so it must be safe to run on distinct elements in parallel (evaluating distinct work
-     * items is the intended use). An exception thrown by @p per_item is swallowed (the element is expected
-     * to record its own failure state, as a work item's processing status does); the latch is still
-     * counted down so the join never hangs. A single-thread pool degenerates to sequential execution in
+     * items is the intended use). An exception thrown by @p per_item ends the task of its element there:
+     * it is reported (GERROR: logged and recorded in GEM-EXCEPTION.log) and not propagated -- the
+     * element is expected to record its own failure state, as a work item's processing status does --
+     * and the latch is still counted down so the join never hangs. A single-thread pool degenerates to sequential execution in
      * submission order.
      *
      * @tparam T The element type of the span (e.g. a work-item unique_ptr)
@@ -273,13 +274,27 @@ public:
                 &items
                     [i]; // stable pointer into the caller's span (which outlives this blocking call)
             this->post([elem, &per_item, latch]() {
+                // Counted down on every way out of the task -- also if the report below throws --
+                // so that the join never hangs
+                const std::unique_ptr<GCompletionLatchT, void (*)(GCompletionLatchT *)> arrival(
+                    latch.get(),
+                    [](GCompletionLatchT *l) { l->count_down(); }
+                );
                 try {
                     per_item(*elem);
                 }
-                // NOLINTNEXTLINE(bugprone-empty-catch) -- deliberate: the element records its own failure
-                catch(...) { /* swallow so the join never hangs */
+                // Reported here, where the task ends; the element records its own failure
+                catch(std::exception const &e) {
+                    glogger << "A task of a bulk fork/join ended with an error:" << '\n'
+                            << e.what() << '\n'
+                            << GERROR;
                 }
-                latch->count_down();
+                catch(...) {
+                    glogger << "A task of a bulk fork/join ended with an exception that is not a "
+                               "std::exception."
+                            << '\n'
+                            << GERROR;
+                }
             });
         }
         latch->wait();

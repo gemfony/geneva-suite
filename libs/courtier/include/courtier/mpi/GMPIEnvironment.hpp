@@ -57,7 +57,8 @@ namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
 /**
- * @brief Ends the MPI job: logs @p text as a warning, flushes the program's streams and calls
+ * @brief Ends the MPI job: reports @p text as an error (GERROR: logged and recorded in
+ * GEM-EXCEPTION.log, where the error is finally handled), flushes the program's streams and calls
  * MPI_Abort on @p communicator with @p code, which ends every process of the job. Does not
  * return. The one way courtier ends a job (GMPICascade, ~GMPIEnvironment()).
  *
@@ -68,7 +69,7 @@ namespace Gem::Courtier::Consumers {
 [[noreturn]] inline void
 endMpiJob(MPI_Comm communicator, std::string_view text, int code) noexcept {
     try {
-        glogger << text << '\n' << GWARNING;
+        glogger << text << '\n' << GERROR;
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
     }
@@ -157,7 +158,7 @@ public:
         MPI_Finalized(&finalized);
         if(finalized != 0) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
                 << "MPI has been finalized in this process and cannot be used again." << '\n'
             );
@@ -178,7 +179,7 @@ public:
                 MPI_Finalize(); // nobody else will: the destructor does not run for this object
             }
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GMPIEnvironment::GMPIEnvironment(): Error!" << '\n'
                 << "courtier's MPI transport requires MPI with the thread level "
                 << "MPI_THREAD_MULTIPLE (a.k.a. " << MPI_THREAD_MULTIPLE << "), but "
@@ -315,7 +316,7 @@ private:
     void requireCommunicator_(const char *what) const {
         if(communicator_ == MPI_COMM_NULL) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GMPIEnvironment::" << what << ": Error!" << '\n'
                 << "This process takes no part in courtier's MPI protocol and has no "
                 << "communicator." << '\n'

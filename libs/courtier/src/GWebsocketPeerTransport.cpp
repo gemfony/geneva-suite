@@ -123,8 +123,7 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         error_code ignored;
         std::ignore = acceptor_.close(ignored);
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << name_ << ": " << what << ": " << ec.message() << '\n'
+            g_error_streamer() << "In " << name_ << ": " << what << ": " << ec.message() << '\n'
         );
     };
 
@@ -177,8 +176,8 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         on_peer_ = nullptr;
         handler_executor_ = boost::asio::any_io_executor{};
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << name_ << ": could not start the I/O threads: " << why << '\n'
+            g_error_streamer() << "In " << name_ << ": could not start the I/O threads: " << why
+                               << '\n'
         );
     }
     running_.store(true);

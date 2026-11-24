@@ -176,7 +176,7 @@ public:
 
             if(not this->init()) { // Initialize the client
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "In GBaseClientT<T>::run(): Initialization failed. Leaving ..." << '\n'
                 );
             }
@@ -187,33 +187,29 @@ public:
             r = run_state::FINALLY;
             if(not this->finally()) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GBaseClientT<T>::run(): Finalization failed." << '\n'
+                    g_error_streamer() << "In GBaseClientT<T>::run(): Finalization failed." << '\n'
                 );
             }
         }
         catch(gem_exception &e) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GBaseClientT<T>::run() / " << rs_to_str(r) << ":" << '\n'
-                << "Caught gem_exception" << '\n'
-                << "with message" << '\n'
-                << e.what()
+                g_error_streamer() << "In GBaseClientT<T>::run() / " << rs_to_str(r) << ":" << '\n'
+                                   << "Caught gem_exception" << '\n'
+                                   << "with message" << '\n'
+                                   << e.what()
             );
         }
         catch(std::exception &e) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GBaseClientT<T>::run() / " << rs_to_str(r)
-                << ": Caught std::exception with message" << '\n'
-                << e.what() << '\n'
+                g_error_streamer() << "In GBaseClientT<T>::run() / " << rs_to_str(r)
+                                   << ": Caught std::exception with message" << '\n'
+                                   << e.what() << '\n'
             );
         }
         catch(...) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GBaseClientT<T>::run() / " << rs_to_str(r) << ": Caught unknown exception."
-                << '\n'
+                g_error_streamer() << "In GBaseClientT<T>::run() / " << rs_to_str(r)
+                                   << ": Caught unknown exception." << '\n'
             );
         }
 

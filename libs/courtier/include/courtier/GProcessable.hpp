@@ -50,7 +50,7 @@
 // Geneva headers
 #include "common/GArchiveNamed.hpp"          // archive_named (named-member emitter)
 #include "common/GCommonHelperFunctions.hpp" // timeAndPlace
-#include "common/GErrorStreamer.hpp"         // g_error_streamer, DO_LOG
+#include "common/GErrorStreamer.hpp"         // g_error_streamer
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "courtier/GCourtierEnums.hpp"           // processingStatus, dispatchState, the id typedefs
@@ -264,7 +264,7 @@ public:
         // We do not accept setting a target state of PROCESSED via this function
         if(target_ps == processingStatus::PROCESSED) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GProcessable::set_processing_status():" << '\n'
                 << "An attempt was made to set the processing state to PROCESSED" << '\n'
                 << "which is not allowed through this function." << '\n'
@@ -291,7 +291,7 @@ public:
 
         if(not allowed) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GProcessable::set_processing_status():" << '\n'
                 << "Got invalid target processing status " << psToStr(target_ps) << '\n'
                 << "for the current state of " << psToStr(processing_status_) << '\n'
@@ -564,7 +564,7 @@ protected:
     ) {
         if(results_given && processing_begun_.begun) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In " << context << ": Results were given to an item whose processing was"
                 << " begun with beginProcessing()." << '\n'
                 << "Complete it with completeProcessing() instead; process() would run the"
@@ -597,7 +597,7 @@ protected:
         // We only accept items that are due for processing
         if(processingStatus::DO_PROCESS != processing_status_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In " << context << ": Function called while processing_status_ was set to "
                 << processing_status_ << '\n'
                 << "Expected " << processingStatus::DO_PROCESS << '\n'
@@ -620,7 +620,7 @@ protected:
             // of the status means the pre-processing step took the item out of processing.
             if(processingStatus::DO_PROCESS != processing_status_ && not this->has_errors()) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                    g_error_streamer()
                     << "The pre-processing step changed the processing status to "
                     << processing_status_ << "; expected " << processingStatus::DO_PROCESS << '\n'
                 );
@@ -652,7 +652,7 @@ protected:
     ) {
         if(processingStatus::DO_PROCESS != processing_status_ || not processing_begun_.begun) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In " << context << ": Processing was completed without having been begun"
                 << " (processing_status_ is " << processing_status_ << ")" << '\n'
             );
@@ -693,9 +693,8 @@ protected:
     static void requireResults_(std::string_view context, bool results_given) {
         if(not results_given) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In " << context << ": Error!" << '\n'
-                << "No results were given" << '\n'
+                g_error_streamer() << "In " << context << ": Error!" << '\n'
+                                   << "No results were given" << '\n'
             );
         }
     }
@@ -749,7 +748,7 @@ protected:
             }
 
             throw g_processing_exception( // A specific exception type flagging errors during processing
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << stored_error_descriptions_
+                g_error_streamer() << stored_error_descriptions_
             );
         }
     }
@@ -828,7 +827,7 @@ protected:
     void force_set_error(const std::string &error_info) {
         if(error_info.empty()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GProcessable::force_set_error(): Error info is empty" << '\n'
             );
         }

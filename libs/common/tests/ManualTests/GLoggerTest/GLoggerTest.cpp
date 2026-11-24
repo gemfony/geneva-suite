@@ -89,14 +89,9 @@ int main(int argc, char **argv) {
     // Warning emitted to all targets
     glogger << "Some information " << 3 << " " << 4 << '\n' << GWARNING;
 
-    // Raising an exception. Note that the data will also be written to
-    // a file named GEM-EXCEPTION.log
-    try {
-        glogger << "Some information " << 5 << " " << 6 << '\n' << GEXCEPTION;
-    }
-    catch(gem_exception &e) {
-        std::cout << "Caught exception with message" << '\n' << e << '\n';
-    }
+    // An error where it is finally handled: emitted to all targets and also written to a file
+    // named GEM-EXCEPTION.log
+    glogger << "Some information " << 5 << " " << 6 << '\n' << GERROR;
 
     // Output to a specific file
     glogger(std::filesystem::path("anotherFile"))
@@ -115,6 +110,6 @@ int main(int argc, char **argv) {
 
     // Crash the applicaton if requested
     if(do_crash) {
-        glogger << "A crash was requested. Crashing ..." << GEXCEPTION;
+        throw gem_exception(g_error_streamer() << "A crash was requested. Crashing ..." << '\n');
     }
 }

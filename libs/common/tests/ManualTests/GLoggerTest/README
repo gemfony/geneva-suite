@@ -3,11 +3,12 @@ It allows to stream data to a logger in a simple way like this:
 
 glogger << "Some information " << 1 << " " << 2 << someStreamableType << GLOGGING;
 
-It also allows to raise exceptions in the same, easy way, using the modifier GEXCEPTION.
+It also reports an error where it is finally handled in the same, easy way, using the modifier
+GERROR.
 
 Call the program and you will see some shell-output through the console logger. The
 same messages are recorded in records/GLoggerTest.log (a GRecordLogTarget with a
-GTextSink); GEM-EXCEPTION.log and anotherFile are written by GEXCEPTION and GFILE. Note that access to the
+GTextSink); GEM-EXCEPTION.log and anotherFile are written by GERROR and GFILE. Note that access to the
 logger is thread safe, so it can also be used as an easy output mechanism. Note though,
 that there might be a performance penalty.
 

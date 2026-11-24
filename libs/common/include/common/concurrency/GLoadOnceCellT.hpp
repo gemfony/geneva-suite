@@ -175,7 +175,7 @@ public:
     [[nodiscard]] const T &get() const {
         if(not this->loaded()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GLoadOnceCellT::get(): Error!" << '\n'
                 << "The cell was read before it was loaded. Fill it once (via ensureLoaded())"
                 << '\n'

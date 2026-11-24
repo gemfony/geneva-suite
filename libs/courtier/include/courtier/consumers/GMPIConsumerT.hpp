@@ -169,14 +169,13 @@ private:
     requireSubmitter_(std::shared_ptr<Gem::Courtier::Consumers::GMPIEnvironment> environment) {
         if(not environment) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
-                << "The MPI environment must not be empty" << '\n'
+                g_error_streamer() << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
+                                   << "The MPI environment must not be empty" << '\n'
             );
         }
         if(environment->role() != Gem::Courtier::processRole::SUBMITTER) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GMPIConsumerT<>::GMPIConsumerT(): Error!" << '\n'
                 << "The MPI consumer is built on the submitter only; this process has the role "
                 << static_cast<int>(environment->role())

@@ -53,8 +53,8 @@ namespace {
  */
 std::string_view severityName(logType severity) {
     switch(severity) { // every value named, so that a new one is a compiler warning (-Wswitch)
-    case logType::EXCEPTION:
-        return "EXCEPTION";
+    case logType::ERROR_REPORT:
+        return "ERROR_REPORT";
     case logType::TERMINATION:
         return "TERMINATION";
     case logType::WARNING:
@@ -146,8 +146,7 @@ void GRecordLogTarget::logWithSource(
 /**
  * Appends one message as a row of the stream, declaring the stream at the first message. A
  * declaration is tried once; a refused one leaves the handle empty. A message the stream does not
- * take goes to std::cerr, with the reason if there is one (the failure itself is also in
- * GEM-EXCEPTION.log).
+ * take goes to std::cerr, with the reason if there is one.
  *
  * @param message The message
  * @param source The identifier of its source, or empty

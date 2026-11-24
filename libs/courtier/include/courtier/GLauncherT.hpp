@@ -131,9 +131,8 @@ void applyNetworkedTimeouts(GBaseConsumerT<processable_type> &consumer) {
 /** @brief An error of the free functions @param what Why @return The exception to throw */
 inline gem_exception consumerError(const std::string &what) {
     return gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In Gem::Courtier's consumer functions: Error!" << '\n'
-        << what << '\n'
+        g_error_streamer() << "In Gem::Courtier's consumer functions: Error!" << '\n'
+                           << what << '\n'
     );
 }
 
@@ -462,10 +461,10 @@ private:
     /** @brief A refusal of the launcher @param what Why @return The exception to throw */
     static gem_exception refusal_(const std::string &what) {
         return gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GLauncherT<" << boost::core::demangle(typeid(processable_type).name())
-            << ">::run(): Error!" << '\n'
-            << what << '\n'
+            g_error_streamer() << "In GLauncherT<"
+                               << boost::core::demangle(typeid(processable_type).name())
+                               << ">::run(): Error!" << '\n'
+                               << what << '\n'
         );
     }
 

@@ -35,14 +35,25 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <unistd.h>
+
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
+#include "GCapturedLog.hpp"
 #include "GDemoProcessingContainers.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GProcessingContainerT.hpp"
+#include "courtier/GSubmissionPolicy.hpp"
+#include "courtier/consumers/GStdThreadConsumerT.hpp"
 
 using Gem::Courtier::GCommandContainerT;
 using Gem::Courtier::GFaultyContainer;
@@ -217,4 +228,112 @@ TEST_CASE(
     CHECK(got.outcome().submission_uuid == named.submission_uuid);
     CHECK(got.outcome().status == processingStatus::ERROR_FLAGGED);
     CHECK(got.outcome().error_descriptions.contains("it could not be read"));
+}
+
+/******************************************************************************/
+// A work item whose processing fails is reported once, where its task ends: by the worker that
+// returns it flagged, or by the thread pool of a local consumer -- in the log and in
+// GEM-EXCEPTION.log. The throw and the rethrow on the way (the item's processing lifecycle turns the
+// failure into a g_processing_exception) write nothing.
+
+namespace {
+
+/** @brief Runs a test in a working directory of its own, where GEM-EXCEPTION.log is written */
+class ScratchDirectory {
+public:
+    explicit ScratchDirectory(std::string const &tag)
+      : previous_(std::filesystem::current_path())
+      , path_(
+            std::filesystem::temp_directory_path() /
+            ("gem_courtier_error_report_" + tag + "_" + std::to_string(::getpid()))
+        ) {
+        std::filesystem::remove_all(path_);
+        std::filesystem::create_directories(path_);
+        std::filesystem::current_path(path_);
+    }
+    ScratchDirectory(ScratchDirectory const &) = delete;
+    ScratchDirectory(ScratchDirectory &&) = delete;
+    ScratchDirectory &operator=(ScratchDirectory const &) = delete;
+    ScratchDirectory &operator=(ScratchDirectory &&) = delete;
+    ~ScratchDirectory() {
+        std::error_code ec;
+        std::filesystem::current_path(previous_, ec);
+        std::filesystem::remove_all(path_, ec);
+    }
+
+private:
+    std::filesystem::path previous_;
+    std::filesystem::path path_;
+};
+
+/** @brief How often the injected failure of GFaultyContainer is in GEM-EXCEPTION.log */
+std::size_t recordedFailures() {
+    std::ifstream in("GEM-EXCEPTION.log");
+    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    constexpr std::string_view FAILURE = "injected g_processing_exception";
+    std::size_t n = 0;
+    for(std::size_t pos = text.find(FAILURE); pos != std::string::npos;
+        pos = text.find(FAILURE, pos + FAILURE.size())) {
+        ++n;
+    }
+    return n;
+}
+
+} // namespace
+
+TEST_CASE(
+    "courtier(client): a work item whose processing fails is reported once by the worker",
+    "[courtier][client][error-report]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GFrameKind;
+    using Gem::Courtier::processingStatus;
+
+    const ScratchDirectory directory("worker");
+    const auto log = std::make_shared<Gem::Courtier::Tests::CapturedLog>();
+    glogger.addLogTarget(log);
+
+    auto item = std::make_unique<GFaultyContainer>(0, fault_mode::THROW_PROCESSING);
+    item->set_processing_status(processingStatus::DO_PROCESS);
+    GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
+    CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "test worker"));
+    glogger.resetLogTargets();
+
+    CHECK(frame.item()->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
+    CHECK(log->countLinesWith({"injected g_processing_exception", "ERROR"}) == 1);
+    CHECK(recordedFailures() == 1);
+}
+
+TEST_CASE(
+    "courtier(client): a work item that fails in a local consumer is reported once per attempt",
+    "[courtier][client][error-report]"
+) {
+    using Gem::Courtier::fault_mode;
+    using Gem::Courtier::GStdThreadConsumerConfig;
+    using Gem::Courtier::GStdThreadConsumerT;
+    using Gem::Courtier::GSubmissionPolicy;
+
+    const ScratchDirectory directory("consumer");
+    const auto log = std::make_shared<Gem::Courtier::Tests::CapturedLog>();
+    glogger.addLogTarget(log);
+
+    std::vector<std::unique_ptr<GFaultyContainer>> batch;
+    for(std::size_t i = 0; i < 4; ++i) {
+        batch.push_back(
+            std::make_unique<GFaultyContainer>(
+                i,
+                i == 2 ? fault_mode::THROW_PROCESSING : fault_mode::NONE
+            )
+        );
+    }
+    GStdThreadConsumerT<GFaultyContainer> consumer(GStdThreadConsumerConfig{.nThreads = 2});
+    // One failed attempt, then the slot is refilled with a clone of a survivor
+    consumer.processBatch(
+        std::span<std::unique_ptr<GFaultyContainer>>(batch.data(), batch.size()),
+        GSubmissionPolicy::clone_on_partial_return()
+    );
+    glogger.resetLogTargets();
+
+    CHECK(log->countLinesWith({"injected g_processing_exception", "ERROR"}) == 1);
+    CHECK(recordedFailures() == 1);
 }
