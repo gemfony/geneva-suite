@@ -46,6 +46,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GParserBuilder.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -218,22 +219,17 @@ public:
         const std::vector<double> &lowerBoundaries,
         const std::vector<double> &upperBoundaries
     ) {
-        // Some error checking
-#ifdef DEBUG
-        // Check whether values have been provided
-        if(startValues.empty()) {
-            throw gem_exception(g_error_streamer() << "No parameters given" << '\n');
-        }
-
-        // Check whether all sizes match
-        if(startValues.size() != lowerBoundaries.size() ||
-           startValues.size() != upperBoundaries.size()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Invalid sizes" << startValues.size() << " / " << lowerBoundaries.size() << " / "
-                << upperBoundaries.size() << '\n'
-            );
-        }
+        Gem::Common::checkThat(not startValues.empty(), "No parameters given");
+        Gem::Common::checkThat(
+            startValues.size() == lowerBoundaries.size() &&
+                startValues.size() == upperBoundaries.size(),
+            "Invalid sizes ",
+            startValues.size(),
+            " / ",
+            lowerBoundaries.size(),
+            " / ",
+            upperBoundaries.size()
+        );
 
         // Check that start values and boundaries have valid values
         for(std::size_t i = 0; i < startValues.size(); i++) {
@@ -245,8 +241,6 @@ public:
 				 , true  // open upper boundary
 			 );
         }
-
-#endif /* DEBUG */
 
         // Build the flat genome's STRUCTURE: one constrained double per parameter. The Gauss adaptor lives
         // solely on the OA-owned config (buildAdaptionConfig()); none of its parameters reside here.

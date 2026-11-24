@@ -242,7 +242,6 @@ TEST_CASE("GTestIndividual1: the personality can be set read and reset", "[genev
     CHECK(ind.getPersonality() == "PERSONALITY_NONE");
 }
 
-#ifdef DEBUG
 TEST_CASE(
     "GTestIndividual1: reading the fitness of an individual due for processing throws",
     "[geneva][individuals]"
@@ -265,12 +264,13 @@ TEST_CASE(
     );
     CHECK_THROWS_AS(ind.getPersonalityTraits(), gem_exception);
 
+#ifndef NDEBUG // a personality of another type is found by GEM_DEBUG_CHECK (g_ptr_conversion)
     CHECK_NOTHROW(ind.setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>()));
     CHECK_THROWS_AS(
         ind.getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>(),
         gem_exception
     );
+#endif
 }
-#endif /* DEBUG */
 
 /******************************************************************************/

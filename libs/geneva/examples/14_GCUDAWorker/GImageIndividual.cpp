@@ -34,6 +34,7 @@
 #include "GImageIndividual.hpp"
 #include "GMonaLisaProblem.hpp"
 
+#include "common/GChecks.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
@@ -336,15 +337,14 @@ std::vector<CircleTriangle> GImageIndividual::getTriangleData() const {
     std::vector<gimage_fp_t> parVec;
     this->streamline(parVec);
 
-#ifdef DEBUG
-    if(parVec.size() != 10 * nTriangles_ + 3) {
-        // including background color
-        throw gem_exception(
-            g_error_streamer() << "Invalid number of parameters in this class " << parVec.size()
-                               << " / " << (10 * nTriangles_ + 3) << '\n'
-        );
-    }
-#endif /* DEBUG */
+    // 10 values per triangle and the background color
+    Gem::Common::checkThat(
+        parVec.size() == 10 * nTriangles_ + 3,
+        "Invalid number of parameters ",
+        parVec.size(),
+        " / ",
+        10 * nTriangles_ + 3
+    );
 
     std::size_t offset = 0;
     std::vector<CircleTriangle> circle_cnt(nTriangles_);

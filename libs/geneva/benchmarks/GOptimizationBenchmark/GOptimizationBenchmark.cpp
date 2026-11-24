@@ -39,6 +39,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 #include "geneva/Go2.hpp"
@@ -109,21 +110,19 @@ int main(int argc, char **argv) {
                             "./config/GFunctionIndividual.json"
                         );
 
-#ifdef DEBUG
-                    if(g->getParameterSize() != *it) {
-                        throw gem_exception(
-                            g_error_streamer() << "parameter size of individual != requested size: "
-                                               << g->getParameterSize() << " / " << *it << std::endl
-                        );
-                    }
-
-                    if(!go_loop.empty()) {
-                        throw gem_exception(
-                            g_error_streamer() << "go contains " << go_loop.size()
-                                               << " items when it should be empty." << std::endl
-                        );
-                    }
-#endif /* DEBUG */
+                    Gem::Common::checkThat(
+                        g->getParameterSize() == *it,
+                        "parameter size of individual != requested size: ",
+                        g->getParameterSize(),
+                        " / ",
+                        *it
+                    );
+                    Gem::Common::checkThat(
+                        go_loop.empty(),
+                        "go contains ",
+                        go_loop.size(),
+                        " items when it should be empty."
+                    );
 
                     // Make an individual known to the optimizer
                     go_loop.push_back(g);

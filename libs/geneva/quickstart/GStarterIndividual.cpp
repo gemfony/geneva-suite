@@ -33,6 +33,8 @@
 
 #include "GStarterIndividual.hpp"
 
+#include "common/GChecks.hpp"
+
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
@@ -317,16 +319,16 @@ void GStarterIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config
 //! [quickstart-buildgenome#1]
 gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
 //! [quickstart-buildgenome#1]
-#ifdef DEBUG
-    if(c.start_values.empty() || c.start_values.size() != c.lower_boundaries.size() ||
-       c.start_values.size() != c.upper_boundaries.size()) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid sizes " << c.start_values.size() << " / "
-                               << c.lower_boundaries.size() << " / " << c.upper_boundaries.size()
-                               << '\n'
-        );
-    }
-#endif /* DEBUG */
+    Gem::Common::checkThat(
+        not c.start_values.empty() && c.start_values.size() == c.lower_boundaries.size() &&
+            c.start_values.size() == c.upper_boundaries.size(),
+        "Invalid sizes ",
+        c.start_values.size(),
+        " / ",
+        c.lower_boundaries.size(),
+        " / ",
+        c.upper_boundaries.size()
+    );
 
     // clang-format off
     //! [quickstart-buildgenome#2]
