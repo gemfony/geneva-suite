@@ -27,7 +27,7 @@
  *
  ********************************************************************************/
 
-#include "geneva/individuals/GTestIndividual3.hpp"
+#include "GTestIndividual3.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"

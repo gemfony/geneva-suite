@@ -41,8 +41,8 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "GTestIndividual2.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "geneva/individuals/GTestIndividual2.hpp"
 #include "geneva/oa/GAdaption.hpp"
 
 using namespace Gem::Common;

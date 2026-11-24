@@ -237,53 +237,6 @@ std::vector<double> GLineFitIndividual::evaluate() {
 }
 
 /******************************************************************************/
-/**
- * @brief Applies modifications to this object. This is needed for testing purposes.
- *
- * @return A boolean which indicates whether modifications were made
- */
-bool GLineFitIndividual::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    bool result = false;
-
-    // Call the parent classes' functions
-    if(gen::GGenome::modifyForTest()) {
-        result = true;
-    }
-
-    // Change the parameter settings
-    result = true;
-
-    return result;
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GLineFitIndividual::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self tests that are expected to succeed. This is needed for testing purposes.
- */
-void GLineFitIndividual::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    using namespace Gem::Geneva;
-
-    // Call the parent classes' functions
-    gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-
-    //------------------------------------------------------------------------------
-    //------------------------------------------------------------------------------
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GLineFitIndividual::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 

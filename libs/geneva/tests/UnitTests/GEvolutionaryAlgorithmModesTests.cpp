@@ -46,6 +46,7 @@
 #include <tuple>
 #include <vector>
 
+#include "GTestIndividual1.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
 #include "geneva/GOptimizationEnums.hpp"
@@ -53,7 +54,6 @@
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeMultiConstraint.hpp"
 #include "geneva/genome/GGenomeT.hpp"
-#include "geneva/individuals/GTestIndividual1.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GBasePluggableOM.hpp"

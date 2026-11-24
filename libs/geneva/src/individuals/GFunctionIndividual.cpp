@@ -171,7 +171,6 @@ double GDoubleSumGapConstraint::check_(const gen::GGenome *p) const {
 }
 
 /******************************************************************************/
-/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
@@ -282,55 +281,6 @@ std::size_t GFunctionIndividual::getParameterSize() const {
     std::vector<double> par_vec;
     this->streamline(par_vec);
     return par_vec.size();
-}
-
-/******************************************************************************/
-/**
- * @brief Applies modifications to this object. This is needed for testing purposes.
- *
- * @return A boolean which indicates whether modifications were made
- */
-bool GFunctionIndividual::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    bool result = false;
-
-    // Call the parent classes' functions
-    if(gen::GGenome::modifyForTest()) {
-        result = true;
-    }
-
-    // Change the parameter settings
-    result = true;
-
-    return result;
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset("GFunctionIndividual::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif                  /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * @brief Performs self-tests that are expected to succeed. This is needed for testing purposes.
- */
-void GFunctionIndividual::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-    using namespace Gem::Geneva;
-
-    // Call the parent classes' functions
-    gen::GGenome::specificTestsNoFailureExpected_GUnitTests_();
-
-    //------------------------------------------------------------------------------
-    //------------------------------------------------------------------------------
-
-#else /* GEM_TESTING */ // If this function is called when GEM_TESTING isn't set, throw
-    Gem::Common::condnotset(
-        "GFunctionIndividual::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif                  /* GEM_TESTING */
 }
 
 /******************************************************************************/

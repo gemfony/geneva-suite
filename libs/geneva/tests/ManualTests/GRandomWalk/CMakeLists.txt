@@ -38,7 +38,7 @@ ADD_EXECUTABLE(${EXECUTABLENAME}
 )
 
 SET(LIBRARIES_TO_LINK
-		# GTestIndividual2 is no longer in the geneva library; compiled in via its object library (before the
+		# GTestIndividual2 is a test individual (libs/geneva/tests/individuals); compiled in via its object library (before the
 		# Geneva/Boost libraries, the in-tree convention for an object library carrying archive registrations).
 		GTestIndividual2-obj
 		${GENEVA_LIBRARIES}

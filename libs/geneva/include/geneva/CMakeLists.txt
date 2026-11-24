@@ -116,9 +116,6 @@ SET ( INDIVIDUALS_INCLUDES
     individuals/GLineFitIndividual.hpp
     individuals/GMetaOptimizerIndividualT.hpp
     individuals/GNeuralNetworkIndividual.hpp
-    individuals/GTestIndividual1.hpp
-    individuals/GTestIndividual2.hpp
-    individuals/GTestIndividual3.hpp
 )
 
 # This is a workaround for a CLion-problem -- see CPP270 in the JetBrains issue tracker

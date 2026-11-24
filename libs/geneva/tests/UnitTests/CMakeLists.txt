@@ -77,7 +77,8 @@ SET(LIBRARIES_TO_LINK
 		GDelayIndividual-obj
 		GFunctionIndividual-obj
 		GMetaOptimizerIndividualT-obj
-		# GTestIndividual2/3 are packaged as object libraries (GTestIndividual1 stays in the GEM_TESTING library).
+		# The test individuals (libs/geneva/tests/individuals)
+		GTestIndividual1-obj
 		GTestIndividual2-obj
 		GTestIndividual3-obj)
 
