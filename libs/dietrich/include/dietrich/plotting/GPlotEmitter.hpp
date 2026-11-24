@@ -32,6 +32,8 @@
 #include <memory>
 #include <string>
 
+#include "common/GCommonEnums.hpp"
+
 namespace Gem::Dietrich {
 
 /******************************************************************************/
@@ -53,6 +55,23 @@ enum class plotBackend {
     OCTAVE, ///< Emit an Octave / MATLAB script (.m; graph plotters and histograms, common-core syntax)
     DATA    ///< Emit the raw series data (NOT a rendered plot); CSV text or a numpy .npz archive
 };
+
+} /* namespace Gem::Dietrich */
+
+namespace Gem::Common {
+/** @brief The names of the backends (see enum_names_v in GCommonEnums.hpp) */
+template <>
+inline constexpr auto enum_names_v<Gem::Dietrich::plotBackend> =
+    std::to_array<std::pair<Gem::Dietrich::plotBackend, std::string_view>>(
+        {{Gem::Dietrich::plotBackend::ROOT, "root"},
+         {Gem::Dietrich::plotBackend::GNUPLOT, "gnuplot"},
+         {Gem::Dietrich::plotBackend::MATPLOTLIB, "matplotlib"},
+         {Gem::Dietrich::plotBackend::OCTAVE, "octave"},
+         {Gem::Dietrich::plotBackend::DATA, "data"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Dietrich {
 
 /******************************************************************************/
 /**

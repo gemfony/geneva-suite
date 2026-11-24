@@ -43,7 +43,19 @@
 #include <boost/asio/strand.hpp>
 
 // Geneva headers go here
+#include "common/GCommonEnums.hpp"
 #include "common/GLogger.hpp"
+
+namespace Gem::Common {
+/** @brief The names of beast's control frames, for the log (see enum_names_v) */
+template <>
+inline constexpr auto enum_names_v<boost::beast::websocket::frame_type> =
+    std::to_array<std::pair<boost::beast::websocket::frame_type, std::string_view>>(
+        {{boost::beast::websocket::frame_type::close, "close"},
+         {boost::beast::websocket::frame_type::ping, "ping"},
+         {boost::beast::websocket::frame_type::pong, "pong"}}
+    );
+} /* namespace Gem::Common */
 
 namespace Gem::Courtier::Consumers {
 
@@ -65,20 +77,6 @@ stream_base::timeout limitsFor(std::chrono::milliseconds ping_interval) {
         .idle_timeout = keep_alive ? idle_limit : stream_base::none(),
         .keep_alive_pings = keep_alive
     };
-}
-
-/** @brief The name of a control frame, for the log. */
-const char *frameName(boost::beast::websocket::frame_type kind) {
-    switch(kind) {
-        using enum boost::beast::websocket::frame_type;
-    case close:
-        return "close";
-    case ping:
-        return "ping";
-    case pong:
-        return "pong";
-    }
-    return "control";
 }
 
 /** @brief The websocket close code of a close; the same at both ends.
@@ -164,7 +162,8 @@ void GWebsocketPeer::configure_() {
             close_received_ = true;
         }
         if(options_.verboseControlFrames) {
-            glogger << options_.name << " has received a " << frameName(kind) << " frame" << '\n'
+            glogger << options_.name << " has received a " << Gem::Common::enumName(kind)
+                    << " frame" << '\n'
                     << GLOGGING;
         }
     });

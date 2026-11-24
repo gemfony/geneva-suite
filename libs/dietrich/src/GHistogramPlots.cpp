@@ -65,62 +65,6 @@ namespace Gem::Dietrich {
 // exception types, make_member, EmitStream, ...); make them visible here without
 // per-name qualification. This affects lookup only within Gem::Dietrich.
 using namespace Gem::Common;
-// Dietrich declares its own to_string(plotKind), which would otherwise shadow common's
-// numeric to_string(...) for unqualified calls; merge common's overloads back in.
-using Gem::Common::to_string;
-
-namespace {
-
-/******************************************************************************/
-/**
- * @brief ROOT's draw option of a 2-d drawing option, as a plot spec reports it
- * @param option A 2-d drawing option (set2DOpt())
- * @return Its ROOT draw option ("" for TDEMPTY, "SURF1", "COLZ", ...)
- */
-std::string drawOptionName(tddropt option) {
-    switch(option) {
-        using enum tddropt;
-    case TDEMPTY:
-        return "";
-    case SURFONE:
-        return "SURF1";
-    case SURFTWOZ:
-        return "SURF2Z";
-    case SURFTHREE:
-        return "SURF3";
-    case SURFFOUR:
-        return "SURF4";
-    case CONTZ:
-        return "CONTZ";
-    case CONTONE:
-        return "CONT1";
-    case CONTTWO:
-        return "CONT2";
-    case CONTTHREE:
-        return "CONT3";
-    case TEXT:
-        return "TEXT";
-    case SCAT:
-        return "SCAT";
-    case BOX:
-        return "BOX";
-    case ARR:
-        return "ARR";
-    case COLZ:
-        return "COLZ";
-    case LEGO:
-        return "LEGO";
-    case LEGOONE:
-        return "LEGO1";
-    case SURFONEPOL:
-        return "SURF1POL";
-    case SURFONECYL:
-        return "SURF1CYL";
-    }
-    return "";
-}
-
-} /* namespace */
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -390,7 +334,7 @@ GHistogram2D::GHistogram2D(const std::size_t &n_bins_x, const std::size_t &n_bin
 
 /******************************************************************************/
 /**
- * The 2-d drawing option whose ROOT draw option is @p name: the inverse of drawOptionName(), for a
+ * The 2-d drawing option whose ROOT draw option is @p name: the inverse of its name (enum_names_v), for a
  * plot spec that reports a set2DOpt() choice as its drawing arguments.
  *
  * @param name A ROOT draw option
@@ -400,14 +344,7 @@ std::optional<tddropt> GHistogram2D::drawingOptionNamed(const std::string &name)
     if(name.empty()) {
         return std::nullopt;
     }
-    for(auto v = static_cast<ENUMBASETYPE>(tddropt::TDEMPTY);
-        v <= static_cast<ENUMBASETYPE>(tddropt::SURFONECYL);
-        ++v) {
-        if(drawOptionName(static_cast<tddropt>(v)) == name) {
-            return static_cast<tddropt>(v);
-        }
-    }
-    return std::nullopt;
+    return Gem::Common::enumFromName<tddropt>(name);
 }
 
 /******************************************************************************/
@@ -523,7 +460,8 @@ GPlotSpec GHistogram2D::plotSpec() const {
     }
     // How ROOT draws the histogram (its own drawing arguments, or the set2DOpt() choice), so that
     // the draw style, the legend sample and whether the pad is a 3-d box follow it.
-    spec.drawing_args = drawing_arguments_.empty() ? drawOptionName(dropt_) : drawing_arguments_;
+    spec.drawing_args =
+        drawing_arguments_.empty() ? Gem::Common::enumName(dropt_) : drawing_arguments_;
     return spec;
 }
 

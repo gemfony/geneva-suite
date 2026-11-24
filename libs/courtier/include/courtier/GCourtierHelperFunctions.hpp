@@ -46,16 +46,6 @@ namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * @brief Translates the processingStatus into a clear-text string.
- */
-std::string psToStr(const processingStatus &ps);
-
-/**
- * @brief Translates a protocol frame kind into a clear-text string.
- */
-std::string fkToStr(const GFrameKind &fk);
-
-/**
  * @brief Says what an exception says, for the log and for an item's error descriptions: the
  * what() of a std::exception, or that it is not one.
  */

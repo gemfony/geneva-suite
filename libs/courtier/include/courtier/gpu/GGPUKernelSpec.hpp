@@ -35,6 +35,7 @@
 #include <string>
 
 // Geneva headers
+#include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -58,14 +59,27 @@ enum class BackendKind {
     CUDA
 };
 
+} /* namespace Gem::Courtier::GPU */
+
+namespace Gem::Common {
+/** @brief The names of the backends, as a configuration names them (see enum_names_v) */
+template <>
+inline constexpr auto enum_names_v<Gem::Courtier::GPU::BackendKind> =
+    std::to_array<std::pair<Gem::Courtier::GPU::BackendKind, std::string_view>>(
+        {{Gem::Courtier::GPU::BackendKind::CUDA, "cuda"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Courtier::GPU {
+
 /** @brief Parse a backend mnemonic. The GPU consumer is device-only, so only "cuda" is accepted;
  *  anything else (including the retired "cpu") throws.
  *  @param s The backend mnemonic string to parse
  *  @return BackendKind::CUDA for "cuda"
  *  @throws gem_exception on any string other than "cuda" */
 inline BackendKind backendKindFromString(const std::string &s) {
-    if(s == "cuda") {
-        return BackendKind::CUDA;
+    if(const auto kind = Gem::Common::enumFromName<BackendKind>(s)) {
+        return *kind;
     }
     throw gem_exception(
         g_error_streamer()
@@ -74,17 +88,6 @@ inline BackendKind backendKindFromString(const std::string &s) {
         << "To run on the CPU, use a CPU consumer instead (e.g. --consumer stc), which runs the"
         << " work item's own process()." << '\n'
     );
-}
-
-/** @brief Human-readable name of a backend kind.
- *  @param k The backend kind to name
- *  @return Its mnemonic ("cuda") */
-inline const char *toString(BackendKind k) {
-    switch(k) {
-    case BackendKind::CUDA:
-        return "cuda";
-    }
-    return "cuda";
 }
 
 /******************************************************************************/

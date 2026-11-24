@@ -253,8 +253,8 @@ GBenchmarkResultWriter.hpp/.cpp
 
 GBenchmarkRunResult.hpp
   Plain data structs: GBenchmarkRunResult (one run), GAlgorithmBenchmarkResult
-           (aggregated over N runs), TerminationReason enum,
-           terminationReasonToString().
+           (aggregated over N runs), TerminationReason enum and its
+           names (Gem::Common::enum_names_v).
 ```
 
 ### Consumer lifecycle

@@ -144,36 +144,5 @@ bool eventually(condition_type condition, std::chrono::milliseconds patience) {
 }
 
 /******************************************************************************/
-/** @brief @param end Why a connection ended @return Its name */
-inline std::string endName(Gem::Courtier::Consumers::GPeerEnd end) {
-    using Gem::Courtier::Consumers::GPeerEnd;
-    switch(end) {
-    case GPeerEnd::CLOSED_HERE:
-        return "CLOSED_HERE";
-    case GPeerEnd::CLOSED_THERE:
-        return "CLOSED_THERE";
-    case GPeerEnd::SILENT:
-        return "SILENT";
-    case GPeerEnd::FAILED:
-        return "FAILED";
-    }
-    return "?";
-}
-
-/** @brief @param how What a close said @return Its name */
-inline std::string closeName(Gem::Courtier::Consumers::GPeerClose how) {
-    using Gem::Courtier::Consumers::GPeerClose;
-    switch(how) {
-    case GPeerClose::NORMAL:
-        return "NORMAL";
-    case GPeerClose::ERROR:
-        return "ERROR";
-    case GPeerClose::RUN_ENDED:
-        return "RUN_ENDED";
-    }
-    return "?";
-}
-
-/******************************************************************************/
 
 } /* namespace Gem::Courtier::Tests */

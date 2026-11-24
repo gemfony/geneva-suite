@@ -190,23 +190,24 @@ public:
         }
         catch(gem_exception &e) {
             throw gem_exception(
-                g_error_streamer() << "In the state " << rs_to_str(r) << ":" << '\n'
-                                   << "Caught gem_exception" << '\n'
-                                   << "with message" << '\n'
-                                   << e.what()
+                g_error_streamer()
+                << "In the state run_state::" << Gem::Common::enumName(r) << ":" << '\n'
+                << "Caught gem_exception" << '\n'
+                << "with message" << '\n'
+                << e.what()
             );
         }
         catch(std::exception &e) {
             throw gem_exception(
-                g_error_streamer()
-                << "In the state " << rs_to_str(r) << ": Caught std::exception with message" << '\n'
-                << e.what() << '\n'
+                g_error_streamer() << "In the state run_state::" << Gem::Common::enumName(r)
+                                   << ": Caught std::exception with message" << '\n'
+                                   << e.what() << '\n'
             );
         }
         catch(...) {
             throw gem_exception(
-                g_error_streamer()
-                << "In the state " << rs_to_str(r) << ": Caught unknown exception." << '\n'
+                g_error_streamer() << "In the state run_state::" << Gem::Common::enumName(r)
+                                   << ": Caught unknown exception." << '\n'
             );
         }
 
@@ -343,24 +344,6 @@ private:
      *  @return true to request termination (default: never) */
     virtual bool customHalt() {
         return false;
-    }
-
-    //---------------------------------------------------------------------------
-    /** @brief Transformation of run_state to a string.
-     *  @param r The run state to convert
-     *  @return A human-readable name for the run state */
-    std::string rs_to_str(run_state r) {
-        switch(r) {
-        case run_state::INIT:
-            return "run_state::INIT";
-        case run_state::RUN:
-            return "run_state::RUN";
-        case run_state::FINALLY:
-            return "run_state::FINALLY";
-        }
-
-        // Make the compiler happy
-        return {};
     }
 
     //---------------------------------------------------------------------------

@@ -46,8 +46,10 @@
 #include <array>
 #include <cstdint>
 #include <istream>
+#include <optional>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 
@@ -186,6 +188,114 @@ std::string numericEnumValueList() {
 
 /******************************************************************************/
 /**
+ * The names of an enum's values, written once, next to the enum: one pair of a value and its name
+ * per value, specialized (in namespace Gem::Common, as numeric_enum_values_v) right after the
+ * enum's definition. enumName() reads a value's name from the table and enumFromName() the value
+ * of a name, so that no enum needs a function of its own that spells its names out again.
+ *
+ * The name is the text a value is known by where it is printed or read: mostly the enumerator's
+ * own spelling, otherwise the word that files, scripts or the manual use for it. An enum has one
+ * table; a sentence that describes a value in a message is not its name and stays with the
+ * message.
+ *
+ * Checked at compile time wherever enumName() or enumFromName() is used: no value and no name
+ * appears twice, and an enum that lists its values in numeric_enum_values_v names exactly these.
+ *
+ * @code
+ * template <>
+ * inline constexpr auto enum_names_v<sortOrder> = std::to_array<std::pair<sortOrder, std::string_view>>(
+ *     {{sortOrder::LOWERISBETTER, "LOWERISBETTER"}, {sortOrder::HIGHERISBETTER, "HIGHERISBETTER"}}
+ * );
+ * @endcode
+ */
+template <typename enum_type>
+inline constexpr auto enum_names_v = std::array<std::pair<enum_type, std::string_view>, 0>{};
+
+/** @brief Satisfied by enum types whose values are named in enum_names_v */
+template <typename enum_type>
+concept named_enum = std::is_enum_v<enum_type> && (enum_names_v<enum_type>.size() > 0);
+
+/**
+ * @brief Whether the name table of an enum is complete and unambiguous (see enum_names_v)
+ * @tparam enum_type An enum with a name table
+ * @return true if no value and no name appears twice and, where numeric_enum_values_v lists the
+ *         enum's values, the table names exactly these
+ */
+template <named_enum enum_type>
+consteval bool enumNamesAreComplete() {
+    auto const &names = enum_names_v<enum_type>;
+    for(std::size_t pos = 0; pos < names.size(); ++pos) {
+        for(std::size_t other = pos + 1; other < names.size(); ++other) {
+            if(names.at(pos).first == names.at(other).first ||
+               names.at(pos).second == names.at(other).second) {
+                return false;
+            }
+        }
+    }
+    if constexpr(numeric_io_enum<enum_type>) {
+        auto const &values = numeric_enum_values_v<enum_type>;
+        if(values.size() != names.size()) {
+            return false;
+        }
+        for(enum_type const value : values) {
+            bool named = false;
+            for(auto const &entry : names) {
+                named = named || entry.first == value;
+            }
+            if(not named) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+/**
+ * @brief The name of an enum's value, from its table (see enum_names_v). It does not throw, since
+ * names are printed mostly in log lines and error messages: a number cast to the enum that is none
+ * of its values is named "<invalid value N>".
+ * @param value The value
+ * @return Its name, or "<invalid value N>" for a value without one
+ */
+template <named_enum enum_type>
+[[nodiscard]] constexpr std::string enumName(enum_type value) noexcept {
+    static_assert(
+        enumNamesAreComplete<enum_type>(),
+        "enum_names_v names a value twice, uses a name twice, or does not name exactly the values "
+        "of numeric_enum_values_v"
+    );
+    for(auto const &[candidate, name] : enum_names_v<enum_type>) {
+        if(candidate == value) {
+            return std::string(name);
+        }
+    }
+    return "<invalid value " +
+           std::to_string(static_cast<std::int64_t>(std::to_underlying(value))) + ">";
+}
+
+/**
+ * @brief The value of an enum with the given name, from its table (see enum_names_v)
+ * @tparam enum_type The enum
+ * @param name A name, spelled exactly as in the table
+ * @return The value, or nothing if no value has this name
+ */
+template <named_enum enum_type>
+[[nodiscard]] constexpr std::optional<enum_type> enumFromName(std::string_view name) noexcept {
+    static_assert(
+        enumNamesAreComplete<enum_type>(),
+        "enum_names_v names a value twice, uses a name twice, or does not name exactly the values "
+        "of numeric_enum_values_v"
+    );
+    for(auto const &[value, candidate] : enum_names_v<enum_type>) {
+        if(candidate == name) {
+            return value;
+        }
+    }
+    return std::nullopt;
+}
+
+/******************************************************************************/
+/**
  * This enum denotes different dimensions (used particularly by GDecoratorCollection
  */
 enum class dimensions : Gem::Common::ENUMBASETYPE {
@@ -241,6 +351,19 @@ template <>
 inline constexpr auto numeric_enum_values_v<logType> =
     numeric_enum_range<logType::ERROR_REPORT, logType::EXIT>();
 
+/** @brief The names of the logType values, e.g. as a recorded log's column "severity" holds them */
+template <>
+inline constexpr auto enum_names_v<logType> = std::to_array<std::pair<logType, std::string_view>>(
+    {{logType::ERROR_REPORT, "ERROR_REPORT"},
+     {logType::TERMINATION, "TERMINATION"},
+     {logType::WARNING, "WARNING"},
+     {logType::LOGGING, "LOGGING"},
+     {logType::FILE, "FILE"},
+     {logType::STDOUT, "STDOUT"},
+     {logType::STDERR, "STDERR"},
+     {logType::EXIT, "EXIT"}}
+);
+
 /******************************************************************************/
 /**
  * The default number of bins in histograms, used in GPlotDesigner
@@ -272,8 +395,14 @@ inline bool indeterminate(tribool t) noexcept {
     return t == tribool::Indeterminate;
 }
 
+/** @brief The names of the tribool values, as operator<< prints them */
+template <>
+inline constexpr auto enum_names_v<tribool> = std::to_array<std::pair<tribool, std::string_view>>(
+    {{tribool::False, "False"}, {tribool::Indeterminate, "Indeterminate"}, {tribool::True, "True"}}
+);
+
 /**
- * @brief Puts a Gem::Common::tribool into a stream.
+ * @brief Puts a Gem::Common::tribool into a stream, as its name (see enum_names_v).
  */
 std::ostream &operator<<(std::ostream &o, Gem::Common::tribool const &x);
 
@@ -303,15 +432,17 @@ inline constexpr std::array<serializationMode, 2> SERIALIZATIONMODES{
 template <>
 inline constexpr auto numeric_enum_values_v<serializationMode> = SERIALIZATIONMODES;
 
+/** @brief The names of the serialization modes */
+template <>
+inline constexpr auto enum_names_v<serializationMode> =
+    std::to_array<std::pair<serializationMode, std::string_view>>(
+        {{serializationMode::GEM_BINARY, "GEM_BINARY"}, {serializationMode::GEM_JSON, "GEM_JSON"}}
+    );
+
 /**
  * @brief The modes for a help text, from SERIALIZATIONMODES: "GEM_BINARY (3) or GEM_JSON (4)"
  */
 [[nodiscard]] std::string serializationModeChoices();
-
-/**
- * @brief Converts a serializationMode to a string representation for debugging purposes.
- */
-[[nodiscard]] std::string serModeToString(Gem::Common::serializationMode ser_mod);
 
 /******************************************************************************/
 /**
@@ -336,6 +467,15 @@ enum class expectation : Gem::Common::ENUMBASETYPE {
 template <>
 inline constexpr auto numeric_enum_values_v<expectation> =
     numeric_enum_range<expectation::EQUALITY, expectation::INEQUALITY>();
+
+/** @brief The names of the expectations, as the expectation checks report them */
+template <>
+inline constexpr auto enum_names_v<expectation> =
+    std::to_array<std::pair<expectation, std::string_view>>(
+        {{expectation::EQUALITY, "EQUALITY"},
+         {expectation::FP_SIMILARITY, "FP_SIMILARITY"},
+         {expectation::INEQUALITY, "INEQUALITY"}}
+    );
 
 /******************************************************************************/
 /**

@@ -38,6 +38,8 @@
 #include <string_view>
 #include <vector>
 
+#include "common/GCommonEnums.hpp"
+
 namespace Gem::Geneva::Benchmarks {
 
 /******************************************************************************/
@@ -57,23 +59,21 @@ enum class TerminationReason : std::uint8_t {
     Unknown
 };
 
-/******************************************************************************/
-/**
- * @brief Converts a TerminationReason to a short ASCII string for CSV output.
- */
-inline std::string_view terminationReasonToString(TerminationReason r) noexcept {
-    switch(r) {
-    case TerminationReason::MaxIterations:
-        return "max_iter";
-    case TerminationReason::StallThreshold:
-        return "stall";
-    case TerminationReason::QualityThreshold:
-        return "target_reached";
-    case TerminationReason::Unknown:
-        return "unknown";
-    }
-    return "unknown";
-}
+} /* namespace Gem::Geneva::Benchmarks */
+
+namespace Gem::Common {
+/** @brief The short names of the termination reasons, for CSV output (see enum_names_v) */
+template <>
+inline constexpr auto enum_names_v<Gem::Geneva::Benchmarks::TerminationReason> =
+    std::to_array<std::pair<Gem::Geneva::Benchmarks::TerminationReason, std::string_view>>(
+        {{Gem::Geneva::Benchmarks::TerminationReason::MaxIterations, "max_iter"},
+         {Gem::Geneva::Benchmarks::TerminationReason::StallThreshold, "stall"},
+         {Gem::Geneva::Benchmarks::TerminationReason::QualityThreshold, "target_reached"},
+         {Gem::Geneva::Benchmarks::TerminationReason::Unknown, "unknown"}}
+    );
+} /* namespace Gem::Common */
+
+namespace Gem::Geneva::Benchmarks {
 
 /******************************************************************************/
 /**

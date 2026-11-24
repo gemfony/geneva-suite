@@ -38,66 +38,6 @@ namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * @brief Translate the processingStatus into a clear-text string
- *
- * @param ps The processingStatus to be translated into a std::string
- * @return A string representing the processing status (empty string for an unrecognized value)
- */
-std::string psToStr(const processingStatus &ps) {
-    switch(ps) {
-        using enum Gem::Courtier::processingStatus;
-    case UNPROCESSED:
-        return "UNPROCESSED";
-
-    case DO_PROCESS:
-        return "DO_PROCESS";
-
-    case PROCESSED:
-        return "PROCESSED";
-
-    case EXCEPTION_CAUGHT:
-        return "EXCEPTION_CAUGHT";
-
-    case ERROR_FLAGGED:
-        return "ERROR_FLAGGED";
-    }
-
-    // Make the compiler happy
-    return {};
-}
-
-/******************************************************************************/
-/**
- * @brief Translates a protocol frame kind into a clear-text string
- *
- * @param fk The GFrameKind to be translated into a std::string
- * @return A string representing the frame kind (empty string for an unrecognized value)
- */
-std::string fkToStr(const GFrameKind &fk) {
-    switch(fk) {
-        using enum Gem::Courtier::GFrameKind;
-    case NONE:
-        return "NONE";
-
-    case PULL:
-        return "PULL";
-
-    case WORK:
-        return "WORK";
-
-    case HELLO:
-        return "HELLO";
-
-    case RESULT:
-        return "RESULT";
-    }
-
-    // Make the compiler happy
-    return {};
-}
-
-/******************************************************************************/
-/**
  * @brief The random salt of this process: the first half of every lineage id minted in it. Drawn
  * once, on first use, from std::random_device. Defined here rather than in the header so that a
  * module loaded at run time and its host share one instance.

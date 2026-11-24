@@ -87,7 +87,7 @@ TEST_CASE(
     "[courtier][serialization]"
 ) {
     for(const auto mode : ALL_MODES) {
-        INFO("serialization mode: " << Gem::Common::serModeToString(mode));
+        INFO("serialization mode: " << Gem::Common::enumName(mode));
 
         const auto original = makeWorkFrame();
         REQUIRE(original.item() != nullptr);
@@ -116,7 +116,7 @@ TEST_CASE(
     "[courtier][serialization]"
 ) {
     for(const auto mode : ALL_MODES) {
-        INFO("serialization mode: " << Gem::Common::serModeToString(mode));
+        INFO("serialization mode: " << Gem::Common::enumName(mode));
 
         // --- the payload-free PULL ----------------------------------------------------------------
         {
@@ -193,7 +193,7 @@ TEST_CASE(
  */
 TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier][serialization]") {
     for(const auto mode : ALL_MODES) {
-        INFO("serialization mode: " << Gem::Common::serModeToString(mode));
+        INFO("serialization mode: " << Gem::Common::enumName(mode));
 
         test_container_type sent{GFrameKind::PULL};
         sent.setKind(static_cast<GFrameKind>(42));
@@ -229,7 +229,7 @@ TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier
  */
 TEST_CASE("The head of a frame is read by itself", "[courtier][serialization]") {
     for(const auto mode : ALL_MODES) {
-        INFO("serialization mode: " << Gem::Common::serModeToString(mode));
+        INFO("serialization mode: " << Gem::Common::enumName(mode));
 
         auto sent = makeWorkFrame();
         GProcessingOutcome named;

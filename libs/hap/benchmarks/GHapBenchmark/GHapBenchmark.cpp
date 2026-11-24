@@ -56,6 +56,7 @@
 #include <utility>
 #include <vector>
 
+#include "common/GCommonEnums.hpp"
 #include "hap/GRandomDistributionsT.hpp"
 #include "hap/GRandomFactory.hpp"
 #include "hap/GRandomT.hpp"
@@ -72,19 +73,19 @@ enum class Mode {
     BiNormal
 };
 
-const char *mode_name(Mode m) {
-    switch(m) {
-    case Mode::Raw:
-        return "raw";
-    case Mode::Uniform:
-        return "uniform_real";
-    case Mode::Normal:
-        return "normal";
-    case Mode::BiNormal:
-        return "bi_normal";
-    }
-    std::unreachable();
-}
+} // namespace
+
+namespace Gem::Common {
+template <>
+inline constexpr auto enum_names_v<Mode> = std::to_array<std::pair<Mode, std::string_view>>(
+    {{Mode::Raw, "raw"},
+     {Mode::Uniform, "uniform_real"},
+     {Mode::Normal, "normal"},
+     {Mode::BiNormal, "bi_normal"}}
+);
+} /* namespace Gem::Common */
+
+namespace {
 
 // Sustained throughput: nProxies threads, each with its own proxy, draw
 // total/nProxies values via the chosen mode. Returns numbers/second.
@@ -235,7 +236,13 @@ int main(int argc, char **argv) {
             unsigned const np = proxies_override ? proxies_override : counts[c];
             double wall = 0.;
             double const tput = sustained(np, mode_total, m, wall);
-            std::printf("S\t%-12s\t%u\t%16.2f\t%8.1f\n", mode_name(m), np, tput / 1e6, wall);
+            std::printf(
+                "S\t%-12s\t%u\t%16.2f\t%8.1f\n",
+                Gem::Common::enumName(m).c_str(),
+                np,
+                tput / 1e6,
+                wall
+            );
             if(proxies_override)
                 break; // honour the explicit proxy count once
         }

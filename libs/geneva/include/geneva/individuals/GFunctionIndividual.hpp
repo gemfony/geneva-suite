@@ -277,6 +277,30 @@ inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::solverFunc
     numeric_enum_range<
         Gem::Geneva::Individuals::solverFunction::PARABOLA,
         Gem::Geneva::Individuals::solverFunction::ZAKHAROV>();
+/** @brief The names of the demo functions: their identifiers, as a benchmark configuration names
+ *  them (see enum_names_v in GCommonEnums.hpp; the labels of a report come from
+ *  GFunctionIndividual::getStringRepresentation()) */
+template <>
+inline constexpr auto enum_names_v<Gem::Geneva::Individuals::solverFunction> = [] {
+    using enum Gem::Geneva::Individuals::solverFunction;
+    return std::to_array<std::pair<Gem::Geneva::Individuals::solverFunction, std::string_view>>(
+        {{PARABOLA, "PARABOLA"},
+         {NOISYPARABOLA, "NOISYPARABOLA"},
+         {ROSENBROCK, "ROSENBROCK"},
+         {ACKLEY, "ACKLEY"},
+         {RASTRIGIN, "RASTRIGIN"},
+         {SCHWEFEL, "SCHWEFEL"},
+         {SALOMON, "SALOMON"},
+         {NEGPARABOLA, "NEGPARABOLA"},
+         {ACKLEY_CANONICAL, "ACKLEY_CANONICAL"},
+         {GRIEWANK, "GRIEWANK"},
+         {LEVY, "LEVY"},
+         {STYBLINSKI_TANG, "STYBLINSKI_TANG"},
+         {ELLIPSOID, "ELLIPSOID"},
+         {MICHALEWICZ, "MICHALEWICZ"},
+         {ZAKHAROV, "ZAKHAROV"}}
+    );
+}();
 template <>
 inline constexpr auto numeric_enum_values_v<Gem::Geneva::Individuals::parameterType> =
     numeric_enum_range<
