@@ -34,7 +34,7 @@
 
 ################################################################################
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.27 FATAL_ERROR)
+CMAKE_MINIMUM_REQUIRED(VERSION 4.0 FATAL_ERROR)
 
 # Include guard
 IF(NOT COMMON_GEM_BUILD_INCLUDED)
@@ -169,24 +169,6 @@ IF(NOT COMMON_GEM_BUILD_INCLUDED)
 			regex
 			program_options
 	)
-
-	# Use Boost's own BoostConfig.cmake (available since Boost 1.70) rather than
-	# CMake's legacy FindBoost module, which was removed in CMake 4.x (CMP0167).
-	if(POLICY CMP0167)
-		cmake_policy(SET CMP0167 NEW)
-	endif()
-	if(POLICY CMP0153)
-		cmake_policy(SET CMP0153 NEW)
-	endif()
-	# The install destinations of a one-tree installation are relative to the prefix, and the
-	# data and documentation destinations are "." (see below): "./examples/..." is to mean
-	# "examples/...". CMake 3.31 and later normalize such a path only under the NEW behaviour of
-	# CMP0177; the OLD one warns about every such destination. (Set here for the functions this
-	# file defines, such as GEM_MATERIALIZE_CONFIGS; the top-level CMakeLists.txt sets it for
-	# its directories.)
-	if(POLICY CMP0177)
-		cmake_policy(SET CMP0177 NEW)
-	endif()
 
 	# Search for the required libraries
 	MESSAGE("Searching for Boost...\n")

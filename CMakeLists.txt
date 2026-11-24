@@ -27,14 +27,7 @@
 #
 ################################################################################
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.27 FATAL_ERROR)
-
-# Relative install destinations: see CMP0177 in CMakeModules/CommonGemBuild.cmake, which sets it
-# for the functions it defines (their own policy scope); this sets it for the install() calls of
-# this project's directories.
-IF (POLICY CMP0177)
-	CMAKE_POLICY(SET CMP0177 NEW)
-ENDIF ()
+CMAKE_MINIMUM_REQUIRED(VERSION 4.0 FATAL_ERROR)
 
 MESSAGE ("")
 

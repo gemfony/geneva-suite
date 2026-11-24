@@ -60,7 +60,7 @@ FUNCTION(_project _tree)
 	FILE(WRITE "${_tree}/main.cpp" "int main() { return 0; }\n")
 	STRING(JOIN "\n" _lines ${ARGN})
 	FILE(WRITE "${_tree}/CMakeLists.txt"
-		"cmake_minimum_required(VERSION 3.27)\n"
+		"cmake_minimum_required(VERSION 4.0)\n"
 		"project(StampProbe CXX)\n"
 		"include(\"${MODULE}\")\n"
 		"${_lines}\n")

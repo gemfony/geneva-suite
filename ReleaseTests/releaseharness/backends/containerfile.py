@@ -55,7 +55,7 @@ def _base_packages(with_mpi: bool) -> str:
         "lld",
         "llvm",
         "libomp-dev",
-        "cmake",             # 4.3 on 26.10, >= 3.27
+        "cmake",             # 4.3 on 26.10, >= 4.0
         "ninja-build",
         "catch2",            # Catch2 v3 (test framework; CMake config + lib)
         "doxygen",
