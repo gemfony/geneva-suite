@@ -40,8 +40,10 @@ namespace Gem::Common {
 
 /******************************************************************************/
 /*
- * How a program ends on an error nobody handles: with a clear message on std::cerr and the exit
- * code EXIT_FAILURE (1), instead of std::terminate()'s abort and core dump (exit code 134), which
+ * How a program ends on an error nobody handles: with a clear message on std::cerr, recorded once
+ * in GEM-EXCEPTION.log in the working directory (an error is recorded where it is finally handled,
+ * and this is that place for an error that ends the program), and the exit code EXIT_FAILURE (1),
+ * instead of std::terminate()'s abort and core dump (exit code 134), which
  * reads as an internal fault although the cause is most often the user's (a configuration file that
  * cannot be applied, say). installFatalReport() makes this the terminate handler of the process.
  * An exception that no handler catches -- in main() or in any other thread -- reaches it without

@@ -70,7 +70,7 @@ GCUDADriver loadDriver_() {
     }
     catch(const std::exception &e) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "GCUDADriver: the CUDA driver library " << CUDA_DRIVER_LIBRARY
             << " could not be loaded (" << e.what() << ")." << '\n'
             << "The GPU consumer needs an NVIDIA driver on this machine; the CPU consumers do not."
@@ -89,7 +89,7 @@ GCUDADriver loadDriver_() {
             getProcAddress(name, &address, CUDA_VERSION, CU_GET_PROC_ADDRESS_DEFAULT, &status);
         if(result != CUDA_SUCCESS || status != CU_GET_PROC_ADDRESS_SUCCESS || address == nullptr) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "GCUDADriver: the installed CUDA driver does not provide " << name
                 << " in the version of CUDA " << CUDA_VERSION / 1000 << '.'
                 << (CUDA_VERSION % 1000) / 10

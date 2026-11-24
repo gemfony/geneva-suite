@@ -461,16 +461,15 @@ inline std::shared_ptr<networkData> createNetworkData(
     // Check the number of supplied layers
     if(architecture.size() < 2) { // We need at least an input- and an output-layer
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
-            << "Got invalid number of layers: " << architecture.size() << '\n'
+            g_error_streamer() << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
+                               << "Got invalid number of layers: " << architecture.size() << '\n'
         );
     }
 
     // Check that the output layer has exactly one node
     if(architecture.back() != 1) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
             << "The output layer must have exactly one node for this training data." << '\n'
             << "Got " << architecture.back() << " instead." << '\n'
@@ -480,11 +479,10 @@ inline std::shared_ptr<networkData> createNetworkData(
     // Some generators require a fixed input dimension (e.g. the sin data needs 2)
     if(required_input_nodes != 0 && architecture.front() != required_input_nodes) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
-            << "The input layer must have exactly " << required_input_nodes
-            << " node(s) for this example." << '\n'
-            << "Got " << architecture.front() << " instead." << '\n'
+            g_error_streamer() << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
+                               << "The input layer must have exactly " << required_input_nodes
+                               << " node(s) for this example." << '\n'
+                               << "Got " << architecture.front() << " instead." << '\n'
         );
     }
 
@@ -498,7 +496,7 @@ inline std::shared_ptr<networkData> createNetworkData(
     for(auto layer_size : architecture) {
         if(layer_size == 0) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GNeuralNetworkIndividual::" << where << "(): Error!" << '\n'
                 << "Layer " << layer_counter << "has invalid size " << layer_size << '\n'
             );

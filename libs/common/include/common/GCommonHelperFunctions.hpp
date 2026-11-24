@@ -160,29 +160,6 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
 
 /******************************************************************************/
 /**
- * @brief Converts the current time to a string.
- */
-std::string currentTimeAsString();
-
-/******************************************************************************/
-/**
- * Returns a "Recorded on <time> / in File <file> at line <line> (<function>)"
- * string describing the call site via C++20 std::source_location. The function
- * name is now included -- something the old __FILE__/__LINE__ macros could not
- * provide. The defaulted source_location captures the caller.
- *
- * @param loc The call-site source location (defaulted to std::source_location::current(), i.e. the caller)
- * @return A string describing the current time and the call site (file, line, function)
- */
-[[nodiscard]] inline std::string
-timeAndPlace(std::source_location const &loc = std::source_location::current()) {
-    return std::string("Recorded on ") + currentTimeAsString() + "\n" + "in File " +
-           loc.file_name() + " at line " + std::to_string(loc.line()) + " (" + loc.function_name() +
-           ") :\n";
-}
-
-/******************************************************************************/
-/**
  * @brief Returns the number of milliseconds since 1.1.1970.
  */
 std::string getMSSince1970();

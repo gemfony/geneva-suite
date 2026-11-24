@@ -193,7 +193,7 @@ void GLogger::deliver_(
         call(*default_logger_);
     }
     else {
-        raiseException("In GLogger::log(): Error!" << '\n' << "No loggers found" << '\n');
+        throw gem_exception(g_error_streamer() << "No loggers found" << '\n');
     }
 }
 
@@ -351,13 +351,13 @@ namespace {
 
 /******************************************************************************/
 /**
- * @brief Assembles the boxed banner shared by the EXCEPTION, TERMINATION and WARNING log types.
+ * @brief Assembles the boxed banner shared by the ERROR_REPORT, TERMINATION and WARNING log types.
  *
  * The three severities historically duplicated the same ostringstream layout, differing only in the
  * heading and the two-line advisory. This single builder reproduces that layout byte-for-byte.
  *
  * @param severity The banner heading ("ERROR" or "WARNING")
- * @param when The recording timestamp (GLogStreamer::currentTimeAsString())
+ * @param when The recording timestamp (Gem::Common::currentTimeAsString())
  * @param accompInfo Accompanying context recorded by the manipulator
  * @param body The accumulated log message
  * @param advice The two-line "if you suspect ..." advisory (differs between errors and warnings)
@@ -411,7 +411,7 @@ void appendToFile(std::filesystem::path const &file, std::string const &text) {
               << text;
 }
 
-/// The advisory shown for hard errors (EXCEPTION / TERMINATION).
+/// The advisory shown for hard errors (ERROR_REPORT / TERMINATION).
 constexpr std::string_view ERROR_ADVICE = "If you suspect that this error is due to Geneva,\n"
                                           "then please consider filing a bug.";
 /// The advisory shown for warnings.
@@ -419,47 +419,63 @@ constexpr std::string_view WARNING_ADVICE =
     "If you suspect that there is an underlying problem with Geneva,\n"
     "then please consider filing a bug.";
 
+/// The file to which errors are appended where they are finally handled (recordError(), GERROR).
+constexpr std::string_view EXCEPTION_LOG_FILE = "GEM-EXCEPTION.log";
+
 } // anonymous namespace
+
+/******************************************************************************/
+/**
+ * Appends an error report -- the time, where and what -- to GEM-EXCEPTION.log in the working
+ * directory, appended to across runs (see the declaration).
+ */
+void recordError(std::string_view where, std::string_view what) {
+    appendToFile(
+        EXCEPTION_LOG_FILE,
+        assembleBanner("ERROR", Gem::Common::currentTimeAsString(), where, what, ERROR_ADVICE)
+    );
+}
 
 /******************************************************************************/
 /**
  * @brief Interface to the actual logging mechanism
  *
  * Dispatches the accumulated stream content according to the manipulator's log
- * type (exception, termination, warning, logging, file, stdout, stderr or exit).
+ * type (error report, termination, warning, logging, file, stdout, stderr or exit).
  * Note that this function does not return a reference to self, as it is meant to
  * be called as the last element of a streaming-chain.
  *
- * @param gm A GManipulator object (e.g. produced by the GEXCEPTION / GWARNING / GLOGGING macros) whose log type selects the action taken
+ * @param gm A GManipulator object (e.g. produced by the GERROR / GWARNING / GLOGGING macros) whose log type selects the action taken
  */
-// NOLINTNEXTLINE(readability-function-size) -- one switch-driven dispatcher over logType (exception/termination/warning/logging/file/stdout/stderr/exit); each case is a short, self-contained action and splitting would only scatter the dispatch table
+// NOLINTNEXTLINE(readability-function-size) -- one switch-driven dispatcher over logType (error report/termination/warning/logging/file/stdout/stderr/exit); each case is a short, self-contained action and splitting would only scatter the dispatch table
 void GLogStreamer::operator<<(GManipulator const &gm) {
     switch(gm.getLogType()) {
     //------------------------------------------------------------------------
-    case Gem::Common::logType::EXCEPTION: {
+    case Gem::Common::logType::ERROR_REPORT: {
         const std::string error = assembleBanner(
             "ERROR",
-            GLogStreamer::currentTimeAsString(),
+            Gem::Common::currentTimeAsString(),
             gm.getAccompInfo(),
             oss_.str(),
             ERROR_ADVICE
         );
 
-        // Record the error in a central exception file; nothing is printed on the console
-        // here -- the message travels with the exception. Note that we ignore any "source"
-        // information, as this is already contained in the logged message.
-        appendToFile("GEM-EXCEPTION.log", error);
-
-        // Send the exception out. This done globally, so an exception
-        // thrown from within a thread doesn't get lost.
-        glogger_ptr->throwException(error);
+        // An error at the place where it is finally handled: to the log targets, and recorded in
+        // the central exception file (as recordError() does). It does not throw.
+        if(this->hasExtension()) {
+            glogger_ptr->logWithSource(error, this->getExtension(), logType::ERROR_REPORT);
+        }
+        else {
+            glogger_ptr->log(error, logType::ERROR_REPORT);
+        }
+        appendToFile(EXCEPTION_LOG_FILE, error);
     } break;
 
     //------------------------------------------------------------------------
     case Gem::Common::logType::TERMINATION: {
         const std::string error = assembleBanner(
             "ERROR",
-            GLogStreamer::currentTimeAsString(),
+            Gem::Common::currentTimeAsString(),
             gm.getAccompInfo(),
             oss_.str(),
             ERROR_ADVICE
@@ -478,7 +494,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
     case Gem::Common::logType::WARNING: {
         const std::string warning = assembleBanner(
             "WARNING",
-            GLogStreamer::currentTimeAsString(),
+            Gem::Common::currentTimeAsString(),
             gm.getAccompInfo(),
             oss_.str(),
             WARNING_ADVICE
@@ -510,9 +526,8 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             appendToFile(this->getOneTimeLogFile(), oss_.str());
         }
         else {
-            raiseException(
-                "In GLogStreamer::operator<<(const GManipulator&): Error!"
-                << '\n'
+            throw gem_exception(
+                g_error_streamer()
                 << "Tried to log to one time log file without a file name specification" << '\n'
                 << "You need to supply a file name like this:" << '\n'
                 << "glogger(\"filename.txt\") << \"some log text\" << GFILE" << '\n'

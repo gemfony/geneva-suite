@@ -286,9 +286,7 @@ template <ProcessableItem processable_type>
 Gem::Common::GContributionHandler consumerContributionHandler() {
     auto refuse = [](const Gem::Common::GContributionContext &context, const std::string &why) {
         return gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Courtier::consumerContributionHandler(): Error!" << '\n'
-            << "The module " << context.description << " " << why << '\n'
+            g_error_streamer() << "The module " << context.description << " " << why << '\n'
         );
     };
     return {

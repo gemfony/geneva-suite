@@ -31,7 +31,7 @@
 
 #include <functional>
 
-#include "common/GErrorStreamer.hpp" // g_error_streamer, DO_LOG, timeAndPlace
+#include "common/GErrorStreamer.hpp" // g_error_streamer
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 
@@ -91,10 +91,7 @@ individual_processing_result::individual_processing_result(
     }
     else {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In individual_processing_result(double, std::function<double(double)>): Error!"
-            << '\n'
-            << "Received an empty transformation function." << '\n'
+            g_error_streamer() << "Received an empty transformation function." << '\n'
         );
     }
 }
@@ -135,11 +132,7 @@ void individual_processing_result::setTransformedFitnessWith(
         transformed_fitness_set_ = true;
     }
     else {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In individual_processing_result::setTransformedFitnessWith():" << '\n'
-            << "Function object f is empty." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Function object f is empty." << '\n');
     }
 }
 
@@ -222,11 +215,7 @@ void individual_processing_result::reset(
         transformed_fitness_set_ = true;
     }
     else {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In individual_processing_result::reset():" << '\n'
-            << "Function object f is empty." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Function object f is empty." << '\n');
     }
 }
 

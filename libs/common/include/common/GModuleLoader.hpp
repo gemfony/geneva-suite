@@ -161,10 +161,8 @@ template <typename ptr_type>
     void *raw = contribution.make_factory();
     if(raw == nullptr) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Common::takeContribution(): Error!" << '\n'
-            << "The module " << context.description << " produced a null " << noun
-            << " (contribution " << context.index << ")." << '\n'
+            g_error_streamer() << "The module " << context.description << " produced a null "
+                               << noun << " (contribution " << context.index << ")." << '\n'
         );
     }
     // Adopt the heap-allocated holder into RAII immediately (Invariant 21), then move its payload
@@ -173,10 +171,8 @@ template <typename ptr_type>
     ptr_type result = std::move(*holder);
     if(not result) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Common::takeContribution(): Error!" << '\n'
-            << "The module " << context.description << " returned an empty " << noun
-            << " (contribution " << context.index << ")." << '\n'
+            g_error_streamer() << "The module " << context.description << " returned an empty "
+                               << noun << " (contribution " << context.index << ")." << '\n'
         );
     }
     return result;

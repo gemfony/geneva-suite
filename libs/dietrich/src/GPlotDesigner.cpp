@@ -447,9 +447,7 @@ std::vector<GPlotColumn> GBasePlotter::dataColumns() const {
  */
 void GBasePlotter::appendRow([[maybe_unused]] std::span<const double> row) {
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GBasePlotter::appendRow(): Error!" << '\n'
-        << getPlotterName() << " does not support generic row append." << '\n'
+        g_error_streamer() << getPlotterName() << " does not support generic row append." << '\n'
     );
 }
 
@@ -521,8 +519,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         }
         else {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In makePlotter(): Error!" << '\n'
+                g_error_streamer()
                 << "an integer histogram (kind \"" << to_string(spec.kind)
                 << "\") without a fixed value range cannot be reconstructed from a "
                 << "GPlotSpec -- an integer histogram has no auto-range form." << '\n'
@@ -532,11 +529,9 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
     case plotKind::function_1d:
     case plotKind::function_2d:
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In makePlotter(): Error!" << '\n'
-            << "a function plotter (kind \"" << to_string(spec.kind)
-            << "\") cannot be reconstructed from a GPlotSpec -- its formula and "
-            << "sampling range are not part of the spec." << '\n'
+            g_error_streamer() << "a function plotter (kind \"" << to_string(spec.kind)
+                               << "\") cannot be reconstructed from a GPlotSpec -- its formula and "
+                               << "sampling range are not part of the spec." << '\n'
         );
     }
 
@@ -584,8 +579,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         }
         else {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In makePlotter(): Error!" << '\n'
+                g_error_streamer()
                 << "a surface projection was requested for a plot of kind \""
                 << to_string(spec.kind)
                 << "\" -- only a 3-d graph (graph_3d) can be drawn as a projected surface." << '\n'
@@ -598,8 +592,7 @@ std::unique_ptr<GBasePlotter> makePlotter(const GPlotSpec &spec) {
         auto *g3d = dynamic_cast<GGraph3D *>(p.get());
         if(g3d == nullptr) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In makePlotter(): Error!" << '\n'
+                g_error_streamer()
                 << "\"surface\" or \"floor_shadow\" was given for a plot of kind \""
                 << to_string(spec.kind)
                 << "\" -- only a 3-d graph (graph_3d) has a surface or a floor." << '\n'
@@ -641,20 +634,15 @@ std::string GBasePlotter::dsMarker() const {
 void GBasePlotter::registerSecondaryPlotter(const std::shared_ptr<GBasePlotter> &sp) {
     // Check that the secondary plot isn't empty
     if(not sp) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GBasePlotter::registerSecondaryPlotter(): Error!" << '\n'
-            << "Got empty secondary plot" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got empty secondary plot" << '\n');
     }
 
     // Check that the secondary plotter is compatible with us
     if(not this->isCompatible(sp)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GBasePlotter::registerSecondaryPlotter(): Error!" << '\n'
-            << "Received incompatible secondary plotter" << '\n'
-            << sp->getPlotterName() << " in plotter " << this->getPlotterName() << '\n'
+            g_error_streamer() << "Received incompatible secondary plotter" << '\n'
+                               << sp->getPlotterName() << " in plotter " << this->getPlotterName()
+                               << '\n'
         );
     }
 
@@ -1036,11 +1024,7 @@ void GPlotDesigner::setDataFormat(dataFormat format) {
  */
 void GPlotDesigner::setEmitter(std::shared_ptr<IPlotEmitter> emitter) {
     if(not emitter) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GPlotDesigner::setEmitter(): Error!" << '\n'
-            << "Got empty emitter" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got empty emitter" << '\n');
     }
     emitter_ = std::move(emitter);
 }
@@ -1210,9 +1194,8 @@ void GPlotDesigner::registerPlotter(const std::shared_ptr<GBasePlotter> &plotter
     }
     else {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "GPlotDesigner::registerPlotter(): Error!" << '\n'
-            << "Got empty plotter" << '\n'
+            g_error_streamer() << "GPlotDesigner::registerPlotter(): Error!" << '\n'
+                               << "Got empty plotter" << '\n'
         );
     }
 }

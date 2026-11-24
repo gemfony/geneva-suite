@@ -48,8 +48,7 @@ namespace Gem::Common::Concurrency {
 GThreadPool::GThreadPool(unsigned int n_threads)
   : n_threads_(n_threads > 0 ? n_threads : DEFAULTNHARDWARETHREADS) {
     if(0 == n_threads) {
-        glogger << "In GThreadPool::GThreadPool(unsigned int n_threads):" << '\n'
-                << "User requested n_threads == 0. n_threads was reset to the default "
+        glogger << "User requested n_threads == 0. n_threads was reset to the default "
                 << DEFAULTNHARDWARETHREADS << '\n'
                 << GWARNING;
     }

@@ -110,10 +110,8 @@ public:
 
         if(true == simulateCrash) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In testTask::process(): Error!" << '\n'
-                << "SHF-Exception (Some Horrible Failure)" << '\n'
-                << "occurred, as requested ..." << '\n'
+                g_error_streamer() << "SHF-Exception (Some Horrible Failure)" << '\n'
+                                   << "occurred, as requested ..." << '\n'
             );
         }
     }

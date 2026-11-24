@@ -389,11 +389,7 @@ public:
      */
     [[nodiscard]] StoredType const &best() const {
         if(data_cnt_.empty()) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFixedSizePriorityQueueT<T>::best(): Error!" << '\n'
-                << "Priority queue is empty." << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Priority queue is empty." << '\n');
         }
         return data_cnt_.front();
     }
@@ -407,11 +403,7 @@ public:
      */
     [[nodiscard]] StoredType const &worst() const {
         if(data_cnt_.empty()) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFixedSizePriorityQueueT<T>::worst(): Error!" << '\n'
-                << "Priority queue is empty." << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Priority queue is empty." << '\n');
         }
         return data_cnt_.back();
     }
@@ -436,10 +428,8 @@ public:
     [[nodiscard]] StoredType const &at(std::size_t rank) const {
         if(rank >= data_cnt_.size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFixedSizePriorityQueueT<T>::at(): Error!" << '\n'
-                << "Requested rank " << rank << " but the queue holds " << data_cnt_.size()
-                << " items." << '\n'
+                g_error_streamer() << "Requested rank " << rank << " but the queue holds "
+                                   << data_cnt_.size() << " items." << '\n'
             );
         }
         return data_cnt_[rank];
@@ -480,11 +470,7 @@ public:
      */
     StoredType pop() {
         if(data_cnt_.empty()) {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFixedSizePriorityQueueT<T>::pop(): Error!" << '\n'
-                << "Priority queue is empty." << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Priority queue is empty." << '\n');
         }
         StoredType item = std::move(data_cnt_.front());
         data_cnt_.erase(data_cnt_.begin());
@@ -785,7 +771,7 @@ private:
 #ifdef DEBUG
         if(offered > 0 && 0 == accepted) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GFixedSizePriorityQueueT<T>::" << where << ": Error!" << '\n'
                 << "None of the " << offered << " supplied items was admissible." << '\n'
             );

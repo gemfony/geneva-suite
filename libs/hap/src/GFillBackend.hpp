@@ -185,7 +185,7 @@ public:
                         << GLOGGING;
             }
             else if(not device) {
-                glogger << "In GFillBackend: this binary was built with the CUDA"
+                glogger << "This binary was built with the CUDA"
                         << " random-number backend, but no CUDA-capable device is available."
                         << '\n'
                         << "Falling back to the SIMD/CPU bulk-refill engine -- the GPU is NOT being"
@@ -261,7 +261,7 @@ private:
     static void logGpuFailure_() {
         static std::once_flag gpu_failure_logged;
         std::call_once(gpu_failure_logged, []() {
-            glogger << "In GFillBackend: a CUDA call for random-number generation failed." << '\n'
+            glogger << "A CUDA call for random-number generation failed." << '\n'
                     << "The affected random-number sources continue on the SIMD/CPU engine." << '\n'
                     << GWARNING;
         });

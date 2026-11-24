@@ -43,7 +43,7 @@
 #include <variant>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // backupExistingFile(), timeAndPlace()
+#include "common/GCommonHelperFunctions.hpp" // backupExistingFile()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/record/GCsvSink.hpp"
@@ -150,8 +150,7 @@ GPlotSink::GPlotSink(GDataLog layout, plotBackend backend)
   , backend_(backend) {
     if(backend_ == plotBackend::DATA) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GPlotSink::GPlotSink(): Error!" << '\n'
+            g_error_streamer()
             << "The DATA backend writes the data, not a plot: the data of a stream are written by "
                "its GCsvSink or GJsonLinesSink (whose file a DATA plot would also take)"
             << '\n'
@@ -177,8 +176,7 @@ void GPlotSink::open(GStreamInfo const &info) {
             }
             if(it->type == columnType::TEXT) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GPlotSink::open(): Error!" << '\n'
+                    g_error_streamer()
                     << "The column \"" << name << "\" of the stream \"" << info.name
                     << "\" holds text, which cannot be plotted" << '\n'
                 );
@@ -187,8 +185,7 @@ void GPlotSink::open(GStreamInfo const &info) {
         }
         if(not feeds_[id].empty() && feeds_[id].size() != wanted.size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GPlotSink::open(): Error!" << '\n'
+                g_error_streamer()
                 << "The series \"" << log_.spec(id).name << "\" of the plot of the stream \""
                 << info.name << "\" names " << wanted.size() << " columns, of which only "
                 << feeds_[id].size() << " are columns of the stream" << '\n'

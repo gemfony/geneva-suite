@@ -41,6 +41,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GSingletonT.hpp" // for the gsingleton_never_destroy opt-in below
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp" // the shared thread-safe key->value store
@@ -115,13 +116,12 @@ public:
         if(auto value = store_.get(key)) {
             return *value;
         }
-        raiseException(
-            "In GGlobalOptionsT::get(\""
-            << key << "\"): Error!" << '\n'
-            << "Key is not present in the global options map." << '\n'
-            << "Use exists(key) to check before calling, or get(key, value) "
-               "which signals absence via its return value."
-            << '\n'
+        throw gem_exception(
+            g_error_streamer() << "Key \"" << key << "\" is not present in the global options map."
+                               << '\n'
+                               << "Use exists(key) to check before calling, or get(key, value) "
+                                  "which signals absence via its return value."
+                               << '\n'
         );
     }
 

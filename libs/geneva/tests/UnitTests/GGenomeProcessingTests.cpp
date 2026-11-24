@@ -37,6 +37,7 @@
  */
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <functional>
@@ -65,6 +66,7 @@
 #include "common/GSerializableFunctionObjectT.hpp"    // the pre-processor of process(evaluation)
 #include "geneva/individuals/GFunctionIndividual.hpp" // GSphereConstraint
 
+#include "common/GLogger.hpp" // the error reports of the GPU path
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp" // the GPU path, on a host stand-in backend
 #include "geneva/genome/GBaseGPUMarshallerT.hpp"
@@ -1019,6 +1021,30 @@ private:
     }
 };
 
+/** @brief A log target that counts the error reports (GERROR) that contain a text */
+class ErrorReportCounter : public Gem::Common::GBaseLogTarget {
+public:
+    explicit ErrorReportCounter(std::string text)
+      : text_(std::move(text)) {
+    }
+    void log(std::string const &message) const override {
+        this->log(message, Gem::Common::logType::LOGGING);
+    }
+    void
+    logWithSource(std::string const &message, std::string const & /*extension*/) const override {
+        this->log(message, Gem::Common::logType::LOGGING);
+    }
+    void log(std::string const &message, Gem::Common::logType severity) const override {
+        if(severity == Gem::Common::logType::ERROR_REPORT && message.contains(text_)) {
+            ++count;
+        }
+    }
+    mutable std::atomic<std::size_t> count{0};
+
+private:
+    std::string text_;
+};
+
 } // namespace Gem::Tests
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- a section per lifecycle rule
@@ -1163,9 +1189,14 @@ TEST_CASE(
         }
         const GBaseGPUMarshallerT<double> marshaller;
         std::vector<double> params;
+        // Each failure ends its item's task in the marshaller, which reports it once
+        const auto reports = std::make_shared<Gem::Tests::ErrorReportCounter>("processor failed");
+        glogger.addLogTarget(reports);
         CHECK_NOTHROW(marshaller.flatten(batch, params));
         CHECK(params == std::vector<double>(9, 1.));
         CHECK_NOTHROW(marshaller.scatter(batch, std::vector<double>{-1., 3., 3.}, 0.));
+        glogger.resetLogTargets();
+        CHECK(reports->count == 2);
 
         CHECK(batch[0]->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
         CHECK(batch[0]->getStoredErrorDescriptions().contains("processor failed"));

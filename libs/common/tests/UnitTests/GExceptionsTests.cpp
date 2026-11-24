@@ -33,6 +33,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 
 TEST_CASE("gem_exception: basic construction and what()", "[common][exceptions]") {
@@ -78,37 +79,15 @@ TEST_CASE("g_expectation_violation: derives from gem_exception", "[common][excep
 }
 
 TEST_CASE(
-    "raiseException macro: throws gem_exception with the streamed message",
+    "throw gem_exception(g_error_streamer() << ...): the message names the place of the throw",
     "[common][exceptions][raise]"
 ) {
     bool caught = false;
     std::string what;
     try {
-        raiseException("detailed-error-payload");
-    }
-    catch(const gem_exception &g) {
-        caught = true;
-        what = g.what();
-    }
-    REQUIRE(caught);
-
-    // The macro wraps the streamed payload in a fixed envelope. Verify the
-    // payload appears, and the envelope identifiers ("ERROR", "file …", and
-    // "line …") are present so future refactors keep the framing intact.
-    CHECK(what.contains("detailed-error-payload"));
-    CHECK(what.contains("ERROR"));
-    CHECK(what.contains("in file "));
-    CHECK(what.contains("near line "));
-}
-
-TEST_CASE(
-    "raiseException macro: payload may chain streamable values",
-    "[common][exceptions][raise]"
-) {
-    bool caught = false;
-    std::string what;
-    try {
-        raiseException("a=" << 42 << " b=" << 3.14 << " c=" << std::string{"foo"});
+        throw gem_exception(
+            g_error_streamer() << "a=" << 42 << " b=" << 3.14 << " c=" << std::string{"foo"}
+        );
     }
     catch(const gem_exception &g) {
         caught = true;
@@ -118,4 +97,5 @@ TEST_CASE(
     CHECK(what.contains("a=42"));
     CHECK(what.contains("b=3.14"));
     CHECK(what.contains("c=foo"));
+    CHECK(what.contains("GExceptionsTests.cpp at line "));
 }

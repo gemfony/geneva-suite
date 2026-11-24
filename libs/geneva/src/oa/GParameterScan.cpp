@@ -112,9 +112,7 @@ std::vector<std::int32_t> fillWithData<std::int32_t>(
     // We require at least 2 steps, unless we are in random mode
     if(n_steps < 2) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In std::vector<std::int32_t> fillWithData<std::int32_t>(): Error!" << '\n'
-            << "Number of requested steps is too low: " << n_steps << '\n'
+            g_error_streamer() << "Number of requested steps is too low: " << n_steps << '\n'
         );
     }
 
@@ -144,9 +142,7 @@ std::vector<float> fillWithData<float>(std::size_t n_steps, float lower, float u
     // We require at least 2 steps, unless we are in random mode
     if(n_steps < 2) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In std::vector<float> fillWithData<float>(): Error!" << '\n'
-            << "Number of requested steps is too low: " << n_steps << '\n'
+            g_error_streamer() << "Number of requested steps is too low: " << n_steps << '\n'
         );
     }
 
@@ -175,9 +171,7 @@ std::vector<double> fillWithData<double>(std::size_t n_steps, double lower, doub
     // We require at least 2 steps, unless we are in random mode
     if(n_steps < 2) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In std::vector<float> fillWithData<double>(): Error!" << '\n'
-            << "Number of requested steps is too low: " << n_steps << '\n'
+            g_error_streamer() << "Number of requested steps is too low: " << n_steps << '\n'
         );
     }
 
@@ -332,8 +326,7 @@ std::tuple<double, double> GParameterScan::cycleLogic_() {
 #ifdef DEBUG
         if(not(*it)->is_processed()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterScan::cycleLogic(): Error!" << '\n'
+                g_error_streamer()
                 << "Individual in position " << (it - this->begin()) << " is not processed" << '\n'
             );
         }
@@ -704,8 +697,7 @@ void GParameterScan::evaluatePopulation_() {
         // Make sure the evaluated individuals have the dirty flag set
         if(not(*it)->is_due_for_processing()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterScan::evaluatePopulation_():" << '\n'
+                g_error_streamer()
                 << "Found individual in position " << std::distance(this->begin(), it)
                 << ", which has not been marked as due for processing" << '\n'
             );
@@ -735,9 +727,7 @@ void GParameterScan::setParameterSpecs(const std::string &par_str) {
     // Check that the parameter string isn't empty
     if(par_str.empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParameterScan::addParameterSpecs(): Error!" << '\n'
-            << "Parameter string " << par_str << " is empty" << '\n'
+            g_error_streamer() << "Parameter string " << par_str << " is empty" << '\n'
         );
     }
 
@@ -943,8 +933,7 @@ void GParameterScan::adjustPopulation_() {
     // An empty population is an error
     if(n_start == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParameterScan::adjustPopulation(): Error!" << '\n'
+            g_error_streamer()
             << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
     }
@@ -958,11 +947,7 @@ void GParameterScan::adjustPopulation_() {
 
     // Check that we have a valid default population size
     if(0 == this->getDefaultPopulationSize()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParameterScan::adjustPopulation(): Error!" << '\n'
-            << "Default-size of the population is 0" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Default-size of the population is 0" << '\n');
     }
 
     // Create the desired number of (identical) individuals in the population.

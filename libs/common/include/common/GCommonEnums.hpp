@@ -229,7 +229,7 @@ inline constexpr auto numeric_enum_values_v<sortOrder> =
  * Different log and exception types
  */
 enum class logType : Gem::Common::ENUMBASETYPE {
-    EXCEPTION = 0,
+    ERROR_REPORT = 0, ///< An error where it is finally handled: logged and recorded (see GERROR)
     TERMINATION = 1,
     WARNING = 2,
     LOGGING = 3,
@@ -242,7 +242,7 @@ enum class logType : Gem::Common::ENUMBASETYPE {
 /** @brief logType streams as its underlying numeric value (see numeric_enum_values_v) */
 template <>
 inline constexpr auto numeric_enum_values_v<logType> =
-    numeric_enum_range<logType::EXCEPTION, logType::EXIT>();
+    numeric_enum_range<logType::ERROR_REPORT, logType::EXIT>();
 
 /******************************************************************************/
 /**

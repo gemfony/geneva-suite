@@ -193,8 +193,7 @@ public:
 #ifdef DEBUG
         if(empty()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In random_container::next(): Error!" << '\n'
+                g_error_streamer()
                 << "Invalid current_pos_: " << current_pos_ << " / " << DEFAULTARRAYSIZE << '\n'
             );
         }

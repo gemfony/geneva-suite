@@ -347,8 +347,7 @@ public:
         // Make sure parsing has happened.
         if(not parsed_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterPropertyParser::getIterators<>(): Error!" << '\n'
+                g_error_streamer()
                 << "Tried to retrieve iterators when parsing hasn't happened yet" << '\n'
             );
         }

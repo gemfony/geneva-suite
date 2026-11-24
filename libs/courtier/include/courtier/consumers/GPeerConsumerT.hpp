@@ -156,9 +156,8 @@ public:
       , listener_(std::move(listener)) {
         if(not listener_) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In " << consumer_name_ << ": Error!" << '\n'
-                << "The listener must not be empty" << '\n'
+                g_error_streamer() << "In " << consumer_name_ << ": Error!" << '\n'
+                                   << "The listener must not be empty" << '\n'
             );
         }
     }
@@ -242,9 +241,8 @@ public:
                 why = "the listener could not be started before";
             }
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
-                << "The consumer cannot be started: " << why << '\n'
+                g_error_streamer() << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
+                                   << "The consumer cannot be started: " << why << '\n'
             );
         }
 

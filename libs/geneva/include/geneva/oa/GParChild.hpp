@@ -162,10 +162,8 @@ public:
         // Check that the parent id is in a valid range
         if(parent_id >= this->getNParents()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParChild::getParentIndividual<>() : Error" << '\n'
-                << "Requested parent id which does not exist: " << parent_id << " / "
-                << this->getNParents() << '\n'
+                g_error_streamer() << "Requested parent id which does not exist: " << parent_id
+                                   << " / " << this->getNParents() << '\n'
             );
 
             // Make the compiler happy

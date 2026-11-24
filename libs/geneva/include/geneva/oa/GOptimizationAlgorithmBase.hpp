@@ -586,10 +586,8 @@ public:
 #ifdef DEBUG
         if(pos >= this->size()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GOptimizationAlgorithmBase::individual_cast<>() : Error" << '\n'
-                << "Tried to access position " << pos << " which is >= array size " << this->size()
-                << '\n'
+                g_error_streamer() << "Tried to access position " << pos
+                                   << " which is >= array size " << this->size() << '\n'
             );
         }
 #endif /* DEBUG */

@@ -72,7 +72,7 @@ TEST_CASE("dimensions: numeric round-trip preserves value", "[common][enums]") {
 
 TEST_CASE("logType: numeric round-trip preserves value", "[common][enums]") {
     for(auto l :
-        {logType::EXCEPTION,
+        {logType::ERROR_REPORT,
          logType::TERMINATION,
          logType::WARNING,
          logType::LOGGING,

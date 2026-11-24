@@ -174,7 +174,7 @@ private:
         const processRole actual = mpiProcessRole();
         if(actual != wanted) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+                g_error_streamer()
                 << "In GMPIConsumerProviderT::" << caller << "(): Error!" << '\n'
                 << "This process has the role " << static_cast<int>(actual) << " in the MPI "
                 << "environment, but " << caller << "() is for the role "

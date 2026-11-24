@@ -136,8 +136,7 @@ void GOptimizationAlgorithmBase::checkpoint(bool is_better) const {
             std::error_code ec;
             if(not std::filesystem::create_directories(cp_dir, ec) || ec) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GOptimizationAlgorithmBase::checkpoint(): Error!" << '\n'
+                    g_error_streamer()
                     << "Could not create checkpoint directory " << cp_dir.string()
                     << (ec ? (": " + ec.message()) : std::string()) << '\n'
                 );
@@ -174,12 +173,10 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
     // Make sure it fits our own algorithm
     if(opt_desc != this->getAlgorithmPersonalityType()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::loadCheckpoint(): Error!" << '\n'
-            << "Checkpoint file " << cp_file << '\n'
-            << "seems to belong to another algorithm. Expected "
-            << this->getAlgorithmPersonalityType() << '\n'
-            << "but got " << opt_desc << '\n'
+            g_error_streamer() << "Checkpoint file " << cp_file << '\n'
+                               << "seems to belong to another algorithm. Expected "
+                               << this->getAlgorithmPersonalityType() << '\n'
+                               << "but got " << opt_desc << '\n'
         );
     }
 
@@ -203,8 +200,7 @@ void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_
         std::error_code ec;
         bool const empty = std::filesystem::file_size(cp_file, ec) == 0 && not ec;
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::loadCheckpoint(): Error!" << '\n'
+            g_error_streamer()
             << "Failed to deserialize the checkpoint file " << cp_file << '\n'
             << "Underlying error: " << e.what() << '\n'
             << (empty ? "The file is empty: it holds no checkpoint. Resume from another checkpoint "
@@ -287,7 +283,7 @@ std::size_t
 GOptimizationAlgorithmBase::requireFloatingPointGenome_(const std::string &algorithm_name) const {
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In " << algorithm_name << "::adjustPopulation():" << '\n'
             << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
@@ -297,9 +293,8 @@ GOptimizationAlgorithmBase::requireFloatingPointGenome_(const std::string &algor
 
     if(n_fp_parms == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << algorithm_name << "::adjustPopulation():" << '\n'
-            << "No floating point parameters in individual." << '\n'
+            g_error_streamer() << "In " << algorithm_name << "::adjustPopulation():" << '\n'
+                               << "No floating point parameters in individual." << '\n'
         );
     }
 
@@ -338,23 +333,11 @@ void GOptimizationAlgorithmBase::setCheckpointBaseName(
 ) {
     // Do some basic checks
     if(cp_base_name == "empty" || cp_base_name.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase::setCheckpointBaseName(const std::string&, const "
-               "std::string&):"
-            << '\n'
-            << "Error: Invalid cp_base_name: " << cp_base_name << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Invalid cp_base_name: " << cp_base_name << '\n');
     }
 
     if(cp_directory == "empty" || cp_directory.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase::setCheckpointBaseName(const std::string&, const "
-               "std::string&):"
-            << '\n'
-            << "Error: Invalid cp_directory: " << cp_directory << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Invalid cp_directory: " << cp_directory << '\n');
     }
 
     cp_base_name_ = cp_base_name;
@@ -369,9 +352,8 @@ void GOptimizationAlgorithmBase::setCheckpointBaseName(
     if(std::filesystem::exists(cp_directory_path_) &&
        not std::filesystem::is_directory(cp_directory_path_)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase::setCheckpointBaseName(): Error!" << '\n'
-            << cp_directory_path_.string() << " exists but is no directory." << '\n'
+            g_error_streamer() << cp_directory_path_.string() << " exists but is no directory."
+                               << '\n'
         );
     }
 }
@@ -698,10 +680,7 @@ void GOptimizationAlgorithmBase::registerPluggableOM(
     }
     else {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GoptimizationMonitorT<>::registerPluggableOM(): Tried to register empty "
-               "pluggable optimization monitor"
-            << '\n'
+            g_error_streamer() << "Tried to register empty pluggable optimization monitor" << '\n'
         );
     }
 }
@@ -755,10 +734,8 @@ void GOptimizationAlgorithmBase::setMaxIteration(std::uint32_t max_iteration) {
     // Check that the new maximum is > the current minimum (guard only applies when max != 0)
     if(max_iteration > 0 && max_iteration <= min_iteration_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::setMaxIteration(): Error!" << '\n'
-            << "Maximum number of iterations " << max_iteration << " is <= the minimum number "
-            << min_iteration_ << '\n'
+            g_error_streamer() << "Maximum number of iterations " << max_iteration
+                               << " is <= the minimum number " << min_iteration_ << '\n'
         );
     }
 
@@ -790,10 +767,8 @@ void GOptimizationAlgorithmBase::setMinIteration(std::uint32_t min_iteration) {
     // Check that the current maximum will remain > the new minimum (guard only applies when max != 0)
     if(max_iteration_ > 0 && max_iteration_ <= min_iteration) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::setMinIteration(): Error!" << '\n'
-            << "Maximum number of iterations " << max_iteration_ << " is <= the minimum number "
-            << min_iteration << '\n'
+            g_error_streamer() << "Maximum number of iterations " << max_iteration_
+                               << " is <= the minimum number " << min_iteration << '\n'
         );
     }
 
@@ -841,10 +816,9 @@ std::uint32_t GOptimizationAlgorithmBase::getMaxStallIteration() const {
 void GOptimizationAlgorithmBase::setMaxTime(std::chrono::duration<double> max_duration) {
     if(not Gem::Common::isClose<double>(max_duration.count(), 0.) && max_duration < min_duration_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::setMaxTime(): Error!" << '\n'
-            << "Desired max_duration (" << max_duration.count() << " is smaller than min_duration_("
-            << min_duration_.count() << ")" << '\n'
+            g_error_streamer() << "Desired max_duration (" << max_duration.count()
+                               << " is smaller than min_duration_(" << min_duration_.count() << ")"
+                               << '\n'
         );
     }
 
@@ -872,10 +846,9 @@ void GOptimizationAlgorithmBase::setMinTime(std::chrono::duration<double> min_du
     if(not Gem::Common::isClose<double>(max_duration_.count(), 0.) &&
        max_duration_ < min_duration) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::setMinTime(): Error!" << '\n'
-            << "Desired max_duration (" << max_duration_.count()
-            << " is smaller than min_duration_(" << min_duration.count() << ")" << '\n'
+            g_error_streamer() << "Desired max_duration (" << max_duration_.count()
+                               << " is smaller than min_duration_(" << min_duration.count() << ")"
+                               << '\n'
         );
     }
 
@@ -1098,9 +1071,7 @@ std::uint64_t GOptimizationAlgorithmBase::getLateReturnTTL() const {
 void GOptimizationAlgorithmBase::setLateReturnCapFactor(double cap_factor) {
     if(cap_factor < 0.) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase::setLateReturnCapFactor(): Error!" << '\n'
-            << "Received a negative capacity factor " << cap_factor << '\n'
+            g_error_streamer() << "Received a negative capacity factor " << cap_factor << '\n'
         );
     }
     late_return_cap_factor_ = cap_factor;
@@ -1409,8 +1380,7 @@ void GOptimizationAlgorithmBase::updateGlobalBestsPQ_(
 #ifdef DEBUG
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase::updateGlobalBestsPQ() :" << '\n'
+            g_error_streamer()
             << "Tried to retrieve the best individuals even though the population is empty." << '\n'
         );
     }
@@ -1439,8 +1409,7 @@ void GOptimizationAlgorithmBase::updateIterationBestsPQ_(
 #ifdef DEBUG
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase::updateIterationBestsPQ() :" << '\n'
+            g_error_streamer()
             << "Tried to retrieve the best individuals even though the population is empty." << '\n'
         );
     }
@@ -1543,7 +1512,7 @@ void GOptimizationAlgorithmBase::requireCompleteEvaluation_(
 ) const {
     if(not status.is_complete || status.has_errors) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+            g_error_streamer()
             << "In " << caller << ": Error!" << '\n'
             << "No complete set of items received or errors found in some individuals" << '\n'
         );
@@ -1775,8 +1744,7 @@ std::string GOptimizationAlgorithmBase::extractOptAlgFromPath(const std::filesys
     // Check that the size is at least 2 (i.e. the PERSONALITY_X-part may exist)
     if(tokens.size() < 2) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::extractOptAlgFromPath(): Error!" << '\n'
+            g_error_streamer()
             << "Found file name " << filename << " that does not comply to rules." << '\n'
             << "Expected \"/some/path/word1-PERSONALITY_EA-some-other-information \"" << '\n'
         );
@@ -1914,9 +1882,8 @@ void GOptimizationAlgorithmBase::setDefaultPopulationSize(std::size_t def_pop_si
 void GOptimizationAlgorithmBase::setNRecordBestIndividuals(std::size_t n_record_best_individuals) {
     if(0 == n_record_best_individuals) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GOptimizationAlgorithmBase<>::setNRecordBestIndividuals(): Error!" << '\n'
-            << "Invalid number of individuals to be recorded: " << n_record_best_individuals << '\n'
+            g_error_streamer() << "Invalid number of individuals to be recorded: "
+                               << n_record_best_individuals << '\n'
         );
     }
 
@@ -1984,8 +1951,7 @@ void GOptimizationAlgorithmBase::finalize() {
  */
 void GOptimizationAlgorithmBase::setNThreads(std::uint16_t n_threads) {
     if(n_threads == 0) {
-        glogger << "In GOptimizationAlgorithmBase::setNThreads(n_threads):" << '\n'
-                << "n_threads == 0 was requested. n_threads_ was reset to the default "
+        glogger << "n_threads == 0 was requested. n_threads_ was reset to the default "
                 << Gem::Courtier::DEFAULTNSTDTHREADS << '\n'
                 << GWARNING;
 

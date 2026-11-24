@@ -114,11 +114,7 @@ public:
             pre_processor_ = p;
         }
         else {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GGenomeFactory::registerPreProcessor(): Error!" << '\n'
-                << "Got empty pre-processor" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Got empty pre-processor" << '\n');
         }
     }
 
@@ -135,11 +131,7 @@ public:
             post_processor_ = p;
         }
         else {
-            throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GGenomeFactory::registerPostProcessor(): Error!" << '\n'
-                << "Got empty post-processor" << '\n'
-            );
+            throw gem_exception(g_error_streamer() << "Got empty post-processor" << '\n');
         }
     }
 

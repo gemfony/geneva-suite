@@ -64,10 +64,9 @@ void setProgramIdentity(std::string identity_text) {
     }
     if(not id.empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, timeAndPlace())
-            << "In Gem::Common::setProgramIdentity(): Error!" << '\n'
-            << "The program's identity is \"" << id << "\" and cannot become \"" << identity_text
-            << "\": a process has one identity, set once" << '\n'
+            g_error_streamer() << "The program's identity is \"" << id << "\" and cannot become \""
+                               << identity_text << "\": a process has one identity, set once"
+                               << '\n'
         );
     }
     id = std::move(identity_text);

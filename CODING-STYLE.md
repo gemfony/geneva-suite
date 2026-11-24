@@ -169,9 +169,8 @@ An empty body — common for an intentionally empty constructor — is marked as
 the emptiness reads as deliberate:
 
 ```cpp
-explicit g_error_streamer(bool do_log, std::string where_and_when)
-    : do_log_(do_log)
-    , where_and_when_(std::move(where_and_when)) { /* nothing */ }
+explicit g_error_streamer(std::source_location const &loc = std::source_location::current())
+    : where_and_when_(Gem::Common::timeAndPlace(loc)) { /* nothing */ }
 ```
 
 ## 4. Naming
@@ -191,7 +190,7 @@ Each kind of identifier has a fixed case:
 | Private / protected member | `snake_case_` (trailing underscore) | `client_mode_` |
 | Public member (rare, discouraged) | `camelBack` | `someValue` |
 | Enum constant | `UPPER_CASE` | `GEM_BINARY` |
-| Macro, global / static / class constant, `constexpr` variable | `UPPER_CASE` | `DO_LOG` |
+| Macro, global / static / class constant, `constexpr` variable | `UPPER_CASE` | `CONFIG_EMISSION_FLAG` |
 | Type alias, typedef | unconstrained | `value_type` |
 
 Template parameters follow their own rule (maintainer decision of 2026-11-15). A type parameter -- also a

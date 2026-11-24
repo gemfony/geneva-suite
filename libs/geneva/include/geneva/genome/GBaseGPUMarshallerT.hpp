@@ -148,8 +148,7 @@ public:
             const auto *flat = dynamic_cast<const Gem::Geneva::Genome::GGenome *>(items[i].get());
             if(flat == nullptr) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GBaseGPUMarshallerT::flatten(): Error!" << '\n'
+                    g_error_streamer()
                     << "A work item is not a GGenome; a GPU marshaller requires flat-genome"
                     << " individuals." << '\n'
                 );
@@ -158,15 +157,18 @@ public:
                 // The pre-processor runs before the device sees the values
                 items[i]->beginProcessing();
             }
-            catch(const Gem::Courtier::g_processing_exception &) {
-                // Recorded on the item (EXCEPTION_CAUGHT), as on the CPU path; it fails alone.
+            catch(const Gem::Courtier::g_processing_exception &e) {
+                // Recorded on the item (EXCEPTION_CAUGHT); it fails alone. Its task ends here, so
+                // it is reported here, as on the CPU path.
+                glogger << "The pre-processing of work item " << i << " failed:" << '\n'
+                        << e.what() << '\n'
+                        << GERROR;
             }
             // The consumer checked the uniform dimension before the pre-processors ran; a
             // pre-processor that changed it would make streamlineInto() write past the item's row.
             if(const std::size_t item_dim = this->itemDimension(items[i]); item_dim != dim) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GBaseGPUMarshallerT::flatten(): Error!" << '\n'
+                    g_error_streamer()
                     << "Work item " << i << " has " << item_dim << " parameters after its"
                     << " pre-processing, the batch " << dim << "." << '\n'
                     << "A pre-processor must not change the number of parameters of an item"
@@ -206,8 +208,13 @@ public:
                     evaluation_time
                 );
             }
-            catch(const Gem::Courtier::g_processing_exception &) {
-                // Recorded on the item (EXCEPTION_CAUGHT / ERROR_FLAGGED), as on the CPU path.
+            catch(const Gem::Courtier::g_processing_exception &e) {
+                // Recorded on the item (EXCEPTION_CAUGHT / ERROR_FLAGGED); its task ends here, so
+                // it is reported here, as on the CPU path.
+                glogger << "The completion of a work item with its device-computed fitness failed:"
+                        << '\n'
+                        << e.what() << '\n'
+                        << GERROR;
             }
         }
     }

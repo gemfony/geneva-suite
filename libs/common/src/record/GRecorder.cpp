@@ -37,7 +37,6 @@
 #include <string_view>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // timeAndPlace()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
@@ -79,9 +78,7 @@ std::string place(std::source_location const &where) {
  */
 [[noreturn]] void refuse(std::string const &name, std::string const &reason) {
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GRecorder::stream(): Error!" << '\n'
-        << "The stream \"" << name << "\" cannot be declared: " << reason << '\n'
+        g_error_streamer() << "The stream \"" << name << "\" cannot be declared: " << reason << '\n'
     );
 }
 
@@ -220,7 +217,7 @@ void GRecorder::closeAll() {
             core->close();
         }
         catch(std::exception const &e) {
-            glogger << "In GRecorder::closeAll(): the stream \"" << core->info().name
+            glogger << "the stream \"" << core->info().name
                     << "\" could not be closed cleanly:" << '\n'
                     << e.what() << '\n'
                     << GWARNING;
@@ -242,12 +239,10 @@ void GRecorder::addSink(std::string const &name, std::shared_ptr<GSink> sink) {
     const std::scoped_lock lk(mutex_);
     if(const auto it = streams_.find(name); it != streams_.end()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GRecorder::addSink(): Error!" << '\n'
+            g_error_streamer()
             << "The stream \"" << name << "\" is open already (declared at "
             << place(it->second->declarer())
-            << "): a sink is added before the stream is declared, so that it gets every row"
-            << '\n'
+            << "): a sink is added before the stream is declared, so that it gets every row" << '\n'
         );
     }
     added_sinks_[name].push_back(std::move(sink));

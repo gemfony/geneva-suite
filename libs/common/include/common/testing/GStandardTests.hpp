@@ -99,11 +99,7 @@ TFactory_GUnitTests() { // NOLINT(readability-identifier-naming): established na
         throw;
     }
     catch(...) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In std::shared_ptr<T> TFactory_GUnitTests(): Error!" << '\n'
-            << "Caught unknown exception" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Caught unknown exception" << '\n');
     }
 
     return p;

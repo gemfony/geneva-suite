@@ -820,7 +820,7 @@ private:
             }
         }
         catch(...) {
-            glogger << "In GNetworkedConsumerT: the late result with the id " << id << '\n'
+            glogger << "The late result with the id " << id << '\n'
                     << "could not be applied to its retained original and is dropped: "
                     << Gem::Courtier::describeException(std::current_exception()) << '\n'
                     << GWARNING;
@@ -846,7 +846,7 @@ private:
         late_dropped_count_ += n;
         if(not late_drop_warned_) {
             late_drop_warned_ = true;
-            glogger << "In GNetworkedConsumerT: a late work-item return (a result for a" << '\n'
+            glogger << "A late work-item return (a result for a" << '\n'
                     << "batch that had already finished or timed out) was dropped. It came" << '\n'
                     << "too late to be used this round, or it duplicated a result that was" << '\n'
                     << "used. Enable/enlarge the late-return buffer (setLateReturnBuffer)" << '\n'
@@ -862,7 +862,7 @@ private:
         ++n_foreign_returns_;
         if(not foreign_return_warned_) {
             foreign_return_warned_ = true;
-            glogger << "In GNetworkedConsumerT: a result arrived whose work item was" << '\n'
+            glogger << "A result arrived whose work item was" << '\n'
                     << "handed out by another server process; it is dropped. This happens" << '\n'
                     << "when a client outlives its server and connects to a new one. The" << '\n'
                     << "total is available via foreignReturnCount()." << '\n'
@@ -1103,12 +1103,10 @@ private:
             2;
         if(ms < 0 || ms > max_ms) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GNetworkedConsumerT::applyTimeoutConfig(): Error!" << '\n'
-                << "The value " << ms << " of \"" << key << "\" is not a time limit: it must be"
-                << '\n'
-                << "0 (no limit) or a positive number of milliseconds up to " << max_ms << "."
-                << '\n'
+                g_error_streamer() << "The value " << ms << " of \"" << key
+                                   << "\" is not a time limit: it must be" << '\n'
+                                   << "0 (no limit) or a positive number of milliseconds up to "
+                                   << max_ms << "." << '\n'
             );
         }
         return std::chrono::milliseconds(ms);

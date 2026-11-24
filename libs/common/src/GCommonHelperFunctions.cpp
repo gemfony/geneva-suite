@@ -172,8 +172,7 @@ unsigned int getNHardwareThreads() {
             g_nHardwareThreads.store(std::thread::hardware_concurrency());
 
             if(g_nHardwareThreads.load() == 0) { // We could not load the number of hardware threads
-                glogger << "In getNHardwareThreads():"
-                        << "Could not get information regarding suitable number of threads." << '\n'
+                glogger << "Could not get information regarding suitable number of threads." << '\n'
                         << "from hardware. Using the default value  = " << DEFAULTNHARDWARETHREADS
                         << " instead." << '\n'
                         << GWARNING;
@@ -202,10 +201,8 @@ std::string loadTextDataFromFile(std::filesystem::path const &p) {
     // Check that the file exists
     if(not std::filesystem::exists(p)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In loadTextDataFromFile(): Error!" << '\n'
-            << "Tried to load data from file " << p.string() << '\n'
-            << "which does not exist" << '\n'
+            g_error_streamer() << "Tried to load data from file " << p.string() << '\n'
+                               << "which does not exist" << '\n'
         );
     }
 
@@ -213,10 +210,8 @@ std::string loadTextDataFromFile(std::filesystem::path const &p) {
 
     if(not source_file_stream) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In loadTextDataFromFile(): Error!" << '\n'
-            << "Stream from file " << p.string() << '\n'
-            << "is not valid" << '\n'
+            g_error_streamer() << "Stream from file " << p.string() << '\n'
+                               << "is not valid" << '\n'
         );
     }
 
@@ -239,10 +234,8 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
     // Check that the file exists
     if(not std::filesystem::exists(p)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In loadTextLinesFromFile(): Error!" << '\n'
-            << "Tried to load data from file " << p.string() << '\n'
-            << "which does not exist" << '\n'
+            g_error_streamer() << "Tried to load data from file " << p.string() << '\n'
+                               << "which does not exist" << '\n'
         );
     }
 
@@ -250,10 +243,8 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
 
     if(not source_file_stream) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In loadTextLinesFromFile(): Error!" << '\n'
-            << "Stream from file " << p.string() << '\n'
-            << "is not valid" << '\n'
+            g_error_streamer() << "Stream from file " << p.string() << '\n'
+                               << "is not valid" << '\n'
         );
     }
 
@@ -348,10 +339,8 @@ std::vector<std::string> splitString(std::string const &str, const char *sep) {
 #ifdef DEBUG
     if(1 != std::string(sep).size()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In splitString(): Error!" << '\n'
-            << "Supplied separator \"" << sep << "\" has invalid size " << std::string(sep).size()
-            << '\n'
+            g_error_streamer() << "Supplied separator \"" << sep << "\" has invalid size "
+                               << std::string(sep).size() << '\n'
         );
     }
 #endif /* DEBUG */
@@ -391,10 +380,8 @@ std::vector<unsigned int> stringToUIntVec(std::string const &raw, char sep) {
 
     if(not parseSeparatedNumbers(std::string_view(raw), sep, result, rest)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In stringToUIntVec(const std::string& raw): Error!" << '\n'
-            << "Parsing failed." << '\n'
-            << "Stopped at: \": " << rest << "\"" << '\n'
+            g_error_streamer() << "Parsing failed." << '\n'
+                               << "Stopped at: \": " << rest << "\"" << '\n'
         );
     }
 
@@ -416,10 +403,8 @@ std::vector<double> stringToDoubleVec(std::string const &raw) {
 
     if(not parseSeparatedNumbers(std::string_view(raw), ',', result, rest)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In stringToDoubleVec(const std::string& raw): Error!" << '\n'
-            << "Parsing failed." << '\n'
-            << "Stopped at: \": " << rest << "\"" << '\n'
+            g_error_streamer() << "Parsing failed." << '\n'
+                               << "Stopped at: \": " << rest << "\"" << '\n'
         );
     }
 
@@ -451,10 +436,8 @@ std::vector<std::tuple<unsigned int, unsigned int>> stringToUIntTupleVec(std::st
     };
     auto throwFail = [&]() {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In stringToUIntTupleVec(const std::string& raw): Error!" << '\n'
-            << "Parsing failed." << '\n'
-            << "Stopped at: \"" << std::string(s.substr(i)) << "\"" << '\n'
+            g_error_streamer() << "Parsing failed." << '\n'
+                               << "Stopped at: \"" << std::string(s.substr(i)) << "\"" << '\n'
         );
     };
     auto expect = [&](char c) {
@@ -531,9 +514,8 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
 
     default:
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In Gem::Common::duration_from_string(\"" << duration_string << "\"): Error!" << '\n'
-            << "Invalid number of fields present: " << timings.size() << '\n'
+            g_error_streamer() << "Invalid number of fields present in \"" << duration_string
+                               << "\": " << timings.size() << '\n'
         );
         break;
     }
@@ -620,9 +602,8 @@ void replaceFileAtomically(
         std::error_code ignore;
         std::filesystem::remove(tmp_path, ignore);
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In " << context << ": Error!" << '\n'
-            << what << '\n'
+            g_error_streamer() << "In " << context << ": Error!" << '\n'
+                               << what << '\n'
         );
     };
 

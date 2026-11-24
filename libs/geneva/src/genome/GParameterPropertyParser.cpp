@@ -109,9 +109,7 @@ bool isUnsigned(const std::string &s) {
  */
 [[noreturn]] void fail(const std::string &raw) {
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In GParameterPropertyParser::parse(): Error!" << '\n'
-        << "Could not parse parameter-property fragment: " << raw << '\n'
+        g_error_streamer() << "Could not parse parameter-property fragment: " << raw << '\n'
     );
 }
 
@@ -161,8 +159,7 @@ readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::st
     for(std::size_t k = first; k < tok.size(); ++k) {
         if(not isUnsigned(tok[k])) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParameterPropertyParser::parse(): Error!" << '\n'
+                g_error_streamer()
                 << "\"" << tok[k] << "\" in (" << raw << ") is not a step count." << '\n'
                 << "A parameter-scan specification carries no label or name: a variable is"
                 << " addressed by its index (a progress plot names its variables with"
@@ -290,18 +287,16 @@ void GParameterPropertyParser::parse() {
     // We only accept a single "simple-scan" entry. Complain, if more than one was found.
     if(s_spec_vec_.size() > 1) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParameterPropertyParser::parse(): Error!" << '\n'
-            << "Found " << s_spec_vec_.size() << " simple scan entries where a" << '\n'
-            << "maximum of 1 is allowed" << '\n'
+            g_error_streamer() << "Found " << s_spec_vec_.size() << " simple scan entries where a"
+                               << '\n'
+                               << "maximum of 1 is allowed" << '\n'
         );
     }
     if(s_spec_vec_.size() ==
        1) { // If we did find a "simple scan" entry, we will discard the other entries.
         if(not d_spec_vec_.empty() || not f_spec_vec_.empty() || not i_spec_vec_.empty() ||
            not b_spec_vec_.empty()) {
-            glogger << "In GParameterPropertyParser::parse(): Warning!" << '\n'
-                    << "You have specified both a simple-scan component and explicit" << '\n'
+            glogger << "You have specified both a simple-scan component and explicit" << '\n'
                     << "scan-components. The explicit components will be discarded." << '\n'
                     << GWARNING;
 
@@ -471,10 +466,9 @@ std::size_t GParameterPropertyParser::getNSimpleScanItems() const {
 #ifdef DEBUG
     if(s_spec_vec_.size() > 1) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParameterPropertyParser::getNSimpleScanItems() const: Error!" << '\n'
-            << "Found " << s_spec_vec_.size() << " simple scan entries where a" << '\n'
-            << "maximum of 1 is allowed" << '\n'
+            g_error_streamer() << "Found " << s_spec_vec_.size() << " simple scan entries where a"
+                               << '\n'
+                               << "maximum of 1 is allowed" << '\n'
         );
     }
 #endif

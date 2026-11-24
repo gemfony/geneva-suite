@@ -158,20 +158,12 @@ void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(
 #ifdef DEBUG
     // Does it point anywhere ?
     if(not p) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm_PersonalityTraits::registerPersonalBest():" << '\n'
-            << "Got empty smart pointer." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got empty smart pointer." << '\n');
     }
 
     // Is the dirty flag set ?
     if(not p->is_processed()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm_PersonalityTraits::registerPersonalBest():" << '\n'
-            << "Got individual which isn't processed." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got individual which isn't processed." << '\n');
     }
 #endif
 
@@ -197,9 +189,7 @@ std::shared_ptr<gen::GGenome> GSwarmAlgorithm_PersonalityTraits::getPersonalBest
 #ifdef DEBUG
     if(not personal_best_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GSwarmAlgorithm_PersonalityTraits::getPersonalBest(): Error!" << '\n'
-            << "Tried to retrieve personal_best_ while pointer is empty" << '\n'
+            g_error_streamer() << "Tried to retrieve personal_best_ while pointer is empty" << '\n'
         );
     }
 #endif

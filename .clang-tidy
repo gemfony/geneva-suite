@@ -234,12 +234,11 @@ CheckOptions:
   # values". cppcoreguidelines-macro-usage flags both.
   # Allowed: G_API_* visibility macros, GEM_* build guards, G_DEPRECATED,
   # GSQUARED utility macro, GEM_* config macros, the geneva library's GENEVA_*
-  # macros, DEBUG, and the
-  # intentionally lowercase `time_and_place` source-location macro.
-  # Also allowed (cannot be constexpr): raiseException/LOGEXIT capture
-  # __FILE__/__LINE__ at the throw/exit site; MIN_BOOST_VERSION is a
+  # macros and DEBUG.
+  # Also allowed (cannot be constexpr): LOGEXIT captures the source location
+  # at the exit site; MIN_BOOST_VERSION is a
   # preprocessor version gate that must be a #define (used in #if).
-  cppcoreguidelines-macro-usage.AllowedRegexp: '^(DEBUG|G_.*|GEM_.*|GENEVA_.*|GSQUARED|time_and_place|raiseException|LOGEXIT|MIN_BOOST_VERSION)$'
+  cppcoreguidelines-macro-usage.AllowedRegexp: '^(DEBUG|G_.*|GEM_.*|GENEVA_.*|GSQUARED|LOGEXIT|MIN_BOOST_VERSION)$'
 
   # Performance.
   performance-for-range-copy.WarnOnAllAutoCopies: 'true'

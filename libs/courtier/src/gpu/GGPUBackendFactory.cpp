@@ -90,7 +90,7 @@ std::unique_ptr<GGPUDeviceBackendI<scalar_type>> makeBackend(BackendKind kind) {
 #endif
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
+        g_error_streamer()
         << "Gem::Courtier::GPU::makeBackend(): backend '" << toString(kind)
         << "' was not compiled into this build (its toolkit was not found at configure time)."
         << '\n'

@@ -35,6 +35,7 @@
 
 // Geneva headers go here
 #include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
 
 namespace Gem::Common {
 
@@ -43,14 +44,17 @@ namespace {
 /******************************************************************************/
 /**
  * The terminate handler of installFatalReport(): prints fatalMessage() of the exception in flight,
- * flushes the standard streams and ends the process with EXIT_FAILURE, without unwinding and
- * without running any destructor. Without an exception in flight (an internal fault) it aborts
+ * records it in GEM-EXCEPTION.log (recordError(): the one place where an error that ends the
+ * program is recorded), flushes the standard streams and ends the process with EXIT_FAILURE,
+ * without unwinding and without running any destructor. Without an exception in flight (an internal fault) it aborts
  * instead, for the core dump.
  */
 [[noreturn]] void reportAndExit() noexcept {
     const std::exception_ptr error = std::current_exception();
     try {
-        std::cerr << fatalMessage(error);
+        const std::string message = fatalMessage(error);
+        std::cerr << message;
+        recordError("", message);
         std::cout.flush();
         std::clog.flush(); // the logger's console stream
         std::cerr.flush();

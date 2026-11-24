@@ -321,10 +321,9 @@ gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
     if(c.start_values.empty() || c.start_values.size() != c.lower_boundaries.size() ||
        c.start_values.size() != c.upper_boundaries.size()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GStarterIndividual::buildGenome(): Error!" << '\n'
-            << "Invalid sizes " << c.start_values.size() << " / " << c.lower_boundaries.size()
-            << " / " << c.upper_boundaries.size() << '\n'
+            g_error_streamer() << "Invalid sizes " << c.start_values.size() << " / "
+                               << c.lower_boundaries.size() << " / " << c.upper_boundaries.size()
+                               << '\n'
         );
     }
 #endif /* DEBUG */

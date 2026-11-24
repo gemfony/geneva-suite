@@ -88,9 +88,8 @@ struct GFrameHead {
         if constexpr(std::remove_cvref_t<archive_type>::is_loading) {
             if(not isFrameKind(kind)) {
                 throw gem_exception(
-                    g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-                    << "The message is not a frame: its kind " << std::to_underlying(kind)
-                    << " is not a GFrameKind" << '\n'
+                    g_error_streamer() << "The message is not a frame: its kind "
+                                       << std::to_underlying(kind) << " is not a GFrameKind" << '\n'
                 );
             }
         }
@@ -330,8 +329,7 @@ public:
         auto *held = std::get_if<std::unique_ptr<processable_type>>(&payload_);
         if(held == nullptr || not *held) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GCommandContainerT<processable_type>::process():" << '\n'
+                g_error_streamer()
                 << "Tried to process a work item while the frame carries none" << '\n'
             );
         }
@@ -482,7 +480,8 @@ void makeFailedResult(
  * is not due -- leaves the item unflagged; it is flagged here (ERROR_FLAGGED, the text appended to
  * its error descriptions, unless the item already reports an error). Neither ends the worker: the
  * flagged item is returned like any other result, and the server's submission policy decides what
- * happens to the slot.
+ * happens to the slot. The failure ends the item's task here, so it is reported here (GERROR: the
+ * worker's log and its GEM-EXCEPTION.log), once.
  *
  * A due item is processed by @p processor if one is given (a client's item processor, see
  * GBaseClientT::setItemProcessor()), otherwise by its own process(). Any exception out of the
@@ -491,7 +490,7 @@ void makeFailedResult(
  *
  * @tparam processable_type The payload type of the command container
  * @param container The frame holding the work item to process
- * @param worker_name The worker's name, used in the warning
+ * @param worker_name The worker's name, used in the report
  * @param processor Processes a due item in place of its process(); nullptr: the item's process()
  * @throws gem_exception if the frame holds no work item
  */
@@ -520,7 +519,7 @@ void processWorkFrame(
                 << "The work item could not be processed:" << '\n'
                 << reason << '\n'
                 << "It is returned to the server flagged; the worker keeps running." << '\n'
-                << GWARNING;
+                << GERROR;
         return true;
     };
 
@@ -532,7 +531,7 @@ void processWorkFrame(
                 << "The work item flagged a processing exception:" << '\n'
                 << e.what() << '\n'
                 << "It is returned to the server flagged; the worker keeps running." << '\n'
-                << GWARNING;
+                << GERROR;
     }
     catch(const std::exception &e) {
         if(not return_flagged(e.what())) {
@@ -573,8 +572,7 @@ std::string_view frameHeadFromString(
     try {
         if(descr.size() < 4) {
             throw gem_exception(
-                g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-                << "the message is shorter than the length of a head" << '\n'
+                g_error_streamer() << "the message is shorter than the length of a head" << '\n'
             );
         }
         std::size_t head_length = 0;
@@ -584,8 +582,7 @@ std::string_view frameHeadFromString(
         }
         if(head_length > descr.size() - 4) {
             throw gem_exception(
-                g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-                << "the head is longer than the message" << '\n'
+                g_error_streamer() << "the head is longer than the message" << '\n'
             );
         }
         container.headFromString(descr.substr(4, head_length), serMode);
@@ -594,9 +591,8 @@ std::string_view frameHeadFromString(
     catch(...) {
         container.reset();
         throw gem_exception(
-            g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-            << "The head of a message cannot be read: "
-            << describeException(std::current_exception()) << '\n'
+            g_error_streamer() << "The head of a message cannot be read: "
+                               << describeException(std::current_exception()) << '\n'
         );
     }
 }
@@ -622,9 +618,9 @@ void framePayloadFromString(
     }
     catch(...) {
         throw gem_exception(
-            g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-            << "The payload of a " << fkToStr(container.kind())
-            << " cannot be read: " << describeException(std::current_exception()) << '\n'
+            g_error_streamer() << "The payload of a " << fkToStr(container.kind())
+                               << " cannot be read: " << describeException(std::current_exception())
+                               << '\n'
         );
     }
 }
@@ -659,10 +655,9 @@ std::string container_to_string(
     }
     catch(...) {
         throw gem_exception(
-            g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-            << "In container_to_string(GCommandContainerT<>): "
-            << describeException(std::current_exception()) << '\n'
-            << "with serializationMode == " << Gem::Common::serModeToString(serMode) << '\n'
+            g_error_streamer() << describeException(std::current_exception()) << '\n'
+                               << "with serializationMode == "
+                               << Gem::Common::serModeToString(serMode) << '\n'
         );
     }
 }

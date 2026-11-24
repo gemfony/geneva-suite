@@ -37,7 +37,7 @@
 #include <vector>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // backupExistingFile(), timeAndPlace()
+#include "common/GCommonHelperFunctions.hpp" // backupExistingFile()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 
@@ -60,8 +60,7 @@ void GFileSink::open(GStreamInfo const &info) {
         std::filesystem::create_directories(info.directory, ec);
         if(ec) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GFileSink::open(): Error!" << '\n'
+                g_error_streamer()
                 << "The directory " << info.directory.string() << " of the stream \"" << info.name
                 << "\" could not be created: " << ec.message() << '\n'
             );
@@ -83,10 +82,8 @@ void GFileSink::open(GStreamInfo const &info) {
     out_.open(path_, append ? std::ios::app : std::ios::trunc);
     if(not out_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GFileSink::open(): Error!" << '\n'
-            << "The file " << path_.string() << " of the stream \"" << info.name
-            << "\" could not be opened" << '\n'
+            g_error_streamer() << "The file " << path_.string() << " of the stream \"" << info.name
+                               << "\" could not be opened" << '\n'
         );
     }
     if(not append) {
@@ -146,9 +143,7 @@ void GFileSink::write(std::span<GRow const> rows) {
     out_.flush();
     if(not out_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GFileSink::write(): Error!" << '\n'
-            << "Writing to " << path_.string() << " failed" << '\n'
+            g_error_streamer() << "Writing to " << path_.string() << " failed" << '\n'
         );
     }
 }

@@ -491,10 +491,7 @@ public:
         // Check that the parameter string isn't empty
         if(par_str.empty()) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GPluggableOptimizationMonitors<>::setProfileSpec(std::string): Error!"
-                << '\n'
-                << "Parameter string " << par_str << " is empty" << '\n'
+                g_error_streamer() << "Parameter string " << par_str << " is empty" << '\n'
             );
         }
 

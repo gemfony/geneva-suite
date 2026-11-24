@@ -84,18 +84,16 @@ fp_type enforceRangeConstraint(
 ) {
     if(lower > upper) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << (caller == "empty" ? "" : ("[" + caller + "] "))
-            << "In enforceRangeConstraint<fp_type>(): Error!" << '\n'
-            << "Lower boundary > upper boundary: " << lower << " / " << upper << '\n'
+            g_error_streamer() << (caller == "empty" ? "" : ("[" + caller + "] "))
+                               << "Lower boundary > upper boundary: " << lower << " / " << upper
+                               << '\n'
         );
     }
 
     if(val < lower) {
         if(verbose) {
-            glogger << (caller == "empty" ? "" : ("[" + caller + "] "))
-                    << "In Gem::Common::enforceRangeConstraint(): " << '\n'
-                    << "value " << val << " < lower boundary " << lower << '\n'
+            glogger << (caller == "empty" ? "" : ("[" + caller + "] ")) << "value " << val
+                    << " < lower boundary " << lower << '\n'
                     << "Will be adapted to " << lower << '\n'
                     << GWARNING;
         }
@@ -103,9 +101,8 @@ fp_type enforceRangeConstraint(
     }
     else if(val > upper) {
         if(verbose) {
-            glogger << (caller == "empty" ? "" : ("[" + caller + "] "))
-                    << "In Gem::Common::enforceRangeConstraint(): " << '\n'
-                    << "value " << val << " > upper boundary " << upper << '\n'
+            glogger << (caller == "empty" ? "" : ("[" + caller + "] ")) << "value " << val
+                    << " > upper boundary " << upper << '\n'
                     << "Will be adapted to " << upper << '\n'
                     << GWARNING;
         }
@@ -135,10 +132,9 @@ bool checkRangeCompliance(
 ) {
     if(lower > upper) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << (caller == "empty" ? "" : ("[" + caller + "] "))
-            << "In checkRangeCompliance<fp_type>(...): Error!" << '\n'
-            << "Lower boundary > upper boundary: " << lower << " / " << upper << '\n'
+            g_error_streamer() << (caller == "empty" ? "" : ("[" + caller + "] "))
+                               << "Lower boundary > upper boundary: " << lower << " / " << upper
+                               << '\n'
         );
     }
 
@@ -165,10 +161,9 @@ bool checkRangeCompliance(
 ) {
     if(lower > upper) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << (caller == "empty" ? "" : ("[" + caller + "] "))
-            << "In checkRangeCompliance<int_type>(...): Error!" << '\n'
-            << "Lower boundary > upper boundary: " << lower << " / " << upper << '\n'
+            g_error_streamer() << (caller == "empty" ? "" : ("[" + caller + "] "))
+                               << "Lower boundary > upper boundary: " << lower << " / " << upper
+                               << '\n'
         );
     }
 
@@ -298,8 +293,7 @@ fp_type checkValueRange(
 
     if(not in_value_range) {
         if(warn_only) {
-            glogger << "In checkValueRange<fp_type>(): Error!" << '\n'
-                    << "Value " << val << (var_name.empty() ? "" : (" of variable " + var_name))
+            glogger << "Value " << val << (var_name.empty() ? "" : (" of variable " + var_name))
                     << " outside of recommended range " << '\n'
                     << min << (lower_open ? " (open) - " : " (closed) - ") << max
                     << (upper_open ? " (open)" : " (closed)") << '\n'
@@ -307,8 +301,7 @@ fp_type checkValueRange(
         }
         else {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In checkValueRange<fp_type>(): Error!" << '\n'
+                g_error_streamer()
                 << "Value " << val << (var_name.empty() ? "" : (" of variable " + var_name))
                 << " outside of allowed range " << '\n'
                 << min << (lower_open ? " (open) - " : " (closed) - ") << max
@@ -369,7 +362,6 @@ int_type checkValueRange(
     if(not in_value_range) {
         if(warn_only) {
             glogger << "Warning:" << '\n'
-                    << "In checkValueRange<int_type>(): Error!" << '\n'
                     << "Value " << val << " outside of recommended range " << '\n'
                     << min << (lower_open ? " (open) - " : " (closed) - ") << max
                     << (upper_open ? " (open)" : " (closed)") << '\n'
@@ -377,11 +369,9 @@ int_type checkValueRange(
         }
         else {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In checkValueRange<int_type>(): Error!" << '\n'
-                << "Value " << val << " outside of allowed range " << '\n'
-                << min << (lower_open ? " (open) - " : " (closed) - ") << max
-                << (upper_open ? " (open)" : " (closed)") << '\n'
+                g_error_streamer() << "Value " << val << " outside of allowed range " << '\n'
+                                   << min << (lower_open ? " (open) - " : " (closed) - ") << max
+                                   << (upper_open ? " (open)" : " (closed)") << '\n'
             );
         }
     }
@@ -403,9 +393,7 @@ template <typename x_type>
 auto getMinMax(const std::vector<x_type> &ext_dat) {
     if(ext_dat.size() < 2uz) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GBasePlotter::getMinMax(1D): Error!" << '\n'
-            << "Got vector of invalid size " << ext_dat.size() << '\n'
+            g_error_streamer() << "Got vector of invalid size " << ext_dat.size() << '\n'
         );
     }
 
@@ -431,10 +419,7 @@ auto getMinMax(const std::vector<std::tuple<tuple_element_type...>> &ext_dat) {
     // Do some error checking
     if(ext_dat.size() < 2uz) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GBasePlotter::getMinMax(" << sizeof...(tuple_element_type) << "D): Error!"
-            << '\n'
-            << "Got vector of invalid size " << ext_dat.size() << '\n'
+            g_error_streamer() << "Got vector of invalid size " << ext_dat.size() << '\n'
         );
     }
 
@@ -479,11 +464,7 @@ template <typename T>
 T GMean(const std::vector<T> &par_vec) {
 #ifdef DEBUG
     if(par_vec.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In T GMean(const std::vector<T>&): Error!" << '\n'
-            << "par_vec has size 0" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "par_vec has size 0" << '\n');
     }
 #endif /* DEBUG */
 
@@ -565,9 +546,7 @@ void subtractVec(std::vector<T> &a, const std::vector<T> &b) {
 #ifdef DEBUG
     if(a.size() != b.size()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In subtractVec(std::vector<T>, const std::vector<T>&): Error!" << '\n'
-            << "Found invalid sizes: " << a.size() << " / " << b.size() << '\n'
+            g_error_streamer() << "Found invalid sizes: " << a.size() << " / " << b.size() << '\n'
         );
     }
 #endif /* DEBUG */
@@ -593,9 +572,7 @@ void addVec(std::vector<T> &a, const std::vector<T> &b) {
 #ifdef DEBUG
     if(a.size() != b.size()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In addVec(std::vector<T>, const std::vector<T>&): Error!" << '\n'
-            << "Found invalid sizes: " << a.size() << " / " << b.size() << '\n'
+            g_error_streamer() << "Found invalid sizes: " << a.size() << " / " << b.size() << '\n'
         );
     }
 #endif /* DEBUG */
@@ -785,11 +762,7 @@ auto getRatioError(
 ) {
     // p may not be 0
     if(0. == std::get<2>(p)) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In getRatioError(): Error!" << '\n'
-            << "Attempted division by 0." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Attempted division by 0." << '\n');
     }
 
     fp_type sleep_time = std::get<0>(s);
@@ -797,9 +770,8 @@ auto getRatioError(
     // Check that the sleep-times for s and p are the same
     if(sleep_time != std::get<0>(p)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In getRatioError(): Error!" << '\n'
-            << "Sleep times differ: " << sleep_time << " / " << std::get<0>(p) << '\n'
+            g_error_streamer() << "Sleep times differ: " << sleep_time << " / " << std::get<0>(p)
+                               << '\n'
         );
     }
 
@@ -839,9 +811,8 @@ std::vector<std::tuple<fp_type, fp_type, fp_type, fp_type>> getRatioErrors(
     // Check that both vectors have the same size, otherwise complain
     if(sn.size() != pn.size()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In getRatioErrors(): Error!" << '\n'
-            << "Vectors have invalid sizes: " << sn.size() << " / " << pn.size() << '\n'
+            g_error_streamer() << "Vectors have invalid sizes: " << sn.size() << " / " << pn.size()
+                               << '\n'
         );
     }
 
@@ -892,8 +863,8 @@ fp_type grational_sigmoid(fp_type var, fp_type barrier, fp_type steepness) {
 #ifdef DEBUG
     if(steepness <= fp_type(0)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "grational_sigmoid(): steepness must be > 0, got " << steepness << '\n'
+            g_error_streamer() << "grational_sigmoid(): steepness must be > 0, got " << steepness
+                               << '\n'
         );
     }
 #endif

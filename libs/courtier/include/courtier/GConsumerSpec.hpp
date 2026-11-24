@@ -43,7 +43,6 @@
 #include <boost/core/demangle.hpp>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // timeAndPlace()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 
@@ -102,12 +101,10 @@ template <typename config_type>
         return *config;
     }
     throw gem_exception(
-        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-        << "In configOf(): Error!" << '\n'
-        << "The consumer \"" << spec.mnemonic << "\" is configured with a "
-        << boost::core::demangle(typeid(config_type).name()) << "," << '\n'
-        << "but its specification carries a " << boost::core::demangle(spec.config.type().name())
-        << "." << '\n'
+        g_error_streamer() << "The consumer \"" << spec.mnemonic << "\" is configured with a "
+                           << boost::core::demangle(typeid(config_type).name()) << "," << '\n'
+                           << "but its specification carries a "
+                           << boost::core::demangle(spec.config.type().name()) << "." << '\n'
     );
 }
 

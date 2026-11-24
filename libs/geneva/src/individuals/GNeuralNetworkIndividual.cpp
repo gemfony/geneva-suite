@@ -260,9 +260,8 @@ void networkData::saveToDisk(const std::string &network_data_file) const {
 
     if(not tr_dat) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In networkData::saveToDisk(const std::string&) : Error!" << '\n'
-            << "Data file " << network_data_file << " could not be opened for writing." << '\n'
+            g_error_streamer() << "Data file " << network_data_file
+                               << " could not be opened for writing." << '\n'
         );
     }
 
@@ -294,9 +293,7 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
             error << "File does not exist." << '\n';
         }
 
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace()) << error.str() << '\n'
-        );
+        throw gem_exception(g_error_streamer() << error.str() << '\n');
     }
 
     // Load the data via the GArchive JSON codec. A deserialization failure (a truncated file, or --
@@ -313,8 +310,7 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
     }
     catch(const std::exception &e) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In networkData::loadFromDisk(const std::string&):" << '\n'
+            g_error_streamer()
             << "Failed to deserialise the training-data file" << '\n'
             << "  " << network_data_file << '\n'
             << "as a GArchive JSON archive. Reason:" << '\n'
@@ -341,9 +337,8 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
 void networkData::addTrainingSet(std::shared_ptr<trainingSet> t_s, const std::size_t &pos) {
     if(pos >= data_.size()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In networkData::addTrainingSet(): Error!" << '\n'
-            << "pos = " << pos << " exceeds end of array (size = " << data_.size() << ")" << '\n'
+            g_error_streamer() << "pos = " << pos
+                               << " exceeds end of array (size = " << data_.size() << ")" << '\n'
         );
     }
     data_[pos] = std::move(t_s);
@@ -398,8 +393,7 @@ std::size_t networkData::getNOutputNodes() const {
 void networkData::toROOT(const std::string &output_file, const double &min, const double &max) {
     // Check that we have a matching number of input nodes
     if(getNInputNodes() != 2 || getNOutputNodes() != 1) {
-        glogger << "In networkData::toRoot(): Warning!" << '\n'
-                << "Got inappropriate number of input and/or output nodes: " << getNInputNodes()
+        glogger << "Got inappropriate number of input and/or output nodes: " << getNInputNodes()
                 << "/" << getNOutputNodes() << '\n'
                 << "We need 2/1. The function will return without further action." << '\n'
                 << GWARNING;
@@ -637,9 +631,7 @@ void GNeuralNetworkIndividual::init(
 #ifdef DEBUG
     if(not n_d_) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::init([...]): Error!" << '\n'
-            << "No network data appears to have been registered." << '\n'
+            g_error_streamer() << "No network data appears to have been registered." << '\n'
         );
     }
 #endif /* DEBUG */
@@ -695,20 +687,14 @@ transferFunction GNeuralNetworkIndividual::getTransferFunction() const {
 // NOLINTNEXTLINE(readability-function-size) -- single coherent ROOT visualization-script code generator; the stream-emission of the literal generated program text is one unit and splitting it would scatter the generated source across functions
 void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_file) {
     if(vis_file.empty() || vis_file.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::writeVisualizationFile(const std::string&) : Error"
-            << '\n'
-            << "Received empty file name." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Received empty file name." << '\n');
     }
 
     std::ofstream vis_program(vis_file);
     if(not vis_program) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::writeVisualizationFile(const std::string&) :" << '\n'
-            << "Attempt to open output file " << vis_file << " for writing failed." << '\n'
+            g_error_streamer() << "Attempt to open output file " << vis_file
+                               << " for writing failed." << '\n'
         );
     }
 
@@ -1040,12 +1026,10 @@ void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_fil
             << "}" << '\n';
     }
     else {
-        glogger
-            << "In GNeuralNetworkIndividual::writeVisualizationFile(const std::string&) : Warning!"
-            << '\n'
-            << "Request to create visualization program for more than two input dimensions!" << '\n'
-            << "No action taken." << '\n'
-            << GWARNING;
+        glogger << "Request to create visualization program for more than two input dimensions!"
+                << '\n'
+                << "No action taken." << '\n'
+                << GWARNING;
     }
 
     // Clean up
@@ -1062,20 +1046,13 @@ void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_fil
 // NOLINTNEXTLINE(readability-function-size) -- single coherent C++ header code generator for the trained network; weight-offset computation and literal source emission are tightly interleaved with the generated output's layout, so splitting would scatter it
 void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_file) {
     if(header_file.empty() || header_file.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::writeTrainedNetwork(const std::string&) : Error"
-            << '\n'
-            << "Received empty file name." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Received empty file name." << '\n');
     }
 
     std::ofstream header(header_file);
     if(not header) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::writeTrainedNetwork(const std::string&) :" << '\n'
-            << "Error writing output file " << header_file << '\n'
+            g_error_streamer() << "Error writing output file " << header_file << '\n'
         );
     }
 
@@ -1385,11 +1362,7 @@ double GNeuralNetworkIndividual::transfer(const double &value) const {
     } break;
 
     default: {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::transfer(): Error!" << '\n'
-            << "Got invalid tranfer function " << t_f_ << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got invalid tranfer function " << t_f_ << '\n');
     } break;
     }
 
@@ -1506,10 +1479,8 @@ gen::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
     const std::size_t n_layers = n_d->size();
     if(n_layers < 2) { // Two layers are required at the minimum (3 and 4 layers are useful)
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GNeuralNetworkIndividual::buildGenome(): Error!" << '\n'
-            << "Invalid number of layers supplied (" << n_layers << ")." << '\n'
-            << "Did you set up the network architecture ?" << '\n'
+            g_error_streamer() << "Invalid number of layers supplied (" << n_layers << ")." << '\n'
+                               << "Did you set up the network architecture ?" << '\n'
         );
     }
 
@@ -1522,8 +1493,7 @@ gen::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
     for(const auto &layer_n_nodes : *n_d) {
         if(layer_n_nodes == 0) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GNeuralNetworkIndividual::buildGenome(): Error!" << '\n'
+                g_error_streamer()
                 << "Found invalid number of nodes in layer: " << layer_n_nodes << '\n'
                 << "Did you set up the network architecture ?" << '\n'
             );

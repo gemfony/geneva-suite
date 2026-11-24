@@ -95,9 +95,8 @@ GDataLog::SeriesId GDataLog::declareSeries(GPlotSpec spec) {
 GDataLog::SeriesId GDataLog::overlaySeries(SeriesId primary, GPlotSpec spec) {
     if(primary >= series_.size() || series_[primary].primary.has_value()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GDataLog::overlaySeries(): Error!" << '\n'
-            << "primary id " << primary << " is not a valid primary series" << '\n'
+            g_error_streamer() << "primary id " << primary << " is not a valid primary series"
+                               << '\n'
         );
     }
     series_.push_back(Series{std::move(spec), {}, primary});
@@ -113,11 +112,7 @@ GDataLog::SeriesId GDataLog::overlaySeries(SeriesId primary, GPlotSpec spec) {
  */
 void GDataLog::append(SeriesId id, std::span<const double> row) {
     if(id >= series_.size()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GDataLog::append(): Error!" << '\n'
-            << "series id " << id << " is out of range" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "series id " << id << " is out of range" << '\n');
     }
     series_[id].rows.emplace_back(row.begin(), row.end());
 }
@@ -174,11 +169,7 @@ void GDataLog::setCanvasDimensions(std::uint32_t x_dim, std::uint32_t y_dim) {
  */
 void GDataLog::sortByFirstColumn(SeriesId id) {
     if(id >= series_.size()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GDataLog::sortByFirstColumn(): Error!" << '\n'
-            << "series id " << id << " is out of range" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "series id " << id << " is out of range" << '\n');
     }
     series_[id].sort_first_column = true;
 }

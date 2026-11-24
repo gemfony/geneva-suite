@@ -146,10 +146,8 @@ GParsableI::GParsableI(
 std::string GParsableI::optionName(std::size_t pos) const {
     if(option_name_.size() <= pos) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParsableI::optionName(std::size_t): Error!" << '\n'
-            << "Tried to access item at position " << pos << '\n'
-            << "where the size of the vector is " << option_name_.size() << '\n'
+            g_error_streamer() << "Tried to access item at position " << pos << '\n'
+                               << "where the size of the vector is " << option_name_.size() << '\n'
         );
     }
 
@@ -166,10 +164,8 @@ std::string GParsableI::optionName(std::size_t pos) const {
 std::string GParsableI::comment(std::size_t pos) const {
     if(comment_.size() <= pos) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParsableI::comment(std::size_t): Error!" << '\n'
-            << "Tried to access item at position " << pos << '\n'
-            << "where the size of the vector is " << comment_.size() << '\n'
+            g_error_streamer() << "Tried to access item at position " << pos << '\n'
+                               << "where the size of the vector is " << comment_.size() << '\n'
         );
     }
 
@@ -266,19 +262,13 @@ GParsableI &GParsableI::operator<<(std::ios_base &(*val)(std::ios_base &)) {
 GParsableI &GParsableI::operator<<(commentLevel const &cl) {
 #ifdef DEBUG
     if(comment_.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParsableI::operator<< (commentLevel const& cl): Error!" << '\n'
-            << "No comments in vector" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No comments in vector" << '\n');
     }
 
     if(comment_.size() <= cl.getCommentLevel()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParsableI::operator<< (commentLevel const& cl): Error!" << '\n'
-            << "Invalid comment level " << cl.getCommentLevel()
-            << " requested, where the maximum is " << comment_.size() - 1 << '\n'
+            g_error_streamer() << "Invalid comment level " << cl.getCommentLevel()
+                               << " requested, where the maximum is " << comment_.size() - 1 << '\n'
         );
     }
 #endif /* DEBUG */
@@ -300,19 +290,13 @@ GParsableI &GParsableI::operator<<(commentLevel const &cl) {
 GParsableI &GParsableI::operator<<([[maybe_unused]] nextComment const &nc) {
 #ifdef DEBUG
     if(comment_.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParsableI::operator<< (nextComment const& nc): Error!" << '\n'
-            << "No comments in vector" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No comments in vector" << '\n');
     }
 
     if(comment_.size() <= (cl_ + 1)) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParsableI::operator<< (nextComment const& nc): Error!" << '\n'
-            << "Invalid comment level " << cl_ + 1 << " requested, where the maximum is "
-            << comment_.size() - 1 << '\n'
+            g_error_streamer() << "Invalid comment level " << cl_ + 1
+                               << " requested, where the maximum is " << comment_.size() - 1 << '\n'
         );
     }
 #endif /* DEBUG */
@@ -464,10 +448,8 @@ void GParserBuilder::loadFromDocument(
     // A configuration document is always a JSON object at the root. Anything else is malformed.
     if(not root.is_object()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParserBuilder::loadFromDocument(): Error!" << '\n'
-            << "Configuration file " << config_path.string() << '\n'
-            << "does not contain a JSON object at its root." << '\n'
+            g_error_streamer() << "Configuration file " << config_path.string() << '\n'
+                               << "does not contain a JSON object at its root." << '\n'
         );
     }
     boost::json::object const &obj = root.get_object();
@@ -492,8 +474,7 @@ void GParserBuilder::loadFromDocument(
             }
             if(unknown_key_is_error_) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GParserBuilder::loadFromDocument(): Error!" << '\n'
+                    g_error_streamer()
                     << "Configuration file " << config_path.string() << '\n'
                     << "contains the unknown key \"" << key
                     << "\" that no registered parameter consumes." << '\n'
@@ -576,14 +557,12 @@ void GParserBuilder::doParseConfigFile_(
     }
     catch(std::exception const &e) {
         // A failed parse is never reported by a return value alone: a caller that ignored it ran
-        // on its defaults while the file said otherwise. The cause has been logged where it was
-        // thrown; this only adds the file, and is not logged a second time. It names no function,
-        // as parseConfigFile() and updateConfigFile() both come here.
+        // on its defaults while the file said otherwise. This adds the file to the cause; like
+        // every error, it is logged where it is finally handled.
         throw gem_exception(
-            g_error_streamer(NO_LOG, Gem::Common::timeAndPlace())
-            << "The configuration file " << config_path.string()
-            << " could not be read or applied:" << '\n'
-            << e.what() << '\n'
+            g_error_streamer() << "The configuration file " << config_path.string()
+                               << " could not be read or applied:" << '\n'
+                               << e.what() << '\n'
         );
     }
 }
@@ -610,8 +589,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
             std::filesystem::create_directories(config_base_dir_, ec);
             if(ec) {
                 throw gem_exception(
-                    g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                    << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
+                    g_error_streamer()
                     << "Base-directory " << config_base_dir_.string()
                     << " does not exist and could not be created: " << ec.message() << '\n'
                 );
@@ -623,8 +601,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
         }
         else if(not std::filesystem::is_directory(config_base_dir_)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
+                g_error_streamer()
                 << "Base-directory " << config_base_dir_.string() << " is not a directory" << '\n'
             );
         }
@@ -656,8 +633,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
         // Is it a regular file ?
         if(not std::filesystem::is_regular_file(config_path)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
+                g_error_streamer()
                 << config_path.string() << " exists but is no regular file." << '\n'
             );
         }
@@ -666,8 +642,7 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
         if(not std::filesystem::path(config_path).has_extension() ||
            std::filesystem::path(config_path).extension() != ".json") {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParserBuilder::parseConfigFile(): Error!" << '\n'
+                g_error_streamer()
                 << config_path.string() << " does not have the required extension \".json\"" << '\n'
             );
         }
@@ -820,17 +795,14 @@ void GParserBuilder::writeConfigFile(
         // Is config_file a directory ?
         if(std::filesystem::is_directory(config_file)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
-                << config_file.string() << " is a directory." << '\n'
+                g_error_streamer() << config_file.string() << " is a directory." << '\n'
             );
         }
 
         // We do not allow to overwrite existing files
         if(std::filesystem::exists(config_file) && std::filesystem::is_regular_file(config_file)) {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
+                g_error_streamer()
                 << "You have specified an existing file (" << config_file.string() << ")." << '\n'
             );
         }
@@ -846,10 +818,8 @@ void GParserBuilder::writeConfigFile(
             if(std::filesystem::exists(target_dir)) {
                 if(not std::filesystem::is_directory(target_dir)) {
                     throw gem_exception(
-                        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                        << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
-                        << "The target path " << target_dir.string() << " is not a directory."
-                        << '\n'
+                        g_error_streamer() << "The target path " << target_dir.string()
+                                           << " is not a directory." << '\n'
                     );
                 }
             }
@@ -858,10 +828,8 @@ void GParserBuilder::writeConfigFile(
                 std::filesystem::create_directories(target_dir, ec);
                 if(ec) {
                     throw gem_exception(
-                        g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                        << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
-                        << "Could not create the target directory " << target_dir.string() << ": "
-                        << ec.message() << '\n'
+                        g_error_streamer() << "Could not create the target directory "
+                                           << target_dir.string() << ": " << ec.message() << '\n'
                     );
                 }
                 glogger << "Note: In GParserBuilder::writeConfigFile():" << '\n'
@@ -874,8 +842,7 @@ void GParserBuilder::writeConfigFile(
         // Check that the configuration file has the required extension
         if(not config_file.has_extension() || config_file.extension() != ".json") {
             throw gem_exception(
-                g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-                << "In GParserBuilder::writeConfigFile(): Error!" << '\n'
+                g_error_streamer()
                 << config_file.string() << " does not have the required extension \".json\"" << '\n'
             );
         }
@@ -885,9 +852,8 @@ void GParserBuilder::writeConfigFile(
     std::ofstream ofs(config_file);
     if(not ofs) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParserBuilder::writeConfigFile(): Error writing configuration file "
-            << config_file.string() << '\n'
+            g_error_streamer() << "Error writing configuration file " << config_file.string()
+                               << '\n'
         );
     }
 
@@ -913,10 +879,7 @@ void GParserBuilder::writeConfigFile(
 boost::json::value
 GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) const {
     if(file_parameter_proxies_.empty()) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParserBuilder::buildConfigDocument_(): No variables found!" << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "No variables found!" << '\n');
     }
 
     boost::json::object root;
@@ -969,9 +932,8 @@ void GParserBuilder::atomicReplaceConfigFile_(
     // Enforce the .json extension (matches writeConfigFile()/parseConfigFile()).
     if(not config_file.has_extension() || config_file.extension() != ".json") {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParserBuilder::atomicReplaceConfigFile_(): Error!" << '\n'
-            << config_file.string() << " does not have the required extension \".json\"" << '\n'
+            g_error_streamer() << config_file.string()
+                               << " does not have the required extension \".json\"" << '\n'
         );
     }
 
@@ -1128,9 +1090,7 @@ bool GParserBuilder::givenExplicitly(std::string const &option_name) const {
            return long_name(p_ptr->optionName(0)) == key;
        })) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GParserBuilder::givenExplicitly(): no command-line option \"" << key
-            << "\" is registered" << '\n'
+            g_error_streamer() << "no command-line option \"" << key << "\" is registered" << '\n'
         );
     }
     return given_explicitly_.contains(key);

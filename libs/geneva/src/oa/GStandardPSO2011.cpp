@@ -89,9 +89,8 @@ std::size_t GStandardPSO2011::getSwarmSize() const {
 void GStandardPSO2011::setSwarmSize(std::size_t swarm_size) {
     if(swarm_size < 2) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GStandardPSO2011::setSwarmSize(std::size_t): Error!" << '\n'
-            << "Got invalid swarm size " << swarm_size << " (need at least 2)." << '\n'
+            g_error_streamer() << "Got invalid swarm size " << swarm_size << " (need at least 2)."
+                               << '\n'
         );
     }
     swarm_size_ = swarm_size;
@@ -108,11 +107,7 @@ std::size_t GStandardPSO2011::getNInformants() const {
 
 void GStandardPSO2011::setNInformants(std::size_t n_informants) {
     if(n_informants == 0) {
-        throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GStandardPSO2011::setNInformants(std::size_t): Error!" << '\n'
-            << "Got invalid number of informants (0)." << '\n'
-        );
+        throw gem_exception(g_error_streamer() << "Got invalid number of informants (0)." << '\n');
     }
     n_informants_ = n_informants;
 }
@@ -163,10 +158,9 @@ void GStandardPSO2011::resetToOptimizationStart_() {
 void GStandardPSO2011::adjustPopulation_() {
     if(this->empty()) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GStandardPSO2011::adjustPopulation_(): Error!" << '\n'
-            << "No individuals found in the population. You need to add at least" << '\n'
-            << "one individual before the call to optimize()." << '\n'
+            g_error_streamer() << "No individuals found in the population. You need to add at least"
+                               << '\n'
+                               << "one individual before the call to optimize()." << '\n'
         );
     }
 
@@ -195,8 +189,7 @@ void GStandardPSO2011::init() {
 
     if(n_fp_parms_ == 0) {
         throw gem_exception(
-            g_error_streamer(DO_LOG, Gem::Common::timeAndPlace())
-            << "In GStandardPSO2011::init(): Error!" << '\n'
+            g_error_streamer()
             << "The individual exposes no floating point parameters; Standard PSO 2011" << '\n'
             << "requires a continuous (double / float) genome." << '\n'
         );
