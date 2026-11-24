@@ -38,10 +38,8 @@ namespace Gem::Geneva {
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * @brief The default constructor; brings the Hap random-number factory singleton online.
- *
- * Touching the singleton is all that is needed -- the factory's producer
- * threads start lazily on the first container request.
+ * @brief The default constructor. Touching the factory is all that is needed: its producer threads
+ * start at the first draw. The order of start and end: the class comment.
  */
 GenevaInitializer::GenevaInitializer() {
     // Deliberately discard the handle: constructing the singleton is the point
@@ -50,19 +48,10 @@ GenevaInitializer::GenevaInitializer() {
 
 /******************************************************************************/
 /**
- * @brief The destructor.
- *
- * Deliberately does NOT finalize the Hap random-number factory. The factory is a process-global
- * singleton (GSingletonT<GRandomFactory>) shared by every Geneva facility, and its finalize() is
- * TERMINAL -- it closes the producer/return buffers (a terminal close()) and joins the producer
- * threads, after which getNewRandomContainer() can never succeed again. A GenevaInitializer is,
- * however, NOT the exclusive owner of that singleton: it is embedded in every Go2 (as Go2::gi_), so
- * a short-lived Go2 (or any scoped GenevaInitializer) would otherwise finalize the shared factory the
- * moment it is destroyed, permanently starving all subsequent random-number consumers -- an
- * unbounded 100%-CPU spin in GRandomT::getNewRandomContainer(). The factory is instead torn down
- * exactly once, by its own singleton destructor at process exit (which joins the producers cleanly);
- * that is precisely the destruction-order guarantee GSingletonT's shared_ptr hand-out exists to
- * provide. See the regression test "destroying a GenevaInitializer keeps the process RNG alive".
+ * @brief The destructor. It does not finalize the factory: every Go2 holds a GenevaInitializer, and
+ * a short-lived one would otherwise end the factory for every later draw (the regression test
+ * "destroying a GenevaInitializer keeps the process RNG alive"). hap's lifecycle guard finalizes it
+ * at the end of the process (the class comment).
  */
 GenevaInitializer::~GenevaInitializer() = default;
 

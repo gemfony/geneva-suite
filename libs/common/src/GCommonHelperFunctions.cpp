@@ -57,6 +57,7 @@
 #include "common/GLogger.hpp"
 
 namespace {
+// The number of hardware threads, read once per process (it does not change while the process runs)
 std::mutex g_hwt_read_mutex;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<bool> g_hwt_read{false}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 std::atomic<unsigned int> g_nHardwareThreads{

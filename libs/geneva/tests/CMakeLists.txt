@@ -28,6 +28,7 @@
 ################################################################################
 
 ADD_SUBDIRECTORY ( UnitTests )
+ADD_SUBDIRECTORY ( LifetimeTests )
 ADD_SUBDIRECTORY ( ManualTests )
 IF ( GEM_BUILD_WITH_MPI_CONSUMER )
 	ADD_SUBDIRECTORY ( MPITests )

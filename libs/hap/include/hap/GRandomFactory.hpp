@@ -643,8 +643,9 @@ void setProducerStartWarningPeriodsForTests(
  * randomFactory(), which forwards to the GSingletonT<GRandomFactory> lifetime
  * manager. This type-safe, namespaced function replaces the former GRANDOMFACTORY
  * macro. The factory is thread-safe and handed out by shared_ptr, so it is created
- * once on first access and shared for the life of the process (its destructor joins
- * the producer threads at static teardown); there is deliberately no reset facility.
+ * once on first access and shared for the life of the process: it is created before
+ * main() and finalized after it by the library's lifecycle guard (GRandomFactory.cpp),
+ * which joins the producer threads; there is deliberately no reset facility.
  *
  * @return A shared_ptr to the single, global GRandomFactory instance
  */
