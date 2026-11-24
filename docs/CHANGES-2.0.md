@@ -623,32 +623,25 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   broker parallelization model; under the one-consumer model the choice is simply which
   consumer the process registers. The direct-mode examples/benchmark keep their numeric
   `--parallelizationMode 0|1|2` command-line option (now a plain integer).
-- **The three self-test hooks left the universal base and became an opt-in interface**
-  (source-breaking for any class that implemented them, and for any code that called them
-  through a base pointer). `modify_GUnitTests()`,
-  `specificTestsNoFailureExpected_GUnitTests()` and
-  `specificTestsFailuresExpected_GUnitTests()` — and their protected `*_()` counterparts —
-  are no longer members of `Gem::Common::GCommonInterfaceT`. They now live on the standalone
-  `Gem::Common::GSelfTestable` (`common/GSelfTestable.hpp`), which a class inherits
-  **unconditionally** when it has self-tests to contribute and does not inherit at all when
-  it has none. To port a class that has tests: add `, public Gem::Common::GSelfTestable` to
-  its base list and keep the `override`s exactly as they were — the signatures, the
-  `#ifdef GEM_TESTING` bodies and the `Gem::Common::condnotset()` fallbacks are unchanged.
-  A class with no tests of its own simply drops its empty implementations.
-  The **category roots deliberately do not inherit the interface**: `GGenome`,
-  `GPersonalityTraits`, `GBasePluggableOM`, `GOptimizationAlgorithmBase`,
-  `GPreEvaluationValidityCheckT`, `Gem::Dietrich::GBasePlotter` and the CRTP container
-  mixins expose their own test bodies as *protected, non-virtual helpers* instead, so a
-  derived class that opts in chains to them by qualified call exactly as before
-  (`GGenome::modify_GUnitTests_()`). Consequences worth knowing:
-  - a user individual that writes no tests carries **no** test-related vtable slots — which
-    is what makes a runtime-loadable module (compiled `-UGEM_TESTING`) layout-compatible
-    with a testing-enabled core by construction rather than by convention;
-  - code that walks a heterogeneous population must cast:
-    `if(auto *st = dynamic_cast<Gem::Common::GSelfTestable *>(p); st != nullptr) { … }` —
-    an element without the facet is skipped, which is what the old no-op default did;
-  - the templated standard-test harnesses now `static_assert` that the tested type opts in,
-    so a type cannot silently lose its round-trip coverage.
+- **The self-test hooks are gone; test code left the libraries** (source-breaking for any class
+  that implemented them). `modify_GUnitTests()`, `specificTestsNoFailureExpected_GUnitTests()`
+  and `specificTestsFailuresExpected_GUnitTests()` are no longer members of
+  `Gem::Common::GCommonInterfaceT`, and the `GEM_TESTING` macro, `common/GSelfTestable.hpp` and
+  `common/GUnitTestFrameworkT.hpp` no longer exist. The libraries contain no test code and do
+  not depend on Catch2. To port a class:
+  - its modification for the generic tests becomes an optional, public, non-virtual
+    `bool modifyForTest()`, always compiled. The roots carry one (`GGenome`,
+    `GOptimizationAlgorithmBase`, `GPositionPersonalityTraits`, `GBasePluggableOM`,
+    `GPreEvaluationValidityCheckT`, `Gem::Dietrich::GBasePlotter`); a class that adds members
+    declares its own, calls its base's and changes its own members;
+  - its `specificTests*` bodies become ordinary Catch2 test cases in its own test program;
+  - the standard tests come from the installed header `common/testing/GStandardTests.hpp`
+    (namespace `Gem::Common::Testing`: `StandardTests_no_failure_expected<T>()`,
+    `StandardTests_failures_expected<T>()`, `TFactory_GUnitTests<T>()`, `GEqualityPrinter`).
+    They find `modifyForTest()` with a `requires` expression; a type without one is tested
+    unchanged, and the round-trips that need a changed object are skipped. A specialization
+    of `TFactory_GUnitTests` is written in namespace `Gem::Common::Testing`.
+  The test individuals `GTestIndividual1/2/3` are no longer installed.
 - **A custom optimization algorithm no longer has to override `actOnStalls_()`.** The
   hook now has an empty default on `GOptimizationAlgorithmBase`; override it only when
   the algorithm actually reacts to a stall (as the parent-child EA base does).

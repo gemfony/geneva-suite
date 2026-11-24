@@ -138,13 +138,6 @@ IF(NOT COMMON_GEM_BUILD_INCLUDED)
 	# Geneva only supports shared libraries
 
 	################################################################################
-	# Set the preprocessor definition for enabling testing code
-
-	IF ( GEM_BUILD_TESTS )
-		ADD_DEFINITIONS("-DGEM_TESTING")
-	ENDIF ()
-
-	################################################################################
 	# Define the required Boost environment
 
 	SET (Boost_USE_MULTITHREAD ON)
