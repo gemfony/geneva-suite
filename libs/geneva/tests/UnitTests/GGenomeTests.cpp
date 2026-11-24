@@ -2854,8 +2854,8 @@ TEST_CASE("destroying a GenevaInitializer keeps the process RNG alive", "[go2][r
     // exercise the RNG: constructing a GRandom already pulls a fresh container from the factory, and a
     // run of draws forces at least one buffer refill. This must COMPLETE -- not hang, not throw. It
     // fails on the unfixed code (the factory reports finalized(), so the draw throws) and passes once
-    // ~GenevaInitializer() no longer finalizes the shared singleton (hap's lifecycle guard finalizes it
-    // at the end of the process; GenevaInitializer's class comment states the order).
+    // ~GenevaInitializer() no longer finalizes the shared singleton (hap's lifecycle guard finalizes
+    // it at the end of the process; GenevaInitializer's class comment states the order).
     {
         Gem::Geneva::GenevaInitializer const gi;
     } // came online here; must NOT tear the factory down at scope exit

@@ -59,16 +59,16 @@ namespace Gem::Geneva {
  *
  * @par Start
  *  1. Before main(), while the shared libraries are initialized, each after those it depends on
- *     (weft, common, then hap, courtier and dietrich, then geneva, then the program): the archive
- *     registrations in weft's registries, the algorithms in oaFactoryStore(), hap's lifecycle guard,
- *     which creates the random-number factory, and the program's stamp.
+ *     (weft, common, then hap, courtier and dietrich, then geneva, then the program): the
+ *     archive registrations in weft's registries, the algorithms in oaFactoryStore(), hap's
+ *     lifecycle guard, which creates the random-number factory, and the program's stamp.
  *  2. In main(), courtier's launcher (runOptimization(), GLauncherT::run()): the stop handlers and
  *     the fatal report, the modules (each registers its consumer providers and types), then the
  *     consumer, which it registers in GConsumerRegistryT.
  *  3. On first use: the logger, the recorder and its streams, the thread budget, the factory's
- *     producer threads (at the first draw), the lease pool of random-number proxies, the pools of
- *     the STAGED and QUARANTINE sources with their refill threads, the MPI environment, the training
- *     data of the neural-network individual.
+ *     producer threads (at the first draw), the lease pool of random-number proxies, the pools
+ *     of the STAGED and QUARANTINE sources with their refill threads, the MPI environment, the
+ *     training data of the neural-network individual.
  *
  * @par End
  *  1. In main(), when the launcher's run() ends: the consumer leaves the registry (its threads are
@@ -76,12 +76,13 @@ namespace Gem::Geneva {
  *     object end. The factory still runs: random numbers can be drawn after a run.
  *  2. After main() has returned, the statics made during main() end, the newest first: the lease
  *     pool (its proxies return their packages to the factory), the STAGED and QUARANTINE pools
- *     (their refill threads are joined), the consumer registry (with a consumer a program registered
- *     without the launcher, whose threads are joined here), the training data.
- *  3. Then the statics made before main(), the program's first and each library's before those of
- *     the libraries it depends on. hap's lifecycle guard ends after those of geneva: it finalizes the
- *     factory (closes its buffers, joins its producers and returns their reservation in the thread
- *     budget). Nothing draws random numbers after that. Then the factory itself is destroyed.
+ *     (their refill threads are joined), the consumer registry (with a consumer a program
+ *     registered without the launcher, whose threads are joined here), the training data.
+ *  3. Then the statics made before main(), the program's first and each library's before those
+ *     of the libraries it depends on. hap's lifecycle guard ends after those of geneva: it
+ *     finalizes the factory (closes its buffers, joins its producers and returns their
+ *     reservation in the thread budget). Nothing draws random numbers after that. Then the
+ *     factory itself is destroyed, when the guard lets go of it.
  *
  * @par Never destroyed
  * The logger, the recorder, the thread budget, the provider stores (algorithms, consumer providers,
@@ -91,14 +92,15 @@ namespace Gem::Geneva {
  * them. The reason stands at each definition.
  *
  * A new process-wide object states at its definition why it is process-wide and where it falls in
- * this order.
+ * this order. The test GLifetimeOrderTest runs this start and end once, in a process of its own,
+ * and checks that the factory was destroyed and every reserved thread joined.
  */
 class GenevaInitializer { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     /** @brief Makes sure the random-number factory exists (see the class comment) */
     GenevaInitializer();
 
-    /** @brief Does nothing; in particular it does not finalize the factory (see the class comment) */
+    /** @brief Does nothing; it does not finalize the factory (see the class comment) */
     ~GenevaInitializer();
 };
 
