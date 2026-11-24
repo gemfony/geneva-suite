@@ -32,6 +32,7 @@
 #include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <string>
@@ -726,6 +727,19 @@ TEST_CASE(
     plain.add(std::make_unique<TestItem>(2.0));
     plain.add(std::make_unique<TestItem>(2.0));
     CHECK(plain.size() == 2);
+}
+
+TEST_CASE(
+    "GFixedSizePriorityQueueT<shared_ptr>: the same object with a NaN evaluation is one entry",
+    "[common][priority-queue][shared]"
+) {
+    // The same object is one entry whatever its evaluation. Regression: duplicates are looked for
+    // among items of equal evaluation, and NaN equals nothing, so the second handle stayed.
+    SharedPQ pq(5);
+    auto src = std::make_shared<TestItem>(std::numeric_limits<double>::quiet_NaN());
+    pq.add(std::shared_ptr<TestItem>{src});
+    pq.add(std::shared_ptr<TestItem>{src});
+    CHECK(pq.size() == 1);
 }
 
 TEST_CASE(

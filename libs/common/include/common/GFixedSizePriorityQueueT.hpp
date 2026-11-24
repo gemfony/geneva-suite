@@ -34,6 +34,7 @@
 
 // Standard headers go here
 #include <algorithm>
+#include <cmath>
 #include <concepts>
 #include <cstddef>
 #include <iterator>
@@ -695,7 +696,8 @@ protected:
      *
      * The default is the same object (pointer storage); for value storage no two items are
      * the same entry. A derived class may widen the rule (e.g. "equal content"). Only items
-     * of equal evaluation are compared: the rule must not hold for items that differ in it.
+     * of equal evaluation (two NaN count as equal) are compared: the rule must not hold for
+     * items that differ in it.
      *
      * @param kept The stored handle of the item the queue keeps
      * @param item The stored handle of a later item of the same evaluation
@@ -820,12 +822,19 @@ private:
      * @brief Drops every entry that is the same entry (isSameEntry()) as an earlier one
      *
      * Runs on the sorted queue: items of equal evaluation stand together, and each is
-     * compared with the items kept before it in its run only.
+     * compared with the items kept before it in its run only. Two NaN evaluations count as
+     * equal, so the same object is one entry whatever its evaluation.
      */
     void removeDuplicates_() {
+        auto const equal_evaluations = [](double x, double y) {
+            return x == y || (std::isnan(x) && std::isnan(y));
+        };
         std::size_t run_begin = 0; // the first item of the current run of equal evaluations
         for(std::size_t pos = 0; pos < data_cnt_.size();) {
-            if(this->evaluation(data_cnt_[run_begin]) != this->evaluation(data_cnt_[pos])) {
+            if(not equal_evaluations(
+                   this->evaluation(data_cnt_[run_begin]),
+                   this->evaluation(data_cnt_[pos])
+               )) {
                 run_begin = pos;
             }
             auto const run = std::span(data_cnt_).subspan(run_begin, pos - run_begin);
