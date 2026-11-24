@@ -47,6 +47,7 @@
 // Boost headers go here
 // Geneva headers go here
 #include "common/GArchiveNamed.hpp" // archive_named / archive_named_base (named member / base emitters)
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -199,16 +200,13 @@ public:
 	  */
     processing_result_type
     markAsProcessedWith(std::vector<processing_result_type> const &result_cnt) {
-#ifdef DEBUG
-        // Check that we have been given a suitable new results vector
-        if(result_cnt.size() != stored_results_cnt_.size()) {
-            throw gem_exception(
-                g_error_streamer() << "Vector dimensions" << '\n'
-                                   << "do not fit: " << result_cnt.size() << " / "
-                                   << stored_results_cnt_.size() << '\n'
-            );
-        }
-#endif
+        Gem::Common::checkThat(
+            result_cnt.size() == stored_results_cnt_.size(),
+            "Vector dimensions do not fit: ",
+            result_cnt.size(),
+            " / ",
+            stored_results_cnt_.size()
+        );
 
         // Transfer the new values
         stored_results_cnt_ = result_cnt;

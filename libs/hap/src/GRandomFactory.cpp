@@ -29,6 +29,7 @@
 
 #include "hap/GRandomFactory.hpp"
 #include "GFillBackend.hpp" // library-private engine selection (GPU/SIMD/scalar) + fill seam
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -552,14 +553,7 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
                 p = std::move(*recycled);
                 // If we reach this line, we have successfully retrieved a recycled container.
                 // First do some error-checking
-#ifdef DEBUG
-                if(not p) {
-                    throw gem_exception(
-                        g_error_streamer() << "Got empty recycling pointer" << '\n'
-                    );
-                }
-
-#endif /* DEBUG */
+                Gem::Common::checkThat(nullptr != p, "Got empty recycling pointer");
 
                 // Replace "used" random numbers with new ones
                 fill(p, /*fresh=*/false);
