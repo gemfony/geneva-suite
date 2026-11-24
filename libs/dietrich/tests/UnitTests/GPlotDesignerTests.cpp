@@ -1184,32 +1184,32 @@ TEST_CASE("GDataLog reproduces the legacy plotter-object output byte-for-byte", 
 /******************************************************************************/
 // Standard GCommonInterfaceT-contract tests: every plotter / designer / decorator is run through the
 // construction / clone / load / (de-)serialization round-trips of the installed harness
-// (common/testing/GStandardTests.hpp). TFactory_GUnitTests<T>() is specialized for the types without a
+// (common/testing/GStandardTests.hpp). makeTestObject<T>() is specialized for the types without a
 // public default constructor.
 
 namespace Gem::Common::Testing {
 
 template <>
-std::shared_ptr<GHistogram1D> TFactory_GUnitTests<GHistogram1D>() {
+std::shared_ptr<GHistogram1D> makeTestObject<GHistogram1D>() {
     return std::make_shared<GHistogram1D>(std::size_t(20));
 }
 template <>
-std::shared_ptr<GHistogram1I> TFactory_GUnitTests<GHistogram1I>() {
+std::shared_ptr<GHistogram1I> makeTestObject<GHistogram1I>() {
     return std::make_shared<GHistogram1I>(std::size_t(20), 0.0, 10.0);
 }
 template <>
-std::shared_ptr<GHistogram2D> TFactory_GUnitTests<GHistogram2D>() {
+std::shared_ptr<GHistogram2D> makeTestObject<GHistogram2D>() {
     return std::make_shared<GHistogram2D>(std::size_t(20), std::size_t(20));
 }
 template <>
-std::shared_ptr<GFunctionPlotter1D> TFactory_GUnitTests<GFunctionPlotter1D>() {
+std::shared_ptr<GFunctionPlotter1D> makeTestObject<GFunctionPlotter1D>() {
     return std::make_shared<GFunctionPlotter1D>(
         std::string("x"),
         std::tuple<double, double>(-1.0, 1.0)
     );
 }
 template <>
-std::shared_ptr<GFunctionPlotter2D> TFactory_GUnitTests<GFunctionPlotter2D>() {
+std::shared_ptr<GFunctionPlotter2D> makeTestObject<GFunctionPlotter2D>() {
     return std::make_shared<GFunctionPlotter2D>(
         std::string("x*y"),
         std::tuple<double, double>(-1.0, 1.0),
@@ -1217,7 +1217,7 @@ std::shared_ptr<GFunctionPlotter2D> TFactory_GUnitTests<GFunctionPlotter2D>() {
     );
 }
 template <>
-std::shared_ptr<GPlotDesigner> TFactory_GUnitTests<GPlotDesigner>() {
+std::shared_ptr<GPlotDesigner> makeTestObject<GPlotDesigner>() {
     return std::make_shared<GPlotDesigner>(
         std::string("test canvas"),
         std::size_t(1),
@@ -1225,7 +1225,7 @@ std::shared_ptr<GPlotDesigner> TFactory_GUnitTests<GPlotDesigner>() {
     );
 }
 template <>
-std::shared_ptr<GMarker<double>> TFactory_GUnitTests<GMarker<double>>() {
+std::shared_ptr<GMarker<double>> makeTestObject<GMarker<double>>() {
     return std::make_shared<GMarker<double>>(
         std::tuple<double, double>(0.0, 0.0),
         gMarker::closedCircle,
@@ -1255,7 +1255,7 @@ TEMPLATE_TEST_CASE(
     GDecoratorContainer_2D<double>
 ) {
     STATIC_REQUIRE(Gem::Common::Testing::ModifiableForTest<TestType>);
-    Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
+    Gem::Common::Testing::checkRoundTrips<TestType>();
 }
 
 /******************************************************************************/
@@ -1276,7 +1276,7 @@ TEMPLATE_TEST_CASE(
     GMarker<double>,
     GDecoratorContainer_2D<double>
 ) {
-    Gem::Common::Testing::StandardTests_failures_expected<TestType>();
+    Gem::Common::Testing::checkMisuse<TestType>();
 }
 
 /******************************************************************************/

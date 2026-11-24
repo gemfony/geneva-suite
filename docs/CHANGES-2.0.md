@@ -638,11 +638,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     declares its own, calls its base's and changes its own members;
   - its `specificTests*` bodies become ordinary Catch2 test cases in its own test program;
   - the standard tests come from the installed header `common/testing/GStandardTests.hpp`
-    (namespace `Gem::Common::Testing`: `StandardTests_no_failure_expected<T>()`,
-    `StandardTests_failures_expected<T>()`, `TFactory_GUnitTests<T>()`, `GEqualityPrinter`).
+    (namespace `Gem::Common::Testing`: `checkRoundTrips<T>()`,
+    `checkMisuse<T>()`, `makeTestObject<T>()`, `GEqualityPrinter`).
     They find `modifyForTest()` with a `requires` expression; a type without one is tested
     unchanged, and the round-trips that need a changed object are skipped. A specialization
-    of `TFactory_GUnitTests` is written in namespace `Gem::Common::Testing`.
+    of `makeTestObject` is written in namespace `Gem::Common::Testing`.
   The test individuals `GTestIndividual1/2/3` are no longer installed.
 - **A custom optimization algorithm no longer has to override `actOnStalls_()`.** The
   hook now has an empty default on `GOptimizationAlgorithmBase`; override it only when

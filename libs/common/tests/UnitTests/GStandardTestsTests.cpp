@@ -241,38 +241,38 @@ TEST_CASE(
     "GStandardTests: the standard tests pass for types with and without modifyForTest()",
     "[common][standard-tests]"
 ) {
-    StandardTests_no_failure_expected<Root>();
-    StandardTests_no_failure_expected<Derived>();
-    StandardTests_no_failure_expected<Unchangeable>();
-    StandardTests_failures_expected<Root>();
-    StandardTests_failures_expected<Derived>();
-    StandardTests_failures_expected<Unchangeable>();
+    checkRoundTrips<Root>();
+    checkRoundTrips<Derived>();
+    checkRoundTrips<Unchangeable>();
+    checkMisuse<Root>();
+    checkMisuse<Derived>();
+    checkMisuse<Unchangeable>();
 }
 
 /******************************************************************************/
 
 TEST_CASE(
-    "TFactory_GUnitTests: a default-constructible T gives a populated pointer",
+    "makeTestObject: a default-constructible T gives a populated pointer",
     "[common][standard-tests]"
 ) {
-    auto p = TFactory_GUnitTests<Plain>();
+    auto p = makeTestObject<Plain>();
     REQUIRE(p);
     CHECK(p->v == 99);
 }
 
 TEST_CASE(
-    "TFactory_GUnitTests: a gem_exception from the constructor propagates unchanged",
+    "makeTestObject: a gem_exception from the constructor propagates unchanged",
     "[common][standard-tests]"
 ) {
-    CHECK_THROWS_AS(TFactory_GUnitTests<ThrowsGem>(), gem_exception);
+    CHECK_THROWS_AS(makeTestObject<ThrowsGem>(), gem_exception);
 }
 
 TEST_CASE(
-    "TFactory_GUnitTests: another exception is wrapped in a gem_exception",
+    "makeTestObject: another exception is wrapped in a gem_exception",
     "[common][standard-tests]"
 ) {
     try {
-        TFactory_GUnitTests<ThrowsOther>();
+        makeTestObject<ThrowsOther>();
         FAIL("expected gem_exception to be thrown");
     }
     catch(gem_exception const &g) {
