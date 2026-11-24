@@ -313,6 +313,46 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// compare(): a container of containers, compared row by row.
+
+TEST_CASE(
+    "compare<vector<vector<double>>>: rows are compared with the similarity limit",
+    "[common][expectations][compare]"
+) {
+    std::vector<std::vector<double>> const a{{1.0, 2.0}, {3.0}};
+    std::vector<std::vector<double>> const near{{1.0 + 1e-7, 2.0}, {3.0}};
+    std::vector<std::vector<double>> const far{{1.0, 2.0}, {3.5}};
+    std::vector<std::vector<double>> const short_rows{{1.0, 2.0}};
+    CHECK_NOTHROW(compare(a, near, "a", "near", expectation::FP_SIMILARITY, 1e-5));
+    CHECK_THROWS_AS(
+        compare(a, far, "a", "far", expectation::FP_SIMILARITY, 1e-5),
+        g_expectation_violation
+    );
+    CHECK_THROWS_AS(
+        compare(a, short_rows, "a", "short_rows", expectation::EQUALITY),
+        g_expectation_violation
+    );
+    CHECK_NOTHROW(compare(a, far, "a", "far", expectation::INEQUALITY));
+    CHECK_THROWS_AS(compare(a, a, "a", "a", expectation::INEQUALITY), g_expectation_violation);
+}
+
+TEST_CASE(
+    "compare<vector<vector<bool>>>: a differing row is reported by its index",
+    "[common][expectations][compare]"
+) {
+    std::vector<std::vector<bool>> const a{{true, false}, {false, false}};
+    std::vector<std::vector<bool>> const b{{true, false}, {false, true}};
+    CHECK_NOTHROW(compare(a, a, "a", "a", expectation::EQUALITY));
+    try {
+        compare(a, b, "a", "b", expectation::EQUALITY);
+        FAIL("the differing row was not found");
+    }
+    catch(g_expectation_violation const &e) {
+        CHECK(std::string(e.what()).find("a[1]") != std::string::npos);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // compare(): GCommonInterfaceT-derived objects via the gem_type overload.
 // A tiny GCommonInterfaceT-derivative is enough.
 
