@@ -3016,3 +3016,39 @@ TEST_CASE(
 // NOTE: the former "GGridArchitecture reads a TREE genome identically" case was removed when the
 // tree hierarchy was deleted. The "[flat][architecture]" case above already proves the
 // architecture is layout-agnostic by reading the genome purely through the §2 streamlineFP() seam.
+
+/******************************************************************************/
+
+TEST_CASE(
+    "GGenome: the maximization mode and the assigned iteration can be set and read",
+    "[flat]"
+) {
+    Sphere p_test(3);
+
+    CHECK_NOTHROW(p_test.setMaxMode(maxMode::MAXIMIZE));
+    CHECK(p_test.getMaxMode() == maxMode::MAXIMIZE);
+    CHECK_NOTHROW(p_test.setMaxMode(maxMode::MINIMIZE));
+    CHECK(p_test.getMaxMode() == maxMode::MINIMIZE);
+
+    for(std::uint32_t i = 1; i < 10; i++) {
+        CHECK_NOTHROW(p_test.setAssignedIteration(i));
+        CHECK(p_test.getAssignedIteration() == i);
+    }
+}
+
+TEST_CASE("GGenome::modifyForTest changes the genome", "[flat]") {
+    Sphere original(3);
+    Sphere changed(original);
+    CHECK(changed.modifyForTest());
+    CHECK(changed.getAssignedIteration() == original.getAssignedIteration() + 1);
+    CHECK_THROWS_AS(
+        changed.compare(
+            original,
+            Gem::Common::expectation::EQUALITY,
+            Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
+        ),
+        g_expectation_violation
+    );
+}
+
+/******************************************************************************/

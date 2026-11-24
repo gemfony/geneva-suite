@@ -185,7 +185,7 @@ bool GTestIndividual2::modify_GUnitTests_() {
     bool result = false;
 
     // Call the parent classes' functions
-    if(gen::GGenome::modify_GUnitTests_()) {
+    if(gen::GGenome::modifyForTest()) {
         result = true;
     }
 

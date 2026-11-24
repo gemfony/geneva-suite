@@ -267,7 +267,7 @@ protected:
      */
     bool modify_GUnitTests_() override {
 #ifdef GEM_TESTING
-        return GOptimizationAlgorithmBase::modify_GUnitTests_();
+        return GOptimizationAlgorithmBase::modifyForTest();
 #else  /* GEM_TESTING */
         Gem::Common::condnotset("GNelderMead::modify_GUnitTests", "GEM_TESTING");
         return false;

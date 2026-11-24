@@ -519,7 +519,7 @@ bool GAntColonyOptimization::modify_GUnitTests_() {
 #ifdef GEM_TESTING
     bool result = false;
 
-    if(GOptimizationAlgorithmBase::modify_GUnitTests_()) {
+    if(GOptimizationAlgorithmBase::modifyForTest()) {
         result = true;
     }
 

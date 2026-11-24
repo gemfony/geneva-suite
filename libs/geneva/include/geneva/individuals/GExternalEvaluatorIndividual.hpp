@@ -285,7 +285,7 @@ protected:
      */
     bool modify_GUnitTests_() override {
 #ifdef GEM_TESTING
-        return gen::GGenome::modify_GUnitTests_();
+        return gen::GGenome::modifyForTest();
 #else  /* GEM_TESTING */
         Gem::Common::condnotset("GExternalEvaluatorIndividual::modify_GUnitTests", "GEM_TESTING");
         return false;

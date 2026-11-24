@@ -74,6 +74,7 @@
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
 #include "Geneva_tests.hpp"
+#include "common/testing/GStandardTests.hpp"
 
 using namespace Gem::Geneva;
 
@@ -204,6 +205,30 @@ void provideNeuralNetworkTrainingData() {
     });
 }
 
+/** @brief Runs the standard tests through the harness that fits T: the old one for a type that still
+ *  carries the GSelfTestable facet, the installed one (finding modifyForTest()) for the others. */
+template <typename T>
+void runStandardTestsNoFailureExpected() {
+    if constexpr(std::derived_from<T, Gem::Common::GSelfTestable>) {
+        Gem::Geneva::Tests::StandardTests_no_failure_expected<T>();
+    }
+    else {
+        static_assert(Gem::Common::Testing::modifiable_for_test<T>);
+        Gem::Common::Testing::StandardTests_no_failure_expected<T>();
+    }
+}
+
+/** @brief The failures-expected counterpart of runStandardTestsNoFailureExpected(). */
+template <typename T>
+void runStandardTestsFailuresExpected() {
+    if constexpr(std::derived_from<T, Gem::Common::GSelfTestable>) {
+        Gem::Geneva::Tests::StandardTests_failures_expected<T>();
+    }
+    else {
+        Gem::Common::Testing::StandardTests_failures_expected<T>();
+    }
+}
+
 } // anonymous namespace
 
 TEST_CASE(
@@ -246,7 +271,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     trait_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    runStandardTestsNoFailureExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -257,7 +282,7 @@ TEMPLATE_LIST_TEST_CASE(
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
         provideNeuralNetworkTrainingData();
     }
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    runStandardTestsNoFailureExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -265,7 +290,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     constraint_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    runStandardTestsNoFailureExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -273,7 +298,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     algorithm_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    runStandardTestsNoFailureExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -281,7 +306,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     monitor_types
 ) {
-    Gem::Geneva::Tests::StandardTests_no_failure_expected<TestType>();
+    runStandardTestsNoFailureExpected<TestType>();
 }
 
 // ============================================================================
@@ -293,7 +318,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     trait_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    runStandardTestsFailuresExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -304,7 +329,7 @@ TEMPLATE_LIST_TEST_CASE(
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
         provideNeuralNetworkTrainingData();
     }
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    runStandardTestsFailuresExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -312,7 +337,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     constraint_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    runStandardTestsFailuresExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -320,7 +345,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     algorithm_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    runStandardTestsFailuresExpected<TestType>();
 }
 
 TEMPLATE_LIST_TEST_CASE(
@@ -328,7 +353,7 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     monitor_types
 ) {
-    Gem::Geneva::Tests::StandardTests_failures_expected<TestType>();
+    runStandardTestsFailuresExpected<TestType>();
 }
 
 // ============================================================================

@@ -555,29 +555,18 @@ std::string GGenome::toCSV(
 
 /******************************************************************************/
 /**
- * @brief Applies modifications to this object. This is needed for testing purposes.
- * @return true if modifications were made, false otherwise
+ * @brief Changes this genome for the standard tests: its parameter values and its assigned iteration.
+ * @return Whether the genome was changed (always true)
  */
-bool GGenome::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    if(this->randomInit(activityMode::ALLPARAMETERS)) {
-        result = true;
-    }
+bool GGenome::modifyForTest() {
+    this->randomInit(activityMode::ALLPARAMETERS);
 
     // Guarantee an observable change to a compared member even for individuals with no randomisable
     // parameters (e.g. GDelayIndividual), so the clone-independence / serialize-round-trip tests remain
     // meaningful. This bumps assigned_iteration_ (a compared base member) -- the data-oriented successor
     // of the old n_stalls_ bump, which was retired when stall bookkeeping moved wholly onto the OA.
     this->setAssignedIteration(this->getAssignedIteration() + 1);
-    result = true;
-
-    return result;
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GGenome::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/
@@ -608,8 +597,6 @@ void GGenome::specificTestsNoFailureExpected_GUnitTests_() {
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-
 /******************************************************************************/
 // ---- Processing, evaluation results, fitness and problem policy ----
 

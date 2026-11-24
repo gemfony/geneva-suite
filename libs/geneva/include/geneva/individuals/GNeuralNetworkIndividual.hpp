@@ -1009,7 +1009,7 @@ protected:
      */
     bool modify_GUnitTests_() override {
 #ifdef GEM_TESTING
-        gen::GGenome::modify_GUnitTests_();
+        gen::GGenome::modifyForTest();
         t_f_ =
             (t_f_ == transferFunction::SIGMOID) ? transferFunction::RBF : transferFunction::SIGMOID;
         return true;

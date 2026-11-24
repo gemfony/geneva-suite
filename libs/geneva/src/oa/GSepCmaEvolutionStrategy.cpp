@@ -49,10 +49,6 @@
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GParetoTools.hpp"
 
-#ifdef GEM_TESTING
-#include <catch2/catch_test_macros.hpp>
-#endif /* GEM_TESTING */
-
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GSepCmaEvolutionStrategy) // NOLINT
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -646,64 +642,16 @@ std::shared_ptr<GPersonalityTraits> GSepCmaEvolutionStrategy::getPersonalityTrai
 
 /******************************************************************************/
 /**
- * Applies modifications to this object. This is needed for testing purposes.
+ * Changes this algorithm for the standard tests: the base's change, the initial sigma and the
+ * diagonal-CMA switch.
+ *
+ * @return Whether the algorithm was changed (always true)
  */
-bool GSepCmaEvolutionStrategy::modify_GUnitTests_() {
-#ifdef GEM_TESTING
-    bool result = false;
-
-    if(GOptimizationAlgorithmBase::modify_GUnitTests_()) {
-        result = true;
-    }
-
+bool GSepCmaEvolutionStrategy::modifyForTest() {
+    GOptimizationAlgorithmBase::modifyForTest();
     this->setInitialSigma(this->getInitialSigma() + 0.1);
     this->setUseDiagonalCMA(not this->getUseDiagonalCMA());
-    result = true;
-
-    return result;
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset("GSepCmaEvolutionStrategy::modify_GUnitTests", "GEM_TESTING");
-    return false;
-#endif /* GEM_TESTING */
-}
-
-/******************************************************************************/
-/**
- * Performs self tests that are expected to succeed. This is needed for testing purposes.
- */
-// NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- self-test entry point for GSepCmaEvolutionStrategy: a sequence of independent, self-scoped CHECK blocks, one per sep-CMA strategy-parameter scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-void GSepCmaEvolutionStrategy::specificTestsNoFailureExpected_GUnitTests_() {
-#ifdef GEM_TESTING
-
-    { // Test setting and retrieval of basic strategy parameters
-        auto const p_test = this->clone<GSepCmaEvolutionStrategy>();
-
-        CHECK_NOTHROW(p_test->setLambda(20));
-        CHECK(p_test->getLambda() == 20);
-
-        CHECK_NOTHROW(p_test->setMu(7));
-        CHECK(p_test->getMu() == 7);
-
-        CHECK_NOTHROW(p_test->setUseDiagonalCMA(false));
-        CHECK(p_test->getUseDiagonalCMA() == false);
-
-        CHECK_NOTHROW(p_test->setParetoMode(true));
-        CHECK(p_test->getParetoMode() == true);
-
-        CHECK_NOTHROW(p_test->setInitialSigma(0.5));
-        CHECK(std::abs(p_test->getInitialSigma() - 0.5) < 1.e-9);
-    }
-
-    { // Setting an invalid initial sigma must throw
-        auto const p_test = this->clone<GSepCmaEvolutionStrategy>();
-        CHECK_THROWS(p_test->setInitialSigma(-1.));
-    }
-#else  /* GEM_TESTING */
-    Gem::Common::condnotset(
-        "GSepCmaEvolutionStrategy::specificTestsNoFailureExpected_GUnitTests",
-        "GEM_TESTING"
-    );
-#endif /* GEM_TESTING */
+    return true;
 }
 
 /******************************************************************************/

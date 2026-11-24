@@ -108,6 +108,7 @@ gem_common_test(GSerializationHelperFunctionsTTests
                                                   S  GSerializationHelperFunctionsTTests.cpp)
 gem_common_test(GSerializeTupleTTests          S  GSerializeTupleTTests.cpp)
 gem_common_test(GSingletonTTests               S  GSingletonTTests.cpp)
+gem_common_test(GStandardTestsTests            S  GStandardTestsTests.cpp)
 gem_common_test(GThreadGroupTests              S  GThreadGroupTests.cpp)
 gem_common_test(GThreadPoolTests               S  GThreadPoolTests.cpp)
 gem_common_test(GTupleIOTests                  S  GTupleIOTests.cpp)

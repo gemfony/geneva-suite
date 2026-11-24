@@ -412,6 +412,13 @@ public:
     }
 
     /***************************************************************************/
+    /** @brief Changes this genome for the standard tests (common/testing/GStandardTests.hpp): its
+     *  parameter values and its assigned iteration. A genome that adds members calls this function
+     *  and changes its own.
+     *  @return Whether the genome was changed (always true) */
+    bool modifyForTest();
+
+    /***************************************************************************/
     // Deleted functions
 
     explicit GGenome(float const &) = delete;  ///< Intentionally undefined
@@ -427,8 +434,6 @@ protected:
     /** @brief Random initialization of the genome's parameter values. */
     virtual bool randomInit_(activityMode const &am);
 
-    /** @brief Applies modifications to this object. This is needed for testing purposes */
-    bool modify_GUnitTests_();
     /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
     void specificTestsNoFailureExpected_GUnitTests_();
 
