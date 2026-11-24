@@ -41,12 +41,15 @@
 
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <span>
 #include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
+
+#include <unistd.h> // getpid(): a scratch directory of this process
 
 #include "dietrich/GPlotDesigner.hpp"
 #include "dietrich/plotting/detail/GPlotDetail.hpp" // emitRootLegend(), tested directly
@@ -2532,4 +2535,27 @@ TEST_CASE(
     // Without a canvas label there is nothing to size.
     gpd.setShowCanvasLabel(false);
     CHECK_FALSE(gpd.plot().contains("canvasTitle"));
+}
+
+/******************************************************************************/
+// writeToFile() did not look at its stream: a file it could not open (a directory that does not
+// exist, an empty name) was left unwritten without a word, and the caller believed the plot saved.
+TEST_CASE("writeToFile refuses a file it cannot write", "[plotting]") {
+    auto g = std::make_shared<GGraph2D>();
+    (*g) & std::tuple<double, double>(1.0, 2.0);
+    GPlotDesigner gpd("a figure", 1, 1);
+    gpd.registerPlotter(g);
+
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path() / ("dietrich-write-" + std::to_string(::getpid()));
+    std::filesystem::create_directories(dir);
+    CHECK_THROWS_AS(gpd.writeToFile(dir / "no-such-directory" / "figure.C"), gem_exception);
+    CHECK_THROWS_AS(gpd.writeToFile(std::filesystem::path{}), gem_exception);
+
+    // A file that can be written is written in full.
+    const std::filesystem::path file = dir / "figure.C";
+    gpd.writeToFile(file);
+    REQUIRE(std::filesystem::exists(file));
+    CHECK(std::filesystem::file_size(file) == gpd.plot(file).size());
+    std::filesystem::remove_all(dir);
 }
