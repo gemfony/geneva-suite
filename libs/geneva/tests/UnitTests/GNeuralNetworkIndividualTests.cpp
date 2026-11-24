@@ -42,6 +42,7 @@
 
 #include <array>
 #include <cctype>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -198,5 +199,30 @@ TEST_CASE(
         ind.writeVisualizationFile((dir / "no-such-directory" / "visualization.C").string()),
         gem_exception
     );
+    std::filesystem::remove_all(dir);
+}
+
+/******************************************************************************/
+// The C++ header writeTrainedNetwork() writes declared its loop counters `register`, a storage
+// class removed in C++17: clang refused the header, gcc warned. The header is compiled here as a
+// user's program would compile it, with the compiler of this build, as C++17 and with warnings as
+// errors.
+TEST_CASE("The header of the trained network compiles as C++17", "[individuals][nn]") {
+    GNeuralNetworkIndividual ind = makeIndividual();
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path() / ("geneva-nn-header-" + std::to_string(::getpid()));
+    std::filesystem::create_directories(dir);
+    const std::filesystem::path header = dir / "trainedNetwork.hpp";
+    const std::filesystem::path log = dir / "compile.log";
+    ind.writeTrainedNetwork(header.string());
+
+    const std::string command = std::string("\"") + GENEVA_TEST_CXX_COMPILER +
+                                "\" -std=c++17 -fsyntax-only -Werror -x c++ \"" + header.string() +
+                                "\" > \"" + log.string() + "\" 2>&1";
+    const int status =
+        std::system(command.c_str()); // NOLINT(cert-env33-c): the build's own compiler
+    std::ifstream in(log);
+    INFO(std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()));
+    CHECK(status == 0);
     std::filesystem::remove_all(dir);
 }

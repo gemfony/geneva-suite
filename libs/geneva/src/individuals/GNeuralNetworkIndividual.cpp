@@ -816,8 +816,8 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
            << "    bool network(const std::vector<double>& in, std::vector<double>& out){" << '\n'
            << "      double node_result=0.;" << '\n'
            << '\n'
-           << "      register std::size_t node_counter = 0;" << '\n'
-           << "      register std::size_t prev_node_counter = 0;" << '\n'
+           << "      std::size_t node_counter = 0;" << '\n'
+           << "      std::size_t prev_node_counter = 0;" << '\n'
            << '\n'
            << "      const std::size_t n_layers = " << n_d_->size() << ";" << '\n'
            << "      const std::size_t architecture[n_layers] = {" << '\n';
@@ -889,7 +889,7 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
            << "      }" << '\n'
            << '\n'
            << "      // All other layers" << '\n'
-           << "      for(register std::size_t layer_counter=1; layer_counter<n_layers; "
+           << "      for(std::size_t layer_counter=1; layer_counter<n_layers; "
               "layer_counter++){"
            << '\n'
            << "        std::vector<double> current_results;" << '\n'

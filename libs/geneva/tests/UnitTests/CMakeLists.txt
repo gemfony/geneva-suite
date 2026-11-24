@@ -124,7 +124,10 @@ TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE
 	"GENEVA_TEST_MODULE_MNEMONIC_MISMATCH=\"$<TARGET_FILE:GMnemonicMismatchModule>\""
 	# A perfectly good shared library that is not a Geneva module at all -- the "you pointed me at
 	# something else" path. Geneva's own library is the one guaranteed to be there.
-	"GENEVA_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${GENEVA_LIBNAME}>\"")
+	"GENEVA_TEST_NOT_A_MODULE=\"$<TARGET_FILE:${GENEVA_LIBNAME}>\""
+	# The compiler of this build: a test compiles the C++ header GNeuralNetworkIndividual writes for
+	# the trained network, as a user's program would.
+	"GENEVA_TEST_CXX_COMPILER=\"${CMAKE_CXX_COMPILER}\"")
 
 #
 # CTest registration: the binary is registered as SHARDS, not as one entry.
