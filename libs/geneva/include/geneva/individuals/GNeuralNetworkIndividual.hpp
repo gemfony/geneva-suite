@@ -59,7 +59,6 @@
 #include "common/GGlobalOptionsT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GSingletonT.hpp"
-#include "common/GUnitTestFrameworkT.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeArchitecture.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"

@@ -142,7 +142,6 @@ FOREACH(_module stc needy foreign)
 	# A module links nothing: it resolves the libraries in the program (ENABLE_EXPORTS)
 	TARGET_INCLUDE_DIRECTORIES(${_target} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 		$<TARGET_PROPERTY:courtier-test-support,INTERFACE_INCLUDE_DIRECTORIES>)
-	TARGET_COMPILE_OPTIONS(${_target} PRIVATE -UGEM_TESTING)
 	ADD_DEPENDENCIES(GCourtierLauncherTests ${_target})
 ENDFOREACH()
 # The foreign module lies under another name, so that it is no consumer module of the tests
@@ -158,7 +157,6 @@ IF(GEM_GPU_CONSUMER_ENABLED)
 	SET_TARGET_PROPERTIES(gem_launcher_gpu PROPERTIES PREFIX "lib" OUTPUT_NAME gem_launcher_gpu_gpu)
 	TARGET_INCLUDE_DIRECTORIES(gem_launcher_gpu PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}
 		$<TARGET_PROPERTY:courtier-test-support,INTERFACE_INCLUDE_DIRECTORIES>)
-	TARGET_COMPILE_OPTIONS(gem_launcher_gpu PRIVATE -UGEM_TESTING)
 	ADD_DEPENDENCIES(GCourtierLauncherGpuTests gem_launcher_gpu)
 	TARGET_COMPILE_DEFINITIONS(GCourtierLauncherGpuTests PRIVATE
 		GEM_LAUNCHER_TEST_MODULE_DIR="$<TARGET_FILE_DIR:gem_launcher_gpu>")

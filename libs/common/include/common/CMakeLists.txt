@@ -62,7 +62,6 @@ SET ( COMMONINCLUDES
 	GProviderT.hpp
 	GRecordLogTarget.hpp
 	GReflectiveInterfaceT.hpp
-	GSelfTestable.hpp
 	GSerializableFunctionObjectT.hpp
 	GSerializationHelperFunctionsT.hpp
 	GSingletonT.hpp
@@ -70,7 +69,6 @@ SET ( COMMONINCLUDES
 	GTupleIO.hpp
 	GTypeToStringT.hpp
 	GTypeTraitsT.hpp
-	GUnitTestFrameworkT.hpp
 )
 
 # The concurrency facilities (thread pool/group + MPMC queues) live in a distinct

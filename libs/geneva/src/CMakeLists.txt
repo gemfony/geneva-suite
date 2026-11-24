@@ -163,20 +163,6 @@ TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PUBLIC ${DIETRICH_LIBNAME})
 # link-time requirement here. (The module loader itself is common's.)
 TARGET_LINK_LIBRARIES(${GENEVA_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})
 
-IF ( GEM_BUILD_TESTS )
-	# When built with testing support (-DGEM_TESTING), the library embeds
-	# Catch2-based test scaffolding (GTestIndividual*, GUnitTestFrameworkT) and
-	# therefore references Catch2 symbols. Consumers of such a testing-enabled
-	# install must link Catch2 too, so the requirement is propagated through the
-	# public interface (both in-tree and exported). The installed config package
-	# re-finds Catch2 accordingly (see GenevaConfig.cmake.in / GENEVA_TESTING).
-	TARGET_LINK_LIBRARIES(
-		${GENEVA_LIBNAME}
-		INTERFACE
-		Catch2::Catch2
-	)
-ENDIF ()
-
 INSTALL ( TARGETS ${GENEVA_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )
 
 ################################################################################

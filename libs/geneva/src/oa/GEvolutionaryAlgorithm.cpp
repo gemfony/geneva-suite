@@ -844,10 +844,6 @@ bool GType::modifyForTest() {
 
 /******************************************************************************/
 
-// NOLINTNEXTLINE(readability-function-size) -- self-test entry point for GEvolutionaryAlgorithm: a sequence of independent, self-scoped CHECK blocks, one per EA-specific population/recombination scenario; same one-function-per-test-phase convention used identically across every OA self-test in this codebase
-
-/******************************************************************************/
-
 std::ostream &operator<<(std::ostream &os, const GEvolutionaryAlgorithm &pop) {
     os << '\n' << '\n';
     for(auto it = pop.begin(); it != pop.begin() + pop.getNParents(); ++it) {

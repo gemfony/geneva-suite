@@ -79,8 +79,6 @@
 # GENEVA_LIBS                 - The bare library names (not paths) that were found, for
 #                               linking (the MPI module, loaded at run time, is not one)
 # GENEVA_VERSION              - The Geneva version found by this module
-# GENEVA_TESTING              - TRUE if the libraries were built with testing support
-#                               (the same build-flavor variable the config package exports)
 # GENEVA_MPI                  - TRUE if the installation has the MPI consumer (both MPI
 #                               libraries were found), as the config package exports it
 # GENEVA_GPU                  - TRUE if the installation has the GPU consumer (its backends
@@ -240,40 +238,6 @@ IF (GENEVA_INCLUDE_DIR)
 	ENDIF ()
 ENDIF ()
 
-###############################################################################
-# Determine if Geneva was built with testing support
-
-# A Geneva built with testing support embeds Catch2-based scaffolding in the
-# geneva library and references Catch2 symbols. We approximate the test build
-# by probing the installed library for a Catch2 symbol; Geneva::geneva then
-# carries Catch2::Catch2, as the config package's target does.
-#
-# This mirrors the GENEVA_TESTING variable the config package records exactly at
-# generate time. Here it can only be inferred, so the probe answers
-# conservatively: when the library cannot be inspected at all (no nm, no
-# readable library) the flavor stays unknown and the variable reads FALSE. A
-# consumer gating optional test code on it therefore skips rather than builds
-# something that would throw -- which is the safe direction.
-SET (GENEVA_TESTING "FALSE")
-IF (GENEVA_GENEVA_LIBRARY)
-	EXECUTE_PROCESS(
-		COMMAND ${CMAKE_NM} -D --defined-only "${GENEVA_GENEVA_LIBRARY}"
-		OUTPUT_VARIABLE _GENEVA_NM_OUT
-		ERROR_QUIET
-	)
-	IF (NOT _GENEVA_NM_OUT)
-		# CMAKE_NM may be unset for the active toolchain; fall back to plain nm.
-		EXECUTE_PROCESS(
-			COMMAND nm -D --defined-only "${GENEVA_GENEVA_LIBRARY}"
-			OUTPUT_VARIABLE _GENEVA_NM_OUT
-			ERROR_QUIET
-		)
-	ENDIF ()
-	IF (_GENEVA_NM_OUT MATCHES "Catch")
-		SET (GENEVA_TESTING "TRUE")
-	ENDIF ()
-ENDIF ()
-
 # The GPU consumer's backends are compiled into the courtier library when the installation has
 # the GPU consumer; its headers are installed in any case. The config package records this at
 # generate time; here the library is probed for the entry point of the CUDA driver
@@ -384,12 +348,7 @@ IF (GENEVA_FOUND)
 		)
 	ENDIF ()
 
-	# A testing-enabled libgemfony-geneva references Catch2 symbols (see GENEVA_TESTING above).
 	SET (_GENEVA_GENEVA_LINKS "Geneva::hap;Geneva::courtier;Geneva::dietrich")
-	IF (GENEVA_TESTING)
-		FIND_DEPENDENCY (Catch2 3)
-		LIST (APPEND _GENEVA_GENEVA_LINKS "Catch2::Catch2")
-	ENDIF ()
 
 	IF (NOT TARGET Geneva::geneva)
 		ADD_LIBRARY (Geneva::geneva UNKNOWN IMPORTED)
@@ -427,17 +386,6 @@ IF (GENEVA_FOUND)
 		Geneva::dietrich
 		Geneva::common
 	)
-ENDIF ()
-
-###############################################################################
-# Report the results
-
-IF (GENEVA_FOUND AND NOT Geneva_FIND_QUIETLY)
-	IF (GENEVA_TESTING)
-		MESSAGE(STATUS "Geneva: built with testing support")
-	ELSE ()
-		MESSAGE(STATUS "Geneva: built without testing support")
-	ENDIF ()
 ENDIF ()
 
 ###############################################################################

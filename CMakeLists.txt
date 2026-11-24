@@ -703,17 +703,6 @@ INSTALL(
 	FILE GenevaTargets.cmake
 )
 
-# Record whether this install was built with testing support, so the config
-# package can report the build flavor to consumers as GENEVA_TESTING: a
-# testing-enabled libgemfony-geneva references Catch2 symbols and must re-find
-# Catch2, and only a testing-enabled install carries working self-test hook
-# bodies for a consumer to drive (see GenevaConfig.cmake.in).
-IF (GEM_BUILD_TESTS)
-	SET(GEM_INSTALLED_WITH_TESTING TRUE)
-ELSE ()
-	SET(GEM_INSTALLED_WITH_TESTING FALSE)
-ENDIF ()
-
 # Record whether this install was built with the MPI consumer: Geneva::courtier-mpi (and the MPI
 # module) then carry MPI::MPI_CXX in their interface, and the config package must find MPI for it.
 IF (GEM_BUILD_WITH_MPI_CONSUMER)

@@ -43,7 +43,8 @@
 #     own, is configured standalone with find_package(Geneva CONFIG) against the
 #     moved installation and GStarter is built, which also runs it once in the build
 #     tree (its configuration files are written by the program itself at build
-#     time); both programs carry the commit of that tree, the identity
+#     time); its unit test, which uses the installed standard-test harness, is built
+#     and run; both programs carry the commit of that tree, the identity
 #     GEM_STAMP_PROGRAM stamps them with (the stamp's source names it and its
 #     object is part of the program's link); the quickstart is then
 #     installed, configured with CMAKE_INSTALL_RPATH_USE_LINK_PATH, and the
@@ -88,7 +89,7 @@
 #   CXX_LAUNCHER     the compiler launcher of the build (may be empty)
 #   BUILD_TYPE       the build type of the build
 #   BOOST_DIR        Boost's CMake package directory, as the build found it
-#   CATCH2_DIR       Catch2's CMake package directory (a testing-enabled install needs it)
+#   CATCH2_DIR       Catch2's CMake package directory (the quickstart's unit test needs it)
 #   WITH_MPI         ON if the build has the MPI consumer
 #   WITH_GPU         TRUE if the build has the GPU consumer
 #   HAP_DEFINE       hap's public compile definition (empty for the default source)
@@ -139,7 +140,6 @@ FUNCTION(gip_common_args _out)
 	SET(_args
 		"-DCMAKE_PREFIX_PATH=${ROOT}/moved"
 		"-DBoost_DIR=${BOOST_DIR}"
-		"-DCatch2_DIR=${CATCH2_DIR}"
 		"-DCMAKE_CXX_COMPILER=${CXX_COMPILER}"
 		"-DCMAKE_BUILD_TYPE=${BUILD_TYPE}")
 	IF(NOT "${CXX_LAUNCHER}" STREQUAL "")
@@ -220,7 +220,7 @@ FUNCTION(gip_lane_quickstart)
 	gip_run("configure the quickstart" "${ROOT}/quickstart-cmake.log"
 		"${CMAKE_COMMAND}" -S "${_qs_src}" -B "${ROOT}/quickstart"
 		${_args} "-DCMAKE_INSTALL_PREFIX=${ROOT}/quickstart-installed"
-		"-DGENEVA_TEST_INCLUDE_DIR=${SOURCE_DIR}/libs/geneva/tests/UnitTests"
+		"-DCatch2_DIR=${CATCH2_DIR}"
 		-DCMAKE_INSTALL_RPATH_USE_LINK_PATH=ON)
 	gip_no_warnings("configure the quickstart" "${ROOT}/quickstart-cmake.log")
 	IF(NOT GIT)
@@ -240,6 +240,12 @@ FUNCTION(gip_lane_quickstart)
 		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH
 		"${CMAKE_COMMAND}" --build "${ROOT}/quickstart" -j ${JOBS}
 		--target GStarter GStarterGenericOptimizer GStarterIndividual)
+	# The quickstart's unit test runs the standard tests of the installed harness
+	# (common/testing/GStandardTests.hpp): it shows that the harness serves a project outside the tree.
+	gip_run("build the quickstart's unit test" "${ROOT}/quickstart-test-build.log"
+		"${CMAKE_COMMAND}" --build "${ROOT}/quickstart" -j ${JOBS} --target GStarterIndividualUnitTests)
+	gip_run("run the quickstart's unit test without LD_LIBRARY_PATH" "${ROOT}/quickstart-test-run.log"
+		"${CMAKE_COMMAND}" -E env --unset=LD_LIBRARY_PATH "${ROOT}/quickstart/GStarterIndividualUnitTests")
 	# Both programs carry the commit of the quickstart's tree: their stamp sets it, and the stamp's
 	# object is linked into them. (The id is not looked for in the programs themselves: an
 	# optimizing compiler may build the string from immediate values instead of keeping it whole.)

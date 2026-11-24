@@ -434,9 +434,6 @@ protected:
     /** @brief Random initialization of the genome's parameter values. */
     virtual bool randomInit_(activityMode const &am);
 
-    /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
-    void specificTestsNoFailureExpected_GUnitTests_();
-
 private:
     /** @brief Installs a new shared layout and invalidates the parameter-count cache.
      *  @param layout The new shared, immutable layout (the count cache is re-keyed to it) */

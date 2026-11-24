@@ -48,7 +48,6 @@
 // Geneva header files go here
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "common/GSelfTestable.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
@@ -106,9 +105,7 @@ const targetFunction GO_DEF_TARGETFUNCTION = targetFunction::PARABOLA;
  * of processing their input in multiple dimensions.
  */
 //! [quickstart-individual-decl#1]
-class GStarterIndividual
-  : public gen::GGenomeT<GStarterIndividual>
-  , public Gem::Common::GSelfTestable {
+class GStarterIndividual : public gen::GGenomeT<GStarterIndividual> {
     //! [quickstart-individual-decl#1]
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin
@@ -163,6 +160,11 @@ public:
     void setTargetFunction(targetFunction);
     /** @brief Allows to retrieve the current demo function */
     targetFunction getTargetFunction() const;
+
+    /** @brief Changes this individual for the standard tests: the genome's change and the target function.
+     *  @return Whether the individual was changed (always true) */
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
+    bool modifyForTest();
 
     /** @brief Emit information about this individual */
     std::string print();
@@ -275,13 +277,6 @@ protected:
     /** @brief The evaluation hook: the selected target function (single criterion). */
     std::vector<double> evaluate() final;
     //! [quickstart-individual-decl#3]
-
-    /** @brief Applies modifications to this object. */
-    bool modify_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to succeed. */
-    void specificTestsNoFailureExpected_GUnitTests_() override;
-    /** @brief Performs self tests that are expected to fail. */
-    void specificTestsFailuresExpected_GUnitTests_() override;
 
 private:
     /***************************************************************************/
