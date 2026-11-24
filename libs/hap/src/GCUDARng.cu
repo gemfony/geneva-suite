@@ -46,16 +46,14 @@ namespace {
 // ("driver shutting down") or a downstream LAUNCH_FAILURE. That is expected and
 // benign — the numbers are no longer needed. Once any thread observes it we set
 // this flag so every backend stops issuing CUDA work quietly. Genuine errors
-// (not during shutdown) are reported once to stderr — never via the Geneva
-// logger, whose singleton may already be gone during static destruction.
+// (not during shutdown) are reported to stderr.
 std::atomic<bool> g_cudaShuttingDown{false};
 
 /**
  * @brief Reports a failed CUDA runtime call (unless during shutdown) and signals success.
  *
  * Treats cudaErrorCudartUnloading as benign process-shutdown noise (setting the
- * global shutdown flag). Genuine errors are printed once to stderr -- never via the
- * Geneva logger, whose singleton may already be gone during static destruction.
+ * global shutdown flag). Genuine errors are printed to stderr.
  *
  * @param st The status returned by the CUDA runtime call
  * @param what A short label identifying the call, for the error message
