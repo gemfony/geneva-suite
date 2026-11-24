@@ -104,8 +104,8 @@ void gem_archive_serialize(archive_type &ar, ACOSolution &sol) {
  * and truncates in one call -- so it IS that queue rather than a second implementation of it. Value
  * storage is the natural holder: a solution record is plain data with no identity of its own.
  *
- * The archive is transient run state, rebuilt in init() and excluded from the algorithm's serialized
- * member list; the queue's own serialization support simply goes unused here.
+ * The archive is the algorithm's run state: init() builds it for a new run, and it is part of the
+ * algorithm's member list, so a checkpoint carries it and a resumed run goes on with it.
  */
 class GACOSolutionArchive // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<
@@ -290,9 +290,8 @@ private:
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief Single declaration of this class'es local data members (drives serialize/load/compare).
-     *  Only the scalar configuration (k, m, q, xi) is persisted; all per-iteration archive state
-     *  (parameter vectors, fitnesses, bounds, selection probabilities) is transient and rebuilt in
-     *  init(). */
+     *  The configuration (k, m, q, xi) and the solution archive are persisted, so a run resumed from a
+     *  checkpoint goes on with its archive; the selection probabilities follow from k and q. */
     // The member list is written ONCE, in the static template helper below; the two localMembers()
     // overloads are trivial forwarders. self_type is deduced as the (const) class type.
     template <typename self_type>
@@ -301,7 +300,8 @@ private:
             Gem::Common::make_member("archive_size_", self.archive_size_),
             Gem::Common::make_member("n_ants_", self.n_ants_),
             Gem::Common::make_member("q_", self.q_),
-            Gem::Common::make_member("xi_", self.xi_)
+            Gem::Common::make_member("xi_", self.xi_),
+            Gem::Common::make_member("archive_", self.archive_)
         );
     }
 
@@ -409,15 +409,16 @@ private:
     double xi_ = DEFAULTACORXI;             ///< Evaporation / convergence-speed parameter
 
     /***************************************************************************/
-    // Internal archive state (transient; rebuilt in init(), excluded from serialize/compare)
+    // The archive: built by init() for a new run, kept by init() for a resumed one
 
-    /// transient: the number of active floating point parameters, set in init()
+    /// transient: the number of active floating point parameters, derived from the genome in init()
     std::size_t n_fp_parms_ = 0;
 
-    /// transient: the k archived solutions (the pheromone), ranked best-first; sized in init()
+    /// The k archived solutions (the pheromone), ranked best-first; empty until the first iteration
+    /// of a new run has evaluated its seeds
     GACOSolutionArchive archive_;
 
-    /// transient: the cached roulette-wheel probabilities p_l, computed from the archive
+    /// transient: the cached roulette-wheel probabilities p_l, computed from k and q in init()
     std::vector<double> selection_probabilities_;
 };
 

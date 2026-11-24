@@ -49,6 +49,7 @@
 #include "common/GCommonEnums.hpp"
 #include "common/testing/GStandardTests.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
+#include "geneva/oa/GAntColonyOptimization.hpp"
 #include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
 
@@ -161,6 +162,45 @@ template <typename oa_type>
 std::vector<double> numbers(oa_type const &alg, std::string const &key) {
     std::vector<double> result;
     collectNumbers(boost::json::parse(member(alg, key)), result);
+    return result;
+}
+
+/** @brief Appends the numbers of every member named key inside a JSON value */
+void collectNamed(
+    boost::json::value const &v,
+    std::string const &key,
+    std::vector<double> &numbers
+) {
+    if(v.is_object()) {
+        for(auto const &[name, e] : v.as_object()) {
+            if(name == key) {
+                collectNumbers(e, numbers);
+            }
+            else {
+                collectNamed(e, key, numbers);
+            }
+        }
+    }
+    else if(v.is_array()) {
+        for(auto const &e : v.as_array()) {
+            collectNamed(e, key, numbers);
+        }
+    }
+}
+
+/**
+ * @brief The numbers of the members named key inside a member of an algorithm, in the order the codec
+ * writes them.
+ * @param alg The algorithm
+ * @param container The member's name in the member list
+ * @param key The name of the inner members
+ * @return The numbers
+ */
+template <typename oa_type>
+std::vector<double>
+numbersNamed(oa_type const &alg, std::string const &container, std::string const &key) {
+    std::vector<double> result;
+    collectNamed(boost::json::parse(member(alg, container)), key, result);
     return result;
 }
 
@@ -314,4 +354,48 @@ TEST_CASE(
     CHECK(numbers(started, "chain_step_") == std::vector<double>(3, 1.));
     CHECK(numbers(started, "chain_best_energy_") == std::vector<double>(3, UNSET));
     CHECK(numbers(started, "chain_stall_") == std::vector<double>(3, 0.));
+}
+
+/******************************************************************************/
+
+TEST_CASE("A resumed ant colony optimization goes on with its archive", "[oa][resume]") {
+    oa::GAntColonyOptimization run;
+    run.setArchiveSize(5);
+    run.setNAnts(2);
+    auto const cp = runToCheckpoint(run);
+    auto const saved = numbersNamed(run, "archive_", "fitness");
+    REQUIRE(saved.size() == 5);
+
+    auto const resumed = resumedSetupOf<oa::GAntColonyOptimization>(cp);
+    CHECK(member(resumed, "archive_") == member(run, "archive_"));
+    checkRoundTrips(resumed);
+
+    // The first iteration of the resumed run samples two ants from the archive and merges them, so
+    // no rank of the archive gets worse (re-seeding it from the population would lose its best)
+    oa::GAntColonyOptimization one_more;
+    one_more.loadCheckpoint(cp);
+    one_more.setCheckpointInterval(0);
+    one_more.setReportIteration(0);
+    one_more.setMaxIteration(one_more.getIteration() + 2); // one iteration
+    one_more.optimize(one_more.getIteration() + 1);
+    auto const merged = numbersNamed(one_more, "archive_", "fitness");
+    REQUIRE(merged.size() == saved.size());
+    for(std::size_t rank = 0; rank < saved.size(); ++rank) {
+        INFO("rank " << rank);
+        CHECK(merged[rank] <= saved[rank]);
+    }
+
+    // Another archive size cannot go on with this archive
+    oa::GAntColonyOptimization other_size;
+    other_size.loadCheckpoint(cp);
+    fs::remove_all(cp.parent_path());
+    other_size.setArchiveSize(6);
+    CHECK_THROWS_WITH(
+        other_size.optimize(other_size.getIteration() + 1),
+        Catch::Matchers::ContainsSubstring("does not fit the population")
+    );
+
+    // A new run starts with an empty archive, which its first iteration fills from the seeds
+    auto const started = newSetupOf(run);
+    CHECK(numbersNamed(started, "archive_", "fitness").empty());
 }
