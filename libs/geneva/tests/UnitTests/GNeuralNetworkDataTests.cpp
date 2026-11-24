@@ -42,11 +42,14 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "GNeuralNetworkTestData.hpp"
+#include "common/GExceptions.hpp"
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 #include "weft/GBinaryArchive.hpp"
 #include "weft/GJsonArchive.hpp"
 
 using Catch::Approx;
+using Gem::Geneva::Individuals::GNeuralNetworkIndividual;
 using Gem::Geneva::Individuals::networkData;
 using Gem::Geneva::Individuals::trainingSet;
 
@@ -188,4 +191,65 @@ TEST_CASE(
         ia &Gem::Weft::make_nvp("nd", loaded);
         verify(loaded);
     }
+}
+
+// The 2-d hyper-sphere generator set the range of its data point by point, to +-(the radius of the
+// point just drawn): the range kept was the last point's, a random fraction of the data's, and the
+// figure of writeVisualizationFile() showed only a small window of the input space.
+TEST_CASE("Hyper-sphere data report the range of their inputs", "[individuals][nn]") {
+    const double radius = 0.5;
+    const std::size_t n_sets = 200;
+    const auto n_d =
+        GNeuralNetworkIndividual::createHyperSphereNetworkData({2, 4, 1}, n_sets, radius);
+
+    REQUIRE(n_d->initRangeSet());
+    const auto range = n_d->getInitRange();
+    REQUIRE(range.size() == 2);
+    for(const auto &[lower, upper] : range) {
+        CHECK(lower == Approx(-3. * radius));
+        CHECK(upper == Approx(3. * radius));
+    }
+    for(std::size_t pos = 0; pos < n_sets; pos++) {
+        const auto t_s = n_d->getTrainingSet(pos);
+        REQUIRE(t_s.has_value());
+        for(std::size_t dim = 0; dim < 2; dim++) {
+            CHECK(t_s.value()->Input[dim] >= std::get<0>(range[dim]));
+            CHECK(t_s.value()->Input[dim] <= std::get<1>(range[dim]));
+        }
+    }
+}
+
+// toROOT() wrote its ROOT macro by hand, within an axis range its caller passed: for the hyper-sphere
+// data +-1 while the data reach +-1.5, so part of them lay outside the frame. The figure is now drawn
+// through dietrich: its data description holds every training set, one series per side of 0.5 of
+// the desired output, and the frame of a 2-d graph is set by the data.
+TEST_CASE("The figure of the training data holds every training set", "[individuals][nn]") {
+    const auto series =
+        Gem::Geneva::Individuals::Testing::seriesOf(makeSampleData().trainingDataPlot());
+
+    // makeSampleData(): set 1 has the desired output 0.01, sets 0 and 2 have 0.99
+    REQUIRE(series.size() == 2);
+    CHECK(series[0].header.contains("plotkind=graph_2d"));
+    CHECK(series[0].header.contains("desired output < 0.5"));
+    CHECK(series[1].header.contains("desired output >= 0.5"));
+    REQUIRE(series[0].rows.size() == 1);
+    CHECK(series[0].rows[0] == std::vector<double>{1.25, 1.50});
+    REQUIRE(series[1].rows.size() == 2);
+    CHECK(series[1].rows[0] == std::vector<double>{0.25, 0.50});
+    CHECK(series[1].rows[1] == std::vector<double>{2.25, 2.50});
+
+    // A side without training sets is left out instead of drawn empty
+    networkData one_sided(1);
+    one_sided.push_back(2);
+    one_sided.push_back(1);
+    auto t_s = std::make_shared<trainingSet>(2, 1);
+    t_s->Output[0] = 0.99;
+    one_sided.addTrainingSet(t_s, 0);
+    CHECK(Gem::Geneva::Individuals::Testing::seriesOf(one_sided.trainingDataPlot()).size() == 1);
+
+    // Training data of another geometry have no such figure
+    networkData three_inputs(0);
+    three_inputs.push_back(3);
+    three_inputs.push_back(1);
+    CHECK_THROWS_AS(three_inputs.trainingDataPlot(), gem_exception);
 }

@@ -32,6 +32,7 @@
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GCommonInterfaceT.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -818,7 +819,8 @@ GPlotDesigner &GPlotDesigner::operator=(GPlotDesigner const &cp) {
 
 /******************************************************************************/
 /**
- * Writes the plot to a file
+ * Writes the plot to a file. A file that cannot be opened or written (an empty name, a directory
+ * that does not exist, a full disk) is refused with an exception, not left unwritten in silence.
  *
  * @param file_name The name of the file to which the data can be written
  */
@@ -829,8 +831,20 @@ void GPlotDesigner::writeToFile(const std::filesystem::path &file_name) {
     // backends are unaffected -- their bytes are the same in either mode).
     const std::string document = plot(file_name);
     std::ofstream result(file_name, std::ios::binary);
+    Gem::Common::checkThat(
+        result.is_open(),
+        "Could not open the plot file \"",
+        file_name.string(),
+        "\""
+    );
     result.write(document.data(), static_cast<std::streamsize>(document.size()));
     result.close();
+    Gem::Common::checkThat(
+        not result.fail(),
+        "Could not write the plot file \"",
+        file_name.string(),
+        "\""
+    );
 }
 
 /******************************************************************************/

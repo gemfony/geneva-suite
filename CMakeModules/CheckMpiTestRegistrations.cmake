@@ -30,10 +30,10 @@
 # Driver of the test GemMpiTestsRegistered: every CTest entry of the build tree whose command
 # names the MPI launcher -- directly, or as an argument of a driver (CheckJobEnds.cmake's COMMAND,
 # the MPIRUN of the speed-up checks) -- runs under GemRunMpiTest.sh, that is, was registered with
-# GEM_ADD_MPI_TEST (GemMpiTest.cmake), so that it has a directory of its own for Open MPI's
-# shared-memory files; and that its TIMEOUT was not lowered afterwards below the runner's bound
-# plus the margin the runner needs to end the command and remove the directory. The entries are
-# read from "ctest --show-only=json-v1".
+# GEM_ADD_MPI_TEST (GemMpiTest.cmake), so that it has a directory of its own for Open MPI's files;
+# and that its TIMEOUT was not lowered afterwards below the runner's bound plus the margin the
+# runner needs to end the command and remove the directory. The entries are read from
+# "ctest --show-only=json-v1".
 #
 # The check sees the launcher where an entry's command names it. A driver that found it at run
 # time (from PATH) would not be seen; the drivers of the tree are therefore given the launcher
@@ -72,9 +72,11 @@ FOREACH(_i RANGE ${_last})
 	IF(_no_command)
 		CONTINUE()
 	ENDIF()
+	# No launcher; or this check, which names it to look for it; or the runner's check, which runs
+	# it under the runner
 	STRING(FIND "${_command}" "${MPIEXEC}" _at)
-	IF(_at EQUAL -1 OR _command MATCHES "CheckMpiTestRegistrations\\.cmake")
-		CONTINUE() # no launcher; or this check, which names it to look for it
+	IF(_at EQUAL -1 OR _command MATCHES "Check(MpiTestRegistrations|MpiTestDirectories)\\.cmake")
+		CONTINUE()
 	ENDIF()
 	MATH(EXPR _with_launcher "${_with_launcher} + 1")
 	STRING(JSON _program GET "${_json}" tests ${_i} command 0)
@@ -108,7 +110,7 @@ IF(_without_runner)
 	LIST(JOIN _without_runner "\n  " _names)
 	MESSAGE(FATAL_ERROR "${_bad} of ${_with_launcher} entries that name the MPI launcher are not "
 		"registered with GEM_ADD_MPI_TEST (GemMpiTest.cmake), so they share Open MPI's "
-		"shared-memory directory with every other job:\n  ${_names}")
+		"directories with every other job:\n  ${_names}")
 ENDIF()
 IF(_short_timeout)
 	LIST(JOIN _short_timeout "\n  " _names)

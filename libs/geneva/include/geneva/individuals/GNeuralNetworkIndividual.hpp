@@ -43,6 +43,7 @@
 #include <mutex>
 #include <numbers>
 #include <optional>
+#include <span>
 #include <sstream>
 #include <string_view>
 #include <tuple>
@@ -59,6 +60,7 @@
 #include "common/GGlobalOptionsT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GSingletonT.hpp"
+#include "dietrich/plotting/GPlotDesigner.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeArchitecture.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
@@ -229,9 +231,13 @@ public:
     std::size_t getNOutputNodes() const;
 
     /**
-     * @brief Saves this data set in ROOT format for visual inspection.
+     * @brief The figure of the training data (two inputs, one output), as a dietrich plot
      */
-    void toROOT(const std::string &output_file, const double &min, const double &max);
+    [[nodiscard]] Gem::Dietrich::GPlotDesigner trainingDataPlot() const;
+    /**
+     * @brief Writes the figure of the training data (trainingDataPlot()) as a ROOT macro
+     */
+    void toROOT(const std::string &output_file) const;
 
     /**
      * @brief Allows to check whether an initialization range has been set.
@@ -322,9 +328,12 @@ using Gem::Common::operator>>;
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// A global singleton giving access to the training data. Process-wide, so that every individual
-// shares one copy of the data (it never travels with an individual; see the definition of
-// TFactory_GSingletonT<Gem::Geneva::Individuals::networkData>, which loads it)
+// The training data, one copy per process. It is process-wide because the individual serializes
+// only its parameters (the weights in its genome) and its transfer function t_f_: the data never
+// travel with it. Every process -- the one that optimizes and every remote worker that evaluates --
+// loads them once, on first use, from the file named by "trainingDataFile" in
+// neuralNetworkOptions() (see TFactory_GSingletonT<networkData> below). Handing the data to each
+// individual instead would break distributed runs or send the whole data set with every individual.
 using GDatStore = Gem::Common::GSingletonT<Gem::Geneva::Individuals::networkData>;
 /**
  * @brief Accessor for the global training-data singleton.
@@ -337,8 +346,10 @@ using GDatStore = Gem::Common::GSingletonT<Gem::Geneva::Individuals::networkData
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// A number of default settings for the factory
-const std::string GNN_DEF_DATAFILE = "./Datasets/hyper_cube.dat";
+// A number of default settings for the factory. The training-data file is the one read when no
+// "trainingDataFile" is set in neuralNetworkOptions() -- as when the generic optimizer loads the
+// individual as a module; example 09 writes it into ./DataSets of its build directory.
+const std::string GNN_DEF_DATAFILE = "./DataSets/hyper_cube.dat";
 constexpr double GNN_DEF_ADPROB = 0.05;
 constexpr double GNN_DEF_ADAPTADPROB = 0.1;
 constexpr double GNN_DEF_MINADPROB = 0.05;
@@ -447,8 +458,9 @@ namespace detail {
  * @param n_data_sets The number of training sets to create
  * @param where The generator name used in error messages (e.g. "createSinNetworkData")
  * @param required_input_nodes If non-zero, the exact number of input nodes required
- * @param fillSet Fills one training set (and may register an init range on the data object)
- * @param init_range The initialization range to register; empty if fillSet registers it itself
+ * @param fillSet Fills one training set
+ * @param init_range The range of the input data, one (lower, upper) tuple per input dimension, as
+ * the data object reports it (getInitRange()); empty if the generator names none
  * @return The created networkData object, wrapped in a shared_ptr
  */
 inline std::shared_ptr<networkData> createNetworkData(
@@ -456,7 +468,7 @@ inline std::shared_ptr<networkData> createNetworkData(
     std::size_t n_data_sets,
     std::string_view where,
     std::size_t required_input_nodes,
-    const std::function<void(Gem::Hap::GRandom &, networkData &, trainingSet &)> &fillSet,
+    const std::function<void(Gem::Hap::GRandom &, trainingSet &)> &fillSet,
     const std::vector<std::tuple<double, double>> &init_range
 ) {
     // Check the number of supplied layers
@@ -511,12 +523,11 @@ inline std::shared_ptr<networkData> createNetworkData(
     const std::size_t n_output_nodes = architecture.back();
     for(std::size_t dat_counter = 0; dat_counter < n_data_sets; dat_counter++) {
         std::shared_ptr<trainingSet> const t_s(new trainingSet(n_input_nodes, n_output_nodes));
-        fillSet(gr_l, *n_d, *t_s);
+        fillSet(gr_l, *t_s);
         n_d->addTrainingSet(t_s, dat_counter);
     }
 
-    // Make the initialization range known to nD_ (a generator that derives the range from
-    // its drawn data -- the hyper-sphere -- registers it inside fillSet instead).
+    // Make the range of the input data known to the data object
     if(not init_range.empty()) {
         n_d->setInitRange(init_range);
     }
@@ -625,7 +636,7 @@ public:
             n_data_sets,
             "createHyperCubeNetworkData",
             0,
-            [&](Gem::Hap::GRandom &gr_l, networkData &, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 bool outside = false;
                 for(std::size_t i = 0; i < t_s.Input.size(); i++) {
                     double const one_dim_rnd = uniform_real_distribution(
@@ -654,7 +665,7 @@ public:
 	  * this class. It is added here as a means of testing this neural network individual. We create
 	  * a sphere of radius "radius". See http://en.wikipedia.org/wiki/Hypersphere for a description of
 	  * the formulae used.  Areas outside of the sphere get an output value of 0.99, areas inside of the
-	  * sphere get an output value of 0.01. The training data is initialized with a radius of 2*radius.
+	  * sphere get an output value of 0.01. The training data lie within a radius of 3*radius.
 	  *
 	  * @param architecture The desired architecture of the network
 	  * @param n_data_sets The number of training sets to create
@@ -673,7 +684,7 @@ public:
             n_data_sets,
             "createHyperSphereNetworkData",
             0,
-            [&](Gem::Hap::GRandom &gr_l, networkData &n_d, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 const std::size_t n_dim = t_s.Input.size();
 
                 // Declared at first assignment (the former leading `= 1.` initializer was a dead store).
@@ -699,12 +710,6 @@ public:
                     );
                     t_s.Input[0] = local_radius * sin(phi); // x
                     t_s.Input[1] = local_radius * cos(phi); // y
-
-                    // Make the initialization range known to nD_ . We only do this for 2D-data
-                    std::vector<std::tuple<double, double>> init_range;
-                    init_range.emplace_back(-local_radius, local_radius); // x
-                    init_range.emplace_back(-local_radius, local_radius); // y
-                    n_d.setInitRange(init_range);
                 } break;
 
                 default: // dimensions 3 ... inf
@@ -755,7 +760,8 @@ public:
                 } break;
                 }
             },
-            {} // the 2-D case registers its init range from the drawn radius above
+            // x, y: the data lie within 3 * radius of the centre
+            {{-3. * radius, 3. * radius}, {-3. * radius, 3. * radius}}
         );
     }
 
@@ -782,7 +788,7 @@ public:
             n_data_sets,
             "createAxisCentricNetworkData",
             0,
-            [&](Gem::Hap::GRandom &gr_l, networkData &, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 const std::size_t n_dim = t_s.Input.size();
 
                 // Create even distribution across all dimensions
@@ -846,7 +852,7 @@ public:
             n_data_sets,
             "createSinNetworkData",
             2, // this example only accepts two input nodes
-            [&](Gem::Hap::GRandom &gr_l, networkData &, trainingSet &t_s) {
+            [&](Gem::Hap::GRandom &gr_l, trainingSet &t_s) {
                 // create the two test values
                 t_s.Input[0] = uniform_real_distribution(
                     gr_l,
@@ -891,10 +897,6 @@ public:
                 n_data_sets,
                 0.5 // edge-length
             );
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", -0.5, 0.5);
-
             break;
 
         case Gem::Geneva::Individuals::trainingDataType::HYPERSPHERE:
@@ -903,27 +905,15 @@ public:
                 n_data_sets,
                 0.5 // radius
             );
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", -1., 1.);
-
             break;
 
         case Gem::Geneva::Individuals::trainingDataType::AXISCENTRIC:
             n_d_ptr =
                 GNeuralNetworkIndividual::createAxisCentricNetworkData(architecture, n_data_sets);
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", 0., 1.);
-
             break;
 
         case Gem::Geneva::Individuals::trainingDataType::SINUS:
             n_d_ptr = GNeuralNetworkIndividual::createSinNetworkData(architecture, n_data_sets);
-
-            // Emit a visualization file, suitable for viewing with ROOT (see http://root.cern.ch)
-            n_d_ptr->toROOT(output_file + ".C", -6., 6.);
-
             break;
 
         default: { // Error
@@ -934,15 +924,27 @@ public:
         } // no break: the default case always throws (the trailing break was unreachable)
         }
 
-        // Write distribution to file
+        // Write distribution to file, and its figure as a ROOT macro (see http://root.cern.ch)
         n_d_ptr->saveToDisk(output_file);
+        n_d_ptr->toROOT(output_file + ".C");
     }
 
     /***************************************************************************/
+    /** @brief The number of points per input dimension at which outputPlot() samples the network */
+    static constexpr std::size_t OUTPUT_PLOT_POINTS_PER_AXIS = 41;
+
     /**
-     * @brief Creates a program used for the visualization of optimization results.
+     * @brief The figure of the network's output over its two input dimensions, as a dietrich plot
      */
-    void writeVisualizationFile(const std::string &vis_file);
+    [[nodiscard]] Gem::Dietrich::GPlotDesigner outputPlot() const;
+    /**
+     * @brief Writes the figure of the network's output (outputPlot()) to a file, through a dietrich
+     * backend (a ROOT macro by default)
+     */
+    void writeVisualizationFile(
+        const std::string &vis_file,
+        Gem::Dietrich::plotBackend backend = Gem::Dietrich::plotBackend::ROOT
+    ) const;
     /**
      * @brief Creates a C++ output file for the trained network.
      */
@@ -1022,6 +1024,12 @@ private:
      * @brief The transfer function.
      */
     double transfer(const double &value) const;
+
+    /**
+     * @brief The forward pass: the values of the output nodes for one input pattern
+     */
+    [[nodiscard]] std::vector<double>
+    networkOutput(const std::vector<double> &w, std::span<const double> input) const;
 
     /**
      * @brief The semantic architecture (lazily built from n_d_; not serialised -- recoverable).

@@ -41,12 +41,15 @@
 
 #include <array>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <span>
 #include <sstream>
 #include <string>
 #include <tuple>
 #include <vector>
+
+#include <unistd.h> // getpid(): a scratch directory of this process
 
 #include "dietrich/GPlotDesigner.hpp"
 #include "dietrich/plotting/detail/GPlotDetail.hpp" // emitRootLegend(), tested directly
@@ -2532,4 +2535,90 @@ TEST_CASE(
     // Without a canvas label there is nothing to size.
     gpd.setShowCanvasLabel(false);
     CHECK_FALSE(gpd.plot().contains("canvasTitle"));
+}
+
+/******************************************************************************/
+// writeToFile() did not look at its stream: a file it could not open (a directory that does not
+// exist, an empty name) was left unwritten without a word, and the caller believed the plot saved.
+TEST_CASE("writeToFile refuses a file it cannot write", "[plotting]") {
+    auto g = std::make_shared<GGraph2D>();
+    (*g) & std::tuple<double, double>(1.0, 2.0);
+    GPlotDesigner gpd("a figure", 1, 1);
+    gpd.registerPlotter(g);
+
+    const std::filesystem::path dir =
+        std::filesystem::temp_directory_path() / ("dietrich-write-" + std::to_string(::getpid()));
+    std::filesystem::create_directories(dir);
+    CHECK_THROWS_AS(gpd.writeToFile(dir / "no-such-directory" / "figure.C"), gem_exception);
+    CHECK_THROWS_AS(gpd.writeToFile(std::filesystem::path{}), gem_exception);
+
+    // A file that can be written is written in full.
+    const std::filesystem::path file = dir / "figure.C";
+    gpd.writeToFile(file);
+    REQUIRE(std::filesystem::exists(file));
+    CHECK(std::filesystem::file_size(file) == gpd.plot(file).size());
+    std::filesystem::remove_all(dir);
+}
+
+/******************************************************************************/
+// ROOT puts an axis title at the far end of its axis. In a 3-d graph the x title then ran into the
+// colour palette of a projected surface and the y title into the tick labels of its own axis. The
+// titles of the two floor axes are centred and set further out.
+TEST_CASE("The floor-axis titles of a 3-d graph are centred and clear of the ticks", "[plotting]") {
+    for(const auto projection : {surfaceProjection::NONE, surfaceProjection::FLOOR}) {
+        auto g = std::make_shared<GGraph3D>();
+        for(int i = 0; i < 3; ++i) {
+            for(int j = 0; j < 3; ++j) {
+                (*g) & std::tuple<double, double, double>(i, j, i * j);
+            }
+        }
+        g->setSurfaceProjection(projection);
+        g->setXAxisLabel("input 1");
+        g->setYAxisLabel("input 2");
+        const std::string s = rootMacroOf(g);
+        CHECK(s.contains("->GetXaxis()->CenterTitle();"));
+        CHECK(s.contains("->GetYaxis()->CenterTitle();"));
+        CHECK(s.contains("->GetXaxis()->SetTitleOffset(2);"));
+        CHECK(s.contains("->GetYaxis()->SetTitleOffset(2.5);"));
+    }
+}
+
+/******************************************************************************/
+// ROOT's own default marker is a dot of one pixel: the points of a scatter plot came out faint and
+// the legend sample, which copies the marker, invisible. A scatter plot -- also one with error bars
+// -- now draws small filled circles; a curve keeps its line without them, and a draw option of the
+// plotter's own that names ROOT's star marker keeps its stars.
+TEST_CASE("A 2-d scatter plot draws visible markers in ROOT", "[plotting]") {
+    const std::string marker = "->SetMarkerStyle(20);";
+    const std::string size = "->SetMarkerSize(0.5);";
+
+    auto scatter = std::make_shared<GGraph2D>();
+    scatter->setPlotMode(graphPlotMode::SCATTER);
+    (*scatter) & std::tuple<double, double>(1.0, 2.0);
+    (*scatter) & std::tuple<double, double>(2.0, 3.0);
+    const std::string s = rootMacroOf(scatter);
+    CHECK(s.contains(marker));
+    CHECK(s.contains(size));
+
+    auto with_errors = std::make_shared<GGraph2ED>();
+    with_errors->setPlotMode(graphPlotMode::SCATTER);
+    (*with_errors) & std::tuple<double, double, double, double>(1.0, 0.1, 2.0, 0.2);
+    (*with_errors) & std::tuple<double, double, double, double>(3.0, 0.3, 4.0, 0.4);
+    const std::string e = rootMacroOf(with_errors);
+    CHECK(e.contains(marker));
+    CHECK(e.contains(size));
+
+    auto curve = std::make_shared<GGraph2D>();
+    curve->setPlotMode(graphPlotMode::CURVE);
+    (*curve) & std::tuple<double, double>(1.0, 2.0);
+    (*curve) & std::tuple<double, double>(2.0, 3.0);
+    CHECK_FALSE(rootMacroOf(curve).contains(size));
+
+    // A draw option of the plotter's own that names ROOT's star marker keeps its stars as they were
+    auto stars = std::make_shared<GGraph2D>();
+    stars->setPlotMode(graphPlotMode::SCATTER);
+    stars->setDrawingArguments("A*");
+    (*stars) & std::tuple<double, double>(1.0, 2.0);
+    (*stars) & std::tuple<double, double>(2.0, 3.0);
+    CHECK_FALSE(rootMacroOf(stars).contains(size));
 }

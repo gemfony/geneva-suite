@@ -44,6 +44,7 @@
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include "weft/GJsonArchive.hpp"        // GJson[IO]Archive -- training-data disk persistence codec
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <filesystem>
@@ -58,6 +59,7 @@
 #include <ostream>
 #include <random>
 #include <ranges>
+#include <span>
 #include <sstream>
 #include <string_view>
 #include <tuple>
@@ -383,16 +385,68 @@ std::size_t networkData::getNOutputNodes() const {
 
 /******************************************************************************/
 /**
- * @brief Saves this data set in ROOT format for visual inspection. It assumes that the input dimension
- * is 2 and the output dimension is 1. It will generate two distributions that will be coloured
- * differently -- one with output < 0.5, the other with output >= 0.5.
+ * @brief The figure of the training data: the input points of all training sets in the plane of
+ * the two inputs, as two series -- the sets whose desired output is below 0.5, and those at or above
+ * it. A series without points is left out. The frame holds all points. Every dietrich backend can
+ * draw the figure. Training data without exactly two input nodes and one output node have no such
+ * figure and are refused.
  *
- * @param output_file The name of the file the ROOT visualization program should be written to
- * @param min The minimum axis value of the distribution to be displayed
- * @param max The maximum axis value of the distribution to be displayed
+ * @return The figure, to be written through any dietrich backend
  */
-void networkData::toROOT(const std::string &output_file, const double &min, const double &max) {
-    // Check that we have a matching number of input nodes
+Gem::Dietrich::GPlotDesigner networkData::trainingDataPlot() const {
+    Gem::Common::checkThat(
+        getNInputNodes() == 2 and getNOutputNodes() == 1,
+        "The figure of the training data needs two input nodes and one output node; got ",
+        getNInputNodes(),
+        " and ",
+        getNOutputNodes()
+    );
+
+    std::array<std::vector<std::tuple<double, double>>, 2> points; // output < 0.5, output >= 0.5
+    for(const auto &t_s : data_) {
+        if(t_s) { // a slot that holds no training set has nothing to show
+            points.at(t_s->Output[0] < 0.5 ? 0 : 1).emplace_back(t_s->Input[0], t_s->Input[1]);
+        }
+    }
+
+    const std::array<std::string, 2> labels{"desired output < 0.5", "desired output >= 0.5"};
+    std::shared_ptr<Gem::Dietrich::GGraph2D> primary;
+    for(std::size_t i = 0; i < points.size(); ++i) {
+        if(points.at(i).empty()) {
+            continue;
+        }
+        auto series = std::make_shared<Gem::Dietrich::GGraph2D>();
+        series->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
+        series->setPlotLabel(labels.at(i));
+        series->setXAxisLabel("input 1");
+        series->setYAxisLabel("input 2");
+        (*series) & points.at(i);
+        if(primary) {
+            primary->registerSecondaryPlotter(series);
+        }
+        else {
+            primary = series;
+        }
+    }
+    Gem::Common::checkThat(primary != nullptr, "The training data hold no training set");
+    primary->setPadTitle("Training data in the plane of the two inputs");
+    primary->setLegendPosition(Gem::Dietrich::legendPosition::FREEST);
+
+    Gem::Dietrich::GPlotDesigner gpd("Original training data", 1, 1);
+    gpd.setCanvasDimensions(1024, 1024);
+    gpd.registerPlotter(primary);
+    return gpd;
+}
+
+/******************************************************************************/
+/**
+ * @brief Writes the figure of the training data (trainingDataPlot()) as a ROOT macro, for visual
+ * inspection. Training data without two input nodes and one output node have no such figure; the
+ * function then warns and writes nothing.
+ *
+ * @param output_file The name of the file the ROOT macro is written to
+ */
+void networkData::toROOT(const std::string &output_file) const {
     if(getNInputNodes() != 2 || getNOutputNodes() != 1) {
         glogger << "Got inappropriate number of input and/or output nodes: " << getNInputNodes()
                 << "/" << getNOutputNodes() << '\n'
@@ -401,80 +455,9 @@ void networkData::toROOT(const std::string &output_file, const double &min, cons
         return;
     }
 
-    const std::size_t n_sets = data_.size();
-    std::size_t entries1 = 0;
-    std::size_t entries2 = 0;
-    std::ofstream of(output_file);
-
-    of << "{" << '\n'
-       << "  gROOT->Reset();" << '\n'
-       << "  gStyle->SetCanvasColor(0);" << '\n'
-       << "  gStyle->SetStatBorderSize(1);" << '\n'
-       << "  gStyle->SetOptStat(0);" << '\n'
-       << '\n'
-       << R"(  TCanvas *cc = new TCanvas("cc", "cc",0,0,1024,1024);)" << '\n'
-       << '\n'
-       << "  TPaveLabel* canvasTitle = new TPaveLabel(0.1,0.95,0.9,0.99, \"Original training "
-          "data\");"
-       << '\n'
-       << "  canvasTitle->Draw();" << '\n'
-       << '\n'
-       << R"(  TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)" << '\n'
-       << "  graphPad->Draw();" << '\n'
-       << "  graphPad->Divide(1,1);" << '\n'
-       << '\n'
-       << "  double xarr1[" << n_sets << "], yarr1[" << n_sets << "], xarr2[" << n_sets
-       << "], yarr2[" << n_sets << "];" << '\n'
-       << '\n'
-       << "  // Filling the data sets" << '\n';
-
-    for(std::size_t i = 0; i < n_sets; i++) {
-        if(data_[i]->Output[0] < 0.5) {
-            of << "  xarr1[" << entries1 << "] = " << data_[i]->Input[0] << ";" << '\n'
-               << "  yarr1[" << entries1 << "] = " << data_[i]->Input[1] << ";" << '\n';
-            entries1++;
-        }
-        else {
-            of << "  xarr2[" << entries2 << "] = " << data_[i]->Input[0] << ";" << '\n'
-               << "  yarr2[" << entries2 << "] = " << data_[i]->Input[1] << ";" << '\n';
-            entries2++;
-        }
-    }
-
-    of << '\n'
-       << "  // Setting remaining entries to 0" << '\n'
-       << "  for(std::size_t i=" << entries1 << "; i<" << n_sets << "; i++) {" << '\n'
-       << "    xarr1[i] = 0.;" << '\n'
-       << "    yarr1[i] = 0.;" << '\n'
-       << "  }" << '\n'
-       << "  for(std::size_t i=" << entries2 << "; i<" << n_sets << "; i++) {" << '\n'
-       << "    xarr2[i] = 0.;" << '\n'
-       << "    yarr2[i] = 0.;" << '\n'
-       << "  }" << '\n'
-       << '\n'
-       << "  // Creation of suitable TGraph objects" << '\n'
-       << "  TGraph *gr1 = new TGraph(" << entries1 << ", xarr1, yarr1);" << '\n'
-       << "  TGraph *gr2 = new TGraph(" << entries2 << ", xarr2, yarr2);" << '\n'
-       << '\n'
-       << "  gr1->SetMarkerColor(17);" << '\n'
-       << "  gr2->SetMarkerColor(14);" << '\n'
-       << '\n'
-       << "  gr1->SetMarkerStyle(21);" << '\n'
-       << "  gr2->SetMarkerStyle(21);" << '\n'
-       << '\n'
-       << "  gr1->SetMarkerSize(0.35);" << '\n'
-       << "  gr2->SetMarkerSize(0.35);" << '\n'
-       << '\n'
-       << "  gr2->GetXaxis()->SetLimits(" << min << ", " << max << ");" << '\n'
-       << "  gr2->GetYaxis()->SetRangeUser(" << min << ", " << max << ");" << '\n'
-       << '\n'
-       << "  // Do the drawing" << '\n'
-       << "  graphPad->cd(1);" << '\n'
-       << "  gr2->Draw(\"AP\");" << '\n'
-       << "  gr1->Draw(\"P,same\");" << '\n'
-       << "}" << '\n';
-
-    of.close();
+    Gem::Dietrich::GPlotDesigner gpd = this->trainingDataPlot();
+    gpd.setPlotBackend(Gem::Dietrich::plotBackend::ROOT);
+    gpd.writeToFile(output_file);
 }
 
 /******************************************************************************/
@@ -674,361 +657,89 @@ transferFunction GNeuralNetworkIndividual::getTransferFunction() const {
 
 /******************************************************************************/
 /**
- * @brief Creates a program which in turn creates a program suitable for visualization of optimization
- * results with the ROOT analysis framework (see http://root.cern.ch for further information).
+ * @brief The figure of the network's output over its two input dimensions: the output of the first
+ * output node at OUTPUT_PLOT_POINTS_PER_AXIS x OUTPUT_PLOT_POINTS_PER_AXIS points of a regular grid
+ * over the range of the training data, drawn as a surface whose colour map is projected onto the
+ * floor of the plot box. Every dietrich backend can draw it.
  *
- * @param vis_file The name of the file the visualization program should be saved to
+ * The range is the one the training data report (networkData::getInitRange()), [0, 1] in both
+ * dimensions if they report none. A network without two input nodes has no such figure and is
+ * refused.
+ *
+ * @return The figure, to be written through any dietrich backend
  */
-// NOLINTNEXTLINE(readability-function-size) -- single coherent ROOT visualization-script code generator; the stream-emission of the literal generated program text is one unit and splitting it would scatter the generated source across functions
-void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_file) {
-    if(vis_file.empty() || vis_file.empty()) {
-        throw gem_exception(g_error_streamer() << "Received empty file name." << '\n');
+Gem::Dietrich::GPlotDesigner GNeuralNetworkIndividual::outputPlot() const {
+    Gem::Common::checkThat(
+        n_d_->getNInputNodes() == 2,
+        "The figure of the network's output needs two input nodes; the network has ",
+        n_d_->getNInputNodes()
+    );
+
+    std::tuple<double, double> x_range{0., 1.};
+    std::tuple<double, double> y_range{0., 1.};
+    if(const auto range = n_d_->getInitRange(); range.size() == 2) {
+        x_range = range[0];
+        y_range = range[1];
     }
+    // The i-th of the grid's points in a range
+    const auto grid_point = [](const std::tuple<double, double> &range, std::size_t i) {
+        const auto [low, high] = range;
+        return low + ((high - low) * static_cast<double>(i) /
+                      static_cast<double>(OUTPUT_PLOT_POINTS_PER_AXIS - 1));
+    };
 
-    std::ofstream vis_program(vis_file);
-    if(not vis_program) {
-        throw gem_exception(
-            g_error_streamer() << "Attempt to open output file " << vis_file
-                               << " for writing failed." << '\n'
-        );
-    }
-
-    // The following only makes sense if the input dimension is 2
-    if(n_d_->getNInputNodes() == 2) {
-        double x_low = 0.;
-        double x_high = 1.;
-        double y_low = 0.;
-        double y_high = 1.;
-
-        // Retrieve information about the initialization range
-        // We only act if initialization ranges have been registered.
-        // If not, than the above default values will be used.
-        std::vector<std::tuple<double, double>> init_range = n_d_->getInitRange();
-        if(init_range.size() == 2) {
-            x_low = std::get<0>(init_range.at(0));
-            x_high = std::get<1>(init_range.at(0));
-            y_low = std::get<0>(init_range.at(1));
-            y_high = std::get<1>(init_range.at(1));
+    std::vector<double> w;
+    this->streamlineFP(w);
+    auto surface = std::make_shared<Gem::Dietrich::GGraph3D>();
+    for(std::size_t i = 0; i < OUTPUT_PLOT_POINTS_PER_AXIS; ++i) {
+        for(std::size_t j = 0; j < OUTPUT_PLOT_POINTS_PER_AXIS; ++j) {
+            const std::array<double, 2> input{grid_point(x_range, i), grid_point(y_range, j)};
+            const double output = this->networkOutput(w, input).front();
+            (*surface) & std::tuple<double, double, double>(input[0], input[1], output);
         }
-
-        // Write the header
-        vis_program
-            << "/**" << '\n'
-            << " * @file visualization.C" << '\n'
-            << " *" << '\n'
-            << " * This program allows to visualize the output of the training example." << '\n'
-            << " * It has been auto-generated by the GNeuralNetworkIndividual class of" << '\n'
-            << " * the Geneva library" << '\n'
-            << " *" << '\n'
-            << " * Can be compiled with a command similar to" << '\n'
-            << " * g++ -o visualization -I/opt/boost155/include/ visualization.C" << '\n'
-            << " * e.g. on Ubuntu 14.04 (assuming that Boost is installed under /opt/boost155"
-            << '\n'
-            << " * in your system). The code should work with virtually any other" << '\n'
-            << " * Linux distribution that supports Boost." << '\n'
-            << " */" << '\n'
-            << '\n'
-            << "/*" << '\n'
-            << " * This file is part of the Geneva library collection." << '\n'
-            << " * The same license applies to this generated file." << '\n'
-            << " */" << '\n'
-            << '\n'
-            << '\n'
-            << "#include <iostream>" << '\n'
-            << "#include <sstream>" << '\n'
-            << "#include <fstream>" << '\n'
-            << "#include <vector>" << '\n'
-            << "#include <random>" << '\n'
-            << '\n'
-            << "#include <cstdint>" << '\n'
-            << '\n'
-            << "#include \"trainedNetwork.hpp\"" << '\n'
-            << '\n'
-            << "const std::uint32_t MAXPOINTS=20000;" << '\n'
-            << '\n'
-            << "using namespace Gem::NeuralNetwork;" << '\n'
-            << '\n'
-            << "int main(int argc, char**argv){" << '\n'
-            << "  std::string geometry = \"" << n_d_->getNetworkGeometryString() << "\";" << '\n'
-            << "  double x_low = " << x_low << ", x_high = " << x_high << ";" << '\n'
-            << "  double y_low = " << y_low << ", y_high = " << y_high << ";" << '\n'
-            << '\n'
-            << "  boost::lagged_fibonacci607 lf(123);" << '\n'
-            << '\n'
-            << "  double x=0., y=0., result=0;" << '\n'
-            << "  std::vector<double> in;" << '\n'
-            << "  std::vector<double> out;" << '\n'
-            << '\n'
-            << "  std::vector<double> x01, y01;" << '\n'
-            << "  std::vector<double> x02, y02;" << '\n'
-            << "  std::vector<double> x03, y03;" << '\n'
-            << "  std::vector<double> x04, y04;" << '\n'
-            << "  std::vector<double> x05, y05;" << '\n'
-            << "  std::vector<double> x06, y06;" << '\n'
-            << "  std::vector<double> x07, y07;" << '\n'
-            << "  std::vector<double> x08, y08;" << '\n'
-            << "  std::vector<double> x09, y09;" << '\n'
-            << "  std::vector<double> x10, y10;" << '\n'
-            << '\n'
-            << "  // Create random numbers and check the output" << '\n'
-            << "  for(std::uint32_t i=0; i<MAXPOINTS; i++){" << '\n'
-            << "    x=x_low + (x_high - x_low)*lf();" << '\n'
-            << "    y=x_low + (y_high - y_low)*lf();" << '\n'
-            << '\n'
-            << "    in.clear();" << '\n'
-            << "    out.clear();" << '\n'
-            << '\n'
-            << "    in.push_back(x);" << '\n'
-            << "    in.push_back(y);" << '\n'
-            << '\n'
-            << "    if(!network(in,out) || out.size()==0){" << '\n'
-            << "      std::cout << \"Error in calculation of network output\" << std::endl;" << '\n'
-            << "      exit(1);" << '\n'
-            << "    }" << '\n'
-            << '\n'
-            << "    double output = out[0];" << '\n'
-            << '\n'
-            << "    if(output < 0.1) {" << '\n'
-            << "      x01.push_back(x);" << '\n'
-            << "      y01.push_back(y);" << '\n'
-            << "    } else if(output < 0.2) {" << '\n'
-            << "      x02.push_back(x);" << '\n'
-            << "      y02.push_back(y);" << '\n'
-            << "    } else if(output < 0.3) {" << '\n'
-            << "      x03.push_back(x);" << '\n'
-            << "      y03.push_back(y);" << '\n'
-            << "    } else if(output < 0.4) {" << '\n'
-            << "      x04.push_back(x);" << '\n'
-            << "      y04.push_back(y);" << '\n'
-            << "    } else if(output < 0.5) {" << '\n'
-            << "      x05.push_back(x);" << '\n'
-            << "      y05.push_back(y);" << '\n'
-            << "    } else if(output < 0.6) {" << '\n'
-            << "      x06.push_back(x);" << '\n'
-            << "      y06.push_back(y);" << '\n'
-            << "    } else if(output < 0.7) {" << '\n'
-            << "      x07.push_back(x);" << '\n'
-            << "      y07.push_back(y);" << '\n'
-            << "    } else if(output < 0.8) {" << '\n'
-            << "      x08.push_back(x);" << '\n'
-            << "      y08.push_back(y);" << '\n'
-            << "    } else if(output < 0.9) {" << '\n'
-            << "      x09.push_back(x);" << '\n'
-            << "      y09.push_back(y);" << '\n'
-            << "    } else {" << '\n'
-            << "      x10.push_back(x);" << '\n'
-            << "      y10.push_back(y);" << '\n'
-            << "    }" << '\n'
-            << "  }" << '\n'
-            << '\n'
-            << "  // Write test results" << '\n'
-            << "  std::ostringstream results;" << '\n'
-            << "  results" << '\n'
-            << "  << \"{\" << std::endl" << '\n'
-            << "  << \"  gROOT->Reset();\" << std::endl" << '\n'
-            << "  << \"  gStyle->SetCanvasColor(0);\" << std::endl" << '\n'
-            << "  << \"  gStyle->SetStatBorderSize(1);\" << std::endl" << '\n'
-            << "  << \"  gStyle->SetOptStat(0);\" << std::endl" << '\n'
-            << "  << std::endl" << '\n'
-            << "  << \"  TCanvas *cc = new TCanvas(\\\"cc\\\", \\\"cc\\\",0,0,1024,1024);\" << "
-               "std::endl"
-            << '\n'
-            << "  << std::endl" << '\n'
-            << "  << \"  TPaveLabel* canvasTitle = new TPaveLabel(0.1,0.95,0.9,0.99, \\\"Output of "
-               "Feedforward Neural Network with geometry \" << geometry << \"\\\");\" << std::endl"
-            << '\n'
-            << "  << \"  canvasTitle->Draw();\" << std::endl" << '\n'
-            << "  << std::endl" << '\n'
-            << "  << \"  TPad* graphPad = new TPad(\\\"Graphs\\\", \\\"Graphs\\\", 0.01, 0.01, "
-               "0.99, 0.94);\" << std::endl"
-            << '\n'
-            << "  << \"  graphPad->Draw();\" << std::endl" << '\n'
-            << "  << \"  graphPad->Divide(1,1);\" << std::endl" << '\n'
-            << "  << std::endl" << '\n'
-            << R"(  << "  double x01[" << x01.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y01[" << y01.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x02[" << x02.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y02[" << y02.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x03[" << x03.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y03[" << y03.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x04[" << x04.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y04[" << y04.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x05[" << x05.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y05[" << y05.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x06[" << x06.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y06[" << y06.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x07[" << x07.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y07[" << y07.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x08[" << x08.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y08[" << y08.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x09[" << x09.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y09[" << y09.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double x10[" << x10.size() << "];" << std::endl)" << '\n'
-            << R"(  << "  double y10[" << y10.size() << "];" << std::endl)" << '\n'
-            << "  << std::endl;" << '\n'
-            << '\n'
-            << "  for(std::size_t i=0; i<x01.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x01[" << i << "] = " << x01[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y01[" << i << "] = " << y01[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x02.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x02[" << i << "] = " << x02[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y02[" << i << "] = " << y02[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x03.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x03[" << i << "] = " << x03[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y03[" << i << "] = " << y03[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x04.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x04[" << i << "] = " << x04[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y04[" << i << "] = " << y04[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x05.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x05[" << i << "] = " << x05[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y05[" << i << "] = " << y05[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x06.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x06[" << i << "] = " << x06[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y06[" << i << "] = " << y06[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x07.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x07[" << i << "] = " << x07[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y07[" << i << "] = " << y07[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x08.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x08[" << i << "] = " << x08[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y08[" << i << "] = " << y08[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x09.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x09[" << i << "] = " << x09[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y09[" << i << "] = " << y09[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << "  for(std::size_t i=0; i<x10.size(); i++){" << '\n'
-            << "    results" << '\n'
-            << R"(    << "  x10[" << i << "] = " << x10[i] << ";" << std::endl)" << '\n'
-            << R"(    << "  y10[" << i << "] = " << y10[i] << ";" << std::endl;)" << '\n'
-            << "  }" << '\n'
-            << '\n'
-            << "   results" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  TGraph *inside01 = new TGraph(\" << x01.size() << \", x01, y01);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside02 = new TGraph(\" << x02.size() << \", x02, y02);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside03 = new TGraph(\" << x03.size() << \", x03, y03);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside04 = new TGraph(\" << x04.size() << \", x04, y04);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside05 = new TGraph(\" << x05.size() << \", x05, y05);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside06 = new TGraph(\" << x06.size() << \", x06, y06);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside07 = new TGraph(\" << x07.size() << \", x07, y07);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside08 = new TGraph(\" << x08.size() << \", x08, y08);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside09 = new TGraph(\" << x09.size() << \", x09, y09);\" << "
-               "std::endl"
-            << '\n'
-            << "   << \"  TGraph *inside10 = new TGraph(\" << x10.size() << \", x10, y10);\" << "
-               "std::endl"
-            << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  graphPad->cd(1);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside01->GetHistogram()->SetTitle(\\\"Network outputs in the ranges "
-               "[0:0.1], ... ,[0.9:1.0]\\\");\" << std::endl"
-            << '\n'
-            << "   << \"  inside01->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside01->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside01->SetMarkerColor(17);\" << std::endl" << '\n'
-            << "   << \"  inside01->GetXaxis()->SetLimits(" << x_low << ", " << x_high
-            << ");\" << std::endl" << '\n'
-            << "   << \"  inside01->GetYaxis()->SetRangeUser(" << y_low << ", " << y_high
-            << ");\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside02->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside02->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside02->SetMarkerColor(14);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside03->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside03->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside03->SetMarkerColor(17);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside04->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside04->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside04->SetMarkerColor(14);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside05->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside05->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside05->SetMarkerColor(17);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside06->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside06->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside06->SetMarkerColor(14);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside07->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside07->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside07->SetMarkerColor(17);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside08->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside08->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside08->SetMarkerColor(14);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside09->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside09->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside09->SetMarkerColor(17);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << "   << \"  inside10->SetMarkerStyle(21);\" << std::endl" << '\n'
-            << "   << \"  inside10->SetMarkerSize(0.35);\" << std::endl" << '\n'
-            << "   << \"  inside10->SetMarkerColor(14);\" << std::endl" << '\n'
-            << "   << std::endl" << '\n'
-            << R"( << "  inside01->Draw(\"AP\");" << std::endl)" << '\n'
-            << R"( << "  inside02->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside03->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside04->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside05->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside06->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside07->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside08->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside09->Draw(\"P\");"  << std::endl)" << '\n'
-            << R"( << "  inside10->Draw(\"P\");"  << std::endl)" << '\n'
-            << " << \"}\" << std::endl;" << '\n'
-            << '\n'
-            << "  std::cout " << '\n'
-            << "  << \"Writing test results into file testResults.C\" << std::endl" << '\n'
-            << R"(  << "Test with the command \"root -l testResults.C\"" << std::endl;)" << '\n'
-            << "  std::ofstream fstr(\"testResults.C\");" << '\n'
-            << "  fstr << results.str();" << '\n'
-            << "  fstr.close();" << '\n'
-            << "}" << '\n';
     }
-    else {
-        glogger << "Request to create visualization program for more than two input dimensions!"
-                << '\n'
-                << "No action taken." << '\n'
+    surface->setSurfaceProjection(Gem::Dietrich::surfaceProjection::FLOOR);
+    surface->setXAxisLabel("input 1");
+    surface->setYAxisLabel("input 2");
+    surface->setZAxisLabel("network output");
+    surface->setPlotLabel("Network output over the range of the training data");
+
+    Gem::Dietrich::GPlotDesigner gpd(
+        "Output of the feed-forward network with geometry " + n_d_->getNetworkGeometryString(),
+        1,
+        1
+    );
+    gpd.setCanvasDimensions(1024, 1024);
+    gpd.registerPlotter(surface);
+    return gpd;
+}
+
+/******************************************************************************/
+/**
+ * @brief Writes the figure of the network's output over its two input dimensions (outputPlot())
+ * to a file, through a dietrich backend: a ROOT macro by default, a gnuplot, matplotlib or Octave
+ * script, or the plain data. A network without two input nodes has no such figure; the function
+ * then warns and writes nothing.
+ *
+ * @param vis_file The name of the file the figure is written to
+ * @param backend The dietrich backend the figure is written through
+ */
+void GNeuralNetworkIndividual::writeVisualizationFile(
+    const std::string &vis_file,
+    Gem::Dietrich::plotBackend backend
+) const {
+    Gem::Common::checkThat(not vis_file.empty(), "Received empty file name.");
+
+    if(n_d_->getNInputNodes() != 2) {
+        glogger << "The figure of the network's output needs two input nodes; the network has "
+                << n_d_->getNInputNodes() << ". No file was written." << '\n'
                 << GWARNING;
+        return;
     }
 
-    // Clean up
-    vis_program.close();
+    Gem::Dietrich::GPlotDesigner gpd = this->outputPlot();
+    gpd.setPlotBackend(backend);
+    gpd.writeToFile(vis_file);
 }
 
 /******************************************************************************/
@@ -1040,16 +751,10 @@ void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_fil
  */
 // NOLINTNEXTLINE(readability-function-size) -- single coherent C++ header code generator for the trained network; weight-offset computation and literal source emission are tightly interleaved with the generated output's layout, so splitting would scatter it
 void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_file) {
-    if(header_file.empty() || header_file.empty()) {
-        throw gem_exception(g_error_streamer() << "Received empty file name." << '\n');
-    }
+    Gem::Common::checkThat(not header_file.empty(), "Received empty file name.");
 
     std::ofstream header(header_file);
-    if(not header) {
-        throw gem_exception(
-            g_error_streamer() << "Error writing output file " << header_file << '\n'
-        );
-    }
+    Gem::Common::checkThat(header.is_open(), "Could not open the output file ", header_file);
 
     header
         << "/**" << '\n'
@@ -1092,8 +797,8 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
            << "    bool network(const std::vector<double>& in, std::vector<double>& out){" << '\n'
            << "      double node_result=0.;" << '\n'
            << '\n'
-           << "      register std::size_t node_counter = 0;" << '\n'
-           << "      register std::size_t prev_node_counter = 0;" << '\n'
+           << "      std::size_t node_counter = 0;" << '\n'
+           << "      std::size_t prev_node_counter = 0;" << '\n'
            << '\n'
            << "      const std::size_t n_layers = " << n_d_->size() << ";" << '\n'
            << "      const std::size_t architecture[n_layers] = {" << '\n';
@@ -1165,7 +870,7 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
            << "      }" << '\n'
            << '\n'
            << "      // All other layers" << '\n'
-           << "      for(register std::size_t layer_counter=1; layer_counter<n_layers; "
+           << "      for(std::size_t layer_counter=1; layer_counter<n_layers; "
               "layer_counter++){"
            << '\n'
            << "        std::vector<double> current_results;" << '\n'
@@ -1262,21 +967,18 @@ const GNeuralNetworkArchitecture &GNeuralNetworkIndividual::architecture() const
  * node \f$k\f$ for input pattern \f$x^{\nu}\f$.
  *
  * The function "transfer()" used in this function can be either radial basis
- * or sigmoid.
- *
- * A small demonstration of the technique of storing a reference to a vector
- * in another vector is shown in the file refWrapper.cpp in the Geneva test cases.
+ * or sigmoid; the forward pass through the network is networkOutput(), which
+ * the figure of outputPlot() shares.
  *
  * @return The training error as a one-element vector (single criterion)
  */
 std::vector<double> GNeuralNetworkIndividual::evaluate() {
     double result = 0;
 
-    // Read all weights out of the flat genome once (genome-agnostic §2 access), then decode their
-    // per-layer meaning through the semantic architecture.
+    // Read all weights out of the flat genome once (genome-agnostic §2 access); networkOutput()
+    // decodes their per-layer meaning through the semantic architecture.
     std::vector<double> w;
     this->streamlineFP(w);
-    const GNeuralNetworkArchitecture &arch = this->architecture();
 
     // Now loop over all data sets
     std::size_t current_pos = 0;
@@ -1285,57 +987,81 @@ std::vector<double> GNeuralNetworkIndividual::evaluate() {
         // Retrieve a constant reference to the training data set for faster access
         const trainingSet &t_s = **o;
 
-        // The input layer (layer 0): two weights per input node (multiplier + bias).
-        std::vector<double> prev_results;
-        std::size_t n_layer_nodes = arch.layerSize(0);
-        double node_result = 0;
-        const std::size_t input_offset = arch.layerOffset(0);
-        for(std::size_t node_counter = 0; node_counter < n_layer_nodes; node_counter++) {
-            node_result = (t_s.Input[node_counter] * w[input_offset + (2 * node_counter)]) -
-                          w[input_offset + (2 * node_counter) + 1];
-            node_result = transfer(node_result);
-            prev_results.push_back(node_result);
-        }
-
-        // All other layers: one weight per previous-layer node plus a bias, per node.
-        std::size_t const n_layers = arch.nLayers();
-        for(std::size_t layer_counter = 1; layer_counter < n_layers; layer_counter++) {
-            std::vector<double> current_results;
-            n_layer_nodes = arch.layerSize(layer_counter);
-            std::size_t const n_prev_layer_nodes = arch.layerSize(layer_counter - 1);
-            const std::size_t layer_offset = arch.layerOffset(layer_counter);
-
-            for(std::size_t node_counter = 0; node_counter < n_layer_nodes; node_counter++) {
-                // Loop over all nodes of the previous layer
-                node_result = 0.;
-                for(std::size_t prev_node_counter = 0; prev_node_counter < n_prev_layer_nodes;
-                    prev_node_counter++) {
-                    node_result += prev_results.at(prev_node_counter) *
-                                   w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) +
-                                     prev_node_counter];
-                }
-                node_result -=
-                    w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) +
-                      n_prev_layer_nodes];
-                node_result = transfer(node_result);
-                current_results.push_back(node_result);
-            }
-
-            prev_results = current_results;
-        }
-
-        // At this point prev_results should contain the output values of the output layer
-
         // Calculate the error made and add it to the result
-        std::size_t const pref_results_size = prev_results.size();
-        for(std::size_t node_counter = 0; node_counter < pref_results_size; node_counter++) {
-            result +=
-                Gem::Common::gsquared(prev_results.at(node_counter) - t_s.Output[node_counter]);
+        const std::vector<double> outputs = this->networkOutput(w, t_s.Input);
+        for(std::size_t node_counter = 0; node_counter < outputs.size(); node_counter++) {
+            result += Gem::Common::gsquared(outputs[node_counter] - t_s.Output[node_counter]);
         }
     }
 
     // Let the audience know
     return {result};
+}
+
+/******************************************************************************/
+/**
+ * @brief The forward pass of the network: the values of the output nodes for one input pattern,
+ * with the weights @p w. The caller reads the weights from the genome once (streamlineFP()) and
+ * passes them for every pattern; their per-layer meaning comes from the semantic architecture.
+ *
+ * @param w All weights of the network, in the order of the genome
+ * @param input One input pattern, a value per input node
+ * @return The values of the output nodes
+ */
+std::vector<double> GNeuralNetworkIndividual::networkOutput(
+    const std::vector<double> &w,
+    std::span<const double> input
+) const {
+    const GNeuralNetworkArchitecture &arch = this->architecture();
+    Gem::Common::checkThat(
+        input.size() == arch.layerSize(0),
+        "Got an input pattern of ",
+        input.size(),
+        " values for a network with ",
+        arch.layerSize(0),
+        " input nodes"
+    );
+
+    // The input layer (layer 0): two weights per input node (multiplier + bias).
+    std::vector<double> prev_results;
+    std::size_t n_layer_nodes = arch.layerSize(0);
+    double node_result = 0;
+    const std::size_t input_offset = arch.layerOffset(0);
+    for(std::size_t node_counter = 0; node_counter < n_layer_nodes; node_counter++) {
+        node_result = (input[node_counter] * w[input_offset + (2 * node_counter)]) -
+                      w[input_offset + (2 * node_counter) + 1];
+        node_result = transfer(node_result);
+        prev_results.push_back(node_result);
+    }
+
+    // All other layers: one weight per previous-layer node plus a bias, per node.
+    std::size_t const n_layers = arch.nLayers();
+    for(std::size_t layer_counter = 1; layer_counter < n_layers; layer_counter++) {
+        std::vector<double> current_results;
+        n_layer_nodes = arch.layerSize(layer_counter);
+        std::size_t const n_prev_layer_nodes = arch.layerSize(layer_counter - 1);
+        const std::size_t layer_offset = arch.layerOffset(layer_counter);
+
+        for(std::size_t node_counter = 0; node_counter < n_layer_nodes; node_counter++) {
+            // Loop over all nodes of the previous layer
+            node_result = 0.;
+            for(std::size_t prev_node_counter = 0; prev_node_counter < n_prev_layer_nodes;
+                prev_node_counter++) {
+                node_result +=
+                    prev_results.at(prev_node_counter) *
+                    w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) + prev_node_counter];
+            }
+            node_result -=
+                w[layer_offset + (node_counter * (n_prev_layer_nodes + 1)) + n_prev_layer_nodes];
+            node_result = transfer(node_result);
+            current_results.push_back(node_result);
+        }
+
+        prev_results = current_results;
+    }
+
+    // At this point prev_results contains the output values of the output layer
+    return prev_results;
 }
 
 /******************************************************************************/

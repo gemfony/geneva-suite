@@ -28,7 +28,14 @@ its ROOT visualization macro. Regenerate a set with a different size or architec
 time by issuing that command yourself.
 
 Once the training has finished, the result is made available as a C++ function suitable
-for inclusion in your own code.
+for inclusion in your own code (trainedNetwork.hpp). For a network with two input nodes the
+example also writes the figure of the network's output over the range of the training data,
+a ROOT macro drawn through the dietrich plotting library:
+
+root -l visualization.C
+
+GNeuralNetworkIndividual::writeVisualizationFile() can write the same figure as a gnuplot,
+matplotlib or Octave script, too.
 
 Check out GNeuralNetworkIndividual::createHyperSphereNetworkData() in 
 geneva/include/geneva/individuals/GNeuralNetworkIndividual.hpp for information on how to create

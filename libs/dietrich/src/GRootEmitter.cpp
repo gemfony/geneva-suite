@@ -74,6 +74,15 @@ using Gem::Common::to_string;
 
 namespace {
 
+/** @brief The marker of the points of a 2-d scatter plot: ROOT's small filled circle */
+constexpr int SCATTERMARKERSTYLE = 20;
+/** @brief The size of the marker of a 2-d scatter plot (ROOT's unit: about 8 pixels per 1) */
+constexpr double SCATTERMARKERSIZE = 0.5;
+/** @brief The offset of the x-axis title of a 3-d graph from its axis (ROOT's unit: the title size) */
+constexpr double GRAPH3DXTITLEOFFSET = 2.0;
+/** @brief The offset of the y-axis title of a 3-d graph; its tick labels stand further out */
+constexpr double GRAPH3DYTITLEOFFSET = 2.5;
+
 /******************************************************************************/
 /**
  * One series of a pad as the ROOT macro draws it: what its plotter reports -- its plot spec, its
@@ -388,6 +397,14 @@ void graph2DLook(
     if(s.spec.line_width.has_value()) {
         out << indent << graph << "->SetLineWidth(" << *s.spec.line_width << ");" << '\n';
     }
+    // The points of a scatter plot are small filled circles. ROOT's own default marker is a dot of
+    // one pixel: a cloud of points came out faint and its legend sample invisible. A draw option of
+    // the plotter's own that names ROOT's star marker ("*") still decides, in shape and size.
+    const GDrawStyle style = s.plotter->drawStyle();
+    if(style.markers and not style.line and not s.spec.drawing_args.contains('*')) {
+        out << indent << graph << "->SetMarkerStyle(" << SCATTERMARKERSTYLE << ");" << '\n'
+            << indent << graph << "->SetMarkerSize(" << SCATTERMARKERSIZE << ");" << '\n';
+    }
 }
 
 /**
@@ -630,13 +647,18 @@ std::string graph3DFooter(const rootSeries &s, const std::string &indent) {
     else {
         out << projectedSurface(s, graph, indent);
     }
+    // The titles of the two floor axes are centred on their axis and set clear of the tick labels:
+    // ROOT puts them at the far end of the axis by default, where the x title ran into the colour
+    // palette of a projected surface and the y title into the tick labels of its axis.
     out << indent << "gPad->Update();" << '\n'
         << indent << graph << "->GetXaxis()->SetTitle(\"" << rootEscape(s.spec.x_label) << "\");"
         << '\n'
-        << indent << graph << "->GetXaxis()->SetTitleOffset(1.5);" << '\n'
+        << indent << graph << "->GetXaxis()->CenterTitle();" << '\n'
+        << indent << graph << "->GetXaxis()->SetTitleOffset(" << GRAPH3DXTITLEOFFSET << ");" << '\n'
         << indent << graph << "->GetYaxis()->SetTitle(\"" << rootEscape(s.spec.y_label) << "\");"
         << '\n'
-        << indent << graph << "->GetYaxis()->SetTitleOffset(1.5);" << '\n'
+        << indent << graph << "->GetYaxis()->CenterTitle();" << '\n'
+        << indent << graph << "->GetYaxis()->SetTitleOffset(" << GRAPH3DYTITLEOFFSET << ");" << '\n'
         << indent << graph << "->GetZaxis()->SetTitle(\"" << rootEscape(s.spec.z_label) << "\");"
         << '\n'
         << indent << graph << "->GetZaxis()->SetTitleOffset(1.5);" << '\n'

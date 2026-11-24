@@ -922,12 +922,18 @@ IF (GEM_BUILD_TESTS)
 	ENDIF ()
 
 	# The runner of the tests that start MPI jobs (GemMpiTest.cmake) gives two runs at the same
-	# time two directories for Open MPI's shared-memory files and removes each, also after a
-	# failure and at its bound; and every entry that names the MPI launcher runs under it.
+	# time two directories for Open MPI's files and removes each, also after a failure and at its
+	# bound; a job whose pid a killed job had starts all the same; and every entry that names the
+	# MPI launcher runs under it.
+	IF (MPIEXEC_EXECUTABLE)
+		SET(_launcher -DMPIEXEC=${MPIEXEC_EXECUTABLE})
+	ELSE ()
+		SET(_launcher "")
+	ENDIF ()
 	ADD_TEST(
 		NAME GemMpiTestDirectories
 		COMMAND ${CMAKE_COMMAND} -DRUNNER=${GEM_MPI_TEST_RUNNER}
-			-DWORK=${CMAKE_BINARY_DIR}/GemMpiTestDirectories
+			-DWORK=${CMAKE_BINARY_DIR}/GemMpiTestDirectories ${_launcher}
 			-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckMpiTestDirectories.cmake
 	)
 	SET_TESTS_PROPERTIES(GemMpiTestDirectories PROPERTIES LABELS "conventions" TIMEOUT 60)
