@@ -37,9 +37,9 @@
 # Choices are passed with -e, for instance
 #   -e boost_toolset=clang -e geneva_cuda=true -e geneva_mqtt_broker=true
 #
-# A Boost of the requested version that is already installed at boost_prefix is
-# left alone, so the playbook can be run again. Afterwards set
-# BOOSTROOT="<boost_prefix>" in genevaConfig.gcfg.
+# A Boost of the requested version that is already installed at boost_prefix, with
+# Boost.Process built as INSTALL describes, is left alone, so the playbook can be run
+# again. Afterwards set BOOSTROOT="<boost_prefix>" in genevaConfig.gcfg.
 #
 # With -e geneva_measure_server=true it also prepares a host on which only the
 # server of a distributed measurement runs, while its clients run on another
@@ -126,8 +126,19 @@
       changed_when: false
       failed_when: false
 
+    # An installed Boost of the right version is kept only if it has Boost.Process built with
+    # boost.process.fs=std (its library then does not need libboost_filesystem).
+    - name: Check the Boost.Process of an installed Boost
+      ansible.builtin.shell:
+        cmd: >-
+          test -e {{ boost_prefix }}/lib/libboost_process.so &&
+          ! readelf -d {{ boost_prefix }}/lib/libboost_process.so | grep -q libboost_filesystem
+      register: boost_process_installed
+      changed_when: false
+      failed_when: false
+
     - name: Build and install Boost
-      when: boost_installed.stdout != (boost_number | string)
+      when: boost_installed.stdout != (boost_number | string) or boost_process_installed.rc != 0
       block:
         - name: Make a directory for the Boost build
           ansible.builtin.tempfile:
@@ -160,13 +171,16 @@
             chdir: "{{ boost_build.path }}/{{ boost_name }}"
 
         # The decisive flag is -std=c++23: Boost must be built in the mode Geneva is built in.
+        # boost.process.fs=std: Boost.Process (Geneva starts external programs through it) uses
+        # std::filesystem instead of Boost.Filesystem, which Geneva does not use (INSTALL).
         # Only the libraries Geneva links are compiled; all headers are installed.
         - name: Compile and install Boost (this takes a while)
           ansible.builtin.command:
             cmd: >-
               ./b2 -j{{ ansible_processor_nproc }} toolset={{ boost_toolset }}
               cxxflags=-std=c++23 variant=release link=shared threading=multi
-              --with-atomic --with-json --with-program_options --with-regex
+              boost.process.fs=std
+              --with-atomic --with-json --with-program_options --with-process --with-regex
               install
             chdir: "{{ boost_build.path }}/{{ boost_name }}"
 

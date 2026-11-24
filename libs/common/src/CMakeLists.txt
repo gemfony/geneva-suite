@@ -106,6 +106,19 @@ TARGET_LINK_LIBRARIES(
     Boost::atomic
 )
 
+# runExternalCommand starts programs through Boost.Process v2. PRIVATE: no public header names it,
+# so programs that link common do not get Boost.Process's own dependencies (container, context,
+# date_time, exception) on their link line. Boost is built with boost.process.fs=std (INSTALL), and
+# the headers must be told so: Boost's CMake package does not pass BOOST_PROCESS_USE_STD_FS on.
+TARGET_LINK_LIBRARIES(${COMMON_LIBNAME} PRIVATE Boost::process)
+TARGET_COMPILE_DEFINITIONS(${COMMON_LIBNAME} PRIVATE BOOST_PROCESS_USE_STD_FS)
+# Boost::process's CMake package names container, context, date_time and exception as link
+# dependencies, which common does not use. --as-needed keeps them out of libgemfony-common's NEEDED
+# entries; Ubuntu's gcc links so by default, its clang does not.
+IF (UNIX AND NOT APPLE)
+	TARGET_LINK_OPTIONS(${COMMON_LIBNAME} PRIVATE "LINKER:--as-needed")
+ENDIF ()
+
 # The module loader (GModuleLoader) uses Boost.DLL, which is header-only here and needs only
 # the dynamic loading library, on platforms that have one.
 TARGET_LINK_LIBRARIES(${COMMON_LIBNAME} PRIVATE ${CMAKE_DL_LIBS})

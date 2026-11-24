@@ -21,7 +21,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   rejects anything lower, and the exported CMake package advertises `cxx_std_23`, so **downstream
   consumers of the `Geneva::` targets are compiled as C++23 too**. A C++20-only toolchain can no
   longer build or link against Geneva.
-- **Boost ≥ 1.91**, built in C++23 mode; **CMake ≥ 4.0**; **Catch2 v3** for the tests.
+- **Boost ≥ 1.91**, built in C++23 mode and with `boost.process.fs=std` (Boost.Process, which
+  common now links, then uses `std::filesystem`; INSTALL, "Compiling Boost"); **CMake ≥ 4.0**;
+  **Catch2 v3** for the tests.
 - **CUDA (optional) raised to ≥ 13.3, and now gated on the device too.** CUDA code (the
   CUDA examples/benchmark, the CUDA RNG backend, the GPU consumer) is enabled only when
   *both* the toolkit *and* the installed driver support CUDA ≥ 13.3; otherwise CUDA is
@@ -452,15 +454,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GEM_REGISTER_ARCHIVABLE` (replacing `BOOST_CLASS_EXPORT`). The old Boost text/XML/binary
   serialization modes are gone; only `GEM_BINARY` and `GEM_JSON` remain. Downstream consumers link
   Weft automatically through the exported `Geneva::` targets.
-- **Geneva's Boost link footprint is now just Boost.JSON and Boost.ProgramOptions.** Beyond
-  Boost.Serialization (above), **Boost.Filesystem has also been dropped**: Geneva's own code uses
-  `std::filesystem` throughout, and the plugin loader (Boost.DLL) is compiled with
+- **Geneva's Boost link footprint is now Boost.JSON, Boost.ProgramOptions and Boost.Process.**
+  Beyond Boost.Serialization (above), **Boost.Filesystem has also been dropped**: Geneva's own
+  code uses `std::filesystem` throughout, and the plugin loader (Boost.DLL) is compiled with
   `BOOST_DLL_USE_STD_FS`, so it too uses `std::filesystem` / `std::system_error`.
   `Boost::filesystem` was removed from the library link lines, the `GEM_BOOST_LIBS` component
   list, the installed `FindGeneva` config, and the `libboost-filesystem-dev` Debian dependency. An
-  installed Geneva library now links only `libboost_json` and `libboost_program_options` (Boost
-  headers are still needed at build time, e.g. Boost.Asio/Beast for the networked consumers and
-  Boost.DLL for module loading).
+  installed Geneva library now links only `libboost_json`, `libboost_program_options` and, for
+  starting external programs, `libboost_process` (Boost headers are still needed at build time,
+  e.g. Boost.Asio/Beast for the networked consumers and Boost.DLL for module loading).
 - **courtier depends on common (and so on weft) only.** `gemfony-courtier` no longer links `gemfony-hap`, so
   `Geneva::courtier` no longer brings `Geneva::hap` with it: a program that used hap through
   courtier links `Geneva::hap` itself. `Geneva::geneva` links hap directly and brings it as
@@ -804,6 +806,16 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   switched on now run in every build, except the costly ones (the `dynamic_cast` of
   `g_ptr_conversion()`, loops over a population, a check per random number or per parameter read),
   which follow `NDEBUG`. Code that tested `DEBUG` tests `NDEBUG`.
+- **common: external programs are started without a shell** (behaviour change).
+  `Gem::Common::runExternalCommand` starts the program through Boost.Process with an argument
+  vector instead of `system()`: each argument arrives unchanged, spaces included, and shell syntax
+  (pipes, redirections, `$VAR`, globs, quotes) is no longer interpreted -- a program that needs it
+  is given a script. A name without a directory part is still looked up in `PATH`. It now returns
+  the program's exit status (1, where `system()` returned 256), or the number of the signal that
+  ended the program, and raises `gem_exception` when the program is not found or cannot be started.
+  `GExternalEvaluatorIndividual` passes file names without the quotes it used to add for the shell,
+  and splits its `custom_options` at whitespace into separate arguments; quotes in them are not
+  interpreted.
 
 ## 8. Checkpointing
 
