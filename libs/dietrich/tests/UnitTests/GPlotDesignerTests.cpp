@@ -57,21 +57,27 @@ using namespace Gem::Common;
 using namespace Gem::Dietrich; // the plotting types under test live here
 
 namespace {
-/** Concatenate a plotter's three emission sections for substring assertions. */
-std::string emit(const GBasePlotter &p) {
-    return p.headerData("") + p.bodyData("") + p.footerData("");
+/**
+ * The ROOT macro of one pad that holds @p p (and its overlays).
+ * @param p The pad's primary plotter
+ * @return The macro
+ */
+std::string rootMacroOf(const std::shared_ptr<GBasePlotter> &p) {
+    GPlotDesigner gpd("one pad", 1, 1);
+    gpd.registerPlotter(p);
+    return gpd.plot();
 }
 } // namespace
 
 /******************************************************************************/
 // BUG-1: user strings must be escaped before they go into a ROOT C-string literal.
 TEST_CASE("GPlotDesigner escapes user strings in emitted ROOT literals", "[plotting]") {
-    GGraph2D g;
-    g &std::tuple<double, double>(1.0, 2.0);
-    g.setXAxisLabel(std::string("a\"b"));        // an embedded double quote
-    g.setPlotLabel(std::string("line1\nline2")); // an embedded newline
+    auto g = std::make_shared<GGraph2D>();
+    *g &std::tuple<double, double>(1.0, 2.0);
+    g->setXAxisLabel(std::string("a\"b"));        // an embedded double quote
+    g->setPlotLabel(std::string("line1\nline2")); // an embedded newline
 
-    const std::string s = emit(g);
+    const std::string s = rootMacroOf(g);
 
     // The quote is backslash-escaped (a\"b), never a bare a"b that closes the literal early.
     CHECK(s.contains("a\\\"b"));
@@ -84,10 +90,10 @@ TEST_CASE("GPlotDesigner escapes user strings in emitted ROOT literals", "[plott
 // BUG-3: coordinates are emitted at full (round-trippable) precision, not the
 // default 6 significant digits, and locale-independently.
 TEST_CASE("GPlotDesigner emits full-precision coordinates", "[plotting]") {
-    GGraph2D g;
-    g &std::tuple<double, double>(1.0 / 3.0, 2.0 / 3.0);
+    auto g = std::make_shared<GGraph2D>();
+    *g &std::tuple<double, double>(1.0 / 3.0, 2.0 / 3.0);
 
-    const std::string s = emit(g);
+    const std::string s = rootMacroOf(g);
 
     // 6-significant-digit default would render 0.333333; full precision keeps many more digits.
     CHECK(s.contains("3333333333"));
@@ -99,13 +105,13 @@ TEST_CASE("GPlotDesigner emits full-precision coordinates", "[plotting]") {
 // BUG-2: the GGraph3D poly-line must receive every data point, including the first
 // (the pre-fix loop started at begin()+1, dropping point 0 and leaving an origin vertex).
 TEST_CASE("GGraph3D poly-line emits every point including the first", "[plotting]") {
-    GGraph3D g;
-    g.setDrawLines(true);
-    g &std::tuple<double, double, double>(1., 1., 1.);
-    g &std::tuple<double, double, double>(2., 2., 2.);
-    g &std::tuple<double, double, double>(3., 3., 3.);
+    auto g = std::make_shared<GGraph3D>();
+    g->setDrawLines(true);
+    *g &std::tuple<double, double, double>(1., 1., 1.);
+    *g &std::tuple<double, double, double>(2., 2., 2.);
+    *g &std::tuple<double, double, double>(3., 3., 3.);
 
-    const std::string s = g.footerData("");
+    const std::string s = rootMacroOf(g);
 
     const std::string::size_type poly = s.find("TPolyLine3D");
     REQUIRE(poly != std::string::npos);
@@ -128,14 +134,14 @@ TEST_CASE("GGraph3D poly-line emits every point including the first", "[plotting
 // update that forces the painting (pre-fix they came before the draw, and every SURF*/COLZ plot --
 // e.g. a scanned fitness landscape -- came out with unlabelled axes).
 TEST_CASE("GGraph3D sets its axis titles after the draw command", "[plotting]") {
-    GGraph3D g;
-    g.setXAxisLabel(std::string("x_axis"));
-    g.setYAxisLabel(std::string("y_axis"));
-    g.setZAxisLabel(std::string("z_axis"));
-    g.setDrawingArguments(std::string("SURF2Z"));
-    g &std::tuple<double, double, double>(1., 1., 1.);
+    auto g = std::make_shared<GGraph3D>();
+    g->setXAxisLabel(std::string("x_axis"));
+    g->setYAxisLabel(std::string("y_axis"));
+    g->setZAxisLabel(std::string("z_axis"));
+    g->setDrawingArguments(std::string("SURF2Z"));
+    *g &std::tuple<double, double, double>(1., 1., 1.);
 
-    const std::string s = g.footerData("");
+    const std::string s = rootMacroOf(g);
 
     const std::string::size_type draw = s.find("->Draw(\"SURF2Z\")");
     REQUIRE(draw != std::string::npos);
@@ -159,20 +165,20 @@ TEST_CASE("function plotters emit a quoted and honoured draw option", "[plotting
     const std::tuple<double, double> rx(-1., 1.);
     const std::tuple<double, double> ry(-1., 1.);
 
-    GFunctionPlotter2D f2("x*y", rx, ry);
-    f2.setDrawingArguments("surf1");
-    CHECK(f2.footerData("").contains("->Draw(\"surf1\")"));
+    auto f2 = std::make_shared<GFunctionPlotter2D>("x*y", rx, ry);
+    f2->setDrawingArguments("surf1");
+    CHECK(rootMacroOf(f2).contains("->Draw(\"surf1\")"));
 
-    GFunctionPlotter1D f1("sin(x)", rx);
-    f1.setDrawingArguments("L");
-    CHECK(f1.footerData("").contains("->Draw(\"L\")"));
+    auto f1 = std::make_shared<GFunctionPlotter1D>("sin(x)", rx);
+    f1->setDrawingArguments("L");
+    CHECK(rootMacroOf(f1).contains("->Draw(\"L\")"));
 }
 
 /******************************************************************************/
 // BUG-4: an auto-ranged histogram with no data must throw (not dereference end()).
 TEST_CASE("auto-ranged histogram with no data throws instead of UB", "[plotting]") {
-    GHistogram1D const h(10); // 10 bins, no data added -> default min==max -> auto-range path
-    CHECK_THROWS(h.headerData(""));
+    // 10 bins, no data added -> default min==max -> auto-range path
+    CHECK_THROWS(rootMacroOf(std::make_shared<GHistogram1D>(10)));
 }
 
 /******************************************************************************/
@@ -779,17 +785,6 @@ TEST_CASE("functions and 4-d graphs report their drawing in the GPlotSpec", "[pl
 
 /******************************************************************************/
 namespace {
-/**
- * The ROOT macro of one pad that holds @p p (and its overlays).
- * @param p The pad's primary plotter
- * @return The macro
- */
-std::string rootMacroOf(const std::shared_ptr<GBasePlotter> &p) {
-    GPlotDesigner gpd("one pad", 1, 1);
-    gpd.registerPlotter(p);
-    return gpd.plot();
-}
-
 /**
  * A plotter built from a plot spec (makePlotter()), with rows of data.
  * @param spec The spec

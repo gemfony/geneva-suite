@@ -351,21 +351,6 @@ public:
 
     /***************************************************************************/
 
-    /**
-     * @brief Retrieve header settings for this plot (and any sub-plots)
-     */
-    [[nodiscard]] std::string headerData(const std::string &indent) const;
-
-    /**
-     * @brief Retrieves body / data settings for this plot (and any sub-plots)
-     */
-    [[nodiscard]] std::string bodyData(const std::string &indent) const;
-
-    /**
-     * @brief Retrieves footer / drawing settings for this plot (and any sub-plots)
-     */
-    [[nodiscard]] std::string footerData(const std::string &indent) const;
-
     /** @brief Changes this plotter for the standard tests (common/testing/GStandardTests.hpp).
      *  Mutates this base class'es serialized members (the labels, drawing arguments, data-structure
      *  marker and id); derived plotters call it and then mutate their own state. It is never
@@ -390,79 +375,11 @@ protected:
     // base from class_name and localMembers_(); clone_() stays pure (this is an abstract root).
 
     /***************************************************************************/
-    // Functions to be specified in derived classes
-
-    /**
-     * @brief Retrieve specific header settings for this plot
-     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
-     * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
-     * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The plotter-specific header section
-     */
-    [[nodiscard]] virtual std::string headerData_(
-        bool is_secondary,
-        std::size_t parent_id,
-        std::size_t own_id,
-        const std::string &indent
-    ) const = 0;
-
-    /**
-     * @brief Retrieves the actual data sets
-     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
-     * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
-     * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The plotter-specific data / body section
-     */
-    [[nodiscard]] virtual std::string bodyData_(
-        bool is_secondary,
-        std::size_t parent_id,
-        std::size_t own_id,
-        const std::string &indent
-    ) const = 0;
-
-    /**
-     * @brief retrieves specific draw commands for this plot
-     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
-     * @param parent_id The id of the parent plotter (only meaningful when is_secondary is true)
-     * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
-     * @param indent The indentation string prepended to each emitted line
-     * @return The plotter-specific footer / draw section
-     */
-    [[nodiscard]] virtual std::string footerData_(
-        bool is_secondary,
-        std::size_t parent_id,
-        std::size_t own_id,
-        const std::string &indent
-    ) const = 0;
-
-    /**
-     * @brief Retrieve the current drawing arguments
-     * @param is_secondary true if this plotter is a secondary plotter sharing a parent's canvas
-     * @return The drawing arguments to be passed to the plotting backend
-     */
-    [[nodiscard]] virtual std::string drawingArguments(bool is_secondary) const = 0;
-
-    /**
-     * @brief The name of the object in the ROOT script whose look (line, marker, fill) the legend
-     * sample of this plotter's series copies: the graph, histogram or function its footer draws (a
-     * 4-d graph: one of its markers; a 3-d curve: a sample object of its own, never drawn). The
-     * default, an empty name, gives the series a sample object made from drawStyle() in the
-     * pad's colour of the series -- the choice for a plotter of one's own.
-     */
-    [[nodiscard]] virtual std::string
-    rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const;
 
     /**
      * @brief Check that a given plotter is compatible with us
      */
     [[nodiscard]] virtual bool isCompatible(std::shared_ptr<GBasePlotter> other) const;
-
-    /**
-     * @brief calculate a suffix from id and parent ids
-     */
-    [[nodiscard]] std::string suffix(bool is_secondary, std::size_t p_id, std::size_t own_id) const;
 
     /***************************************************************************/
 

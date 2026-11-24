@@ -169,7 +169,7 @@ inline void emitRootSeriesColour(
  */
 struct rootLegendEntry {
     std::string
-        object; ///< the name of the series' object in the script (GBasePlotter::rootLegendObject_()); empty: none
+        object; ///< the name of the series' object in the script (the ROOT emitter's); empty: none
     std::string label;   ///< the text of the entry
     legendSample sample; ///< what the sample shows
     std::size_t series =

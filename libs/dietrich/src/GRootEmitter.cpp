@@ -1174,6 +1174,88 @@ std::string padFinish(const std::vector<rootSeries> &pad, const std::string &ind
     return out.str();
 }
 
+/******************************************************************************/
+/**
+ * The canvas of the macro: ROOT's style, the canvas, its label (the title of the figure, in a box
+ * above the pads; without it the pads take the whole canvas) and the pad divided into the grid of
+ * the plots. The label's text has one size (CANVASLABELTEXTSIZE), whatever its letters, unless it is
+ * too wide for the box: then it is drawn just small enough (ROOT measures it, as TPaveLabel would,
+ * at the size TPaveLabel derives from the box's height in pixels).
+ *
+ * @param c_dim The canvas' width and height in pixels
+ * @param c_div The number of pads in x and y direction
+ * @param label The canvas label
+ * @param show_label Whether the label is shown
+ * @param indent The indentation of every line
+ * @return The statements
+ */
+std::string canvasOf(
+    const std::tuple<std::uint32_t, std::uint32_t> &c_dim,
+    const std::tuple<std::size_t, std::size_t> &c_div,
+    const std::string &label,
+    bool show_label,
+    const std::string &indent
+) {
+    EmitStream result;
+
+    result << indent << "gROOT->Reset();" << '\n'
+           << indent << "gStyle->SetCanvasColor(0);" << '\n'
+           << indent << "gStyle->SetStatBorderSize(1);" << '\n'
+           << indent << "gStyle->SetOptStat(0);" << '\n'
+           << '\n'
+           << indent << R"(TCanvas *cc = new TCanvas("cc", "cc",0,0,)" << std::get<0>(c_dim) << ","
+           << std::get<1>(c_dim) << ");" << '\n'
+           << '\n';
+    if(show_label) {
+        std::ostringstream size;
+        size.imbue(std::locale::classic());
+        size << CANVASLABELTEXTSIZE;
+        result << indent << "TPaveLabel* canvasTitle = new TPaveLabel(0.2,0.95,0.8,0.99, \""
+               << rootEscape(label) << "\");" << '\n'
+               << indent << "{ // one text size, whatever the letters; smaller only if too wide"
+               << '\n'
+               << indent << "   const double x1 = 0.2, y1 = 0.95, x2 = 0.8, y2 = 0.99;" << '\n'
+               << indent << "   const double pad_w = gPad->XtoPixel(gPad->GetX2());" << '\n'
+               << indent << "   const double pad_h = gPad->YtoPixel(gPad->GetY1());" << '\n'
+               << indent << "   const double room = 0.95 * (x2 - x1);" << '\n'
+               << indent << "   TLatex label(0., 0., canvasTitle->GetLabel());" << '\n'
+               << indent << "   label.SetTextFont(canvasTitle->GetTextFont());" << '\n'
+               << indent << "   const auto width_at = [&](double size) { // of the box's height"
+               << '\n'
+               << indent << "      const double box_h = (y2 - y1) * pad_h;" << '\n'
+               << indent << "      label.SetTextSize(size * box_h / TMath::Min(pad_w, pad_h));"
+               << '\n'
+               << indent << "      return label.GetXsize() / (gPad->GetX2() - gPad->GetX1());"
+               << '\n'
+               << indent << "   };" << '\n'
+               << indent << "   double size = " << size.str() << ";" << '\n'
+               << indent << "   double width = width_at(size);" << '\n'
+               << indent << "   for(int pass = 0; pass < 4 && width > room; ++pass) {" << '\n'
+               << indent << "      size *= room / width; // a width is not quite proportional"
+               << '\n'
+               << indent << "      width = width_at(size);" << '\n'
+               << indent << "   }" << '\n'
+               << indent << "   canvasTitle->SetTextSize(size);" << '\n'
+               << indent << "}" << '\n'
+               << indent << "canvasTitle->Draw();" << '\n'
+               << '\n'
+               << indent
+               << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.94);)"
+               << '\n';
+    }
+    else {
+        result << indent
+               << R"(TPad* graphPad = new TPad("Graphs", "Graphs", 0.01, 0.01, 0.99, 0.99);)"
+               << '\n';
+    }
+    result << indent << "graphPad->Draw();" << '\n'
+           << indent << "graphPad->Divide(" << std::get<0>(c_div) << "," << std::get<1>(c_div)
+           << ");" << '\n'
+           << '\n';
+
+    return result.str();
+}
+
 } // anonymous namespace
 
 /******************************************************************************/
@@ -1214,7 +1296,15 @@ std::string GRootEmitter::emitDocument(const GPlotDesigner &gpd) const {
         pads.push_back(padOf(*p));
     }
 
-    result << "{" << '\n' << gpd.staticHeader(indent) << '\n';
+    result << "{" << '\n'
+           << canvasOf(
+                  {gpd.c_x_dim_, gpd.c_y_dim_},
+                  {gpd.c_x_div_, gpd.c_y_div_},
+                  gpd.canvas_label_,
+                  gpd.show_canvas_label_,
+                  indent
+              )
+           << '\n';
 
     result << indent << "//===================  Header Section ====================" << '\n'
            << '\n';
