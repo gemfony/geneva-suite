@@ -681,13 +681,30 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   re-export for its *own* unqualified use of common names must now qualify or import
   them itself.
 - **dietrich: one description of how a series is drawn and what its legend shows.**
-  `GBasePlotter` has `drawStyle()` (virtual; by default resolved from `plotSpec()`),
-  `legendEntries()` (the legend of a pad, in every backend) and `rootLegendObject_()`
-  (virtual; by default the ROOT legend gives the series a sample object of its own). A plotter
-  of one's own overrides `drawStyle()` where it draws otherwise. The matplotlib, Octave and
+  `GBasePlotter` has `drawStyle()` (virtual; by default resolved from `plotSpec()`) and
+  `legendEntries()` (the legend of a pad, in every backend). A plotter of one's own overrides
+  `drawStyle()` where it draws otherwise. The matplotlib, Octave and
   gnuplot writers and the external renderer now draw a series as that description says, as
   ROOT does: a 2-d scatter plot as markers alone, an error-bar curve with its line, a 3-d
   curve as a line through markers.
+- **dietrich: ROOT draws from the plot spec, as every other backend.** `GRootEmitter` writes
+  the macro from what a plotter reports -- `plotSpec()`, `dataColumns()`, `drawStyle()` -- so a
+  plot is described once for ROOT, gnuplot, matplotlib, Octave and the data export. A plotter of
+  one's own reports a `plotKind` and its columns and is drawn as that kind. `GPlotSpec` gained
+  `function` (a function's formula; its range and sampling are `range_x`/`range_y` and
+  `n_bins_x`/`n_bins_y`) and, for a 4-d graph, `marker_size`, `small_w_large_marker` and
+  `n_best`; `makePlotter()` now rebuilds functions and 4-d graphs. **Removed** (the plotters'
+  own ROOT text): `GBasePlotter::headerData(const std::string &indent) const`,
+  `bodyData(...)` and `footerData(...)` of the same signature; the protected virtuals
+  `headerData_(bool is_secondary, std::size_t parent_id, std::size_t own_id,
+  const std::string &indent) const`, `bodyData_(...)` and `footerData_(...)` of the same
+  signature, `drawingArguments(bool is_secondary) const` and
+  `rootLegendObject_(bool is_secondary, std::size_t parent_id, std::size_t own_id) const`,
+  and `suffix(bool is_secondary, std::size_t p_id, std::size_t own_id) const` -- with their
+  overrides in `GGraph2D`, `GGraph2ED`, `GGraph3D`, `GGraph4D`, `GFunctionPlotter1D/2D` and
+  `GHistogram1D/1I/2D`; and `GPlotDesigner::staticHeader(const std::string &indent) const`
+  (protected). A `GHistogram1I` without a range (minimum equal to maximum) now takes its range
+  from its data, as `GHistogram1D` does.
 - **A process-wide thread budget now accounts every pool** (`GThreadBudget` in
   `common/concurrency/`). The budget does accounting only — every reservation is granted in
   full; its single behavioral effect is a warning (at most three per process) when the

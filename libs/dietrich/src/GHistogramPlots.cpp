@@ -37,7 +37,6 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "dietrich/plotting/detail/GPlotDetail.hpp"
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -74,20 +73,51 @@ namespace {
 
 /******************************************************************************/
 /**
- * @brief The automatic range of a histogram axis: from the smallest value to one bin width above the
- * largest, since ROOT's upper edge is exclusive -- a range that ended at the largest value would put
- * every entry equal to it into the overflow bin, which is not drawn. One value alone gets the range
- * [value - 0.5, value + 0.5].
- * @param lo The smallest value
- * @param hi The largest value
- * @param n_bins The number of bins of the axis
- * @return The lower and the upper edge
+ * @brief ROOT's draw option of a 2-d drawing option, as a plot spec reports it
+ * @param option A 2-d drawing option (set2DOpt())
+ * @return Its ROOT draw option ("" for TDEMPTY, "SURF1", "COLZ", ...)
  */
-std::tuple<double, double> rangeHolding(double lo, double hi, std::size_t n_bins) {
-    if(hi <= lo) {
-        return {lo - 0.5, hi + 0.5};
+std::string drawOptionName(tddropt option) {
+    switch(option) {
+        using enum tddropt;
+    case TDEMPTY:
+        return "";
+    case SURFONE:
+        return "SURF1";
+    case SURFTWOZ:
+        return "SURF2Z";
+    case SURFTHREE:
+        return "SURF3";
+    case SURFFOUR:
+        return "SURF4";
+    case CONTZ:
+        return "CONTZ";
+    case CONTONE:
+        return "CONT1";
+    case CONTTWO:
+        return "CONT2";
+    case CONTTHREE:
+        return "CONT3";
+    case TEXT:
+        return "TEXT";
+    case SCAT:
+        return "SCAT";
+    case BOX:
+        return "BOX";
+    case ARR:
+        return "ARR";
+    case COLZ:
+        return "COLZ";
+    case LEGO:
+        return "LEGO";
+    case LEGOONE:
+        return "LEGO1";
+    case SURFONEPOL:
+        return "SURF1POL";
+    case SURFONECYL:
+        return "SURF1CYL";
     }
-    return {lo, hi + (hi - lo) / static_cast<double>(std::max<std::size_t>(n_bins, 1))};
+    return "";
 }
 
 } /* namespace */
@@ -129,160 +159,6 @@ GHistogram1D::GHistogram1D(const std::size_t &n_bins_x, const std::tuple<double,
   : n_bins_x_(n_bins_x)
   , min_x_(std::get<0>(range_x))
   , max_x_(std::get<1>(range_x)) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * Retrieve specific header settings for this plot
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The header code declaring the ROOT TH1D histogram (using explicit or auto-detected range)
- */
-std::string GHistogram1D::headerData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream header_data;
-
-    const std::string comment = dsMarkerComment(ds_marker_);
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    if(min_x_ != max_x_) {
-        header_data << indent << "TH1D *" << hist_name << " = new TH1D(\"" << hist_name << "\", \""
-                    << hist_name << "\"," << n_bins_x_ << ", " << min_x_ << ", " << max_x_ << ");"
-                    << comment << '\n'
-                    << '\n';
-    }
-    else { // automatic range detection
-        const auto [min_x, max_x] = this->getMinMaxElements();
-        const auto [lo_x, hi_x] = rangeHolding(min_x, max_x, n_bins_x_);
-        header_data << indent << "TH1D *" << hist_name << " = new TH1D(\"" << hist_name << "\", \""
-                    << hist_name << "\"," << n_bins_x_ << ", " << lo_x << ", " << hi_x << ");"
-                    << comment << '\n'
-                    << '\n';
-    }
-
-    return header_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieves the actual data sets
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The body code filling the ROOT TH1D histogram with this plotter's data values
- */
-std::string GHistogram1D::bodyData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream body_data;
-
-    const std::string comment = dsMarkerComment(ds_marker_);
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    const auto &x_col = this->column<0>();
-    const std::size_t n = this->currentSize();
-    for(std::size_t pos_counter = 0; pos_counter < n; ++pos_counter) {
-        body_data << indent << hist_name << "->Fill(" << std::showpoint << x_col[pos_counter]
-                  << ");" << (pos_counter == 0 ? comment : ("")) << '\n';
-    }
-    body_data << '\n';
-
-    return body_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieves specific draw commands for this plot
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The footer code setting titles and drawing the ROOT TH1D histogram
- */
-std::string GHistogram1D::footerData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream footer_data;
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    emitRootTitle(footer_data, indent, hist_name, plot_label_);
-
-    std::string const comment;
-    if(!ds_marker_.empty()) {
-        footer_data << "// " + rootEscape(ds_marker_) << '\n';
-    }
-
-    // Check whether custom drawing arguments have been set
-    std::string const d_a = this->drawingArguments(is_secondary);
-
-    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
-                << "\");" << '\n'
-                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
-                << "\");" << '\n'
-                << indent << hist_name << "->Draw(\"" << d_a << "\");" << '\n'
-                << '\n';
-
-    return footer_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieve the current drawing arguments
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @return The ROOT draw-option string; secondary plotters get the "same" option appended
- */
-std::string GHistogram1D::drawingArguments(bool is_secondary) const {
-    std::string d_a;
-
-    if(!drawing_arguments_.empty()) {
-        d_a = drawing_arguments_;
-    }
-    else {
-        if(is_secondary) {
-            if(d_a.empty()) {
-                d_a = "same";
-            }
-            else {
-                d_a = d_a + ",same";
-            }
-        }
-    }
-
-    return d_a;
-}
-
-/******************************************************************************/
-/**
- * The TH1D footerData_() draws.
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter
- * @param own_id This plotter's own emit index
- * @return The name of the object in the ROOT script whose look the legend sample copies
- */
-std::string
-GHistogram1D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
-    return std::string("histD") + suffix(is_secondary, p_id, own_id);
 }
 
 /******************************************************************************/
@@ -376,151 +252,6 @@ GHistogram1I::GHistogram1I(const std::size_t &n_bins_x, const std::tuple<double,
   : n_bins_x_(n_bins_x)
   , min_x_(std::get<0>(range_x))
   , max_x_(std::get<1>(range_x)) { /* nothing */
-}
-
-/******************************************************************************/
-/**
- * Retrieve specific header settings for this plot
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The header code declaring the ROOT TH1I integer histogram
- */
-std::string GHistogram1I::headerData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream header_data;
-
-    const std::string comment = dsMarkerComment(ds_marker_);
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    header_data << indent << "TH1I *" << hist_name << " = new TH1I(\"" << hist_name << "\", \""
-                << hist_name << "\"," << n_bins_x_ << ", " << min_x_ << ", " << max_x_ << ");"
-                << comment << '\n'
-                << '\n';
-
-    return header_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieves the actual data sets
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The body code filling the ROOT TH1I histogram with this plotter's integer data values
- */
-std::string GHistogram1I::bodyData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream body_data;
-
-    const std::string comment = dsMarkerComment(ds_marker_);
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    const auto &x_col = this->column<0>();
-    const std::size_t n = this->currentSize();
-    for(std::size_t pos_counter = 0; pos_counter < n; ++pos_counter) {
-        body_data << indent << hist_name << "->Fill(" << x_col[pos_counter] << ");"
-                  << (pos_counter == 0 ? comment : ("")) << '\n';
-    }
-
-    body_data << '\n';
-
-    return body_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieves specific draw commands for this plot
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The footer code setting titles and drawing the ROOT TH1I histogram
- */
-std::string GHistogram1I::footerData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream footer_data;
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    emitRootTitle(footer_data, indent, hist_name, plot_label_);
-
-    std::string const comment;
-    if(!ds_marker_.empty()) {
-        footer_data << "// " + rootEscape(ds_marker_) << '\n';
-    }
-
-    // Check whether custom drawing arguments have been set
-    std::string const d_a = this->drawingArguments(is_secondary);
-
-    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
-                << "\");" << '\n'
-                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
-                << "\");" << '\n'
-                << indent << hist_name << "->Draw(\"" << d_a << "\");" << '\n'
-                << '\n';
-
-    return footer_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieve the current drawing arguments
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @return The ROOT draw-option string; secondary plotters get the "same" option appended
- */
-std::string GHistogram1I::drawingArguments(bool is_secondary) const {
-    std::string d_a;
-
-    if(!drawing_arguments_.empty()) {
-        d_a = drawing_arguments_;
-    }
-    else {
-        if(is_secondary) {
-            if(d_a.empty()) {
-                d_a = "same";
-            }
-            else {
-                d_a = d_a + ",same";
-            }
-        }
-    }
-
-    return d_a;
-}
-
-/******************************************************************************/
-/**
- * The TH1I footerData_() draws.
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter
- * @param own_id This plotter's own emit index
- * @return The name of the object in the ROOT script whose look the legend sample copies
- */
-std::string
-GHistogram1I::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
-    return std::string("histI") + suffix(is_secondary, p_id, own_id);
 }
 
 /******************************************************************************/
@@ -659,237 +390,8 @@ GHistogram2D::GHistogram2D(const std::size_t &n_bins_x, const std::size_t &n_bin
 
 /******************************************************************************/
 /**
- * Retrieve specific header settings for this plot
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The header code declaring the ROOT TH2D histogram (using explicit or auto-detected ranges)
- */
-std::string GHistogram2D::headerData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream header_data;
-
-    const std::string comment = dsMarkerComment(ds_marker_);
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    if(min_x_ != max_x_ && min_y_ != max_y_) {
-        header_data << indent << "TH2D *" << hist_name << " = new TH2D(\"" << hist_name << "\", \""
-                    << hist_name << "\"," << n_bins_x_ << ", " << min_x_ << ", " << max_x_ << ","
-                    << n_bins_y_ << ", " << min_y_ << ", " << max_y_ << ");" << comment << '\n'
-                    << '\n';
-    }
-    else { // // automatic range detection
-        const auto [min_x, max_x, min_y, max_y] = this->getMinMaxElements();
-        const auto [lo_x, hi_x] = rangeHolding(min_x, max_x, n_bins_x_);
-        const auto [lo_y, hi_y] = rangeHolding(min_y, max_y, n_bins_y_);
-        header_data << indent << "TH2D *" << hist_name << " = new TH2D(\"" << hist_name << "\", \""
-                    << hist_name << "\"," << n_bins_x_ << ", " << lo_x << ", " << hi_x << ","
-                    << n_bins_y_ << ", " << lo_y << ", " << hi_y << ");" << comment << '\n'
-                    << '\n';
-    }
-
-    return header_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieves the actual data sets
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The body code filling the ROOT TH2D histogram with this plotter's (x, y) data values
- */
-std::string GHistogram2D::bodyData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream body_data;
-
-    const std::string comment = dsMarkerComment(ds_marker_);
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    const auto &x_col = this->column<0>();
-    const auto &y_col = this->column<1>();
-    const std::size_t n = this->currentSize();
-    for(std::size_t pos_counter = 0; pos_counter < n; ++pos_counter) {
-        body_data << indent << hist_name << "->Fill(" << std::showpoint << x_col[pos_counter]
-                  << ", " << y_col[pos_counter] << ");" << (pos_counter == 0 ? comment : (""))
-                  << '\n';
-    }
-
-    body_data << '\n';
-
-    return body_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieves specific draw commands for this plot
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter, used to build a unique histogram name for secondary plotters
- * @param own_id This plotter's own emit index, threaded in by the caller (replaces the former mutated id_)
- * @param indent The indentation string prepended to every emitted line
- * @return The footer code setting titles and drawing the ROOT TH2D histogram
- */
-std::string GHistogram2D::footerData_(
-    bool is_secondary,
-    std::size_t p_id,
-    std::size_t own_id,
-    const std::string &indent
-) const {
-    EmitStream footer_data;
-
-    std::string const hist_name = rootLegendObject_(is_secondary, p_id, own_id);
-
-    emitRootTitle(footer_data, indent, hist_name, plot_label_);
-
-    std::string const comment;
-    if(!ds_marker_.empty()) {
-        footer_data << "// " + rootEscape(ds_marker_) << '\n';
-    }
-
-    // Check whether custom drawing arguments have been set
-    std::string const d_a = this->drawingArguments(is_secondary);
-
-    footer_data << indent << hist_name << "->GetXaxis()->SetTitle(\"" << rootEscape(xAxisLabel())
-                << "\");" << '\n'
-                << indent << hist_name << "->GetYaxis()->SetTitle(\"" << rootEscape(yAxisLabel())
-                << "\");" << '\n'
-                << indent << hist_name << "->Draw(\"" << d_a << "\");" << '\n'
-                << '\n';
-
-    return footer_data.str();
-}
-
-/******************************************************************************/
-/**
- * Retrieve the current drawing arguments
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @return The ROOT draw-option string derived from the 2D drawing option; secondary plotters get
- * the "same" option appended
- */
-std::string GHistogram2D::drawingArguments(bool is_secondary) const {
-    std::string d_a;
-
-    if(!drawing_arguments_.empty()) {
-        d_a = drawing_arguments_;
-    }
-    else {
-        switch(dropt_) {
-            using enum tddropt;
-        case TDEMPTY:
-            d_a = "";
-            break;
-
-        case SURFONE:
-            d_a = "SURF1";
-            break;
-
-        case SURFTWOZ:
-            d_a = "SURF2Z";
-            break;
-
-        case SURFTHREE:
-            d_a = "SURF3";
-            break;
-
-        case SURFFOUR:
-            d_a = "SURF4";
-            break;
-
-        case CONTZ:
-            d_a = "CONTZ";
-            break;
-
-        case CONTONE:
-            d_a = "CONT1";
-            break;
-
-        case CONTTWO:
-            d_a = "CONT2";
-            break;
-
-        case CONTTHREE:
-            d_a = "CONT3";
-            break;
-
-        case TEXT:
-            d_a = "TEXT";
-            break;
-
-        case SCAT:
-            d_a = "SCAT";
-            break;
-
-        case BOX:
-            d_a = "BOX";
-            break;
-
-        case ARR:
-            d_a = "ARR";
-            break;
-
-        case COLZ:
-            d_a = "COLZ";
-            break;
-
-        case LEGO:
-            d_a = "LEGO";
-            break;
-
-        case LEGOONE:
-            d_a = "LEGO1";
-            break;
-
-        case SURFONEPOL:
-            d_a = "SURF1POL";
-            break;
-
-        case SURFONECYL:
-            d_a = "SURF1CYL";
-            break;
-        }
-
-        if(is_secondary) {
-            d_a = d_a + ",same";
-        }
-    }
-
-    return d_a;
-}
-
-/******************************************************************************/
-/**
- * The TH2D footerData_() draws.
- *
- * @param is_secondary Whether this plotter is a secondary plotter (true) or a primary one (false)
- * @param p_id The id of the parent plotter
- * @param own_id This plotter's own emit index
- * @return The name of the object in the ROOT script whose look the legend sample copies
- */
-std::string
-GHistogram2D::rootLegendObject_(bool is_secondary, std::size_t p_id, std::size_t own_id) const {
-    return std::string("hist2D") + suffix(is_secondary, p_id, own_id);
-}
-
-/******************************************************************************/
-/**
- * The 2-d drawing option whose ROOT draw option is @p name: the inverse of the option's part of
- * drawingArguments(), for a plot spec that reports a set2DOpt() choice as its drawing arguments.
+ * The 2-d drawing option whose ROOT draw option is @p name: the inverse of drawOptionName(), for a
+ * plot spec that reports a set2DOpt() choice as its drawing arguments.
  *
  * @param name A ROOT draw option
  * @return The option, or nothing if no option draws as @p name (the empty option included)
@@ -898,12 +400,10 @@ std::optional<tddropt> GHistogram2D::drawingOptionNamed(const std::string &name)
     if(name.empty()) {
         return std::nullopt;
     }
-    GHistogram2D probe(1, 1);
     for(auto v = static_cast<ENUMBASETYPE>(tddropt::TDEMPTY);
         v <= static_cast<ENUMBASETYPE>(tddropt::SURFONECYL);
         ++v) {
-        probe.set2DOpt(static_cast<tddropt>(v));
-        if(probe.drawingArguments(false) == name) {
+        if(drawOptionName(static_cast<tddropt>(v)) == name) {
             return static_cast<tddropt>(v);
         }
     }
@@ -1023,7 +523,7 @@ GPlotSpec GHistogram2D::plotSpec() const {
     }
     // How ROOT draws the histogram (its own drawing arguments, or the set2DOpt() choice), so that
     // the draw style, the legend sample and whether the pad is a 3-d box follow it.
-    spec.drawing_args = drawingArguments(false);
+    spec.drawing_args = drawing_arguments_.empty() ? drawOptionName(dropt_) : drawing_arguments_;
     return spec;
 }
 
