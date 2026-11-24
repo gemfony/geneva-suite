@@ -753,6 +753,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   prints nothing, and one is written to the log and to `GEM-EXCEPTION.log` once, where it ends a
   task (the new manipulator `GERROR`, which does not throw) or the program (the fatal report).
   `logType::EXCEPTION` is now `logType::ERROR_REPORT`.
+- **common: a check is written one way, and the `DEBUG` macro is gone.** A check calls
+  `Gem::Common::checkThat(condition, message...)` from `common/GChecks.hpp`, which checks in every
+  build, or `GEM_DEBUG_CHECK(condition, message...)`, which checks only without `NDEBUG`; both throw
+  `gem_exception` with the place of the check. Debug builds no longer define `DEBUG`: the checks it
+  switched on now run in every build, except the costly ones (the `dynamic_cast` of
+  `g_ptr_conversion()`, loops over a population, a check per random number or per parameter read),
+  which follow `NDEBUG`. Code that tested `DEBUG` tests `NDEBUG`.
 
 ## 8. Checkpointing
 

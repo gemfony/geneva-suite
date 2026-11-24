@@ -276,7 +276,7 @@ TEST_CASE("splitStringT two-sep: identical separators throw", "[common][helper][
 }
 
 // A fragment without its second sub-field was indexed past the end in a release build (the check
-// was compiled only in DEBUG builds); it now throws in every build.
+// was compiled only in Debug builds); it now throws in every build.
 TEST_CASE(
     "splitStringT two-sep: a fragment without two sub-fields throws",
     "[common][helper][splitStringT2]"

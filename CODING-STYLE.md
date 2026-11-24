@@ -440,6 +440,13 @@ Inv 16). A number of older idioms have been retired, most of it enforced by the 
   variable, which is typed and obeys scope; a would-be function macro is a template or an `inline` function.
   The handful of macros that genuinely must remain (visibility and build-guard macros, and a few that capture
   `__FILE__`/`__LINE__` at a throw site) are listed explicitly in `.clang-tidy`.
+- **A check is one call of one of the two helpers of `common/GChecks.hpp`**, so a reader sees at once
+  that it is a check and not program logic. A cheap precondition or invariant (a comparison, a size, a null
+  test) is `Gem::Common::checkThat(condition, "what went wrong ", value)` and is on in every build; a check
+  whose cost would count in a release build (a loop over all elements, a `dynamic_cast` or a test on a path
+  run for every random number) is `GEM_DEBUG_CHECK(condition, ...)` and is on only without `NDEBUG`. Both
+  throw `gem_exception` with the place of the check. A check is not open-coded as `if(...) throw`, and no
+  project macro switches code on by build type.
 - **No C-style casts.** Use `static_cast` and the other named C++ casts, so the kind of conversion is explicit
   and searchable.
 - **Prefer the modern spelling.** `override` on overriding functions, `nullptr` for null pointers,
