@@ -492,9 +492,8 @@ private:
     Gem::Common::Concurrency::GThreadGroup
         producer_threads_; ///< A thread group that holds the raw-random-word producer threads
 
-    /** @brief A bounded buffer holding the random number packages. The queue backend is selected at
-     *  compile time by FACTORYQUEUEBACKEND (default: the std::deque-backed queue -- unchanged
-     *  behaviour; switchable to the preallocated ring via GEM_HAP_FACTORY_QUEUE_PREALLOCATED). */
+    /** @brief A bounded buffer holding the random number packages. Its queue backend is
+     *  FACTORYQUEUEBACKEND (GHapEnums.hpp). */
     Gem::Common::Concurrency::GMPMCQueueT<
         std::unique_ptr<random_container>,
         DEFAULTFACTORYBUFFERSIZE,

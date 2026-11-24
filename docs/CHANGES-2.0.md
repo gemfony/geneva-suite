@@ -540,12 +540,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     `GEM_BUILD_TESTS`, `GEM_BUILD_EXAMPLES`, `GEM_BUILD_BENCHMARKS`,
     `GEM_BUILD_WITH_MPI_CONSUMER`, `GEM_BUILD_WITH_GPU_CONSUMER`, `GEM_USE_CUDA_RNG`,
     `GEM_SKIP_CUDA`, `GEM_FORCE_CUDA`, `GEM_MIN_CUDA_VERSION`, `GEM_SANITIZER`,
-    `GEM_BUILD_WITH_COVERAGE`,
-    `GEM_COMMON_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE`,
-    `GEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE`, `GEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT`,
-    `GEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE`, `GEM_HAP_FACTORY_QUEUE_PREALLOCATED` (each was
-    `GENEVA_...`). The keys of `genevaConfig.gcfg` are unchanged; a build directory configured
-    with the old names is configured again (`prepareBuild.sh <gcfg> --clean -y`);
+    `GEM_BUILD_WITH_COVERAGE` (each was `GENEVA_...`). The keys of `genevaConfig.gcfg` are
+    unchanged; a build directory configured with the old names is configured again
+    (`prepareBuild.sh <gcfg> --clean -y`). The six tuning switches `GENEVA_COMMON_DEFAULT_BUFFER_SIZE`,
+    `GENEVA_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE`, `..._DEFAULT_BUFFER_SIZE`, `..._DEFAULT_GET_WAIT`,
+    `..._SEED_VECTOR_SIZE` and `GENEVA_HAP_FACTORY_QUEUE_PREALLOCATED` are gone: they changed the
+    layout of installed classes inside Geneva's own build only. Their values are fixed constants
+    in `hap/GHapEnums.hpp` and `common/GCommonEnums.hpp`;
   - the environment variables `GEM_CONFIG_BASENAME` and `GEM_RUN_TIMEOUT` (`startLocalJobs.sh`);
   - the log files a program writes into its working directory: `GEM-EXCEPTION.log`,
     `GEM-TERMINATION.log`;

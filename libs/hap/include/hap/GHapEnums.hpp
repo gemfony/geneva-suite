@@ -33,6 +33,9 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <iostream>
 #include <string>
 
@@ -40,6 +43,7 @@
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"
+#include "common/concurrency/GQueueCommon.hpp" // for QueueBackend
 
 namespace Gem::Hap {
 /******************************************************************************/
@@ -49,6 +53,64 @@ constexpr double DEF_BINORM_MEAN = 0.;
 constexpr double DEF_BINORM_SIGMA1 = 0.1;
 constexpr double DEF_BINORM_SIGMA2 = 0.1;
 constexpr double DEF_BINORM_DISTANCE = 0.5;
+
+/******************************************************************************/
+// The constants of the random factory (GRandomFactory). They are fixed here, not build switches:
+// the package size and the queue type are part of installed classes whose inline code a program
+// compiles, so a program and the library must agree on them.
+
+/**
+ * The number of random words in one package (random_container, a std::array member). A QUEUE proxy
+ * takes one package from the factory's queue per DEFAULTARRAYSIZE draws, so the size spreads the
+ * cost of the queue over many draws.
+ */
+constexpr std::size_t DEFAULTARRAYSIZE = 10000;
+
+/**
+ * The capacity of the factory's buffers of packages. The producers FILL the fresh-package buffer
+ * to capacity, so this is a deliberate hap-specific memory budget, NOT the generic queue default
+ * (Gem::Common::DEFAULTBUFFERSIZE == 5000, which at DEFAULTARRAYSIZE doubles per package would pin
+ * ~400 MB of RSS). 64 packages (~5 MB) are ample head-room: consumers drain at most a handful of
+ * packages per proxy refill while the producer pool refills continuously; a persistent shortfall
+ * shows up in getNGetTimeouts() rather than being hidden by a huge buffer.
+ */
+constexpr std::size_t DEFAULTFACTORYBUFFERSIZE = 64;
+
+/**
+ * The MPMC-queue backend of the factory's package buffers: the std::deque-backed queue. The
+ * preallocated ring buffer is an interface-identical alternative (see
+ * Gem::Common::Concurrency::GMPMCQueueT); the choice is part of the factory's member types.
+ */
+constexpr Gem::Common::Concurrency::QueueBackend FACTORYQUEUEBACKEND =
+    Gem::Common::Concurrency::QueueBackend::Deque;
+
+/**
+ * How long, in milliseconds, getNewRandomContainer() waits for a package before it returns empty
+ * and the proxy tries again: short enough that a draw finds out soon when no producer is left.
+ */
+constexpr std::uint16_t DEFAULTFACTORYGETWAIT = 200;
+
+/// How long the call that starts producer threads waits for their start before it warns that it waits
+constexpr std::chrono::seconds PRODUCERSTARTFIRSTWARNING{10};
+/// How long that call waits between its later warnings
+constexpr std::chrono::seconds PRODUCERSTARTREPEATWARNING{60};
+
+/**
+ * How many seeds getSeed() makes from one batch of fresh entropy before it draws the next batch.
+ */
+constexpr std::size_t DEFAULTSEEDVECTORSIZE = 2000;
+
+/**
+ * The fallback number of threads that simultaneously produce [0,1[ random numbers when the core
+ * count cannot be determined, and the floor for the hardware-derived count (see
+ * autoProducerThreadCount()).
+ */
+constexpr std::uint16_t DEFAULT01PRODUCERTHREADS = 2;
+
+/** @brief Divisor applied to hardware_concurrency() when auto-sizing the RNG producer pool. */
+constexpr unsigned int PRODUCERTHREADS_HW_DIVISOR = 4;
+/** @brief Upper clamp on the auto-sized producer count (bounds fresh-queue lock contention). */
+constexpr std::uint16_t MAXAUTOPRODUCERTHREADS = 8;
 
 /******************************************************************************/
 /**

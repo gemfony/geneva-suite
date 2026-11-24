@@ -204,20 +204,4 @@ CMAKEEXTRAFLAGS=""
 
 # Further compiler parameters you might want to provide, for instance
 # for turning on/off compiler warnings use "-Wextra -Wno-parentheses"
-# See below for a number of "specialist flags" triggering different
-# behaviour of the compiled Geneva library collection.
 CXXEXTRAFLAGS=""
-
-# "Specialist flags" available to fine-tune the behaviour of the Geneva library collection.
-# Add to CXXEXTRAFLAGS in order to activate.
-#
-# -DGEM_HAP_RANDOM_FACTORY_DEFAULT_ARRAY_SIZE <unsigned integer>:
-# The size of a single buffer produced by the random factory
-# -DGEM_HAP_RANDOM_FACTORY_DEFAULT_BUFFER_SIZE <unsigned integer>:
-# The default size of the thread-safe buffer used to store random number packages
-# -DGEM_COMMON_DEFAULT_BUFFER_SIZE <unsigned integer>:
-# The default size of a general thread-safe buffer
-# -DGEM_HAP_RANDOM_FACTORY_DEFAULT_GET_WAIT <unsigned integer>:
-# The maximum timed wait for get operations in the GRandomFactory random queue in milliseconds
-# -DGEM_HAP_RANDOM_FACTORY_SEED_VECTOR_SIZE <unsigned integer>
-# The size of the vector with seeds
