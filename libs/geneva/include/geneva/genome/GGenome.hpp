@@ -908,10 +908,11 @@ private:
     // holding the shared_ptr pins the layout while cached, so pointer comparison can never alias). All
     // mutable, because the count accessors are logically const.
 
-    mutable std::shared_ptr<const GGenomeLayout>
-        counts_layout_sp_; ///< the layout the cache is keyed to
-    mutable std::array<std::array<std::size_t, 3>, 4>
-        counts_cache_{}; ///< [channel: d/f/i/b][activity mode: ALL/ACTIVEONLY/INACTIVEONLY]
+    /// transient: the layout the cache is keyed to (re-keyed after a load, see postLoad_())
+    mutable std::shared_ptr<const GGenomeLayout> counts_layout_sp_;
+    /// transient: the cached counts [channel: d/f/i/b][activity mode: ALL/ACTIVEONLY/INACTIVEONLY],
+    /// recomputed from the layout
+    mutable std::array<std::array<std::size_t, 3>, 4> counts_cache_{};
 
     /***************************************************************************/
     // ---- Processing, evaluation results, fitness and problem policy ----

@@ -909,18 +909,17 @@ protected:
 
     CORRELATION_ID_TYPE correlation_id_ = CORRELATION_ID_TYPE();
 
-    /// Transient, server-side-only per-batch scheduling state for the networked consumers.
-    /// Deliberately NOT part of serialize() (the wire/clone never needs it; see dispatchState).
+    /// transient: server-side-only per-batch scheduling state of the networked consumers; the wire
+    /// and a clone never need it (see dispatchState).
     dispatchState dispatch_state_ = dispatchState::NONE;
 
     double pre_processing_time_ = 0.;  ///< Time needed for pre-processing (seconds)
     double processing_time_ = 0.;      ///< Time needed for the actual processing step (seconds)
     double post_processing_time_ = 0.; ///< Time needed for post-processing (seconds)
 
-    /// Transient: set when the first half of the processing lifecycle has run, until the second
-    /// half starts or the status is set from outside the lifecycle (assignStatus_()). Deliberately
-    /// NOT part of serialize(), like dispatch_state_, and never copied (see
-    /// detail::ProcessingBegunMark).
+    /// transient: belongs to one processing in this process -- set when the first half of the
+    /// processing lifecycle has run, until the second half starts or the status is set from outside
+    /// the lifecycle (assignStatus_()); never copied (see detail::ProcessingBegunMark).
     detail::ProcessingBegunMark processing_begun_;
 
     std::string

@@ -456,13 +456,13 @@ private:
         errorEstimationMode::NONE; ///< Whether to estimate parameter errors at convergence (opt-in)
     double error_up_ = 1.;         ///< The MINUIT error definition UP (1 = chi^2, 0.5 = -logL)
 
-    GHesseErrorResult
-        last_error_estimate_; ///< The most recent error estimate (transient; not serialized)
+    /// transient: the most recent error estimate, a result of the run for the caller
+    GHesseErrorResult last_error_estimate_;
 
-    double adjusted_finite_step_ =
-        0.; ///< Dimensionless difference-quotient step (finite_step_/1000, a fraction of the normalized
-    ///< parameter range); recomputed in init() (transient). Uniform across parameters now that the
-    ///< step is taken in the normalized internal coordinate, so no per-parameter boundary vectors.
+    /// transient: the dimensionless difference-quotient step (finite_step_/1000, a fraction of the
+    /// normalized parameter range), recomputed in init(). Uniform across parameters now that the
+    /// step is taken in the normalized internal coordinate, so no per-parameter boundary vectors.
+    double adjusted_finite_step_ = 0.;
 
     // The per-starting-point conjugate-gradient memory (g_{k-1} / d_{k-1} / history-valid flag) now
     // lives on the OA scratch of each starting point's central individual slot, as POD blocks keyed

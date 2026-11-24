@@ -1812,7 +1812,7 @@ private:
 
     std::string stream_name_ = "meta_optimization"; ///< The name of the stream
 
-    oa::GMonitorStream stream_; ///< The stream; transient: a copy has none
+    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/

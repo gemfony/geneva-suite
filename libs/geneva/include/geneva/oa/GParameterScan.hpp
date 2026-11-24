@@ -397,14 +397,14 @@ private:
         return random_scan_ ? n_steps_ : this->size();
     }
 
-    mutable std::bernoulli_distribution
-        uniform_bool_; ///< boolean random numbers with an even distribution
-    mutable std::uniform_real_distribution<float>
-        uniform_float_distribution_; ///< Uniformly distributed fp numbers
-    mutable std::uniform_real_distribution<double>
-        uniform_double_distribution_; ///< Uniformly distributed fp numbers
-    mutable std::uniform_int_distribution<std::int32_t>
-        uniform_int_distribution_; ///< Uniformly distributed integer numbers
+    /// transient: boolean random numbers with an even distribution, stateless between draws
+    mutable std::bernoulli_distribution uniform_bool_;
+    /// transient: uniformly distributed float numbers, stateless between draws
+    mutable std::uniform_real_distribution<float> uniform_float_distribution_;
+    /// transient: uniformly distributed double numbers, stateless between draws
+    mutable std::uniform_real_distribution<double> uniform_double_distribution_;
+    /// transient: uniformly distributed integer numbers, stateless between draws
+    mutable std::uniform_int_distribution<std::int32_t> uniform_int_distribution_;
 };
 
 /******************************************************************************/
@@ -858,8 +858,8 @@ private:
     std::vector<std::shared_ptr<GDScanPar>> d_cnt_; ///< Holds double values to be scanned
     std::vector<std::shared_ptr<GFScanPar>> f_cnt_; ///< Holds float values to be scanned
 
-    std::vector<std::shared_ptr<GScanParInterface>>
-        all_par_cnt_; /// Holds pointers to all parameter objects
+    /// transient: pointers to all parameter objects of a run, filled from the four lists above
+    std::vector<std::shared_ptr<GScanParInterface>> all_par_cnt_;
 
     std::size_t simple_scan_items_ =
         0; ///< When set to a value > 0, a random scan of the entire parameter space will be made instead of individual parameters -- set through the configuration file

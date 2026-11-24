@@ -387,20 +387,24 @@ private:
     /** @brief Whether to intermediate-recombine the per-individual sigma after recombination. */
     bool recombine_sigma_ = true;
 
-    /** @brief Evaluate the population inline (transient; not serialized/compared). */
+    /** @brief transient: evaluate the population inline -- a choice of the program that nests this
+     *  EA (the post-optimizer), not of the run's state. */
     bool inline_evaluation_ = false;
 
     /***************************************************************************/
     // Transient run scratch for the global-sigma controllers (ONE_FIFTH / CSA). NOT serialized / compared
     // / part of localMembers(): rebuilt at init() from the seed sigma in the adaption config.
-    double global_sigma_ = 1.; ///< the single global step size (ONE_FIFTH / CSA)
-    double p_sigma_ = 0.;      ///< the CSA evolution-path accumulator (scalar proxy)
-    double last_p_success_ =
-        0.; ///< offspring success rate (fraction of children beating their own parent),
-            ///< measured before selection reorders the population (see measureOffspringSuccess_)
-    bool controller_warmed_up_ =
-        false; ///< whether at least one generation's success rate has been measured (warm-up guard)
-    std::size_t controller_dim_ = 0; ///< the adapted dimension n the controller reasons about
+    /// transient: the single global step size (ONE_FIFTH / CSA), rebuilt in init()
+    double global_sigma_ = 1.;
+    /// transient: the CSA evolution-path accumulator (scalar proxy), rebuilt in init()
+    double p_sigma_ = 0.;
+    /// transient: the offspring success rate (fraction of children beating their own parent),
+    /// measured before selection reorders the population (see measureOffspringSuccess_)
+    double last_p_success_ = 0.;
+    /// transient: whether at least one generation's success rate has been measured (warm-up guard)
+    bool controller_warmed_up_ = false;
+    /// transient: the adapted dimension n the controller reasons about, set in init()
+    std::size_t controller_dim_ = 0;
 
     /***************************************************************************/
 };

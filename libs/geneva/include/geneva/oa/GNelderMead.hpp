@@ -356,8 +356,9 @@ private:
     std::size_t max_failed_retries_ =
         0; ///< How often a failed evaluation is evaluated again before the run ends
 
-    bool trials_pending_ =
-        false; ///< True once real trial points have been proposed (transient; gates the first decision)
+    /// transient: true once real trial points have been proposed (gates the first decision); reset
+    /// in init()
+    bool trials_pending_ = false;
 };
 
 /******************************************************************************/
