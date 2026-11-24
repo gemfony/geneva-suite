@@ -95,6 +95,8 @@ RUN printf '/opt/boost/lib\n/opt/geneva/lib\n' > /etc/ld.so.conf.d/geneva.conf
 
 ################################################################################
 # Stage 2: Boost from source, in the same C++23 mode as Geneva (INSTALL, "Compiling Boost").
+# boost.process.fs=std: Boost.Process, through which Geneva starts external programs, uses
+# std::filesystem instead of Boost.Filesystem, which Geneva does not use.
 FROM toolchain AS boost
 
 ARG BOOST_VERSION=1.92.0
@@ -110,8 +112,8 @@ RUN set -eu; \
     toolset=gcc; [ "${COMPILER}" = "clang" ] && toolset=clang; \
     ./bootstrap.sh --prefix=/opt/boost --with-toolset="${toolset}"; \
     ./b2 -j"${JOBS:-$(nproc)}" toolset="${toolset}" \
-        cxxflags="-std=c++23" variant=release link=shared threading=multi \
-        --with-atomic --with-json --with-program_options --with-regex \
+        cxxflags="-std=c++23" variant=release link=shared threading=multi boost.process.fs=std \
+        --with-atomic --with-json --with-program_options --with-process --with-regex \
         install; \
     cd /; rm -rf /tmp/boost_*; \
     ldconfig

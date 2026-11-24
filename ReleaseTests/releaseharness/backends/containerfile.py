@@ -33,9 +33,11 @@ BOOST_URL = (
 IMAGE_BOOST_ROOT = "/opt/boost"
 
 # The compiled Boost components Geneva links against: GEM_BOOST_LIBS in
-# CMakeModules/CommonGemBuild.cmake. (Serialization and Filesystem are gone
-# since the move to Gem::Weft; the tests use Catch2, not Boost.Test.)
-BOOST_LIBRARIES = "atomic,json,program_options,regex"
+# CMakeModules/CommonGemBuild.cmake, plus process (common, privately). Process is
+# built with boost.process.fs=std, so it needs no Boost.Filesystem (INSTALL).
+# (Serialization and Filesystem are gone since the move to Gem::Weft; the tests
+# use Catch2, not Boost.Test.)
+BOOST_LIBRARIES = "atomic,json,process,program_options,regex"
 
 
 def _base_packages(with_mpi: bool) -> str:
@@ -120,6 +122,7 @@ RUN cd /tmp \\
         link=shared \\
         threading=multi \\
         runtime-link=shared \\
+        boost.process.fs=std \\
         install \\
  && cd / \\
  && rm -rf /tmp/boost_{BOOST_UNDERSCORE} /tmp/{BOOST_TARBALL}
