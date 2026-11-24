@@ -681,9 +681,7 @@ transferFunction GNeuralNetworkIndividual::getTransferFunction() const {
  */
 // NOLINTNEXTLINE(readability-function-size) -- single coherent ROOT visualization-script code generator; the stream-emission of the literal generated program text is one unit and splitting it would scatter the generated source across functions
 void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_file) {
-    if(vis_file.empty() || vis_file.empty()) {
-        throw gem_exception(g_error_streamer() << "Received empty file name." << '\n');
-    }
+    Gem::Common::checkThat(not vis_file.empty(), "Received empty file name.");
 
     std::ofstream vis_program(vis_file);
     if(not vis_program) {
@@ -1040,16 +1038,10 @@ void GNeuralNetworkIndividual::writeVisualizationFile(const std::string &vis_fil
  */
 // NOLINTNEXTLINE(readability-function-size) -- single coherent C++ header code generator for the trained network; weight-offset computation and literal source emission are tightly interleaved with the generated output's layout, so splitting would scatter it
 void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_file) {
-    if(header_file.empty() || header_file.empty()) {
-        throw gem_exception(g_error_streamer() << "Received empty file name." << '\n');
-    }
+    Gem::Common::checkThat(not header_file.empty(), "Received empty file name.");
 
     std::ofstream header(header_file);
-    if(not header) {
-        throw gem_exception(
-            g_error_streamer() << "Error writing output file " << header_file << '\n'
-        );
-    }
+    Gem::Common::checkThat(header.is_open(), "Could not open the output file ", header_file);
 
     header
         << "/**" << '\n'

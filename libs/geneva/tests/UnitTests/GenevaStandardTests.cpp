@@ -37,14 +37,12 @@
 #include <cmath>
 #include <filesystem>
 #include <iterator>
-#include <mutex>
 #include <string>
 #include <tuple>
 #include <vector>
 
-#include <unistd.h> // getpid()
-
 // All classes that will be tested in this file
+#include "GNeuralNetworkTestData.hpp"
 #include "GTestIndividual1.hpp"
 #include "GTestIndividual2.hpp"
 #include "GTestIndividual3.hpp"
@@ -204,22 +202,6 @@ std::vector<std::string> mnemonicsOf(std::tuple<algorithm_types...> const * /* l
     return mnemonics;
 }
 
-/** @brief GNeuralNetworkIndividual reads its network geometry from a training-data file, through a
- *  process-wide singleton. Writes a small hyper-cube data set to a temporary file, points the option the
- *  singleton reads at it and loads the singleton once, before the first individual is built. */
-void provideNeuralNetworkTrainingData() {
-    static std::once_flag once;
-    std::call_once(once, [] {
-        auto const file = std::filesystem::temp_directory_path() /
-                          ("geneva_standard_tests_nn_" + std::to_string(::getpid()) + ".dat");
-        gind::GNeuralNetworkIndividual::createHyperCubeNetworkData({2, 3, 1}, 20, 0.5)
-            ->saveToDisk(file.string());
-        Gem::Common::neuralNetworkOptions()->set("trainingDataFile", file.string());
-        REQUIRE(gind::nnTrainingDataStore()->size() == 3); // loads the file into the singleton
-        std::filesystem::remove(file);
-    });
-}
-
 /** @brief Every type of a list can be changed for the standard tests, so their round-trips run. */
 template <typename list_type>
 struct all_modifiable_for_test;
@@ -285,7 +267,7 @@ TEMPLATE_LIST_TEST_CASE(
     individual_types
 ) {
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
-        provideNeuralNetworkTrainingData();
+        gind::Testing::provideNeuralNetworkTrainingData();
     }
     Gem::Common::Testing::StandardTests_no_failure_expected<TestType>();
 }
@@ -332,7 +314,7 @@ TEMPLATE_LIST_TEST_CASE(
     individual_types
 ) {
     if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
-        provideNeuralNetworkTrainingData();
+        gind::Testing::provideNeuralNetworkTrainingData();
     }
     Gem::Common::Testing::StandardTests_failures_expected<TestType>();
 }
