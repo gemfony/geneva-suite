@@ -36,6 +36,7 @@
 #include <algorithm>
 #include <cmath>
 #include <filesystem>
+#include <fstream>
 #include <iterator>
 #include <string>
 #include <tuple>
@@ -71,7 +72,10 @@
 // Pluggable optimization monitors
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
+#include "common/GJsonIO.hpp"
 #include "common/testing/GStandardTests.hpp"
+
+#include <boost/json/value_to.hpp>
 
 using namespace Gem::Geneva;
 using Gem::Common::Testing::GEqualityPrinter;
@@ -1021,6 +1025,180 @@ TEST_CASE(
     CHECK(q->getNChildren() == 42);
     CHECK(std::abs(q->getMinSigma() - 0.01) < 1e-9);
     CHECK(std::abs(q->getSigmaSigma() - 0.5) < 1e-9);
+}
+
+// ============================================================================
+// The meta-optimizer factory's configuration file sets the start value and the search range of
+// the knobs under the keys that existing configuration files use (CODING-STYLE 4.4: keys are
+// frozen). Without a file the factory writes one with these keys and the manifest's defaults.
+// ============================================================================
+
+namespace {
+/** @brief The meta genome a factory produced: values and bounds per channel, in manifest order */
+struct MetaSearchSpace {
+    std::vector<std::int32_t> int_values, int_lower, int_upper;
+    std::vector<double> values, lower, upper;
+};
+
+/** @brief Produces one meta individual from the configuration file @p config_file */
+MetaSearchSpace producedSearchSpace(std::filesystem::path const &config_file) {
+    auto sub_factory = std::make_shared<gind::GFunctionIndividualFactory>(
+        config_file.parent_path() / "GFunctionIndividual.json"
+    );
+    gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual> factory(config_file);
+    factory.registerIndividualFactory(sub_factory);
+    auto p = factory.get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
+
+    MetaSearchSpace s;
+    p->streamline<std::int32_t>(s.int_values);
+    p->boundaries<std::int32_t>(s.int_lower, s.int_upper);
+    p->streamline<double>(s.values);
+    p->boundaries<double>(s.lower, s.upper);
+    return s;
+}
+
+/** @brief Whether two vectors of genome values agree (the genome may round a value it stores) */
+bool sameValues(std::vector<double> const &a, std::vector<double> const &b) {
+    return a.size() == b.size() &&
+           std::ranges::equal(a, b, [](double x, double y) { return std::abs(x - y) < 1e-9; });
+}
+
+/** @brief A fresh, empty directory for one test's configuration files */
+std::filesystem::path freshConfigDirectory(std::string const &name) {
+    const auto dir = std::filesystem::temp_directory_path() / name;
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    return dir;
+}
+} // namespace
+
+TEST_CASE(
+    "Meta-optimizer factory: without a configuration file the knobs keep the manifest's defaults",
+    "[geneva][meta]"
+) {
+    const auto dir = freshConfigDirectory("geneva-meta-config-defaults");
+    const auto config_file = dir / "GMetaOptimizerIndividual.json";
+    const MetaSearchSpace s = producedSearchSpace(config_file);
+
+    MetaSearchSpace expected;
+    for(const auto &tp : oa::GEvolutionaryAlgorithm::tunableManifest()) {
+        if(tp.is_integer) {
+            expected.int_values.push_back(static_cast<std::int32_t>(tp.init));
+            expected.int_lower.push_back(static_cast<std::int32_t>(tp.lower));
+            expected.int_upper.push_back(static_cast<std::int32_t>(tp.upper));
+        }
+        else {
+            expected.values.push_back(tp.init);
+            expected.lower.push_back(tp.lower);
+            expected.upper.push_back(tp.upper);
+        }
+    }
+    CHECK(s.int_values == expected.int_values);
+    CHECK(s.int_lower == expected.int_lower);
+    CHECK(s.int_upper == expected.int_upper);
+    CHECK(sameValues(s.values, expected.values));
+    CHECK(sameValues(s.lower, expected.lower));
+    CHECK(sameValues(s.upper, expected.upper));
+
+    // The file the factory wrote carries today's keys, each with its default
+    const auto written = Gem::Common::parseJsonFile(config_file).as_object();
+    const std::vector<std::pair<std::string, double>> keys{
+        {"init_n_parents", 1.},
+        {"n_parents_lb", 1.},
+        {"n_parents_ub", 6.},
+        {"init_n_children", 100.},
+        {"n_children_lb", 5.},
+        {"n_children_ub", 250.},
+        {"init_amalgamation_lklh", 0.},
+        {"amalgamation_lklh_lb", 0.},
+        {"amalgamation_lklh_ub", 1.},
+        {"init_min_ad_prob", 0.},
+        {"min_ad_prob_lb", 0.},
+        {"min_ad_prob_ub", 0.1},
+        {"init_ad_prob_range", 0.9},
+        {"ad_prob_range_lb", 0.1},
+        {"ad_prob_range_ub", 0.9},
+        {"init_ad_prob_start_percentage", 1.},
+        {"init_adapt_ad_prob", 0.1},
+        {"adapt_ad_prob_lb", 0.},
+        {"adapt_ad_prob_ub", 1.},
+        {"init_min_sigma", 0.001},
+        {"min_sigma_lb", 0.001},
+        {"min_sigma_ub", 0.09999},
+        {"init_sigma_range", 0.2},
+        {"sigma_range_lb", 0.1},
+        {"sigma_range_ub", 0.9},
+        {"init_sigma_range_percentage", 1.},
+        {"init_sigma_sigma", 0.1},
+        {"sigma_sigma_lb", 0.},
+        {"sigma_sigma_ub", 1.}
+    };
+    for(const auto &[key, default_value] : keys) {
+        INFO(key);
+        REQUIRE(written.contains(key));
+        CHECK(boost::json::value_to<double>(written.at(key).at("default")) == default_value);
+    }
+    // The two start positions within a band have no range keys: their range is [0, 1]
+    for(const char *absent : {"ad_prob_start_percentage_lb",
+                              "ad_prob_start_percentage_ub",
+                              "sigma_range_percentage_lb",
+                              "sigma_range_percentage_ub"}) {
+        INFO(absent);
+        CHECK(not written.contains(absent));
+    }
+}
+
+TEST_CASE(
+    "Meta-optimizer factory: a configuration file with today's keys sets every knob",
+    "[geneva][meta]"
+) {
+    const auto dir = freshConfigDirectory("geneva-meta-config-keys");
+    const auto config_file = dir / "GMetaOptimizerIndividual.json";
+    {
+        std::ofstream out(config_file);
+        out << R"({
+            "init_n_parents": { "value": 2 },
+            "n_parents_lb": { "value": 1 },
+            "n_parents_ub": { "value": 4 },
+            "init_n_children": { "value": 20 },
+            "n_children_lb": { "value": 10 },
+            "n_children_ub": { "value": 40 },
+            "init_amalgamation_lklh": { "value": 0.2 },
+            "amalgamation_lklh_lb": { "value": 0.1 },
+            "amalgamation_lklh_ub": { "value": 0.6 },
+            "init_min_ad_prob": { "value": 0.01 },
+            "min_ad_prob_lb": { "value": 0.005 },
+            "min_ad_prob_ub": { "value": 0.05 },
+            "init_ad_prob_range": { "value": 0.5 },
+            "ad_prob_range_lb": { "value": 0.2 },
+            "ad_prob_range_ub": { "value": 0.8 },
+            "init_ad_prob_start_percentage": { "value": 0.5 },
+            "init_adapt_ad_prob": { "value": 0.2 },
+            "adapt_ad_prob_lb": { "value": 0.05 },
+            "adapt_ad_prob_ub": { "value": 0.7 },
+            "init_min_sigma": { "value": 0.01 },
+            "min_sigma_lb": { "value": 0.002 },
+            "min_sigma_ub": { "value": 0.05 },
+            "init_sigma_range": { "value": 0.3 },
+            "sigma_range_lb": { "value": 0.15 },
+            "sigma_range_ub": { "value": 0.6 },
+            "init_sigma_range_percentage": { "value": 0.25 },
+            "init_sigma_sigma": { "value": 0.3 },
+            "sigma_sigma_lb": { "value": 0.1 },
+            "sigma_sigma_ub": { "value": 0.9 }
+        })";
+    }
+    const MetaSearchSpace s = producedSearchSpace(config_file);
+
+    // n_parents, n_children
+    CHECK(s.int_values == std::vector<std::int32_t>{2, 20});
+    CHECK(s.int_lower == std::vector<std::int32_t>{1, 10});
+    CHECK(s.int_upper == std::vector<std::int32_t>{4, 40});
+    // amalgamation, min_ad_prob, ad_prob_range, ad_prob_start_pct, adapt_ad_prob, min_sigma,
+    // sigma_range, sigma_range_pct, sigma_sigma
+    CHECK(sameValues(s.values, {0.2, 0.01, 0.5, 0.5, 0.2, 0.01, 0.3, 0.25, 0.3}));
+    CHECK(sameValues(s.lower, {0.1, 0.005, 0.2, 0., 0.05, 0.002, 0.15, 0., 0.1}));
+    CHECK(sameValues(s.upper, {0.6, 0.05, 0.8, 1., 0.7, 0.05, 0.6, 1., 0.9}));
 }
 
 // ============================================================================
