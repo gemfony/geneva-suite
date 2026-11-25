@@ -1024,6 +1024,7 @@ private:
 /** @brief A log target that counts the error reports (GERROR) that contain a text */
 class ErrorReportCounter : public Gem::Common::GBaseLogTarget {
 public:
+    using Gem::Common::GBaseLogTarget::logWithSource;
     explicit ErrorReportCounter(std::string text)
       : text_(std::move(text)) {
     }

@@ -53,6 +53,8 @@ namespace Gem::Courtier::Tests {
 /** @brief A log target that keeps what is logged, so that a test can look at it. */
 class CapturedLog final : public Gem::Common::GBaseLogTarget {
 public:
+    using Gem::Common::GBaseLogTarget::log;
+    using Gem::Common::GBaseLogTarget::logWithSource;
     /** @brief Keeps @p message */
     void log(std::string const &message) const override {
         const std::scoped_lock lock(mutex_);

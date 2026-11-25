@@ -246,6 +246,8 @@ void requireGpuChoice() {
  */
 class GCapturingTarget : public Gem::Common::GBaseLogTarget {
 public:
+    using Gem::Common::GBaseLogTarget::log;
+    using Gem::Common::GBaseLogTarget::logWithSource;
     /** @brief Keeps a message @param message The message */
     void log(std::string const &message) const override {
         std::scoped_lock const lk(m_);

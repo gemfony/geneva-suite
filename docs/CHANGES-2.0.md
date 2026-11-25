@@ -732,6 +732,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **common: `GLogger` is no longer a class template.** The single streamer type it ever
   produced (`GLogStreamer`) is now fixed; code naming `GLogger<GLogStreamer>` drops the
   template arguments. The `glogger` singleton and all streaming behavior are unchanged.
+- **common: `GConsoleLogger` offers the severity overloads** `log(message, severity)` and
+  `logWithSource(message, extension, severity)` through its own type; they were hidden by its
+  overrides of the forms without severity. A user's log target that overrides only some of the
+  four overloads brings the others in with `using GBaseLogTarget::log;` and
+  `using GBaseLogTarget::logWithSource;`.
 - **common: the parser's reference-parameter proxy classes were removed**
   (`GFileReferenceParsableParameterT` and its vector/array siblings). The
   `registerFileParameter(name, reference, default, ...)` overloads are **unchanged** —

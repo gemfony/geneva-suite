@@ -86,6 +86,11 @@ namespace Gem::Common {
  * to a GConsoleLogger (the default), a GRecordLogTarget (the log as a record
  * stream: a CSV, JSON Lines or plain-text file) or other log targets defined by
  * the user.
+ *
+ * log() and logWithSource() each come with and without a severity. A target that overrides only
+ * some of these overloads brings the others into its scope with
+ * `using GBaseLogTarget::log; using GBaseLogTarget::logWithSource;`; otherwise they are hidden
+ * when the target is called through its own type.
  */
 class GBaseLogTarget {
 public:
@@ -169,6 +174,10 @@ public:
     GConsoleLogger &operator=(GConsoleLogger &&) = default;
 
     /*************************************************************************/
+
+    // The severity overloads stay callable through a GConsoleLogger
+    using GBaseLogTarget::log;
+    using GBaseLogTarget::logWithSource;
 
     /**
      * @brief Implements the logging to the console
