@@ -242,6 +242,8 @@ protected:
 
     /** @brief Does some preparatory work before the optimization starts */
     void init() override;
+    /** @brief Builds the run state of a new run: the positions, velocities and bests */
+    void initRunState_() override;
     /** @brief Does any necessary finalization work */
     void finalize() override;
 
@@ -260,7 +262,7 @@ private:
     /** @brief Retrieve a GPersonalityTraits object belonging to this algorithm */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
 
-    /** @brief Resizes the population to the desired level and does some error checks */
+    /** @brief Resizes the population to the swarm size, counts the floating point parameters, checks */
     void adjustPopulation_() override;
 
     /***************************************************************************/
@@ -282,9 +284,9 @@ private:
     std::size_t n_informants_ = DEFAULTSPSOK; ///< The number of particles each particle informs (K)
 
     /***************************************************************************/
-    // The swarm's run state: built by init() for a new run, kept by init() for a resumed one
+    // The swarm's run state: built by initRunState_() for a new run, held by a resumed run's checkpoint
 
-    /// transient: the number of active floating point parameters, derived from the genome in init()
+    /// transient: the number of active floating point parameters, from the genome in adjustPopulation_()
     std::size_t n_fp_parms_ = 0;
 
     /// The per-particle velocity vectors

@@ -1036,10 +1036,11 @@ void GConjugateGradientDescent::evaluatePopulation_() {
 
 /******************************************************************************/
 /**
- * @brief Does some preparatory work before the optimization starts
+ * @brief Does some preparatory work before every start of a run
  *
- * Extracts the active-parameter boundaries, recomputes the per-parameter finite step, and (re-)initialises
- * the conjugate-gradient state and per-individual population positions.
+ * Checks the step sizes, recomputes the difference-quotient step, checks the population -- laid out by
+ * initRunState_() or held by the checkpoint of a resumed run -- and records the per-individual population
+ * positions.
  */
 void GConjugateGradientDescent::init() {
     // To be performed before any other action
@@ -1059,8 +1060,47 @@ void GConjugateGradientDescent::init() {
     );
 
     updateDerivedQuantities();
-    resetCGState();
+    checkThat(
+        this->size() == this->getDefaultPopulationSize(),
+        "The population held does not fit the population of the starting points: expected ",
+        this->getDefaultPopulationSize(),
+        " individuals, found ",
+        this->size()
+    );
     markIndividualPositions();
+}
+
+/******************************************************************************/
+/**
+ * @brief Builds the run state of a new run: the starting points (the supplied individuals, filled up with
+ * randomized clones of the first), the difference-quotient children of each and their conjugate-gradient
+ * memory.
+ */
+void GConjugateGradientDescent::initRunState_() {
+    GOptimizationAlgorithmBase::initRunState_();
+
+    const std::size_t n_start = this->size();
+    const std::size_t children_per_sp = this->getDefaultPopulationSize() / n_starting_points_ - 1;
+
+    // Create the requested number of (randomized) starting points
+    if(n_start < n_starting_points_) {
+        for(std::size_t i = 0; i < (n_starting_points_ - n_start); i++) {
+            this->push_back(this->at(0)->clone());
+            this->back()->randomInit(activityMode::ACTIVEONLY);
+        }
+    }
+    else {
+        this->resize(n_starting_points_);
+    }
+
+    // Add the difference-quotient children for every starting point
+    for(std::size_t i = 0; i < n_starting_points_; i++) {
+        for(std::size_t k = 0; k < children_per_sp; k++) {
+            this->push_back(this->at(i)->clone());
+        }
+    }
+
+    resetCGState();
 }
 
 /******************************************************************************/
@@ -1075,17 +1115,11 @@ void GConjugateGradientDescent::updateDerivedQuantities() {
 
 /******************************************************************************/
 /**
- * @brief (Re-)initialises the per-starting-point conjugate-gradient memory. Called
- * from init() once n_fp_parms_first_ is known (it is set in adjustPopulation_,
- * which runs before init()).
+ * @brief (Re-)initialises the per-starting-point conjugate-gradient memory. Called from initRunState_()
+ * once n_fp_parms_first_ is known (it is set in adjustPopulation_, which runs before it). A resumed run
+ * goes on with the memory its checkpoint holds in the central slots.
  */
 void GConjugateGradientDescent::resetCGState() {
-    // On a checkpoint resume the central slots already carry their restored conjugate-gradient memory --
-    // preserve it (skip the zero-reset) so a resumed run continues the conjugate sequence.
-    if(this->resumedFromCheckpoint()) {
-        return;
-    }
-
     // The per-starting-point conjugate-gradient memory lives on the OA scratch of each starting point's
     // central individual slot (position == starting point). Install a zeroed g_{k-1} / d_{k-1} double
     // block and a "history invalid" flag on each, so the first cgStep falls back to steepest descent.
@@ -1226,16 +1260,16 @@ std::shared_ptr<GPersonalityTraits> GConjugateGradientDescent::getPersonalityTra
 
 /******************************************************************************/
 /**
- * @brief Resizes the population to the desired level and does some error checks. The population is
+ * @brief Determines the sizes of the population and does some error checks. The population is
  * n_starting_points_ * (n_fp_parms_first_ * n_probes + 1) individuals, where n_probes is 1 (forward
  * difference) or 2 (central difference): each starting point plus its perturbed difference-quotient
- * children. A run resumed from a checkpoint keeps the population of the checkpoint.
+ * children. initRunState_() lays it out for a new run; a resumed run keeps the population of its
+ * checkpoint.
  */
 void GConjugateGradientDescent::adjustPopulation_() {
     // Non-empty population + at least one active FP parameter; logs a note for int/bool riders
     // (the shared precondition of the floating-point-only algorithms).
     n_fp_parms_first_ = this->requireFloatingPointGenome_("GConjugateGradientDescent");
-    const std::size_t n_start = this->size();
 
     GEM_DEBUG_CHECK(
         std::ranges::all_of(
@@ -1251,45 +1285,6 @@ void GConjugateGradientDescent::adjustPopulation_() {
     // 2 (central difference, forward + backward) probes. Population = starting points + their children.
     const std::size_t children_per_sp = n_fp_parms_first_ * (central_differences_ ? 2 : 1);
     GOptimizationAlgorithmBase::setDefaultPopulationSize(
-        n_starting_points_ * (children_per_sp + 1)
-    );
-
-    // A run resumed from a checkpoint goes on with its starting points and their evaluated
-    // difference-quotient children: the first iteration of the job steps from them
-    if(this->resumedFromCheckpoint()) {
-        checkThat(
-            this->size() == this->getDefaultPopulationSize(),
-            "The population of the checkpoint does not fit the population: expected ",
-            this->getDefaultPopulationSize(),
-            " individuals, found ",
-            this->size()
-        );
-        return;
-    }
-
-    // Create the requested number of (randomized) starting points
-    if(n_start < n_starting_points_) {
-        for(std::size_t i = 0; i < (n_starting_points_ - n_start); i++) {
-            this->push_back(this->at(0)->clone());
-            this->back()->randomInit(activityMode::ACTIVEONLY);
-        }
-    }
-    else {
-        this->resize(n_starting_points_);
-    }
-
-    // Add the difference-quotient children for every starting point
-    for(std::size_t i = 0; i < n_starting_points_; i++) {
-        for(std::size_t k = 0; k < children_per_sp; k++) {
-            this->push_back(this->at(i)->clone());
-        }
-    }
-
-    checkThat(
-        this->size() == n_starting_points_ * (children_per_sp + 1),
-        "population size ",
-        this->size(),
-        ", expected ",
         n_starting_points_ * (children_per_sp + 1)
     );
 }

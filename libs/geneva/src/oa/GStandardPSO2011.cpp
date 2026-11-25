@@ -151,10 +151,10 @@ void GStandardPSO2011::resetToOptimizationStart_() {
 
 /******************************************************************************/
 /**
- * Sizes the population to the swarm size and does error checks. Runs at setup, BEFORE
- * setIndividualPersonalities() and init(), so every slot (including the freshly cloned ones) receives a
- * personality. Missing particles are filled with clones of the seed individual; surplus particles are
- * removed.
+ * Sizes the population to the swarm size, determines the floating-point parameter count and does error
+ * checks. Runs at setup, BEFORE setIndividualPersonalities() and init(), so every slot (including the
+ * freshly cloned ones) receives a personality. Missing particles are filled with clones of the seed
+ * individual; surplus particles are removed.
  */
 void GStandardPSO2011::adjustPopulation_() {
     if(this->empty()) {
@@ -172,18 +172,6 @@ void GStandardPSO2011::adjustPopulation_() {
         this->resize(swarm_size_);
     }
     this->setDefaultPopulationSize(swarm_size_);
-}
-
-/******************************************************************************/
-/**
- * Does some preparatory work before the optimization starts. It determines the floating-point parameter
- * count, randomly initializes all particles (keeping particle 0 as the registered start individual),
- * seeds the velocities via the SPSO-2011 half-diff rule, and sets each personal best to the start position.
- * A run resumed from a checkpoint keeps its positions, velocities and bests instead; they are checked
- * against the swarm size and the genome.
- */
-void GStandardPSO2011::init() {
-    GOptimizationAlgorithmT<GStandardPSO2011>::init();
 
     // The swarm works in the normalized internal coordinate (boundary-agnostic): a bounded parameter
     // occupies the unit interval [-0.5, 0.5) and an unbounded one its perimeter image, so no per-parameter
@@ -197,6 +185,16 @@ void GStandardPSO2011::init() {
             << "requires a continuous (double / float) genome." << '\n'
         );
     }
+}
+
+/******************************************************************************/
+/**
+ * Does some preparatory work before every start of a run: the topology and the particle bookkeeping. The
+ * positions, velocities and bests -- built by initRunState_() or held by the checkpoint of a resumed
+ * run -- are checked against the swarm size and the genome.
+ */
+void GStandardPSO2011::init() {
+    GOptimizationAlgorithmT<GStandardPSO2011>::init();
 
     // The topology is transient: the first iteration of every job, a resumed one as well, builds it
     informs_.assign(swarm_size_, std::vector<bool>(swarm_size_, false));
@@ -207,27 +205,34 @@ void GStandardPSO2011::init() {
         this->at(i)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(i);
     }
 
-    if(this->resumedFromCheckpoint()) {
-        auto const fits = [this](std::vector<std::vector<double>> const &rows) {
-            return rows.size() == swarm_size_ && std::ranges::all_of(rows, [this](auto const &row) {
-                       return row.size() == n_fp_parms_;
-                   });
-        };
-        Gem::Common::checkThat(
-            fits(velocities_) && fits(personal_bests_) &&
-                personal_best_fitness_.size() == swarm_size_ && global_best_.size() == n_fp_parms_,
-            "The swarm state of the checkpoint does not fit the population: expected ",
-            swarm_size_,
-            " particles with ",
-            n_fp_parms_,
-            " floating point parameters, found ",
-            velocities_.size(),
-            " particles with ",
-            global_best_.size(),
-            " parameters."
-        );
-        return;
-    }
+    auto const fits = [this](std::vector<std::vector<double>> const &rows) {
+        return rows.size() == swarm_size_ && std::ranges::all_of(rows, [this](auto const &row) {
+                   return row.size() == n_fp_parms_;
+               });
+    };
+    Gem::Common::checkThat(
+        fits(velocities_) && fits(personal_bests_) &&
+            personal_best_fitness_.size() == swarm_size_ && global_best_.size() == n_fp_parms_,
+        "The swarm state does not fit the population: expected ",
+        swarm_size_,
+        " particles with ",
+        n_fp_parms_,
+        " floating point parameters, found ",
+        velocities_.size(),
+        " particles with ",
+        global_best_.size(),
+        " parameters."
+    );
+}
+
+/******************************************************************************/
+/**
+ * Builds the run state of a new run: randomly initializes all particles (keeping particle 0 as the
+ * registered start individual), seeds the velocities via the SPSO-2011 half-diff rule, and sets each
+ * personal best to the start position.
+ */
+void GStandardPSO2011::initRunState_() {
+    GOptimizationAlgorithmT<GStandardPSO2011>::initRunState_();
 
     velocities_.assign(swarm_size_, std::vector<double>(n_fp_parms_, 0.));
     personal_bests_.assign(swarm_size_, std::vector<double>(n_fp_parms_, 0.));

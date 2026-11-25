@@ -699,6 +699,20 @@ protected:
     /** @brief Resets the class to the state before the optimize call. */
     virtual void resetToOptimizationStart_();
 
+    /**
+     * @brief Builds the run state of a new run; the setup calls it only when a run starts fresh, never
+     * when it was resumed from a checkpoint.
+     *
+     * The rule for the author of an algorithm: what carries a run from one iteration to the next is
+     * a member of the member list, so the checkpoint holds it; what a new run starts it with is built
+     * here; init() does what every start needs, a resumed one as well (sizes, pools, checks). The setup
+     * calls adjustPopulation_(), then this function on a fresh start, then init(). The default does
+     * nothing.
+     */
+    virtual void initRunState_() {
+        // nothing: an algorithm without a run state of its own builds none
+    }
+
     /** @brief Initialization code to be run before the optimization cycle */
     virtual void init();
     /** @brief Finalization code to be run after the optimization cycle */
@@ -837,7 +851,9 @@ public:
      * serialized (it is a transient resume marker, and loadCheckpoint sets it AFTER load_() anyway).
      *
      * A pluggable monitor reads it at INFOINIT, which comes before it is cleared: a resumed run
-     * appends to the streams of its monitors (GMonitorStream::declare()).
+     * appends to the streams of its monitors (GMonitorStream::declare()). An algorithm does not ask
+     * it: it builds the state of a new run in initRunState_(), which the setup of a resumed run does
+     * not call.
      *
      * @return true if this run was resumed from a checkpoint and its scratch must be preserved
      */
@@ -845,14 +861,13 @@ public:
         return resumed_from_checkpoint_;
     }
 
-protected:
+private:
     bool resumed_from_checkpoint_ =
         false; ///< transient: set by the loading of a checkpoint (see resumedFromCheckpoint())
     /// transient: whether this job goes on with a run resumed from a checkpoint; set at the setup of
     /// the job from resumed_from_checkpoint_ and kept for the whole job (inFirstIteration())
     bool continues_run_ = false;
 
-private:
     /***************************************************************************/
     // Overloaded or virtual base functions
 
@@ -919,7 +934,8 @@ private:
      */
     virtual std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const = 0;
 
-    /** @brief Resizes the population to the desired level and does some error checks */
+    /** @brief Resizes the population to the desired level, determines the sizes initRunState_() and
+     *  init() rely on and does some error checks */
     virtual void adjustPopulation_() = 0;
 
     /**

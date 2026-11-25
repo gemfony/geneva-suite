@@ -284,6 +284,8 @@ protected:
 
     /** @brief Does some preparatory work before the optimization starts */
     void init() override;
+    /** @brief Builds the run state of a new run: the population layout and the initial simplices */
+    void initRunState_() override;
     /** @brief Does any necessary finalization work */
     void finalize() override;
 
@@ -312,7 +314,7 @@ private:
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
-    /** @brief Resizes the population to the desired level and does some error checks */
+    /** @brief Determines the sizes of the population and does some error checks */
     void adjustPopulation_() override;
 
     /** @brief Builds the initial (non-degenerate) simplices around the seed vertices */
@@ -358,7 +360,7 @@ private:
         0; ///< How often a failed evaluation is evaluated again before the run ends
 
     /// Whether the trial slots hold trial points proposed in the previous iteration (gates the
-    /// decision); init() clears it for a new run and keeps it for a resumed one
+    /// decision); initRunState_() clears it for a new run
     bool trials_pending_ = false;
 };
 

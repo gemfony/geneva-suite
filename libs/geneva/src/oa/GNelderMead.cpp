@@ -646,20 +646,70 @@ void GNelderMead::evaluatePopulation_() {
 
 /******************************************************************************/
 /**
- * @brief Does some preparatory work before the optimization starts.
+ * @brief Does some preparatory work before every start of a run.
  *
- * Clears the pending-trials flag, builds the initial simplices and records each individual's population
- * position. (The algorithm is boundary-agnostic: it works in the normalized internal coordinate.) A run
- * resumed from a checkpoint keeps its simplices and its pending trials instead.
+ * Checks the population -- laid out by initRunState_() or held by the checkpoint of a resumed run --
+ * against the simplices and their trial slots, and records each individual's population position. (The
+ * algorithm is boundary-agnostic: it works in the normalized internal coordinate.)
  */
 void GNelderMead::init() {
     GOptimizationAlgorithmBase::init();
 
-    if(not this->resumedFromCheckpoint()) {
-        trials_pending_ = false;
-        buildInitialSimplices();
-    }
+    checkThat(
+        this->size() == this->getDefaultPopulationSize(),
+        "The population held does not fit the population of the simplices: expected ",
+        this->getDefaultPopulationSize(),
+        " individuals (the simplices and their trial slots), found ",
+        this->size()
+    );
     markIndividualPositions();
+}
+
+/******************************************************************************/
+/**
+ * @brief Builds the run state of a new run: the population layout and the initial simplices.
+ *
+ * The layout is n_simplices_ blocks of (n_fp_parms_first_ + 1) vertices plus NM_NTRIALS speculative trial
+ * slots each. Each simplex gets a seed individual; simplices beyond the supplied individuals are seeded
+ * with randomized clones of the first, and the remaining slots of every block are filled with clones,
+ * around which buildInitialSimplices() then constructs the initial simplex. No trials are pending yet.
+ */
+void GNelderMead::initRunState_() {
+    GOptimizationAlgorithmBase::initRunState_();
+
+    const std::size_t n_start = this->size();
+    const std::size_t block_size = this->getDefaultPopulationSize() / n_simplices_;
+
+    // Make sure we have one (randomized) seed individual per simplex first.
+    if(n_start < n_simplices_) {
+        for(std::size_t i = 0; i < (n_simplices_ - n_start); i++) {
+            this->push_back(this->at(0)->clone());
+            this->back()->randomInit(activityMode::ACTIVEONLY);
+        }
+    }
+    else if(n_start > n_simplices_) {
+        this->resize(n_simplices_);
+    }
+
+    // The seeds currently sit at positions 0 .. n_simplices_-1. Re-order them so
+    // that seed s ends up at vertexPos(s,0) and fill the rest of every block
+    // with clones.
+    std::vector<std::shared_ptr<gen::GGenome>> seeds;
+    seeds.reserve(n_simplices_);
+    for(std::size_t s = 0; s < n_simplices_; s++) {
+        seeds.push_back(this->at(s)->clone<gen::GGenome>());
+    }
+
+    this->clear();
+    for(std::size_t s = 0; s < n_simplices_; s++) {
+        this->push_back(seeds[s]->clone()); // vertex 0 of simplex s
+        for(std::size_t r = 1; r < block_size; r++) {
+            this->push_back(seeds[s]->clone());
+        }
+    }
+
+    trials_pending_ = false;
+    buildInitialSimplices();
 }
 
 /******************************************************************************/
@@ -801,73 +851,20 @@ std::shared_ptr<GPersonalityTraits> GNelderMead::getPersonalityTraits_() const {
 
 /******************************************************************************/
 /**
- * @brief Resizes the population to the desired level and does some error checks.
+ * @brief Determines the sizes of the population and does some error checks.
  *
- * The layout is n_simplices_ blocks of (n_fp_parms_first_ + 1) vertices plus NM_NTRIALS speculative trial
- * slots each. The number of floating-point parameters is read from the first individual; any integer or
- * boolean parameters are left untouched (Nelder-Mead operates only on the continuous parameter space) and
- * merely logged. Each simplex gets a seed individual; simplices beyond the supplied individuals are seeded
- * with randomized clones of the first, and the remaining vertex slots are filled with clones; the real
- * initial simplex geometry is constructed later in init(). A run resumed from a checkpoint keeps the
- * population of the checkpoint.
+ * The number of floating-point parameters is read from the first individual; any integer or boolean
+ * parameters are left untouched (Nelder-Mead operates only on the continuous parameter space) and merely
+ * logged. The population holds n_simplices_ blocks of (n_fp_parms_first_ + 1) vertices plus NM_NTRIALS
+ * trial slots each; initRunState_() lays it out for a new run, a resumed run keeps the population of its
+ * checkpoint.
  */
 void GNelderMead::adjustPopulation_() {
     // Non-empty population + at least one active FP parameter; logs a note for int/bool riders
     // (the shared precondition of the floating-point-only algorithms).
     n_fp_parms_first_ = this->requireFloatingPointGenome_("GNelderMead");
-    const std::size_t n_start = this->size();
-
-    const std::size_t block_size = n_fp_parms_first_ + 1 + NM_NTRIALS;
-    const std::size_t total_size = n_simplices_ * block_size;
-
-    GOptimizationAlgorithmBase::setDefaultPopulationSize(total_size);
-
-    // A run resumed from a checkpoint goes on with the simplices and trial slots of the checkpoint
-    if(this->resumedFromCheckpoint()) {
-        checkThat(
-            this->size() == total_size,
-            "The population of the checkpoint does not fit the population: expected ",
-            total_size,
-            " individuals (the simplices and their trial slots), found ",
-            this->size()
-        );
-        return;
-    }
-
-    // Make sure we have one (randomized) seed individual per simplex first.
-    if(n_start < n_simplices_) {
-        for(std::size_t i = 0; i < (n_simplices_ - n_start); i++) {
-            this->push_back(this->at(0)->clone());
-            this->back()->randomInit(activityMode::ACTIVEONLY);
-        }
-    }
-    else if(n_start > n_simplices_) {
-        this->resize(n_simplices_);
-    }
-
-    // The seeds currently sit at positions 0 .. n_simplices_-1. Re-order them so
-    // that seed s ends up at vertexPos(s,0) and fill the rest of every block
-    // with clones (the real initial simplex is constructed in init()).
-    std::vector<std::shared_ptr<gen::GGenome>> seeds;
-    seeds.reserve(n_simplices_);
-    for(std::size_t s = 0; s < n_simplices_; s++) {
-        seeds.push_back(this->at(s)->clone<gen::GGenome>());
-    }
-
-    this->clear();
-    for(std::size_t s = 0; s < n_simplices_; s++) {
-        this->push_back(seeds[s]->clone()); // vertex 0 of simplex s
-        for(std::size_t r = 1; r < block_size; r++) {
-            this->push_back(seeds[s]->clone());
-        }
-    }
-
-    checkThat(
-        this->size() == total_size,
-        "population size ",
-        this->size(),
-        ", expected ",
-        total_size
+    GOptimizationAlgorithmBase::setDefaultPopulationSize(
+        n_simplices_ * (n_fp_parms_first_ + 1 + NM_NTRIALS)
     );
 }
 

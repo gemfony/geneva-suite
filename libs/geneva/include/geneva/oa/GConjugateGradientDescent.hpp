@@ -353,6 +353,8 @@ protected:
 
     /** @brief Does some preparatory work before the optimization starts */
     void init() override;
+    /** @brief Builds the run state of a new run: starting points, children, conjugate-gradient memory */
+    void initRunState_() override;
     /** @brief Does any necessary finalization work */
     void finalize() override;
 
@@ -413,7 +415,7 @@ private:
      * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
      */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;
-    /** @brief Resizes the population to the desired level and does some error checks */
+    /** @brief Determines the sizes of the population and does some error checks */
     void adjustPopulation_() override;
 
     /** @brief Recomputes the dimensionless adjusted_finite_step_ (finite_step_/1000) */

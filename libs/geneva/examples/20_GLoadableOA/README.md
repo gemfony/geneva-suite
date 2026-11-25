@@ -28,6 +28,12 @@ analogue of example 18 (a loadable problem) and has two artifacts:
    names them with a `using personality_traits_type = GMyAlgorithm_PersonalityTraits;` alias, exactly as
    Geneva's built-in algorithms do.
 
+   If the algorithm carries a state from one iteration to the next (velocities, an archive, a step
+   size), that state goes into its member list, so a checkpoint holds it, and its starting value is built
+   in an override of `initRunState_()`: the setup calls it for a new run and never for a run resumed from
+   a checkpoint. `init()` holds what every start needs. The random search keeps nothing between
+   iterations, so it overrides neither.
+
 2. **Add one translation unit** (`GRandomSearchPlugin.cpp`) with the serialization registrations and the
    manifest entry point. There is no factory to write: for almost every algorithm the factory *is* the
    `GOptimizationAlgorithmFactoryT` scaffold instantiated for it, written straight into the manifest call —
