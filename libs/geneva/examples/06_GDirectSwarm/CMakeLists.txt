@@ -51,8 +51,8 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 
 GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME}/config )
 
-# The algorithm is driven directly (no Go2), on its own code defaults; the stall criterion halts it in
-# a few seconds.
+# The algorithm is driven directly (no GOptimizer), on its own code defaults; the stall criterion
+# halts it in a few seconds.
 ADD_TEST(NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 120)

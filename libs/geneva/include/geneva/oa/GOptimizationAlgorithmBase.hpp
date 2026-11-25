@@ -210,8 +210,8 @@ private:
      * decision, 2026-11-20). Kept from the checkpoint instead, a resumed run could not be given a
      * higher iteration limit, nor write its checkpoints elsewhere. The pluggable optimization
      * monitors belong to the job as well (maintainer decision, 2026-11-21): those registered before
-     * the load stay, those of the checkpoint are dropped -- else Go2, which registers the job's
-     * monitors after the load, would run each monitor twice.
+     * the load stay, those of the checkpoint are dropped -- else GOptimizer, which registers the
+     * job's monitors after the load, would run each monitor twice.
      *
      * @tparam self_type The (deduced) class type
      * @param self The algorithm
@@ -310,10 +310,10 @@ public:
 
     /**
      * @brief Hands this algorithm an OA-owned adaption configuration to use for the run.
-     * Go2 installs the config it holds for this algorithm's type before the algorithm runs in a chain; an
-     * adapting algorithm (EA / SA) adopts it (validating that it matches the population's genome) instead
-     * of deriving a default from the genome layout. The base does nothing -- non-adapting algorithms
-     * (swarm, gradient descent, scan) have no adaption config.
+     * GOptimizer installs the config it holds for this algorithm's type before the algorithm runs
+     * in a chain; an adapting algorithm (EA / SA) adopts it (validating that it matches the
+     * population's genome) instead of deriving a default from the genome layout. The base does
+     * nothing -- non-adapting algorithms (swarm, gradient descent, scan) have no adaption config.
      *
      * The argument is the OA-owned adaption configuration to adopt for this run.
      */
@@ -512,9 +512,9 @@ public:
      */
     std::uint32_t getStartIteration() const;
 
-    /** @brief Sets the number of iterations of a Go2 chain that ran before this algorithm */
+    /** @brief Sets the number of iterations of a GOptimizer chain that ran before this algorithm */
     void setChainOffset(std::uint32_t chain_offset);
-    /** @brief The number of iterations of a Go2 chain that ran before this algorithm */
+    /** @brief The number of iterations of a GOptimizer chain that ran before this algorithm */
     [[nodiscard]] std::uint32_t getChainOffset() const;
 
     /**
@@ -1038,7 +1038,7 @@ private:
     std::uint32_t iteration_ = 0; ///< The current iteration
     std::uint32_t offset_ =
         DEFAULTOFFSET; ///< An iteration offset which can be used, if the optimization starts from a checkpoint file
-    std::uint32_t chain_offset_ = 0; ///< The iterations of a Go2 chain before it (getChainOffset())
+    std::uint32_t chain_offset_ = 0; ///< The iterations of a chain before it (getChainOffset())
     std::uint32_t min_iteration_ = DEFAULTMINIT; ///< The minimum number of iterations
     std::uint32_t max_iteration_ = DEFAULTMAXIT; ///< The maximum number of iterations
     std::uint32_t max_stall_iteration_ =
@@ -1104,10 +1104,10 @@ private:
     std::atomic<bool> halted_{true}; ///< Set to true when halt() has returned "true"
     std::vector<std::tuple<double, double>>
         worst_known_valids_cnt_; ///< Stores the worst known valid evaluations up to the current iteration (first entry: raw, second: tranformed)
-    /// A collection of monitors. Shared, not owned: a monitor registered through Go2 is
-    /// co-owned by Go2 and by every algorithm of a chain, so that it observes the whole run
-    /// (see Go2::pluggable_monitors_cnt_). Deep-cloned only when one algorithm is loaded from
-    /// another, which is a different object and must not share the original's monitors. Not
+    /// A collection of monitors. Shared, not owned: a monitor registered through GOptimizer is
+    /// co-owned by GOptimizer and by every algorithm of a chain, so that it observes the whole run
+    /// (see GOptimizer::pluggable_monitors_cnt_). Deep-cloned only when one algorithm is loaded
+    /// from another, which is a different object and must not share the original's monitors. Not
     /// taken from a checkpoint: the monitors belong to the job (jobSettings_()).
     std::vector<std::shared_ptr<GBasePluggableOM>> pluggable_monitors_cnt_;
 

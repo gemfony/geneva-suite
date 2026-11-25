@@ -51,7 +51,7 @@
 
 namespace Gem::Geneva {
 
-class Go2;
+class GOptimizer;
 
 /******************************************************************************/
 /**
@@ -75,9 +75,9 @@ class Go2;
  *  - once the role of the process is known: the random number factory, no GPU random numbers in a
  *    process that is not the submitter, and the check that every polymorphic type is archivable.
  *
- * Go2 is built from it on the submitter (Go2(const GOptimizationDescription &)). Its constructor
- * installs the fatal report (Gem::Common::installFatalReport()): an error nobody handles ends the
- * program with its message and the exit code 1.
+ * GOptimizer is built from it on the submitter (GOptimizer(const GOptimizationDescription &)). Its
+ * constructor installs the fatal report (Gem::Common::installFatalReport()): an error nobody
+ * handles ends the program with its message and the exit code 1.
  */
 class GOptimizationDescription final : public Gem::Courtier::GProducerDescriptionI {
 public:
@@ -131,20 +131,20 @@ private:
  */
 struct GOptimizationProgram {
     /** The configuration file of the launcher and of Geneva */
-    std::filesystem::path configFile = "./config/Go2.json";
+    std::filesystem::path configFile = "./config/GOptimizer.json";
     /** Registers the program's own options into the launcher's parser */
     std::move_only_function<void(Gem::Common::GParserBuilder &)> userOptions;
     /** Every process, once its role is known: may end the program by returning an exit code */
     std::move_only_function<std::optional<int>(Gem::Courtier::processRole)> prepare;
-    /** The submitter only: the optimization, on a Go2 built from the description; its value is
-     *  the exit code */
-    std::move_only_function<int(Go2 &, const GOptimizationDescription &)> produce;
+    /** The submitter only: the optimization, on a GOptimizer built from the description; its value
+     *  is the exit code */
+    std::move_only_function<int(GOptimizer &, const GOptimizationDescription &)> produce;
 };
 
 /**
  * @brief The short form of an optimization program's main(): Geneva's description handed to
  * courtier's launcher, which owns the command line, the modules, the consumer, the role of the
- * process and a client's run; produce() runs on the submitter with a Go2 built from the
+ * process and a client's run; produce() runs on the submitter with a GOptimizer built from the
  * description. A program that sets something on the launcher builds description and launcher
  * itself (the long form: Gem::Courtier::GLauncherT<GGenome>::run(description, program)).
  * @param argc The number of arguments @param argv The arguments

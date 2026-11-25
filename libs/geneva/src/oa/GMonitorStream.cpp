@@ -91,7 +91,7 @@ Gem::Common::Record::GRow GMonitorStream::row(GOptimizationAlgorithmBase const &
 
 /******************************************************************************/
 /**
- * The algorithm's current iteration counted through a Go2 chain.
+ * The algorithm's current iteration counted through a GOptimizer chain.
  *
  * @param goa The algorithm
  * @return Its iteration plus the iterations of the chain before it

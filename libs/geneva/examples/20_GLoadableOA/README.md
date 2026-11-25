@@ -11,7 +11,7 @@ analogue of example 18 (a loadable problem) and has two artifacts:
 ## Run it
 
 ```bash
-# from this example's build directory (so ./config/Go2.json is found):
+# from this example's build directory (so ./config/GOptimizer.json is found):
 ./GLoadableOAOptimizer --module ./libGRandomSearch.so --optimizationAlgorithms rsearch
 ```
 

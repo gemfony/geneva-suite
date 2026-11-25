@@ -1,5 +1,5 @@
 {
-    "Go2.json": {
+    "GOptimizer.json": {
         "consumer": "gpu"
     },
     "GGPUConsumer.json": {

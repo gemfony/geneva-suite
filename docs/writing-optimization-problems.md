@@ -108,7 +108,7 @@ The config is validated against the genome (`checkConsistency`) when it is adopt
 There are three ways to give an algorithm its adaption config:
 
 - **Directly on the algorithm** — `oa_ptr->setAdaptionConfig(cfg);`
-- **Through Go2 (by OA personality type)** — when you let Go2 build the algorithm chain:
+- **Through GOptimizer (by OA personality type)** — when you let GOptimizer build the chain:
   ```cpp
   go.registerAdaptionConfig("PERSONALITY_EA", cfg);   // every EA in the chain adopts this cfg
   ```
@@ -123,7 +123,7 @@ consumer and the role of the process; the optimization runs on the submitter onl
 the program gives it:
 ```cpp
 int main(int argc, char **argv) {
-    return Gem::Geneva::runOptimization(argc, argv, {.produce = [](Go2 &go, const auto &) {
+    return Gem::Geneva::runOptimization(argc, argv, {.produce = [](GOptimizer &go, const auto &) {
         go.registerContentCreator(factory);
         go.registerAdaptionConfig("PERSONALITY_EA", cfg);
         auto best = go.optimize()->getBestGlobalIndividual<MyProblem>();
@@ -162,7 +162,7 @@ A problem can reach an optimizer two ways, and one individual can be packaged **
 from a single source:
 
 - **Compiled in** — your program `#include`s the individual and constructs it (`new MyProblem(...)` /
-  `Go2::registerContentCreator`). This is the classic path and always available.
+  `GOptimizer::registerContentCreator`). This is the classic path and always available.
 - **Loaded at runtime** — the individual is a shared object (`libMyProblem.so`) that the generic
   optimizer `dlopen`s on request (`--individual path/to/libMyProblem.so`), reads its config, and runs.
   This is the model Geneva ships and defaults to; the shipped library itself contains **no** concrete

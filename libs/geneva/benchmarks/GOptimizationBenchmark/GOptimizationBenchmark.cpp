@@ -42,7 +42,7 @@
 #include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 #include "GOptimizationBenchmarkConfig.hpp"
 
@@ -56,13 +56,13 @@ using namespace Gem::Geneva::Benchmarks;
 
 using xyWE = std::tuple<double, double, double, double>; // xy-values with errors
 
-// NOLINTNEXTLINE(readability-function-size) -- single benchmark main: Go2 setup, the benchmark sweep and the resulting plotting all belong to one run
+// NOLINTNEXTLINE(readability-function-size) -- single benchmark main: GOptimizer setup, the benchmark sweep and the resulting plotting all belong to one run
 int main(int argc, char **argv) {
-    // Geneva on courtier's launcher; every test below builds a Go2 of its own
+    // Geneva on courtier's launcher; every test below builds a GOptimizer of its own
     return runOptimization(
         argc,
         argv,
-        {.produce = [&](Go2 & /*go*/, const GOptimizationDescription &geneva) -> int {
+        {.produce = [&](GOptimizer & /*go*/, const GOptimizationDescription &geneva) -> int {
             // Load benchmark configuration options
             GOptimizationBenchmarkConfig const gbc("./config/GOptimizationBenchmark.json");
 
@@ -99,8 +99,8 @@ int main(int argc, char **argv) {
 
                 // Run the desired number of tests
                 for(std::size_t test = 0; test < nTests; test++) {
-                    // Create a Go2-object for the loop
-                    Go2 go_loop(geneva);
+                    // Create a GOptimizer-object for the loop
+                    GOptimizer go_loop(geneva);
 
                     // Build a fresh individual for this dimension, fully configured the way the factory's get_as<>()
                     // would be (base options + demo function from the config file), but with the swept par_dim.

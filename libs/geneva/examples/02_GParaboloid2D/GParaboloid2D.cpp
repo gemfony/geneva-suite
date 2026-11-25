@@ -36,7 +36,7 @@
 
 // Geneva header files go here
 #include "courtier/GLauncherT.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "GParaboloidIndividual2D.hpp"
@@ -47,32 +47,32 @@ using namespace Gem::Geneva;
 // producing function is handed to the launcher. A program takes this form when it sets something
 // on the launcher (a consumer chosen in code, a module path, an item processor); without that it
 // is the same as the short form of 01_GSimpleOptimizer (runOptimization()).
-//! [go2-long-form]
+//! [goptimizer-long-form]
 int main(int argc, char **argv) {
     // What Geneva says about itself: its configuration keys, its options, its modules
     GOptimizationDescription geneva;
     // courtier's launcher owns the command line, the consumer and the role of this
     // process
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
 
     // The producing function runs on the submitter only: a client or an MPI rank
     // other than 0 never runs it
     auto produce = [&geneva] {
-        Go2 go(geneva);
+        GOptimizer go(geneva);
 
         // Make an individual known to the optimizer
         auto const p = std::make_shared<GParaboloidIndividual2D>();
         go.push_back(p);
 
         // The genome carries only structure; its Gauss adaptors live on an OA-owned
-        // config. Register it for the evolutionary algorithm so Go2 hands it over
+        // config. Register it for the evolutionary algorithm so GOptimizer hands it over
         // before the EA runs.
         go.registerAdaptionConfig(
             "PERSONALITY_EA",
             GParaboloidIndividual2D::buildAdaptionConfig(*p)
         );
 
-        // Add an evolutionary algorithm to the Go2 class.
+        // Add an evolutionary algorithm to the GOptimizer class.
         go & "ea";
 
         // Perform the actual optimization
@@ -84,4 +84,4 @@ int main(int argc, char **argv) {
     };
     return launcher.run(geneva, {.produce = produce});
 }
-//! [go2-long-form]
+//! [goptimizer-long-form]

@@ -10,11 +10,12 @@ in ../quickstart instead: it is a self-contained project that consumes an
 as-is. The examples below are built as part of the Geneva tree and illustrate
 individual aspects of the library.
 
-Every example program's main() has one of two forms (the manual's chapter on Go2 explains them):
+Every example program's main() has one of two forms (the manual's chapter on GOptimizer
+explains them):
 o The short form: Gem::Geneva::runOptimization(argc, argv, {.produce = ...}). Geneva's
   description is handed to courtier's launcher, which owns the command line, the consumer and
-  the role of the process; the producing function runs on the submitter only, with a Go2 built
-  for it. This is the form to use unless the program sets something on the launcher.
+  the role of the process; the producing function runs on the submitter only, with a
+  GOptimizer built for it. This is the form to use unless the program sets something on the launcher.
   01_GSimpleOptimizer shows it.
 o The long form: the program builds Geneva's description (GOptimizationDescription) and
   courtier's launcher (Gem::Courtier::GLauncherT<GGenome>) in main() and hands the producing
@@ -31,7 +32,7 @@ The following examples are provided:
 ---------------
 
 A short but complete program: one problem class with two parameters and a known
-minimum, handed to Go2, searched, plotted and read out. The manual's Quick Start
+minimum, handed to GOptimizer, searched, plotted and read out. The manual's Quick Start
 chapter walks through it line by line; start here.
 
 01_GSimpleOptimizer:
@@ -49,8 +50,8 @@ The main purpose of this example is to provide users with a first insight into
 how an optimization problem may be specified in Geneva. You should thus particularly
 look at the GParaboloidIndividual2D class. The main function illustrates additional
 ways of specifying the optimization algorithms to be used, and how individuals can
-be added to the optimization driver Go2. Its main() has the long form: Geneva's description and
-courtier's launcher are built in main(); 01_GSimpleOptimizer shows the short form.
+be added to the optimization driver GOptimizer. Its main() has the long form: Geneva's
+description and courtier's launcher are built in main(); 01_GSimpleOptimizer shows the short form.
 
 03_GParameterObjectUsagePatterns:
 ---------------------------------
@@ -101,16 +102,16 @@ sub-optimization by a nested evolutionary algorithm.
 15_GMPIConsumer:
 ----------------
 
-This example shows how the MPI consumer can be used directly without using Go2.
-Usually using Go2 is recommended, but this example serves as a demonstration of direct interaction with the consumer framework and
-is similar to the example 06_GDirectEA. If you would like to explore the MPI-Consumer with Go2, you can use the
+This example shows how the MPI consumer can be used directly without using GOptimizer.
+Usually using GOptimizer is recommended, but this example serves as a demonstration of direct interaction with the consumer framework and
+is similar to the example 06_GDirectEA. If you would like to explore the MPI-Consumer with GOptimizer, you can use the
 quickstart in ../quickstart and call the executable with --help --showAll to explore all options.
 
 16_GMPISubClients:
 ------------------
 
 This example shares the evaluation of one individual among several MPI processes. It uses
-courtier's MPI cascade (GMPICascade): rank 0 runs the optimization through Go2, the other
+courtier's MPI cascade (GMPICascade): rank 0 runs the optimization through GOptimizer, the other
 processes form groups of a lead (a client of the MPI consumer) and its members (sub-clients),
 and each lead evaluates an individual in a round of its group.
 

@@ -47,7 +47,7 @@
 #include <ranges>
 
 // Geneva headers
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeFactory.hpp"
 
@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
     return runOptimization(
         argc,
         argv,
-        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+        {.produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
             //---------------------------------------------------------------------------
             // The optimization problem came from the loaded plugin (or, if you compiled one in, from
             // registerContentCreator()). Pull its OA-owned adaption config from the factory through the base

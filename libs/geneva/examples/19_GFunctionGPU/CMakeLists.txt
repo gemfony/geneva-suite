@@ -30,8 +30,8 @@
 # Example 19 -- a stock GFunctionIndividual (the standard benchmark-function individual) evaluated on the
 # GPU purely by selecting "--consumer gpu". It demonstrates the store-based GPU path for an ORDINARY
 # library individual: the problem contributes only a marshaller (deriving Gem::Geneva::GBaseGPUMarshallerT)
-# and Go2 builds the generic GPU consumer around it. Like example 14 it drives the courtier GPU consumer,
-# so it is built only when that consumer is (GEM_BUILD_WITH_GPU_CONSUMER -- see
+# and GOptimizer builds the generic GPU consumer around it. Like example 14 it drives the courtier
+# GPU consumer, so it is built only when that consumer is (GEM_BUILD_WITH_GPU_CONSUMER -- see
 # geneva/examples/CMakeLists.txt). The kernel is runtime-compiled by NVRTC, so no CUDA language is enabled
 # at build time -- it builds with an ordinary C++ toolchain and selects CPU / CUDA at run time via
 # config/GGPUConsumer.json.

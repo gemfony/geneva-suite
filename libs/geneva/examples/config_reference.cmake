@@ -28,9 +28,10 @@
 ################################################################################
 #
 # Helper driver for the config-reference / config-reference-check targets, invoked with `cmake -P`.
-# It generates the standard configuration set (timestamp-free) from a representative Go2 binary into a
-# temporary directory, then -- depending on MODE -- either copies it into the checked-in reference tree
-# (MODE=generate) or fails if it differs from the checked-in tree (MODE=check, never writing into source).
+# It generates the standard configuration set (timestamp-free) from a representative GOptimizer
+# binary into a temporary directory, then -- depending on MODE -- either copies it into the
+# checked-in reference tree (MODE=generate) or fails if it differs from the checked-in tree
+# (MODE=check, never writing into source).
 #
 # Expected -D arguments: BIN (the generator binary), GEN (a scratch dir), DEST (docs/.../config), MODE.
 

@@ -164,7 +164,7 @@ TEST_CASE("Consumer registry holds one consumer", "[consumer][sharing][registry]
     CHECK(first == second);    // it returned the same consumer
     CHECK(reg.consumer() == first);
 
-    // setConsumer replaces it (e.g. Go2 registering the consumer it built); clear empties.
+    // setConsumer replaces it (e.g. GOptimizer registering the consumer it built); clear empties.
     auto replacement = std::make_shared<consumer_t>();
     reg.setConsumer(replacement);
     CHECK(reg.consumer() == replacement);

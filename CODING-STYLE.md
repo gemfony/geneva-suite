@@ -232,8 +232,8 @@ retained from the original style, but the body of the name is now lower-case. Pu
 discouraged — keep camel case.
 
 ```cpp
-// From Go2 (excerpt): a camelBack method, a snake_case parameter, a snake_case_ member.
-class Go2 {
+// From GOptimizer (excerpt): a camelBack method, a snake_case parameter, a snake_case_ member.
+class GOptimizer {
 public:
     void setCopyBestIndividualsOnly(bool copy_best_individuals_only);
     bool onlyBestIndividualsAreCopied() const;

@@ -558,7 +558,7 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
  * point for all optimization algorithms.
  *
  * @param offset Specifies the iteration number to start with (non-zero when resuming from a
- *   checkpoint file; the later algorithms of a Go2 chain start at 0, see getChainOffset())
+ *   checkpoint file; the later algorithms of a GOptimizer chain start at 0, see getChainOffset())
  * @return A constant pointer to this object, after the optimization run has completed
  */
 // NOLINTNEXTLINE(readability-function-size) -- the single top-level optimization lifecycle driver (setup, the init/cycle/checkpoint/halt loop, teardown) shared by every optimization algorithm; splitting the sequenced setup->loop->teardown would scatter one coherent control-flow entry point
@@ -617,7 +617,7 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
 
     // The resume marker has now been consumed by the setup (which preserved the restored scratch and
     // run state). Clear it so the remainder of the run -- and any subsequent algorithm in a
-    // Go2 chain -- treats the scratch as ordinary OA-owned state (seeded / reset normally).
+    // GOptimizer chain -- treats the scratch as ordinary OA-owned state (seeded / reset normally).
     resumed_from_checkpoint_ = false;
 
     // Let the algorithm know that the optimization process hasn't been halted yet.
@@ -678,7 +678,7 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // itself gates on the user having enabled checkpointing (cp_interval_ != 0). The
     // loop has already counted on to the iteration that would come next: the final
     // checkpoint holds the last iteration that ran, as a numbered one does, so that a
-    // resume (Go2: the checkpoint's iteration + 1) starts right after it instead of
+    // resume (GOptimizer: the checkpoint's iteration + 1) starts right after it instead of
     // skipping one.
     --iteration_;
     checkpoint(progress());
@@ -1040,7 +1040,7 @@ std::uint32_t GOptimizationAlgorithmBase::getIteration_() const {
  * is identical to the iteration the optimization starts with.
  *
  * @return The starting iteration offset (non-zero when resuming from a checkpoint; the later
- *   algorithms of a Go2 chain start at 0, see getChainOffset())
+ *   algorithms of a GOptimizer chain start at 0, see getChainOffset())
  */
 std::uint32_t GOptimizationAlgorithmBase::getStartIteration() const {
     return offset_;
@@ -1048,10 +1048,11 @@ std::uint32_t GOptimizationAlgorithmBase::getStartIteration() const {
 
 /******************************************************************************/
 /**
- * Sets the number of iterations of a Go2 chain that ran before this algorithm. Go2 sets it before
- * each algorithm of its chain runs; an algorithm that runs alone keeps 0. It is part of the state
- * of the run, so a checkpoint carries it: a run resumed from a checkpoint of a later algorithm of a
- * chain knows where in the chain it stands (GMonitorStream counts its rows through the chain).
+ * Sets the number of iterations of a GOptimizer chain that ran before this algorithm. GOptimizer
+ * sets it before each algorithm of its chain runs; an algorithm that runs alone keeps 0. It is part
+ * of the state of the run, so a checkpoint carries it: a run resumed from a checkpoint of a later
+ * algorithm of a chain knows where in the chain it stands (GMonitorStream counts its rows through
+ * the chain).
  *
  * @param chain_offset The iterations of the chain before this algorithm
  */
@@ -1061,8 +1062,8 @@ void GOptimizationAlgorithmBase::setChainOffset(std::uint32_t chain_offset) {
 
 /******************************************************************************/
 /**
- * The number of iterations of a Go2 chain that ran before this algorithm (setChainOffset()): its
- * own iteration plus this number is its iteration counted through the chain.
+ * The number of iterations of a GOptimizer chain that ran before this algorithm (setChainOffset()):
+ * its own iteration plus this number is its iteration counted through the chain.
  *
  * @return The iterations of the chain before this algorithm
  */

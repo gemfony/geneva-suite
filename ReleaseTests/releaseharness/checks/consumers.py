@@ -23,7 +23,7 @@ from ..model import CheckResult, Tier
 from ..runner import GUEST_BUILD, JobContext
 
 # Example 01 is the canonical simple optimizer; built under libs/geneva/examples
-# (post-Lager-A per-library layout). It writes/reads ./config/Go2.json relative
+# (post-Lager-A per-library layout). It writes/reads ./config/GOptimizer.json relative
 # to the CWD, so run it from its own build directory where config/ is installed.
 _EX01_DIR = "libs/geneva/examples/01_GSimpleOptimizer"
 _EX01 = "./GSimpleOptimizer"

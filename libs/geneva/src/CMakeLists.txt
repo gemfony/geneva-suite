@@ -32,7 +32,7 @@ SET ( OPTIMIZATIONSOURCES
 	GenevaHelperFunctions.cpp
 	GFaultInjector.cpp
 	GenevaInitializer.cpp
-	Go2.cpp
+	GOptimizer.cpp
 	GOptimizationDescription.cpp
     oa/GBasePluggableOM.cpp
     oa/GMonitorStream.cpp

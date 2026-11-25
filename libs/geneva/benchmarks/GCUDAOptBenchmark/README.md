@@ -26,7 +26,7 @@ For each configured algorithm entry and each repetition the benchmark:
 
 The consumer and the `GenevaInitializer` are set up once in `main()` and
 shared across all algorithm runs, avoiding the repeated consumer-teardown problem that
-would arise if each run used its own `Go2` instance.
+would arise if each run used its own `GOptimizer` instance.
 
 ---
 
@@ -244,7 +244,7 @@ GAlgorithmBenchmarkRunner.hpp/.cpp   (C++23, CUDA-agnostic)
   GBenchmarkTerminationMonitor — GBasePluggableOM subclass; captures
            termination reason, final fitness, and iteration count at INFOEND.
   GAlgorithmBenchmarkRunner — drives the nested run loop; creates algorithms
-           via Geneva factories (not Go2, to avoid repeated consumer teardown);
+           via Geneva factories (not GOptimizer, to avoid repeated consumer teardown);
            parses the benchmark-function name (or id) and calls GStandardDeviation
            for aggregation.
 
@@ -264,7 +264,7 @@ the process. The `GGPUConsumerT` is registered as the single process consumer
 (`GConsumerRegistry`) once, before any optimization starts. Algorithm instances are
 created per-run via Geneva factories (`GOptimizationAlgorithmFactoryT<…>`) and
 route all evaluations through that already-registered process consumer.
-This avoids the double-teardown problem that arises when multiple `Go2` instances
+This avoids the double-teardown problem that arises when multiple `GOptimizer` instances
 each try to release the process consumer on destruction.
 
 ---

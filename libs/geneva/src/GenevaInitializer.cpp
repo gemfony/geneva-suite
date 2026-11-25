@@ -48,10 +48,10 @@ GenevaInitializer::GenevaInitializer() {
 
 /******************************************************************************/
 /**
- * @brief The destructor. It does not finalize the factory: every Go2 holds a GenevaInitializer, and
- * a short-lived one would otherwise end the factory for every later draw (the regression test
- * "destroying a GenevaInitializer keeps the process RNG alive"). hap's lifecycle guard finalizes it
- * at the end of the process (the class comment).
+ * @brief The destructor. It does not finalize the factory: every GOptimizer holds a
+ * GenevaInitializer, and a short-lived one would otherwise end the factory for every later draw
+ * (the regression test "destroying a GenevaInitializer keeps the process RNG alive"). hap's
+ * lifecycle guard finalizes it at the end of the process (the class comment).
  */
 GenevaInitializer::~GenevaInitializer() = default;
 

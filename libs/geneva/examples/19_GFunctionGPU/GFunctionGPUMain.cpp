@@ -72,7 +72,7 @@
 #include "common/GParserBuilder.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
 #include "geneva/GMarshallerSetup.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 
 // Example-local headers
@@ -255,11 +255,11 @@ int main(int argc, char **argv) {
     // individual's own evaluate() via a CPU consumer (the default "--consumer stc"), no code change.
     registerGPUMarshaller<FunctionGPU::GFunctionGPUMarshaller>("cuda", consumerConfig);
 
-    // courtier's launcher (inside runOptimization()) reads the command line and Go2.json.
+    // courtier's launcher (inside runOptimization()) reads the command line and GOptimizer.json.
     return runOptimization(
         argc,
         argv,
-        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+        {.produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
             // ---- --update-configs: materialize the configs this example owns, then exit ---------------
             // The launcher forces the local thread-pool consumer for a config refresh, so the GPU consumer
             // is not built and its config would be missed; materialize it directly here (the constructor
@@ -270,7 +270,8 @@ int main(int argc, char **argv) {
                 gpu::GGPUConsumerT<gen::GGenome, double>(consumerConfig, marshaller);
                 gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
                     .get_as<gind::GFunctionIndividual>();
-                go.optimize(); // refreshes Go2's owned configs, then exits; nothing device-dependent has run
+                // refreshes GOptimizer's own configs, then exits; nothing device-dependent has run
+                go.optimize();
             }
 
             // ---- parity-check mode: cross-check the GPU kernel against the CPU evaluate(), then exit ---
@@ -285,7 +286,8 @@ int main(int argc, char **argv) {
             go.registerContentCreator(gfi_ptr);
 
             // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory
-            // authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it over before they run.
+            // authors. Register it for the adapting algorithms (EA / SA) so GOptimizer hands it
+            // over before they run.
             {
                 auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
                 auto cfg = gfi_ptr->getAdaptionConfig(*sample);

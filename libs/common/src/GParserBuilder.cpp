@@ -789,8 +789,8 @@ void GParserBuilder::writeConfigFile(
         // Make sure the target directory exists, creating it if necessary. We auto-create a
         // missing config FILE here (this is the "does not exist" path of parseConfigFile), so we
         // must also create a missing config DIRECTORY -- otherwise, on a fresh run directory with
-        // no config/ folder, writing the very first config (e.g. Go2's own) would fail and abort
-        // the whole program via GTERMINATION before any config could be created.
+        // no config/ folder, writing the very first config (e.g. GOptimizer's own) would fail and
+        // abort the whole program via GTERMINATION before any config could be created.
         const std::filesystem::path target_dir =
             std::filesystem::path(config_file).remove_filename();
         if(not target_dir.empty()) {

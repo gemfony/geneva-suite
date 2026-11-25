@@ -37,7 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
 // The individual that should be optimized
@@ -46,11 +46,11 @@
 using namespace Gem::Geneva;
 
 // clang-format off
-//! [go2-main-quickstart]
+//! [goptimizer-main-quickstart]
 int main(int argc, char **argv) {
     // Geneva on courtier's launcher: the lambda runs on the process that submits work
-    return runOptimization(argc, argv, {.produce = [](Go2 &go, const auto &) {
-        // Add a "pluggable optimization monitor" to Go2. This particular monitor records the
+    return runOptimization(argc, argv, {.produce = [](GOptimizer &go, const auto &) {
+        // Add a "pluggable optimization monitor" to GOptimizer. This particular monitor records the
         // solutions it sees into its stream, the file records/all_solutions.csv.
         //! [monitors:register-simple]
         auto allSolutionLogger_ptr = std::make_shared<GAllSolutionFileLogger>();
@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
         auto gsif_ptr =
             std::make_shared<GStarterIndividualFactory>("./config/GStarterIndividual.json");
 
-        // Add a content creator so Go2 can generate its own individuals if necessary
+        // Add a content creator so GOptimizer can generate its own individuals if necessary
         go.registerContentCreator(gsif_ptr);
 
         // The genome carries only structure; its Gauss adaptor lives on an OA-owned
@@ -89,5 +89,5 @@ int main(int argc, char **argv) {
         return 0;
     }});
 }
-//! [go2-main-quickstart]
+//! [goptimizer-main-quickstart]
 // clang-format on

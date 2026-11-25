@@ -50,8 +50,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * @brief The personality traits of the loadable random-search algorithm.
  *
  * A minimal GPersonalityTraits subclass: it carries no per-individual state, only the algorithm mnemonic
- * ("rsearch") by which Go2 resolves the algorithm. Its @c nickname is what self-registers / is looked up in
- * the algorithm store, so a loaded @c GRandomSearch is selectable as @c --optimizationAlgorithms rsearch.
+ * ("rsearch") by which GOptimizer resolves the algorithm. Its @c nickname is what self-registers /
+ * is looked up in the algorithm store, so a loaded @c GRandomSearch is selectable as
+ * @c --optimizationAlgorithms rsearch.
  */
 class GRandomSearch_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
   : public GPersonalityTraits {

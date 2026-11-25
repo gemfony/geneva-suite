@@ -36,7 +36,7 @@
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
-/** @brief The mnemonic by which Go2 resolves this algorithm on the command line. */
+/** @brief The mnemonic by which GOptimizer resolves this algorithm on the command line. */
 const std::string GRandomSearch_PersonalityTraits::nickname = "rsearch"; // NOLINT
 
 /******************************************************************************/

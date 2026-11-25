@@ -54,9 +54,9 @@ namespace Gem::Common {
  * no exception in flight is an internal fault (a joinable std::thread destroyed, a pure virtual
  * call): the handler prints its line and calls std::abort(), for the core dump.
  *
- * Go2's constructor installs it; a program without Go2 calls installFatalReport() in the first line
- * of main(). A terminate handler set before is replaced; a program that wants one of its own sets
- * it afterwards.
+ * GOptimizer's constructor installs it; a program without GOptimizer calls installFatalReport() in
+ * the first line of main(). A terminate handler set before is replaced; a program that wants one of
+ * its own sets it afterwards.
  */
 
 /** @brief Makes the fatal report the terminate handler of the process; idempotent */

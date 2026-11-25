@@ -40,7 +40,7 @@
  *
  * The override document maps a configuration file name to an object of that file's non-default
  * key/value pairs, e.g.
- *   { "Go2.json": { "consumer": "gpu" }, "GGPUConsumer.json": { "kernel_path": "./k.cu" } }
+ *   { "GOptimizer.json": { "consumer": "gpu" }, "GGPUConsumer.json": { "kernel_path": "./k.cu" } }
  * For each entry the named file in <config-dir> is loaded, the overrides are overlaid onto it (each named
  * parameter's value replaced, its code-owned default/comment left intact), and it is written back.
  *

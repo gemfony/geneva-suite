@@ -683,11 +683,11 @@ GGpuSourceStartHold &gpuSourceStartHold(GpuSourceStartStage stage) {
  * its destructor finalizes it exactly once (joining the producer threads and closing the buffers).
  *
  * Making the factory's finalize the responsibility of this ONE library-global -- rather than of
- * every initializing object of a user (in Geneva: GenevaInitializer and Go2, as it used to be) --
- * is what keeps a short-lived one from tearing the shared factory down mid-run (a finalized factory
- * can never hand out another random-number container, so every later consumer would spin/throw; see
- * GRandomT::getNewRandomContainer()). finalize() is idempotent, so the factory's own destructor
- * calling it again when the singleton storage is released is a harmless no-op.
+ * every initializing object of a user (in Geneva: GenevaInitializer and GOptimizer, as it used to
+ * be) -- is what keeps a short-lived one from tearing the shared factory down mid-run (a finalized
+ * factory can never hand out another random-number container, so every later consumer would
+ * spin/throw; see GRandomT::getNewRandomContainer()). finalize() is idempotent, so the factory's
+ * own destructor calling it again when the singleton storage is released is a harmless no-op.
  *
  * Ordering is correct by construction: because the RNG consumers (libgemfony-geneva et al.) depend on
  * this library, their statics are destroyed BEFORE this guard's destructor runs, so nothing still draws

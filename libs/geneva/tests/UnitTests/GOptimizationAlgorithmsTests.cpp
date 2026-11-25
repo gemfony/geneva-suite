@@ -66,8 +66,8 @@
 #include "common/record/GRecorder.hpp"
 #include "courtier/GLauncherT.hpp"
 #include "geneva/GOptimizationEnums.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
-#include "geneva/Go2.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -748,7 +748,7 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
-    // A resume starts at the iteration after the one its checkpoint holds (Go2). Regression
+    // A resume starts at the iteration after the one its checkpoint holds (GOptimizer). Regression
     // (2026-11-20): the final checkpoint was written after the loop had counted on, so it held the
     // iteration that would have come next, and a run resumed from it skipped one iteration.
     namespace fs = std::filesystem;
@@ -800,7 +800,7 @@ TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
 
 TEST_CASE(
     "a run resumed from a checkpoint follows the settings of the job that resumes it",
-    "[oa][go2]"
+    "[oa][goptimizer]"
 ) {
     // The checkpoint supplies the state of the run; the halt criteria and the checkpoint settings
     // are those of the job that resumes it (maintainer decision, 2026-11-20). Regression: they came
@@ -848,11 +848,11 @@ TEST_CASE(
         Gem::Courtier::GLauncherT<gen::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
-            base / "Go2.json"
+            base / "GOptimizer.json"
         );
         const int code =
             launcher.run(geneva, {.produce = [&] {
-                             Gem::Geneva::Go2 go(geneva);
+                             Gem::Geneva::GOptimizer go(geneva);
                              go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
                              job2->setPopulationSizes(4, 2);
                              job2->setMaxIteration(6);
@@ -907,10 +907,13 @@ private:
 
 GEM_REGISTER_ARCHIVABLE(GResumeCountingMonitor) // NOLINT
 
-TEST_CASE("a resumed run is watched by the monitors of the job that resumes it", "[oa][go2]") {
+TEST_CASE(
+    "a resumed run is watched by the monitors of the job that resumes it",
+    "[oa][goptimizer]"
+) {
     // Pluggable monitors belong to the job, not to the state of the run (maintainer decision,
-    // 2026-11-21). Regression: the checkpoint brought job 1's monitors back and Go2 registered job
-    // 2's beside them, so a monitor ran twice in every iteration of the resumed run.
+    // 2026-11-21). Regression: the checkpoint brought job 1's monitors back and GOptimizer
+    // registered job 2's beside them, so a monitor ran twice in every iteration of the resumed run.
     namespace fs = std::filesystem;
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
@@ -959,7 +962,8 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
     loaded.loadCheckpoint(final_checkpoint);
     CHECK(not loaded.hasPluggableOptimizationMonitors());
 
-    // Job 2 through Go2 with a monitor of its own, reporting every iteration: one call per iteration
+    // Job 2 through GOptimizer with a monitor of its own, reporting every iteration: one call
+    // per iteration
     resume_monitor_calls = 0;
     std::string arg0 = "unit-test";
     std::string arg1 = "--consumer";
@@ -974,11 +978,11 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
         Gem::Courtier::GLauncherT<gen::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
-            base / "Go2.json"
+            base / "GOptimizer.json"
         );
         const int code =
             launcher.run(geneva, {.produce = [&] {
-                             Gem::Geneva::Go2 go(geneva);
+                             Gem::Geneva::GOptimizer go(geneva);
                              go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
                              go.registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
                              go.registerPluggableOM(
@@ -1021,7 +1025,7 @@ TEST_CASE("a resumed run is watched by the monitors of the job that resumes it",
 
 TEST_CASE(
     "a run resumed from an older checkpoint replaces the rows recorded after it",
-    "[oa][go2]"
+    "[oa][goptimizer]"
 ) {
     // A resumed run cuts the streams of its monitors back to its checkpoint before it appends
     // (GStreamOptions::resumeColumn, GMonitorStream::declare()). Regression: the iterations between
@@ -1072,10 +1076,10 @@ TEST_CASE(
         Gem::Courtier::GLauncherT<gen::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
-            base / "Go2.json"
+            base / "GOptimizer.json"
         );
         REQUIRE(launcher.run(geneva, {.produce = [&] {
-                                 Gem::Geneva::Go2 go(geneva);
+                                 Gem::Geneva::GOptimizer go(geneva);
                                  go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
                                  go.registerPluggableOM(
                                      std::make_shared<Gem::Geneva::GFitnessMonitor>()
@@ -1114,11 +1118,11 @@ TEST_CASE(
 
 /******************************************************************************/
 
-TEST_CASE("a monitor's stream holds every algorithm of a Go2 chain", "[oa][go2]") {
-    // Go2 registers the same monitor with every algorithm of a chain. Its stream is declared at the
-    // first INFOINIT and ends with the run, so it holds the rows of both algorithms and the plot
-    // shows them all. Regression: the progress plotter began a new plot at every INFOINIT, so only
-    // the last algorithm's data were written.
+TEST_CASE("a monitor's stream holds every algorithm of a GOptimizer chain", "[oa][goptimizer]") {
+    // GOptimizer registers the same monitor with every algorithm of a chain. Its stream is declared
+    // at the first INFOINIT and ends with the run, so it holds the rows of both algorithms and the
+    // plot shows them all. Regression: the progress plotter began a new plot at every INFOINIT, so
+    // only the last algorithm's data were written.
     namespace fs = std::filesystem;
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
@@ -1139,10 +1143,10 @@ TEST_CASE("a monitor's stream holds every algorithm of a Go2 chain", "[oa][go2]"
         Gem::Courtier::GLauncherT<gen::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
-            base / "Go2.json"
+            base / "GOptimizer.json"
         );
         const int code = launcher.run(geneva, {.produce = [&] {
-                                          Gem::Geneva::Go2 go(geneva);
+                                          Gem::Geneva::GOptimizer go(geneva);
                                           go.push_back(proto.clone());
                                           go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
                                           go.registerAdaptionConfig("PERSONALITY_SA", adaption_config);
@@ -1210,14 +1214,14 @@ TEST_CASE("a monitor's stream holds every algorithm of a Go2 chain", "[oa][go2]"
 /******************************************************************************/
 
 TEST_CASE(
-    "a Go2 chain resumed from a checkpoint of its second algorithm goes on counting",
-    "[oa][go2]"
+    "a GOptimizer chain resumed from a checkpoint of its second algorithm goes on counting",
+    "[oa][goptimizer]"
 ) {
     // A checkpoint carries the number of chain iterations before its algorithm
-    // (GOptimizationAlgorithmBase::getChainOffset(); Go2 sets it before every algorithm runs).
-    // Regression: the monitor stream of a run resumed from a checkpoint of the second algorithm of
-    // a chain was cut back at that algorithm's own iteration, which dropped rows of the first
-    // algorithm, and the resumed rows counted the chain from there.
+    // (GOptimizationAlgorithmBase::getChainOffset(); GOptimizer sets it before every algorithm
+    // runs). Regression: the monitor stream of a run resumed from a checkpoint of the second
+    // algorithm of a chain was cut back at that algorithm's own iteration, which dropped rows of
+    // the first algorithm, and the resumed rows counted the chain from there.
     namespace fs = std::filesystem;
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
@@ -1229,7 +1233,8 @@ TEST_CASE(
     const fs::path previous_directory = recorder.directory();
     recorder.setDirectory(base / "records");
 
-    // One job of Go2: the algorithms of the chain, a monitor, and (if given) a checkpoint to resume
+    // One job of GOptimizer: the algorithms of the chain, a monitor, and (if given) a checkpoint
+    // to resume
     const auto run_job =
         [&](std::vector<std::shared_ptr<oa::GOptimizationAlgorithmBase>> const &chain,
             std::string const &cp_file) {
@@ -1246,10 +1251,10 @@ TEST_CASE(
             Gem::Courtier::GLauncherT<gen::GGenome> launcher(
                 static_cast<int>(argv.size() - 1),
                 argv.data(),
-                base / "Go2.json"
+                base / "GOptimizer.json"
             );
             return launcher.run(geneva, {.produce = [&] {
-                                    Gem::Geneva::Go2 go(geneva);
+                                    Gem::Geneva::GOptimizer go(geneva);
                                     if(cp_file.empty()) {
                                         go.push_back(proto.clone());
                                     }
@@ -1325,18 +1330,18 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE(
-    "a later EA of a Go2 chain takes more individuals than its population size",
-    "[oa][go2]"
+    "a later EA of a GOptimizer chain takes more individuals than its population size",
+    "[oa][goptimizer]"
 ) {
-    // Go2 hands an algorithm of a chain the best individuals of the one before -- up to the number
-    // of best individuals that algorithm records, 10 by default -- which may be more than its
-    // population size. The EA evaluates them all in its first iteration and selects down to its
+    // GOptimizer hands an algorithm of a chain the best individuals of the one before -- up to the
+    // number of best individuals that algorithm records, 10 by default -- which may be more than
+    // its population size. The EA evaluates them all in its first iteration and selects down to its
     // size, as SA does. Regression: the EA of a Debug build demanded its exact population size
     // before the evaluation and threw.
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
     const gind::GLineFitIndividual proto(data_points);
-    Gem::Geneva::Go2 go;
+    Gem::Geneva::GOptimizer go;
     go.push_back(proto.clone());
     go.registerAdaptionConfig("PERSONALITY_EA", proto.getAdaptionConfig());
     go.registerAdaptionConfig("PERSONALITY_SA", proto.getAdaptionConfig());
@@ -1385,16 +1390,20 @@ double fitnessOf(gen::GGenome const &ind) {
 }
 } // namespace
 
-TEST_CASE("Go2 returns the best found whatever goes on to the next algorithm", "[oa][go2]") {
+TEST_CASE(
+    "GOptimizer returns the best found whatever goes on to the next algorithm",
+    "[oa][goptimizer]"
+) {
     // copy_best_individuals_only says which individuals go on to the next algorithm of a chain;
     // getBestGlobalIndividual(s)() return the bests of the whole run either way, as the algorithm
-    // recorded them. Regression (N15): with the setting false Go2 returned the last population.
+    // recorded them. Regression (N15): with the setting false GOptimizer returned the last
+    // population.
     for(bool const copy_best_only : {true, false}) {
         CAPTURE(copy_best_only);
         std::size_t n_lost = 0; // runs whose last iteration was worse than the best found
         for(std::size_t run = 0; run < 20; ++run) {
             SphereOA const src;
-            Gem::Geneva::Go2 go;
+            Gem::Geneva::GOptimizer go;
             go.setCopyBestIndividualsOnly(copy_best_only);
             go.push_back(src.clone());
             go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
@@ -1420,16 +1429,19 @@ TEST_CASE("Go2 returns the best found whatever goes on to the next algorithm", "
 
 /******************************************************************************/
 
-TEST_CASE("a Go2 chain returns the best found by any of its algorithms", "[oa][go2]") {
+TEST_CASE(
+    "a GOptimizer chain returns the best found by any of its algorithms",
+    "[oa][goptimizer]"
+) {
     // With copy_best_individuals_only the bests of the first algorithm go on into the second and
     // into its archive; without it the second algorithm starts from the first one's last
-    // population. In both cases Go2 returns the best found by either. Regression (N15): with the
-    // setting false Go2 returned the best of the second algorithm's last population.
+    // population. In both cases GOptimizer returns the best found by either. Regression (N15): with
+    // the setting false GOptimizer returned the best of the second algorithm's last population.
     for(bool const copy_best_only : {true, false}) {
         CAPTURE(copy_best_only);
         for(std::size_t run = 0; run < 20; ++run) {
             SphereOA const src;
-            Gem::Geneva::Go2 go;
+            Gem::Geneva::GOptimizer go;
             go.setCopyBestIndividualsOnly(copy_best_only);
             go.push_back(src.clone());
             go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
@@ -1464,13 +1476,13 @@ TEST_CASE("a Go2 chain returns the best found by any of its algorithms", "[oa][g
 /******************************************************************************/
 
 TEST_CASE(
-    "Go2's iteration accessors return the last iteration of its last algorithm",
-    "[oa][go2]"
+    "GOptimizer's iteration accessors return the last iteration of its last algorithm",
+    "[oa][goptimizer]"
 ) {
     // Regression (N27): both threw "This function should not be called". Before a run there is no
     // iteration, and both kinds of accessors say so.
     SphereOA const src;
-    Gem::Geneva::Go2 go;
+    Gem::Geneva::GOptimizer go;
     go.push_back(src.clone());
     go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
     auto first = makeCommaEA();
@@ -1722,20 +1734,20 @@ TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
 /******************************************************************************/
 
 TEST_CASE(
-    "a Go2 resumed from a checkpoint does not add its own individuals to the population",
-    "[oa][go2]"
+    "a GOptimizer resumed from a checkpoint does not add its own individuals to the population",
+    "[oa][goptimizer]"
 ) {
-    // A program that registers its individual with Go2::push_back() (instead of a content creator)
-    // and is started again with --cp_file: the checkpoint brings the whole population. Regression
-    // (2026-11-20): Go2 added its own individuals to the restored population as well, and the
-    // algorithm stopped with "Size of data vector (5) should be 4".
+    // A program that registers its individual with GOptimizer::push_back() (instead of a content
+    // creator) and is started again with --cp_file: the checkpoint brings the whole population.
+    // Regression (2026-11-20): GOptimizer added its own individuals to the restored population as
+    // well, and the algorithm stopped with "Size of data vector (5) should be 4".
     namespace fs = std::filesystem;
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
     const gind::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
 
-    const fs::path base = fs::temp_directory_path() / "geneva-go2-resume-test";
+    const fs::path base = fs::temp_directory_path() / "geneva-goptimizer-resume-test";
     fs::remove_all(base);
 
     // Job 1: a short run whose last checkpoint is the final one
@@ -1756,7 +1768,7 @@ TEST_CASE(
     }
     REQUIRE(not final_checkpoint.empty());
 
-    // Job 2: Go2 with --cp_file and an individual of its own
+    // Job 2: GOptimizer with --cp_file and an individual of its own
     std::string arg0 = "unit-test";
     std::string arg1 = "--consumer";
     std::string arg2 = "stc";
@@ -1769,11 +1781,11 @@ TEST_CASE(
         Gem::Courtier::GLauncherT<gen::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
-            base / "Go2.json"
+            base / "GOptimizer.json"
         );
         const int code =
             launcher.run(geneva, {.produce = [&] {
-                             Gem::Geneva::Go2 go(geneva);
+                             Gem::Geneva::GOptimizer go(geneva);
                              go.push_back(proto.clone());
                              go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
                              auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
@@ -1796,7 +1808,7 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("EA adopts an externally-provided adaption config", "[flat][oa]") {
-    // An algorithm uses an externally-supplied OA-owned config (Go2 hands it the one it
+    // An algorithm uses an externally-supplied OA-owned config (GOptimizer hands it the one it
     // holds for the algorithm's type) instead of deriving a default from the genome layout. Here we author
     // a config explicitly from the genome and confirm the EA drives a converging adaption with it. (That
     // the provided config -- not just any default -- is actually consumed is proven by the companion
@@ -3142,9 +3154,10 @@ TEST_CASE(
 
     // Regression (2026-07-18): the hand-written member-by-member copy constructor of
     // GOptimizationAlgorithmBase had drifted from the localMembers_() single source -- clones silently
-    // lost n_threads_, late_return_ttl_ and late_return_cap_factor_ (e.g. a Go2-configured algorithm
-    // cloned into a run reverted those knobs to defaults). The ctor now copies THROUGH localMembers_(),
-    // so any future member joins the copy automatically. Pin non-default values across a copy.
+    // lost n_threads_, late_return_ttl_ and late_return_cap_factor_ (e.g. a GOptimizer-configured
+    // algorithm cloned into a run reverted those knobs to defaults). The ctor now copies THROUGH
+    // localMembers_(), so any future member joins the copy automatically. Pin non-default values
+    // across a copy.
     auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
     pop->setNThreads(7);
     pop->setLateReturnTTL(1234);

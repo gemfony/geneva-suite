@@ -1,6 +1,6 @@
 This folder contains checks for the sane operation of the submission/processing
 infrastructure, particularly in networked mode and with respect to widely varying
-calculation times. It runs a Go2 optimization of GDelayIndividual (whose
+calculation times. It runs a GOptimizer optimization of GDelayIndividual (whose
 "evaluation" simply sleeps for configurable durations) and can log the timings
 of all processing steps via --monitorTimings.
 

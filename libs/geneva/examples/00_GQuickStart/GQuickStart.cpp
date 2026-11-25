@@ -37,10 +37,10 @@
  * line by line (the //! [quickstart-tour-*] markers bracket the regions it quotes).
  *
  * The problem is a bowl, f(x, y) = (x - 1)^2 + (y + 2)^2, whose minimum f = 0 lies at (1, -2) -- a
- * known answer, so a reader can check what the run reports. The program hands the problem to Go2,
- * lets the default algorithm (an evolutionary algorithm) search it on all cores, records the search
- * with a progress plotter (its stream records/progress.csv, and its plot records/progress.C, a
- * ROOT macro), and prints the best solution found.
+ * known answer, so a reader can check what the run reports. The program hands the problem to
+ * GOptimizer, lets the default algorithm (an evolutionary algorithm) search it on all cores,
+ * records the search with a progress plotter (its stream records/progress.csv, and its plot
+ * records/progress.C, a ROOT macro), and prints the best solution found.
  *
  * The example runs as a test. Geneva's random numbers are not reproducible from a seed
  * (DEVELOPMENT-INVARIANTS.md, Invariant 18), so the check at the end is a tolerance on the known
@@ -53,14 +53,14 @@
 #include <string_view>
 #include <vector>
 
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "weft/GArchivePolymorphic.hpp"
 
-namespace geneva = Gem::Geneva;                     // Go2 and the optimization monitors
+namespace geneva = Gem::Geneva;                     // GOptimizer and the optimization monitors
 namespace gen = Gem::Geneva::Genome;                // the genome and its builder
 namespace oa = Gem::Geneva::OptimizationAlgorithms; // algorithms and their adaption
 
@@ -111,7 +111,7 @@ GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 // clang-format off
 //! [quickstart-tour-main]
 /** The search, on the process that submits the work; returns the exit code */
-int solve(geneva::Go2 &go) {
+int solve(geneva::GOptimizer &go) {
     // One prototype candidate, and how the evolutionary algorithm mutates it.
     auto problem = std::make_shared<first::GFirstProblem>();
     go.registerAdaptionConfig("PERSONALITY_EA", problem->adaptionConfig());
@@ -143,11 +143,11 @@ int solve(geneva::Go2 &go) {
 }
 
 int main(int argc, char **argv) {
-    // Reads the command line and ./config/Go2.json (written with defaults if absent).
+    // Reads the command line and ./config/GOptimizer.json (written with defaults if absent).
     // Only the process that submits the work runs solve(); a worker of a networked run
     // evaluates what it is sent.
     return geneva::runOptimization(argc, argv, {
-        .produce = [](geneva::Go2 &go, const auto &) { return solve(go); }
+        .produce = [](geneva::GOptimizer &go, const auto &) { return solve(go); }
     });
 }
 //! [quickstart-tour-main]

@@ -33,7 +33,7 @@
 # Layout (per the 2026-05-28 repo-layout reorganisation):
 #   geneva/include/geneva/             public headers (install layout 1:1)
 #     *.hpp                              top-level orchestration / cross-layer
-#                                        (Go2.hpp, GOptimizationDescription.hpp,
+#                                        (GOptimizer.hpp, GOptimizationDescription.hpp,
 #                                        GPersonalityTraits.hpp, ...)
 #     genome/*.hpp                       genome / entity infrastructure (GGenome,
 #                                        GGenome, factories, constraints

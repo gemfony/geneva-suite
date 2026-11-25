@@ -35,7 +35,7 @@ IF (NOT DOXYGEN_FOUND)
 ENDIF ()
 
 SET (GEM_DOC_LIB_NAME "geneva")
-STRING (CONCAT GEM_DOC_LIB_DESC "Core optimisation: Go2 driver, the flat genome "
+STRING (CONCAT GEM_DOC_LIB_DESC "Core optimisation: GOptimizer driver, the flat genome "
 		"(GGenome), the optimisation algorithms, individuals, pluggable monitors")
 # Upstream: common, hap, dietrich, courtier, each built in libs/<lib>/doc of the build tree; the
 # html paths are relative to libs/geneva/doc/html. Joined into one space-separated string (see the

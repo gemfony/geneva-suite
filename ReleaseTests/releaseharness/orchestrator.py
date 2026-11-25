@@ -51,7 +51,7 @@ def _run_job(ctx: JobContext, log) -> list[CheckResult]:
 
     # Optimization algorithms
     results.extend(algorithms.run_all_algorithms(ctx))
-    results.append(algorithms.go2_config_roundtrip(ctx))
+    results.append(algorithms.goptimizer_config_roundtrip(ctx))
     results.append(algorithms.checkpoint_identity(ctx))
 
     # Examples

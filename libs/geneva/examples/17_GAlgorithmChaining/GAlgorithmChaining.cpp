@@ -37,7 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized (reused from the Geneva library)
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -47,12 +47,12 @@ using namespace Gem::Geneva;
 /**
  * The optimization, on the process that submits the work.
  *
- * @param go The Go2 of the run
+ * @param go The GOptimizer of the run
  * @return The exit code
  */
-int optimize(Go2 &go) {
+int optimize(GOptimizer &go) {
     //---------------------------------------------------------------------------
-    // Register a content creator so Go2 can populate the algorithms with
+    // Register a content creator so GOptimizer can populate the algorithms with
     // GFunctionIndividual objects (no problem-specific individual or factory has
     // to be written for this example -- both come from the Geneva library).
     auto const gfi_ptr =
@@ -72,18 +72,18 @@ int optimize(Go2 &go) {
     // algorithm runs first (global exploration), then a conjugate gradient descent
     // refines its best result (local exploitation). Each algorithm runs its own full
     // iteration budget; the best individuals are passed from one to the next.
-    //! [go2-chain#1]
+    //! [goptimizer-chain#1]
     go & "ea" & "cgd";
-    //! [go2-chain#1]
+    //! [goptimizer-chain#1]
     //! [algo-overview-chaining#1]
 
     //---------------------------------------------------------------------------
     // Perform the actual (chained) optimization
     //! [algo-overview-chaining#2]
-    //! [go2-chain#2]
+    //! [goptimizer-chain#2]
     auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
     //! [algo-overview-chaining#2]
-    //! [go2-chain#2]
+    //! [goptimizer-chain#2]
 
     std::cout << "Best result found:" << '\n' << p << '\n';
     return 0;
@@ -93,13 +93,13 @@ int optimize(Go2 &go) {
 
 /********************************************************************************
  * This example demonstrates how to CHAIN several optimization algorithms in a
- * single run. Algorithms are appended to the Go2 object with the &-operator;
- * Go2 then runs them in sequence, handing the best individual(s) of one
+ * single run. Algorithms are appended to the GOptimizer object with the &-operator;
+ * GOptimizer then runs them in sequence, handing the best individual(s) of one
  * algorithm to the next. A common pattern is a global explorer (evolutionary
  * algorithm) followed by a local refiner (gradient descent).
  ********************************************************************************/
 int main(int argc, char **argv) {
-    return runOptimization(argc, argv, {.produce = [&](Go2 &go, const auto &) {
+    return runOptimization(argc, argv, {.produce = [&](GOptimizer &go, const auto &) {
                                return optimize(go);
                            }});
 }

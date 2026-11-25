@@ -54,14 +54,14 @@ class GOptimizationAlgorithmBase;
  *   so a monitor's copy constructor can stay defaulted and a clone has no stream of its own; an
  *   assigned monitor keeps its own stream.
  * - **Declared at INFOINIT.** A monitor declares its stream (declare()) at INFOINIT when it is not
- *   open (isOpen()): at the first INFOINIT, and after the stream was closed. In a Go2 chain the
- *   later algorithms find it open and record into the same stream. A run resumed from a checkpoint appends to the
- *   files (GStreamOptions::resume), after cutting them back to the checkpoint: the rows recorded
- *   after it by the earlier run are dropped (declare()).
+ *   open (isOpen()): at the first INFOINIT, and after the stream was closed. In a GOptimizer chain
+ *   the later algorithms find it open and record into the same stream. A run resumed from a
+ *   checkpoint appends to the files (GStreamOptions::resume), after cutting them back to the
+ *   checkpoint: the rows recorded after it by the earlier run are dropped (declare()).
  * - **The first three columns.** Every row begins with "algorithm" (its name), "iteration" (the
- *   algorithm's own iteration) and "chain_iteration": the iteration counted through a Go2 chain,
- *   so that a plot over it does not jump back when the next algorithm starts at 0 (row()). The
- *   algorithm knows how many iterations of the chain ran before it
+ *   algorithm's own iteration) and "chain_iteration": the iteration counted through a GOptimizer
+ *   chain, so that a plot over it does not jump back when the next algorithm starts at 0 (row()).
+ *   The algorithm knows how many iterations of the chain ran before it
  *   (GOptimizationAlgorithmBase::getChainOffset()); a checkpoint carries that number, so a run
  *   resumed from a checkpoint of a later algorithm of a chain goes on counting where it stood.
  */
@@ -100,7 +100,7 @@ public:
     [[nodiscard]] bool isOpen() const;
 
 private:
-    /** @brief The algorithm's current iteration counted through a Go2 chain */
+    /** @brief The algorithm's current iteration counted through a GOptimizer chain */
     [[nodiscard]] static std::uint64_t chainIteration(GOptimizationAlgorithmBase const &goa);
 
     Gem::Common::Record::GStream stream_; ///< The stream

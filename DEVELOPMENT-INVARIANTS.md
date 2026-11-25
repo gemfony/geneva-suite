@@ -302,8 +302,8 @@ A Geneva library's **entire** header tree is part of its installed interface: ev
   automatically. Do NOT gate a header's installation on "is it used by an example / another header yet" — an
   explicit per-header install list silently drifts out of sync and omits headers.
 - **The installed header set must be self-contained.** Because installed public headers include one another,
-  omitting any header breaks out-of-tree compilation of the headers that include it (e.g. `Go2.hpp` /
-  `GRandomT.hpp` pulling in a transitively-required header). A wholesale directory install makes the closure
+  omitting any header breaks out-of-tree compilation of the headers that include it (e.g.
+  `GOptimizer.hpp` / `GRandomT.hpp` pulling in a transitively-required header). A wholesale directory install makes the closure
   complete by construction; a curated list does not.
 - **"Internal-looking" is not a reason to withhold a header.** If a header genuinely must never be part of the
   public interface, it does not belong in a library's public `include/` tree in the first place — move it into
@@ -450,7 +450,7 @@ and configuration for a mechanism that no longer exists — is litter and does n
   fresh clone needs, it does not get committed.
 - **Generated and tool-local config never lands in the tree.** IDE project state (`.idea/`, `.vscode/`),
   Python caches (`__pycache__/`), in-source build directories (`cmake-build-*/`, `build/`), run-emitted config
-  (`config/*.json` written by a `Go2` program), logs (`GEM-EXCEPTION.log`) and coverage artefacts are
+  (`config/*.json` written by a `GOptimizer` program), logs (`GEM-EXCEPTION.log`) and coverage artefacts are
   generated *outside* the checkout — the direct consequence of running every build and binary from an external
   working directory (Inv 3, Inv 17). When one appears in-tree, it is removed and the activity relocated, not
   gitignored-and-tolerated in place. (`.gitignore` is a backstop against accidental commits, not a licence to

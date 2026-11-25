@@ -102,9 +102,10 @@ private:
 /**
  * @brief Registers a GPU marshaller for a device target, so @c --consumer @c gpu can build a consumer.
  *
- * A GPU problem calls this once (compiled-in: before constructing @c Go2, so the consumer is built at
- * construction like every other mnemonic; a loaded individual module would call it at module load). It is
- * the sole GPU-specific contribution a problem makes -- Go2 owns consumer selection and lifecycle.
+ * A GPU problem calls this once (compiled-in: before constructing @c GOptimizer, so the consumer is
+ * built at construction like every other mnemonic; a loaded individual module would call it at
+ * module load). It is the sole GPU-specific contribution a problem makes -- GOptimizer owns
+ * consumer selection and lifecycle.
  *
  * @tparam marshaller_type The problem's @c GBaseGPUMarshallerT<scalar_type> subclass
  * @param device_target The device target (store key / mnemonic, e.g. "cuda")

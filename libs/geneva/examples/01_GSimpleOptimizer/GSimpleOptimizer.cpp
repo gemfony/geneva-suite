@@ -37,7 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -50,29 +50,29 @@ using namespace Gem::Geneva;
 // launcher built in main().
 int main(int argc, char **argv) {
     // What the process that submits the work does; a client never runs it
-    auto produce = [](Go2 &go, const GOptimizationDescription &) {
+    auto produce = [](GOptimizer &go, const GOptimizationDescription &) {
         //-----------------------------------------------------------------------
         // Create a factory for GFunctionIndividual objects and perform
         // any necessary initial work.
         auto const gfi_ptr =
             std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
 
-        // Add a content creator so Go2 can generate its own individuals, if necessary
+        // Add a content creator so GOptimizer can generate its own individuals, if necessary
         go.registerContentCreator(gfi_ptr);
 
         // The genome carries only structure; the configured adaptor lives on an OA-owned config
-        // the factory authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it
-        // over before they run.
+        // the factory authors. Register it for the adapting algorithms (EA / SA) so GOptimizer
+        // hands it over before they run.
         {
-            //! [adaptors-go2-register]
+            //! [adaptors-goptimizer-register]
             auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
             auto cfg = gfi_ptr->getAdaptionConfig(*sample);
             go.registerAdaptionConfig("PERSONALITY_EA", cfg);
             go.registerAdaptionConfig("PERSONALITY_SA", cfg);
-            //! [adaptors-go2-register]
+            //! [adaptors-goptimizer-register]
         }
 
-        // Add a default optimization algorithm to the Go2 object. This is optional.
+        // Add a default optimization algorithm to the GOptimizer object. This is optional.
         // Indeed "ea" is the default setting anyway. However, if you do not like it, you
         // can register another default algorithm here, which will then be used, unless
         // you specify other algorithms on the command line. You can also add a smart

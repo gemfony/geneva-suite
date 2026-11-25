@@ -61,11 +61,11 @@ SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOU
 GEM_TEST_SIZE(${EXECUTABLENAME} S)
 
 # A configuration file that cannot be applied ends the program with a clear message and the exit
-# code 1 (the fatal report Go2 installs, common/GFatalReport.hpp), not with an abort and a core dump:
-# a Go2.json with a flat entry, in a directory of its own (the program writes nothing there, as it
-# stops at that file).
+# code 1 (the fatal report GOptimizer installs, common/GFatalReport.hpp), not with an abort and a
+# core dump: a GOptimizer.json with a flat entry, in a directory of its own (the program writes
+# nothing there, as it stops at that file).
 SET ( CONFIG_ERROR_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/config-error )
-FILE ( WRITE ${CONFIG_ERROR_WORKDIR}/config/Go2.json "{ \"n_producer_threads\": 0 }\n" )
+FILE ( WRITE ${CONFIG_ERROR_WORKDIR}/config/GOptimizer.json "{ \"n_producer_threads\": 0 }\n" )
 ADD_TEST ( NAME ${EXECUTABLENAME}ConfigError
 	COMMAND ${CMAKE_COMMAND}
 		-DCOMMAND=$<TARGET_FILE:${EXECUTABLENAME}>

@@ -37,14 +37,14 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GFunctionIndividual.hpp"
 
 using namespace Gem::Geneva;
 
-// NOLINTNEXTLINE(readability-function-size) -- example 13's main(): a single linear setup script (CLI options, Go2 construction, constraint-combiner wiring, adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
+// NOLINTNEXTLINE(readability-function-size) -- example 13's main(): a single linear setup script (CLI options, GOptimizer construction, constraint-combiner wiring, adaption-config registration, run); splitting would scatter tightly sequential one-shot setup steps
 int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // We want to add additional command line options
@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
         argc,
         argv,
         {.userOptions = user_options,
-         .produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+         .produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
              //---------------------------------------------------------------------------
              // Create a factory for GFunctionIndividual objects and perform
              // any necessary initial work.
@@ -166,7 +166,8 @@ int main(int argc, char **argv) {
              //---------------------------------------------------------------------------
 
              // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory
-             // authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it over before they run.
+             // authors. Register it for the adapting algorithms (EA / SA) so GOptimizer hands it
+             // over before they run.
              {
                  auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
                  auto cfg = gfi_ptr->getAdaptionConfig(*sample);

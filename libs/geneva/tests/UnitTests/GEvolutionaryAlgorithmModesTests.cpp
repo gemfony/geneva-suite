@@ -247,7 +247,7 @@ TEST_CASE("ea default step control is SELF_ADAPT_SCALED", "[ea][oa]") {
 TEST_CASE("ea self-registers its mnemonic in the OA factory store", "[ea][oa]") {
     // The GInitializerT registrant in the library's single algorithm-registration translation unit
     // (src/oa/GBuiltinAlgorithms.cpp) runs at library load and inserts the "ea" mnemonic into the global
-    // store, so Go2 / the examples can select it by name.
+    // store, so GOptimizer / the examples can select it by name.
     CHECK(oaFactoryStore()->exists("ea"));
     CHECK((oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>{}.getMnemonic() == "ea"));
 }

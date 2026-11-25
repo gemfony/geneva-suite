@@ -165,9 +165,10 @@ std::size_t GFitnessMonitor::getNMonitorIndividuals() const {
 /**
  * @brief Records the fitness of the best individuals.
  *
- * INFOINIT declares the stream, unless it is open (in a Go2 chain the first algorithm declares
- * it); INFOPROCESSING appends one row per rank of the globally best and the iteration's best
- * individuals, up to the monitored number; INFOEND does nothing (the stream ends with the run).
+ * INFOINIT declares the stream, unless it is open (in a GOptimizer chain the first algorithm
+ * declares it); INFOPROCESSING appends one row per rank of the globally best and the iteration's
+ * best individuals, up to the monitored number; INFOEND does nothing (the stream ends with the
+ * run).
  *
  * @param im The stage of the information cycle (INFOINIT, INFOPROCESSING or INFOEND)
  * @param goa A pointer to the optimization algorithm calling this function; queried for best individuals and the iteration

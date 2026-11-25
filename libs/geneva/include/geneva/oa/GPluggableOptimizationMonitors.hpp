@@ -142,10 +142,10 @@ private:
  * (GMonitorStream), rank, global_best and iteration_best, one row per rank; there are fewer rows
  * when an algorithm has fewer bests (as a Pareto run may, from iteration to iteration).
  *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
- * GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to it. Two
- * monitors of one class in one process need different stream names.
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a GOptimizer
+ * chain one stream for the whole chain -- and the stream ends with the run (courtier's launcher
+ * closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to
+ * it. Two monitors of one class in one process need different stream names.
  */
 class GFitnessMonitor // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GFitnessMonitor, oa::GBasePluggableOM> {
@@ -372,10 +372,10 @@ private:
  * "var<index>") and fitness, one row per recorded individual, written as CSV; for one to three
  * variables a GPlotSink draws the plot at the end of the stream (a ROOT macro "<stream>.C").
  *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
- * launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint
- * appends to it. Two monitors of one class in one process need different stream names.
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a GOptimizer
+ * chain one stream, and one plot, for the whole chain -- and the stream ends with the run
+ * (courtier's launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a
+ * checkpoint appends to it. Two monitors of one class in one process need different stream names.
  *
  * @tparam fp_type The floating point type of the monitored variables (e.g. double or float)
  */
@@ -542,7 +542,7 @@ public:
 	  * profiled ranges: the plotter evaluates a copy of the best candidate at
 	  * every grid point, with the profiled variables set to the grid values and all others left as
 	  * they are -- so the map is the slice through the best solution, and it costs points_per_axis^2
-	  * evaluations, made locally, at the end of each algorithm (in a Go2 chain the last grid is
+	  * evaluations, made locally, at the end of each algorithm (in a GOptimizer chain the last grid is
 	  * drawn). The grid is part of the plot, not of the stream. 0 (the default) draws the
 	  * candidates alone. With the map the pad has
 	  * a legend (the map and the candidates), and the canvas label (setCanvasLabel()) is the title of
@@ -1058,10 +1058,10 @@ private:
  * what is better depends on whether the criteria are maximized or minimized, as the individual
  * says.
  *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
- * GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to it. Two
- * monitors of one class in one process need different stream names.
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a GOptimizer
+ * chain one stream for the whole chain -- and the stream ends with the run (courtier's launcher
+ * closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to
+ * it. Two monitors of one class in one process need different stream names.
  */
 class GAllSolutionFileLogger // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GAllSolutionFileLogger, oa::GBasePluggableOM> {
@@ -1225,10 +1225,10 @@ private:
  * individual, a 2-d histogram for all, one bin per recorded iteration and per number of adaptions)
  * beside the best fitness.
  *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
- * launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint
- * appends to it. Two monitors of one class in one process need different stream names.
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a GOptimizer
+ * chain one stream, and one plot, for the whole chain -- and the stream ends with the run
+ * (courtier's launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a
+ * checkpoint appends to it. Two monitors of one class in one process need different stream names.
  */
 class GNAdpationsLogger // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GNAdpationsLogger, oa::GBasePluggableOM> {
@@ -1349,10 +1349,10 @@ private:
  * end of the stream, a 2-d histogram of the property over the iterations (one bin per recorded
  * iteration, 100 for the property) beside the best fitness.
  *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
- * launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint
- * appends to it. Two monitors of one class in one process need different stream names.
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a GOptimizer
+ * chain one stream, and one plot, for the whole chain -- and the stream ends with the run
+ * (courtier's launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a
+ * checkpoint appends to it. Two monitors of one class in one process need different stream names.
  *
  * @tparam num_type The arithmetic type of the logged adaptor property (convertible to double)
  */
@@ -1701,10 +1701,10 @@ private:
  * times (top row) and of each time over the iterations (bottom row), with the bins of setNBinsX()
  * and setNBinsY().
  *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream, and one plot, for the whole chain -- and the stream ends with the run (courtier's
- * launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint
- * appends to it. Two monitors of one class in one process need different stream names.
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a GOptimizer
+ * chain one stream, and one plot, for the whole chain -- and the stream ends with the run
+ * (courtier's launcher closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a
+ * checkpoint appends to it. Two monitors of one class in one process need different stream names.
  */
 class GProcessingTimesLogger // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<GProcessingTimesLogger, oa::GBasePluggableOM> {

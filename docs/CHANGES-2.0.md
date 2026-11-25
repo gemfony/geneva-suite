@@ -83,7 +83,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The genome is pure data; mutation lives on the algorithm.** Adaptors are no longer
   attached to parameters. Author them on an **OA-owned `GAdaptionConfig`** (via
   `oa::makeAdaptionConfig<...>(genome)` and the fluent API) and distribute it
-  (`setAdaptionConfig`, `Go2::registerAdaptionConfig`, or `oa::StandaloneAdapter`). An
+  (`setAdaptionConfig`, `GOptimizer::registerAdaptionConfig`, or `oa::StandaloneAdapter`). An
   adapting algorithm with **no** config is a hard error — there is no auto-derivation.
 - **OA state removed from the individual.** The per-individual best-known-fitness and
   stall counters are gone (that bookkeeping lives only on the algorithm). The
@@ -125,7 +125,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
   materialize/refresh their config files with `--update-configs` (programs without Geneva's
   launcher honor it too: `Gem::Common::finishConfigEmission()` logs the end of the pass and the
-  program's `main()` returns after it; a Go2 program ends inside `optimize()`).
+  program's `main()` returns after it; a GOptimizer program ends inside `optimize()`).
 - **A parameter entry of the wrong form is refused.** Each parameter is an object with a
   `"value"` -- a list for a vector or array parameter -- as in
   `"scan_randomly": { "value": false }`; a combined parameter is an object of such entries. A
@@ -160,8 +160,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 
 - **A program's `main()`: Geneva on courtier's launcher.** The start of a program -- the command
   line, the modules, the choice of consumer, the role of the process, a client's run -- moved
-  from `Go2` to courtier's launcher `Gem::Courtier::GLauncherT<GGenome>` (`courtier/GLauncherT.hpp`);
-  `Go2` is the optimization driver only. What 1.11 and the development snapshots wrote as
+  from the driver (`Go2`, now `GOptimizer`, see section 7) to courtier's launcher
+  `Gem::Courtier::GLauncherT<GGenome>` (`courtier/GLauncherT.hpp`); `GOptimizer` is the
+  optimization driver only. What 1.11 and the development snapshots wrote as
   ```cpp
   Go2 go(argc, argv, "./config/Go2.json", user_options);
   if(go.clientMode()) { return go.clientRun(); }
@@ -171,27 +172,27 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   ```cpp
   return Gem::Geneva::runOptimization(argc, argv, {
       .userOptions = [&](Gem::Common::GParserBuilder &gpb) { /* gpb.registerCLParameter(...) */ },
-      .produce = [&](Go2 &go, const GOptimizationDescription &) { /* ... */ go.optimize(); return 0; }});
+      .produce = [&](GOptimizer &go, const GOptimizationDescription &) { /* ... */ go.optimize(); return 0; }});
   ```
   and, in the long form for a program that sets something on the launcher (a consumer chosen in
   code with `setConsumer()`, `addModulePath()`, `registerItemProcessor()` for a client), Geneva's
   description and the launcher are built in `main()`:
-  `GOptimizationDescription geneva; GLauncherT<GGenome> launcher(argc, argv, "./config/Go2.json");
-  return launcher.run(geneva, {.produce = [&] { Go2 go(geneva); /* ... */ return 0; }});`
+  `GOptimizationDescription geneva; GLauncherT<GGenome> launcher(argc, argv, "./config/GOptimizer.json");
+  return launcher.run(geneva, {.produce = [&] { GOptimizer go(geneva); /* ... */ return 0; }});`
   (examples 01 and 02 show the two forms, example 11 a choice made on the launcher). The
   producing function runs on the submitter only; `prepare(role)` runs in every process (constant
   problem data, an exit before anything runs). `run()` returns: `--help` gives 0, a malformed
   command line prints the error and the help text and gives 1. With `--waitForClients N` the
   submitter waits before producing until its consumer reports N connected clients, and ends with
-  an error after `--clientWaitLimit` seconds (600) with fewer. Removed from `Go2`: the constructor
-  `Go2(argc, argv, config_file, options)`, `clientMode()`, `clientRun()`, `setClientMode()`,
+  an error after `--clientWaitLimit` seconds (600) with fewer. Removed from the driver: the
+  constructor `Go2(argc, argv, config_file, options)`, `clientMode()`, `clientRun()`, `setClientMode()`,
   `registerConsumer()`, `consumer()`, `setConsumerName()`, `getConsumerName()`, `addModulePath()`,
   `setModulePaths()`, `getModulePaths()`, `setMaxClientTime()`, `getMaxClientTime()`,
   `updateConfigsMode()` (ask `Gem::Common::GParserBuilder::updateInPlace()`), `helpRequested()`
   (the launcher's `helpRequested()`), `parseCommandLine()`, `parseConfigFile()`,
-  `addConfigurationOptions()` and `getNProducerThreads()`; `Go2()` and
-  `Go2(const GOptimizationDescription &)` remain. The keys of `Go2.json` are unchanged (`consumer`
-  and `module_paths` are the launcher's, the others Geneva's). A program's own options register into
+  `addConfigurationOptions()` and `getNProducerThreads()`; `GOptimizer()` and
+  `GOptimizer(const GOptimizationDescription &)` remain. The keys of `GOptimizer.json` are unchanged
+  (`consumer` and `module_paths` are the launcher's, the others Geneva's). A program's own options register into
   the launcher's `GParserBuilder` (`userOptions`), not into a `boost::program_options` group; the
   algorithms' options do the same (`GProviderT::addCLOptions(GParserBuilder &)`, hidden ones listed
   by `--showAll`).
@@ -606,7 +607,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 
 - **The best-individual accessors hand out sole ownership** (source-breaking; the return type
   changed, the semantics did not — these accessors always returned a fresh clone). On every
-  optimization algorithm and on `Go2`:
+  optimization algorithm and on `GOptimizer`:
 
   | before | after |
   |---|---|
@@ -622,12 +623,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   smart-pointer `operator<<` overloads of the example/library individuals take a
   `const std::unique_ptr<T>&`, and `GExternalEvaluatorIndividual::archive()` takes a
   `std::vector<std::unique_ptr<GExternalEvaluatorIndividual>>`.
-- **`Go2::getBestGlobalIndividual(s)()` return the bests of the whole run** (behaviour change):
+- **`GOptimizer::getBestGlobalIndividual(s)()` return the bests of the whole run** (behaviour change):
   with `copy_best_individuals_only` set to `false` they returned the best of the last algorithm's
   last population, which with comma selection, annealing or a swarm need not hold the best found.
   They now read the algorithms' own archives of best individuals, whatever the setting; the setting
   only says which individuals go on to the next algorithm of a chain.
-  `Go2::getBestIterationIndividual(s)()`, which threw, return the best of the last iteration of
+  `GOptimizer::getBestIterationIndividual(s)()`, which threw, return the best of the last iteration of
   the chain's last algorithm.
 - **The EA's iteration accessors describe the last iteration** (behaviour change): in the
   single-criterion sorting modes `getBestIterationIndividual(s)()` returned the best of all
@@ -640,7 +641,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The archives of best individuals hold each candidate once** (behaviour change):
   `GGenomeFixedSizePriorityQueue` treats individuals with equal parameter values as one entry.
   Under plus selection a surviving parent was recorded again in every iteration, so
-  `getBestGlobalIndividuals()` could return the same individual several times (and Go2's merge of a
+  `getBestGlobalIndividuals()` could return the same individual several times (and GOptimizer's merge of a
   chain's archives, too). `GFixedSizePriorityQueueT` has a hook `isSameEntry()` for this, by default
   the same object, as before.
 - **Several public headers moved to sit with the layer they belong to** (source-breaking
@@ -849,6 +850,18 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GExternalEvaluatorIndividual` passes file names without the quotes it used to add for the shell,
   and splits its `custom_options` at whitespace into separate arguments; quotes in them are not
   interpreted.
+- **geneva: `Go2` is `GOptimizer`** (source-breaking; the behaviour is unchanged). The "2" of the
+  old name was a pun on `goto`, not a version. What a user changes:
+  - the class `Gem::Geneva::Go2` is `Gem::Geneva::GOptimizer`, its header `geneva/Go2.hpp` is
+    `geneva/GOptimizer.hpp`, and the constant `GO2_DEF_COPYBESTINDIVIDUALSONLY` is
+    `GOPTIMIZER_DEF_COPYBESTINDIVIDUALSONLY`;
+  - its configuration file `config/Go2.json` is `config/GOptimizer.json` (the keys are unchanged;
+    an existing `Go2.json` is not read -- rename it). The default of
+    `GOptimizationDescription::configFile` and the file of a program's `GLauncherT` follow;
+  - the snippet anchors the manual reads: `adaptors-go2-register`, `go2-long-form`,
+    `go2-user-options#1..3`, `go2-chain#1..2` and `go2-main-quickstart` are
+    `adaptors-goptimizer-register`, `goptimizer-long-form`, `goptimizer-user-options#1..3`,
+    `goptimizer-chain#1..2` and `goptimizer-main-quickstart`.
 - **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
   read it.
 
@@ -926,9 +939,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The shipped monitors record streams instead of writing files of their own.** Each declares
   its stream at the first INFOINIT and appends at INFOPROCESSING; every row begins with
   `algorithm`, `iteration` (the algorithm's own) and `chain_iteration` (`GMonitorStream`). In a
-  Go2 chain one stream (and one plot) holds every algorithm of the chain; the plots run over
+  GOptimizer chain one stream (and one plot) holds every algorithm of the chain; the plots run over
   `chain_iteration`, which counts on through the chain, so they do not jump back when the next
-  algorithm starts at 0. Go2 tells every algorithm how many iterations of the chain ran before
+  algorithm starts at 0. GOptimizer tells every algorithm how many iterations of the chain ran before
   it (`setChainOffset()`); a checkpoint carries that number, so a run resumed from a checkpoint
   of a later algorithm goes on counting where it stood. A copy of a monitor has no stream of its own. The default stream
   names: `GFitnessMonitor` "best_fitness" (it now writes its data), `GProgressPlotterT`
@@ -951,7 +964,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GOptOptMonitorT()`. The constants `DEFAULTROOTRESULTFILEOM`, `DEFAULTXDIMOM` and
   `DEFAULTYDIMOM` are gone. 1.99 keeps no archive compatibility: a checkpoint written before
   this change that holds such a monitor is not meant to load.
-- **Corrected on the way.** The progress plotter of a Go2 chain kept only the last algorithm's
+- **Corrected on the way.** The progress plotter of a GOptimizer chain kept only the last algorithm's
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
 - **The log file is a stream.** `GRecordLogTarget` (columns time, severity, source, text; plain
   text with `GTextSink`) replaces `GFileLogger`; a target may override `log(message, logType)`.

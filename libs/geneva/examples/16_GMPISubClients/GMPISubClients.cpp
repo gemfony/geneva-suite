@@ -32,10 +32,10 @@
  ********************************************************************************/
 
 // Parallelism inside one evaluation: the processes of an MPI job form courtier's MPI cascade
-// (courtier/mpi/GMPICascade.hpp). Rank 0 is the submitter and runs the optimization through Go2
-// on courtier's launcher; the other processes form groups of sub_client_group_size processes
-// (config/GMPICascade.json). The first process of a group is its lead, a client of the MPI
-// consumer, whose items the launcher hands to an item processor; the others are its members,
+// (courtier/mpi/GMPICascade.hpp). Rank 0 is the submitter and runs the optimization through
+// GOptimizer on courtier's launcher; the other processes form groups of sub_client_group_size
+// processes (config/GMPICascade.json). The first process of a group is its lead, a client of the
+// MPI consumer, whose items the launcher hands to an item processor; the others are its members,
 // which run no Geneva code. A lead evaluates every item in a round of its group: the
 // parameter values are shared out over the group, and every process computes its part
 // (GParaboloidGroup.hpp). Started as
@@ -60,7 +60,7 @@
 #include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPICascade.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 #include "GParaboloidGroup.hpp"
 #include "GParaboloidGroupIndividual.hpp"
@@ -73,12 +73,12 @@ namespace {
 
 /******************************************************************************/
 /**
- * The submitter: an evolutionary algorithm through Go2.
+ * The submitter: an evolutionary algorithm through GOptimizer.
  *
- * @param go The Go2 of the run
+ * @param go The GOptimizer of the run
  * @return The exit code
  */
-int optimize(Go2 &go) {
+int optimize(GOptimizer &go) {
     const auto individual = std::make_shared<GParaboloidGroupIndividual>();
     go.push_back(individual);
     go.registerAdaptionConfig(
@@ -108,7 +108,7 @@ int main(int argc, char **argv) {
     // help text is answered before the cascade would start MPI (the long form of a main(), as the
     // launcher is given the leads' item processor below)
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
     if(launcher.helpRequested()) {
         return launcher.run(geneva, {});
     }
@@ -165,7 +165,7 @@ int main(int argc, char **argv) {
          },
          .produce =
              [&geneva] {
-                 Go2 go(geneva);
+                 GOptimizer go(geneva);
                  return optimize(go);
              }}
     );

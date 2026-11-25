@@ -942,10 +942,11 @@ void GParChild::adjustPopulation_() {
     if(not this->empty()) {
         if(const auto *flat = dynamic_cast<const gen::GGenome *>(&(*this->at(0)))) {
             // The genome carries only structure -- the adaptors live on an OA-owned GAdaptionConfig that
-            // MUST be provided explicitly (via setAdaptionConfig(), e.g. Go2::registerAdaptionConfig() for
-            // this algorithm's personality type). Adaption intent is never inferred from the genome, so an
-            // adapting algorithm with no config is a hard error. The provided config is validated against
-            // the population's genome, rejecting a config authored for a different genome early.
+            // MUST be provided explicitly (via setAdaptionConfig(), e.g.
+            // GOptimizer::registerAdaptionConfig() for this algorithm's personality type). Adaption
+            // intent is never inferred from the genome, so an adapting algorithm with no config is
+            // a hard error. The provided config is validated against the population's genome,
+            // rejecting a config authored for a different genome early.
             if(not provided_adaption_config_) {
                 throw gem_exception(
                     g_error_streamer()
@@ -955,7 +956,7 @@ void GParChild::adjustPopulation_() {
                     << "author an OA-owned GAdaptionConfig and provide it via setAdaptionConfig() "
                        "(or, with"
                     << '\n'
-                    << "Go2, register it via go.registerAdaptionConfig(\""
+                    << "GOptimizer, register it via go.registerAdaptionConfig(\""
                     << getAlgorithmPersonalityType() << "\", cfg))." << '\n'
                 );
             }

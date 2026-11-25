@@ -39,7 +39,7 @@
 // Geneva header files go here
 #include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GExternalEvaluatorIndividual.hpp"
@@ -50,7 +50,7 @@ using namespace Gem::Geneva;
 // runs: a choice of consumer made in code.
 int main(int argc, char **argv) {
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
 
     // Every evaluation starts the external evaluator program as a process of its own: on the local
     // thread pool at most four of them run at once. A choice made here loses against the command
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
     launcher.setConsumer(Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 4});
 
     auto produce = [&geneva] {
-        Go2 go(geneva);
+        GOptimizer go(geneva);
 
         // Create a factory for GExternalEvaluatorIndividual objects and perform
         // any necessary initial work.
@@ -66,17 +66,17 @@ int main(int argc, char **argv) {
             "./config/GExternalEvaluatorIndividual.json"
         );
 
-        // Add a content creator so Go2 can generate its own individuals, if necessary^
+        // Add a content creator so GOptimizer can generate its own individuals, if necessary^
         go.registerContentCreator(geei_ptr);
 
         // The genome carries only structure; the configured Gauss / bi-Gauss adaptor for the active variables
         // lives on an OA-owned config the factory authors (fixed variables stay un-adapted). Register it for
-        // the adapting algorithms (EA / SA) so Go2 hands it over before they run.
+        // the adapting algorithms (EA / SA) so GOptimizer hands it over before they run.
         //
         // Skipped in --update-configs mode: building the sample constructs an individual whose genome is
         // defined by the external evaluator program (queried at construction), which is irrelevant to a
-        // configuration refresh and absent when the configs are materialized. Go2 still refreshes the
-        // individual's config via the content creator registered above.
+        // configuration refresh and absent when the configs are materialized. GOptimizer still
+        // refreshes the individual's config via the content creator registered above.
         if(not Gem::Common::GParserBuilder::updateInPlace()) {
             auto sample = geei_ptr->get_as<gind::GExternalEvaluatorIndividual>();
             auto cfg = geei_ptr->getAdaptionConfig(*sample);
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
             go.registerAdaptionConfig("PERSONALITY_SA", cfg);
         }
 
-        // Add a default optimization algorithm to the Go2 object
+        // Add a default optimization algorithm to the GOptimizer object
         go.registerDefaultAlgorithm("ea");
 
         // Perform the actual optimization

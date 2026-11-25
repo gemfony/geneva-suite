@@ -57,8 +57,8 @@
 #include "common/concurrency/GThreadBudget.hpp"
 #include "courtier/GConsumerRegistry.hpp"
 #include "geneva/GOptimizationDescription.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/GenevaInitializer.hpp"
-#include "geneva/Go2.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "hap/GRandomFactory.hpp"
@@ -108,9 +108,9 @@ void registerTheEndCheck(int /* argc */, char ** /* argv */, char ** /* envp */)
     &registerTheEndCheck;
 
 /** @brief The submitter's part: two iterations of a small population (Inv 22)
- *  @param go The Go2 of the run
+ *  @param go The GOptimizer of the run
  *  @return 0 */
-int optimize(Go2 &go) {
+int optimize(GOptimizer &go) {
     const auto factory =
         std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
     go.registerContentCreator(factory);
@@ -132,7 +132,7 @@ int optimize(Go2 &go) {
 int runTest(int argc, char **argv) {
     const GenevaInitializer gi; // a program's start of Geneva; it ends with this function
 
-    const int rc = runOptimization(argc, argv, {.produce = [](Go2 &go, const auto &) {
+    const int rc = runOptimization(argc, argv, {.produce = [](GOptimizer &go, const auto &) {
                                        return optimize(go);
                                    }});
     if(rc != 0) {

@@ -215,11 +215,11 @@ public:
     /***************************************************************************/
     /**
      * Builds the OA-owned adaption configuration for a genome produced by this factory, for the
-     * adapting algorithms (typically passed to Go2::registerAdaptionConfig). Optional: it delegates to
-     * the individual's @c static buildAdaptionConfig(const GGenome&, const Config&) hook if it
-     * provides one, and otherwise returns a null pointer (the individual has no default adaption config,
-     * e.g. a derivative-free or test individual). The configuration must have been parsed first (call
-     * after a get_()/get() so config_ is populated).
+     * adapting algorithms (typically passed to GOptimizer::registerAdaptionConfig). Optional: it
+     * delegates to the individual's @c static buildAdaptionConfig(const GGenome&, const Config&)
+     * hook if it provides one, and otherwise returns a null pointer (the individual has no default
+     * adaption config, e.g. a derivative-free or test individual). The configuration must have been
+     * parsed first (call after a get_()/get() so config_ is populated).
      *
      * @param sample A sample genome produced by this factory, passed to the buildAdaptionConfig hook
      * @return The OA-owned adaption configuration, or a null pointer if the individual provides no hook

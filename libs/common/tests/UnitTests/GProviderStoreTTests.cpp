@@ -91,7 +91,8 @@ TEST_CASE(
 
 TEST_CASE("GProviderStoreT: the store is a process-global singleton", "[common][providerstore]") {
     // Two accessor calls hand back the same underlying store, so a registration through one is visible
-    // through the other -- the property Go2 relies on when a provider self-registers at static init.
+    // through the other -- the property GOptimizer relies on when a provider self-registers at
+    // static init.
     auto first = providerStore<int>();
     first->setOnce("singleton_key", std::make_shared<IntProvider>("singleton_key", 42));
 

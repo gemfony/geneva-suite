@@ -295,9 +295,9 @@ protected:
 
     /**
      * @brief transient: an optionally externally-supplied adaption configuration (set via
-     * setAdaptionConfig() -- Go2 installs the one it holds for this algorithm's type). When present,
-     * adjustPopulation_() uses it (validating it against the population's genome) in place of the
-     * layout-derived default.
+     * setAdaptionConfig() -- GOptimizer installs the one it holds for this algorithm's type). When
+     * present, adjustPopulation_() uses it (validating it against the population's genome) in place
+     * of the layout-derived default.
      * Transient run scratch: NOT serialized, NOT compared, NOT part of localMembers().
      */
     std::shared_ptr<GAdaptionConfigBase> provided_adaption_config_;

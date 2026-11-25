@@ -1,7 +1,7 @@
 # Configuration reference
 
 The `config/` subdirectory holds a **generated reference** of Geneva's standard configuration files:
-`Go2.json`, every optimization-algorithm configuration, and the standard individual configuration
+`GOptimizer.json`, every optimization-algorithm configuration, and the standard individual configuration
 (`GFunctionIndividual.json`). It exists so you can see, from the source tree and without building or running
 anything, **which configuration files exist and what every parameter means** — each parameter node carries
 its `comment`, its code `default` and its `value`.

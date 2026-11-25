@@ -52,7 +52,7 @@
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "geneva/GOptimizationDescription.hpp"
 #include "geneva/GOptimizationEnums.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/oa/GAdaption.hpp"

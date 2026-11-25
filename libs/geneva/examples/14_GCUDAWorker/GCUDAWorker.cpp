@@ -88,7 +88,7 @@
 // Geneva headers
 #include "common/GParserBuilder.hpp"
 #include "courtier/gpu/GGPUConsumer.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeFactory.hpp"
 
@@ -308,10 +308,10 @@ int main(int argc, char **argv) {
     );
     gpb.parseConfigFile("./config/GImageGeneral.json");
 
-    // courtier's launcher reads the command line and Go2.json and loads the --module: the module
-    // contributes BOTH the individual (claimed as the optimization problem) AND its GPU marshaller
-    // (registered under the "cuda" device target), so "--consumer gpu" can build the GPU consumer
-    // around it. Every process then loads the target image; the submitter optimizes.
+    // courtier's launcher reads the command line and GOptimizer.json and loads the --module: the
+    // module contributes BOTH the individual (claimed as the optimization problem) AND its GPU
+    // marshaller (registered under the "cuda" device target), so "--consumer gpu" can build the GPU
+    // consumer around it. Every process then loads the target image; the submitter optimizes.
     return runOptimization(
         argc,
         argv,
@@ -332,14 +332,14 @@ int main(int argc, char **argv) {
              }
              return std::nullopt;
          },
-         .produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+         .produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
              // ---- --update-configs: materialize the configs this example owns, then end -------
              // The launcher runs a config refresh on the local thread-pool consumer, so the GPU
              // consumer is not built and its config would be missed; materialize it directly here
              // (the constructor only loads the config file; the backend/kernel are acquired lazily
              // on the first dispatch, so no device is required). GImageGeneral.json was already
-             // refreshed by the parse above; go.optimize() then refreshes Go2's own configs and the
-             // loaded individual's config, and ends the process.
+             // refreshed by the parse above; go.optimize() then refreshes GOptimizer's own configs
+             // and the loaded individual's config, and ends the process.
              if(Gem::Common::GParserBuilder::updateInPlace()) {
                  auto marshaller = std::make_shared<MonaLisa::GMonaLisaGPUMarshaller>();
                  gpu::GGPUConsumerT<gen::GGenome, gimage_fp_t>(consumerConfig, marshaller);

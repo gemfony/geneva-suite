@@ -359,7 +359,8 @@ void GType::evaluatePopulation_() {
     );
 
     // The population may be larger than its size: the first iteration of a later algorithm of a
-    // Go2 chain holds every individual the one before handed over, and selectBest_() reduces it.
+    // GOptimizer chain holds every individual the one before handed over, and selectBest_() reduces
+    // it.
     checkThat(
         this->size() >= this->getDefaultPopulationSize(),
         "population size ",

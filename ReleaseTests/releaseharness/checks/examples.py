@@ -11,7 +11,7 @@ import time
 from ..model import CheckResult, Tier
 from ..runner import GUEST_BUILD, JobContext
 
-# Examples read/write ./config/Go2.json relative to the CWD, so run each from
+# Examples read/write ./config/GOptimizer.json relative to the CWD, so run each from
 # its own build directory where the config/ folder is installed.
 #
 # NOTE: the quickstart is deliberately NOT built in-tree -- it ships as the
