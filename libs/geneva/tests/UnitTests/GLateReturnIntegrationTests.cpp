@@ -89,13 +89,6 @@ protected:
             std::plus{}
         )};
     }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<LRSphere>>(ar, "GGenomeT", *this);
-    }
 };
 
 /******************************************************************************/
@@ -115,13 +108,6 @@ public:
 protected:
     std::vector<double> evaluate() override {
         throw std::runtime_error("LRThrower always fails");
-    }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<LRThrower>>(ar, "GGenomeT", *this);
     }
 };
 

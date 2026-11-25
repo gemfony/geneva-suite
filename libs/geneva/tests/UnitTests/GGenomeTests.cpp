@@ -168,12 +168,6 @@ private:
             .init(1.0); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
     }
-
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<Sphere>>(ar, "GGenomeT", *this);
-    }
 };
 
 /******************************************************************************/
@@ -211,12 +205,6 @@ private:
         GGenomeBuilder b;
         b.addDoubleGroup(n, -10., 10.).init(1.0);
         this->setGenome(b.build());
-    }
-
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<GemSphere>>(ar, "GGenomeT", *this);
     }
 };
 
@@ -305,13 +293,6 @@ protected:
             0.,
             std::plus{}
         )};
-    }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<FactorySphere>>(ar, "GGenomeT", *this);
     }
 };
 
@@ -1216,13 +1197,6 @@ protected:
     std::vector<double> evaluate() override {
         return {0.};
     }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<Mixed>>(ar, "GGenomeT", *this);
-    }
 };
 
 /**
@@ -1259,13 +1233,6 @@ public:
 protected:
     std::vector<double> evaluate() override {
         return {0.};
-    }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<IntGauss>>(ar, "GGenomeT", *this);
     }
 };
 
@@ -1304,23 +1271,14 @@ private:
         b.addDoubleArray(n, -10., 10.); // n single-value groups -> an O(n) layout
         this->setGenome(b.build());
     }
-
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<ManyGroups>>(ar, "GGenomeT", *this);
-    }
 };
 
 /** @brief A ManyGroups whose LEAF carries an arbitrary amount of problem data of its own (the shape of
  *  every real problem definition: GLineFitIndividual's data points, a neural network's training set).
- *  That data is serialized by the leaf's own serialize() and therefore rides every full encoding of the
+ *  That data is in the leaf's member list and therefore rides every full encoding of the
  *  individual -- which is exactly what an `evaluation` return must not scale with. */
 class BulkyLeaf : public GGenomeT<BulkyLeaf> {
 public:
-    using genome_only =
-        void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
-
     BulkyLeaf() = default;
     explicit BulkyLeaf(std::size_t n_params, std::size_t n_data_points)
       : data_points_(n_data_points, 1.25) {
@@ -1344,11 +1302,11 @@ protected:
 private:
     std::vector<double> data_points_; ///< the leaf's own problem data
 
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<BulkyLeaf>>(ar, "GGenomeT", *this);
-        Gem::Common::archive_named(ar, "data_points_", data_points_);
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+    /** @brief The leaf's own member list: its problem data */
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(Gem::Common::make_member("data_points_", self.data_points_));
     }
 };
 

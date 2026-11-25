@@ -65,6 +65,8 @@ namespace {
 /** @brief A log target that keeps what it is given */
 class CapturingTarget : public GBaseLogTarget {
 public:
+    using GBaseLogTarget::log;
+    using GBaseLogTarget::logWithSource;
     void log(std::string const &message) const override {
         std::scoped_lock const lk(m_);
         messages.push_back(message);

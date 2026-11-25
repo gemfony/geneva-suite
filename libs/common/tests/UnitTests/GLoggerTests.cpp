@@ -63,6 +63,8 @@ namespace {
 
 class CapturingTarget : public GBaseLogTarget {
 public:
+    using GBaseLogTarget::log;
+    using GBaseLogTarget::logWithSource;
     void log(std::string const &msg) const override {
         std::scoped_lock const lk(m_);
         messages.push_back(msg);
@@ -171,6 +173,26 @@ TEST_CASE("GConsoleLogger::log: callable", "[common][logger]") {
     GConsoleLogger const l;
     CHECK_NOTHROW(l.log("hello\n"));
     CHECK_NOTHROW(l.logWithSource("hello\n", "source-x"));
+}
+
+// The severity overloads of GBaseLogTarget are callable through the concrete type. GConsoleLogger
+// overrides only the forms without severity, which hid them: these calls did not compile.
+static_assert(requires(GConsoleLogger const &l) {
+    l.log(std::string(), logType::WARNING);
+    l.logWithSource(std::string(), std::string(), logType::WARNING);
+});
+
+TEST_CASE("GConsoleLogger: the severity overloads log through the concrete type", "[common][logger]") {
+    std::ostringstream captured;
+    std::streambuf *const old_buffer = std::clog.rdbuf(captured.rdbuf());
+    GConsoleLogger const l;
+    l.log("with severity\n", logType::WARNING);
+    l.logWithSource("with source and severity\n", "source-y", logType::WARNING);
+    std::clog.rdbuf(old_buffer);
+
+    CHECK(captured.str().contains("with severity\n"));
+    CHECK(captured.str().contains("\"source-y\""));
+    CHECK(captured.str().contains("with source and severity\n"));
 }
 
 // ---------------------------------------------------------------------------
@@ -424,6 +446,8 @@ private:
 // A target that logs again through glogger from inside log(), with the given manipulator
 class ReenteringTarget : public GBaseLogTarget {
 public:
+    using GBaseLogTarget::log;
+    using GBaseLogTarget::logWithSource;
     explicit ReenteringTarget(logType inner)
       : inner_(inner) {
     }
@@ -558,6 +582,8 @@ namespace {
 
 class LogsWhenDestroyedTarget : public GBaseLogTarget {
 public:
+    using GBaseLogTarget::log;
+    using GBaseLogTarget::logWithSource;
     LogsWhenDestroyedTarget() = default;
     LogsWhenDestroyedTarget(LogsWhenDestroyedTarget const &) = delete;
     LogsWhenDestroyedTarget(LogsWhenDestroyedTarget &&) = delete;

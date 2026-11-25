@@ -45,6 +45,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -62,6 +63,7 @@
 #include <vector>
 
 #include "common/GCommonHelperFunctions.hpp"
+#include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/GReflectiveInterfaceT.hpp"
 #include "common/record/GRecorder.hpp"
@@ -82,6 +84,8 @@
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GNelderMead.hpp"
+#include "geneva/oa/GOAFactoryT.hpp"
+#include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
@@ -3279,4 +3283,86 @@ TEST_CASE(
     auto other = std::make_shared<oa::GMetaEvolutionaryAlgorithm>();
     other->setNOrchestrationThreads(9);
     CHECK_THROWS(meta->compare(*other, expectation::EQUALITY, 0.));
+}
+
+/******************************************************************************/
+// The algorithm factories: get() without a template argument, and an empty product
+
+namespace {
+
+using EAFactory = oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>;
+using AlgorithmPtr = std::shared_ptr<oa::GOptimizationAlgorithmBase>;
+
+// get() without a template argument compiles through the concrete factory and gives what it gives
+// through the GFactoryT base. While GOAFactoryT's get<target_type>() had no default, the member
+// template hid the base's get() and this did not compile.
+static_assert(requires(EAFactory &f) {
+    { f.get() } -> std::same_as<AlgorithmPtr>;
+});
+static_assert(requires(Gem::Common::GFactoryT<oa::GOptimizationAlgorithmBase> &f) {
+    { f.get() } -> std::same_as<AlgorithmPtr>;
+});
+
+/**
+ * An algorithm factory whose getObject_() produces nothing, as a faulty user factory might.
+ */
+class EmptyProductFactory : public oa::GOAFactoryT<oa::GOptimizationAlgorithmBase> {
+public:
+    explicit EmptyProductFactory(std::filesystem::path const &config_file)
+      : oa::GOAFactoryT<oa::GOptimizationAlgorithmBase>(config_file) { /* nothing */
+    }
+
+    [[nodiscard]] std::string getMnemonic() const override {
+        return "empty";
+    }
+    [[nodiscard]] std::string getAlgorithmName() const override {
+        return "Produces nothing";
+    }
+
+protected:
+    // One option, so that the factory can write and read its configuration file
+    void describeLocalOptions_(Gem::Common::GParserBuilder &gpb) override {
+        gpb.registerFileParameter<int>("unused", unused_, 0);
+    }
+
+private:
+    AlgorithmPtr getObject_(Gem::Common::GParserBuilder & /*gpb*/) override {
+        return {};
+    }
+
+    int unused_ = 0; ///< The target of the one option
+};
+
+} // namespace
+
+TEST_CASE("an algorithm factory's get() returns the algorithm on every path", "[oa][factory]") {
+    const auto dir = std::filesystem::temp_directory_path() / "geneva-oa-factory-get-test";
+    std::filesystem::create_directories(dir);
+    std::filesystem::remove(dir / "GEvolutionaryAlgorithm.json");
+    EAFactory factory(dir / "GEvolutionaryAlgorithm.json");
+
+    AlgorithmPtr const direct = factory.get();
+    REQUIRE(direct);
+    CHECK(std::dynamic_pointer_cast<oa::GEvolutionaryAlgorithm>(direct));
+
+    Gem::Common::GFactoryT<oa::GOptimizationAlgorithmBase> &as_base = factory;
+    AlgorithmPtr const through_base = as_base.get();
+    REQUIRE(through_base);
+    CHECK(std::dynamic_pointer_cast<oa::GEvolutionaryAlgorithm>(through_base));
+
+    CHECK(factory.get<oa::GEvolutionaryAlgorithm>());
+    CHECK(std::dynamic_pointer_cast<oa::GEvolutionaryAlgorithm>(factory.provide()));
+}
+
+TEST_CASE("an algorithm factory refuses an empty product on every path", "[oa][factory]") {
+    // Regression: only get<target_type>() checked for an empty product; provide() -- the path of
+    // the algorithm store -- handed the empty pointer on.
+    const auto dir = std::filesystem::temp_directory_path() / "geneva-oa-factory-empty-test";
+    std::filesystem::create_directories(dir);
+    std::filesystem::remove(dir / "EmptyProduct.json");
+    EmptyProductFactory factory(dir / "EmptyProduct.json");
+
+    CHECK_THROWS_AS(factory.provide(), gem_exception);
+    CHECK_THROWS_AS(factory.get(), gem_exception);
+    CHECK_THROWS_AS(factory.get<oa::GEvolutionaryAlgorithm>(), gem_exception);
 }

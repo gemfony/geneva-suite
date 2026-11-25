@@ -465,3 +465,48 @@ TEST_CASE(
 
     CHECK(f.init_count.load() == 1);
 }
+
+// ---------------------------------------------------------------------------
+// An empty product is refused before postProcess_() sees it
+
+namespace {
+
+/** @brief A factory whose getObject_() produces nothing and whose postProcess_() dereferences. */
+class EmptyProductFactory : public GFactoryT<Product> {
+public:
+    explicit EmptyProductFactory(std::filesystem::path const &p)
+      : GFactoryT<Product>(p) {
+    }
+
+protected:
+    void describeLocalOptions_(GParserBuilder &gpb) override {
+        gpb.registerFileParameter<int>("unused", -1, [](int /*value*/) {})
+            << "An option, so that a file would be written";
+    }
+    void postProcess_(std::shared_ptr<Product> &p) override {
+        p->payload = 42; // dereferences, as a real factory's post-processing does
+    }
+
+private:
+    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
+        return {};
+    }
+};
+
+} // namespace
+
+TEST_CASE(
+    "GFactoryT: get() and writeConfigFile() refuse an empty product before postProcess_()",
+    "[common][factory]"
+) {
+    // Regression: the empty product reached postProcess_(), which dereferenced it (a crash).
+    EmptyProductFactory f(make_config("empty_product"));
+    CHECK_THROWS_AS(f.get(), gem_exception);
+
+    auto const out =
+        std::filesystem::temp_directory_path() / "gem_factory_tests" / "empty_product_out.json";
+    std::filesystem::remove(out);
+    f.setConfigFile(out.string());
+    CHECK_THROWS_AS(f.writeConfigFile("header"), gem_exception);
+    CHECK_FALSE(std::filesystem::exists(out));
+}

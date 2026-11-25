@@ -111,12 +111,6 @@ private:
         b.addDoubleGroup(n, lo, hi);
         this->setGenome(b.build());
     }
-
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<NgBoxIndividual>>(ar, "GGenomeT", *this);
-    }
 };
 
 /******************************************************************************/
@@ -158,12 +152,6 @@ private:
         b.addDoublePlainGroup(2, -10., 10.); // unbounded (the [min,max] is only the init perimeter)
         this->setGenome(b.build());
     }
-
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<NgMixedIndividual>>(ar, "GGenomeT", *this);
-    }
 };
 
 /******************************************************************************/
@@ -189,13 +177,6 @@ protected:
             s += x * x;
         }
         return {s};
-    }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<NgErgoIndividual>>(ar, "GGenomeT", *this);
     }
 };
 

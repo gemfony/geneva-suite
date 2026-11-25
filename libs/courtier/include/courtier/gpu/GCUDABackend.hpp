@@ -75,7 +75,7 @@ public:
         const std::byte *pconst,
         std::size_t pconst_size,
         scalar_type *results_out,
-        int threads_per_item = 1
+        int threads_per_item
     ) override;
     /** @brief A short backend identifier ("cuda"), used for logging and selection. */
     [[nodiscard]] std::string name() const override;

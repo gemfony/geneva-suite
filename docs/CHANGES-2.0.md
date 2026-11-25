@@ -732,6 +732,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **common: `GLogger` is no longer a class template.** The single streamer type it ever
   produced (`GLogStreamer`) is now fixed; code naming `GLogger<GLogStreamer>` drops the
   template arguments. The `glogger` singleton and all streaming behavior are unchanged.
+- **common: `GConsoleLogger` offers the severity overloads** `log(message, severity)` and
+  `logWithSource(message, extension, severity)` through its own type; they were hidden by its
+  overrides of the forms without severity. A user's log target that overrides only some of the
+  four overloads brings the others in with `using GBaseLogTarget::log;` and
+  `using GBaseLogTarget::logWithSource;`.
 - **common: the parser's reference-parameter proxy classes were removed**
   (`GFileReferenceParsableParameterT` and its vector/array siblings). The
   `registerFileParameter(name, reference, default, ...)` overloads are **unchanged** —
@@ -867,6 +872,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   source-breaking where the result was used): a result is read in the same expression,
   `go.optimize().getBestGlobalIndividual<T>()` instead of `go.optimize()->...`; a call that ignores
   the return is unchanged. An algorithm's `optimize()` returns `GOptimizationAlgorithmBase &`.
+- **geneva: an algorithm factory's `get()` works without a template argument.**
+  `GOAFactoryT::get<target_type>()` defaults `target_type` to the factory's product type, so
+  `factory.get()` compiles on a concrete factory (it did not: the member template hid the base's
+  `get()`) and returns what `get()` returns through the `GFactoryT` base. `get<T>()` is the way to
+  an algorithm; `provide()` stays as the algorithm store's interface.
+- **common: a `GFactoryT` refuses an empty product.** When `getObject_()` returns an empty pointer,
+  `get()` (and with it every algorithm factory's `get()`, `get<T>()` and `provide()`) and
+  `writeConfigFile()` throw `gem_exception` before `postProcess_()` sees the pointer; before,
+  `postProcess_()` received it and a dereference there crashed.
 - **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
   read it.
 

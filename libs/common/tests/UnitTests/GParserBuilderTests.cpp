@@ -732,6 +732,22 @@ TEST_CASE(
 }
 
 TEST_CASE(
+    "GParserBuilder::writeConfigFile without options leaves no file behind",
+    "[common][parser-builder]"
+) {
+    // Regression: the file was opened before the document was built, so the refusal of an empty
+    // option set left an empty file. The next parseConfigFile() found it and failed to parse it.
+    auto cfg = scratch("write_no_options");
+    std::filesystem::remove(cfg);
+
+    GParserBuilder gpb;
+    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
+    CHECK_FALSE(std::filesystem::exists(cfg));
+    CHECK_THROWS_AS(gpb.parseConfigFile(cfg), gem_exception);
+    CHECK_FALSE(std::filesystem::exists(cfg));
+}
+
+TEST_CASE(
     "GParserBuilder::writeConfigFile with writeAll=false omits secondary parameters",
     "[common][parser-builder]"
 ) {

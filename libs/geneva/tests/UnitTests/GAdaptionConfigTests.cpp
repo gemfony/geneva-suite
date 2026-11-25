@@ -91,12 +91,6 @@ private:
         b.addBoolGroup(2);                              // b group 0
         this->setGenome(b.build());
     }
-
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<AdaptCfgIndividual>>(ar, "GGenomeT", *this);
-    }
 };
 
 } // namespace Gem::Tests

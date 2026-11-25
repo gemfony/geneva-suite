@@ -138,7 +138,7 @@ public:
 private:
     /** @brief Records the thread, takes a little time, and registers a result */
     void
-    process_([[maybe_unused]] const std::vector<double> &res_vec = std::vector<double>()) final {
+    process_([[maybe_unused]] const std::vector<double> &res_vec) final {
         {
             const std::scoped_lock lock(seen_->mutex);
             seen_->ids.insert(std::this_thread::get_id());

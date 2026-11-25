@@ -96,7 +96,7 @@ private:
     GSimpleContainer() = default;
     /** @brief Allows to specify the tasks to be performed for this object (a no-op for this demo container)
      *  @param res_vec An optional externally injected evaluation result vector (unused here) */
-    void process_(const std::vector<bool> &res_vec = std::vector<bool>()) final;
+    void process_(const std::vector<bool> &res_vec) final;
 
     std::size_t stored_number_ = 0; ///< Holds the pay-load of this object
 };
@@ -150,7 +150,7 @@ private:
     GRandomNumberContainer() = default;
     /** @brief Performs this object's processing task: sorts the stored random numbers in place
      *  @param res_vec An optional externally injected evaluation result vector (unused here) */
-    void process_(const std::vector<bool> &res_vec = std::vector<bool>()) final;
+    void process_(const std::vector<bool> &res_vec) final;
 
     std::vector<double> random_numbers_; ///< Holds the pay-load of this object
 };
@@ -253,7 +253,7 @@ private:
     [[nodiscard]] static bool consumeSaveFault() noexcept;
     /** @brief Performs the configured (mis-)behaviour
      *  @param res_vec An optional externally injected evaluation result vector (unused here) */
-    void process_(const std::vector<bool> &res_vec = std::vector<bool>()) final;
+    void process_(const std::vector<bool> &res_vec) final;
 
     std::size_t stored_number_ = 0;            ///< Identifies the item (for conservation checks)
     fault_mode fault_mode_ = fault_mode::NONE; ///< The fault to exhibit during process_()

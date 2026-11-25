@@ -80,7 +80,7 @@ public:
     /** @brief A standard copy constructor */
     GParaboloidIndividual2D(const GParaboloidIndividual2D &);
     /** @brief The standard destructor */
-    virtual ~GParaboloidIndividual2D();
+    ~GParaboloidIndividual2D() override;
     //! [problem-declaration#2]
 
     /** @brief The OA-owned adaption config authoring this genome's two Gauss groups, built from the genome
