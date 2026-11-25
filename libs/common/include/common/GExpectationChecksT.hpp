@@ -33,15 +33,14 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <concepts>
 #include <cstdlib>
-#include <deque>
-#include <functional>
 #include <iostream>
+#include <memory>
 #include <ranges>
-#include <set>
 #include <sstream>
 #include <string>
 #include <tuple>
@@ -368,15 +367,119 @@ identity<base_type> getBaseIdentity(
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * This function checks whether two "basic" types fulfill a given expectation.
- * It assumes that x and y understand the == and != operators and may be streamed.
- * If they do not fulfill this requirement, you need to provide a specialization
- * of these functions. A check for similarity is treated the same as a check for
- * equality. A specialization of this function is provided for floating point values.
- * The function will throw a g_expectation_violation exception if the expectation
- * was violated.
+ * Satisfied by a smart pointer (std::shared_ptr or std::unique_ptr) to a type with the Gemfony common
+ * interface. compare() follows such a pointer to the compare() of the object it points to.
  *
- * @tparam basic_type The (non-floating-point, non-Gemfony) type of the items being compared
+ * @tparam T The type checked
+ */
+template <typename T>
+concept GemPointer =
+    gemfony_common_interface<std::remove_const_t<typename T::element_type>> &&
+    (std::same_as<T, std::shared_ptr<typename T::element_type>> ||
+     std::same_as<T, std::unique_ptr<typename T::element_type, typename T::deleter_type>>);
+
+/**
+ * Satisfied by a container or other sized range that compare() takes element by element: a vector,
+ * deque, list, set, map or array, also nested. Strings (all types with a traits_type) are compared as
+ * values, and an object with the Gemfony common interface through its own compare(), even if it is a
+ * range as well.
+ *
+ * @tparam T The type checked
+ */
+template <typename T>
+concept ComparedAsRange = std::ranges::input_range<T const> && std::ranges::sized_range<T const> &&
+                          !requires { typename T::traits_type; } && !gemfony_common_interface<T>;
+
+/**
+ * Satisfied by the types compare() takes as values, with == and !=, and prints with operator<<: all
+ * types that are neither floating point, nor objects with the Gemfony common interface or pointers to
+ * them, nor ranges.
+ *
+ * @tparam T The type checked
+ */
+template <typename T>
+concept ComparedByValue = !std::floating_point<T> && !gemfony_common_interface<T> &&
+                          !GemPointer<T> && !ComparedAsRange<T>;
+
+/******************************************************************************/
+/**
+ * @brief Tells whether two values meet an expectation. The one place of the floating point tolerance.
+ *
+ * Floating point values meet FP_SIMILARITY if they deviate by less than the limit. All other cases
+ * compare with == (EQUALITY, and FP_SIMILARITY for values that are not floating point) or != (INEQUALITY;
+ * floating point values too are then compared exactly).
+ *
+ * @tparam T The type of the two values
+ * @param x The first value
+ * @param y The second value
+ * @param e The expectation both values need to fulfill
+ * @param limit The maximum allowed deviation of two floating point values (only used for FP_SIMILARITY)
+ * @return true if the two values meet the expectation
+ */
+template <typename T>
+[[nodiscard]] bool
+valuesMeet(T const &x, T const &y, Gem::Common::expectation e, [[maybe_unused]] double limit) {
+    if constexpr(std::floating_point<T>) {
+        if(Gem::Common::expectation::FP_SIMILARITY == e) {
+            return std::abs(x - y) < Gem::Common::narrow<T>(limit);
+        }
+    }
+    if(Gem::Common::expectation::INEQUALITY == e) {
+        return x != y;
+    }
+    return x == y;
+}
+
+/******************************************************************************/
+/**
+ * @brief Composes the message that reports two values which violate an expectation.
+ *
+ * @tparam printable_type The type of the printed form of the two values
+ * @param expectation_str The name of the violated expectation
+ * @param x_name The name of the first value
+ * @param x The printed form of the first value
+ * @param y_name The name of the second value
+ * @param y The printed form of the second value
+ * @return The message, with the names and values of the two parameters
+ */
+template <typename printable_type>
+[[nodiscard]] std::string valueViolation(
+    std::string const &expectation_str,
+    std::string const &x_name,
+    printable_type const &x,
+    std::string const &y_name,
+    printable_type const &y
+) {
+    std::ostringstream error;
+    error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
+          << "[" << '\n'
+          << x_name << " = " << x << '\n'
+          << y_name << " = " << y << '\n'
+          << "]" << '\n';
+    return error.str();
+}
+
+/******************************************************************************/
+/**
+ * @brief The name under which a comparison by value reports an expectation: a check for similarity is
+ * one for equality there.
+ *
+ * @param e The expectation
+ * @return "INEQUALITY" or "FP_SIMILARITY / EQUALITY"
+ */
+[[nodiscard]] inline std::string byValueExpectationName(Gem::Common::expectation e) {
+    return Gem::Common::expectation::INEQUALITY == e ? "INEQUALITY" : "FP_SIMILARITY / EQUALITY";
+}
+
+/******************************************************************************/
+/**
+ * This function checks whether two values fulfill a given expectation. It assumes that x and y
+ * understand the == and != operators and may be streamed. A check for similarity is treated the same
+ * as a check for equality. Floating point values, objects with the Gemfony common interface, pointers
+ * to them and ranges have overloads of their own. The function will throw a g_expectation_violation
+ * exception if the expectation was violated.
+ *
+ * @tparam basic_type The type of the items being compared (see ComparedByValue)
  * @param x The first parameter to be compared
  * @param y The second parameter to be compared
  * @param x_name The name of the first parameter
@@ -387,10 +490,7 @@ identity<base_type> getBaseIdentity(
  *       present only to match the common compare() signature for non-FP types.
  */
 template <typename basic_type>
-    requires (
-        !std::is_floating_point_v<basic_type> &&
-        !Gem::Common::has_gemfony_common_interface<basic_type>::value
-    )
+    requires ComparedByValue<basic_type>
 void compare(
     basic_type const &x,
     basic_type const &y,
@@ -399,45 +499,19 @@ void compare(
     Gem::Common::expectation e,
     [[maybe_unused]] double limit = 0.
 ) {
-    bool expectation_met = false;
-    std::string expectation_str;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY:
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-        if(x == y) {
-            expectation_met = true;
-        }
-        break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
-        if(x != y) {
-            expectation_met = true;
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        std::ostringstream error;
-        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
-              << "[" << '\n'
-              << x_name << " = " << x << '\n'
-              << y_name << " = " << y << '\n'
-              << "]" << '\n';
-        throw g_expectation_violation(error.str());
+    if(not valuesMeet(x, y, e, limit)) {
+        throw g_expectation_violation(
+            valueViolation(byValueExpectationName(e), x_name, x, y_name, y)
+        );
     }
 }
 
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
  * This function checks whether two std::chrono::time_point types fulfill a given
  * expectation. A check for similarity is treated the same as a check for
  * equality. The function will throw a g_expectation_violation exception if the expectation
- * was violated.
+ * was violated. The message shows the time points as counts since the epoch.
  *
  * @tparam clock_type The clock type of the compared time points
  * @tparam duration_type The duration type of the compared time points (defaults to clock_type::duration)
@@ -459,45 +533,23 @@ void compare(
     Gem::Common::expectation e,
     [[maybe_unused]] double limit = 0.
 ) {
-    bool expectation_met = false;
-    std::string expectation_str;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY:
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-        if(x == y) {
-            expectation_met = true;
-        }
-        break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
-        if(x != y) {
-            expectation_met = true;
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        std::ostringstream error;
-        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
-              << "[" << '\n'
-              << x_name << " = " << x.time_since_epoch().count() << '\n'
-              << y_name << " = " << y.time_since_epoch().count() << '\n'
-              << "]" << '\n';
-        throw g_expectation_violation(error.str());
+    if(not valuesMeet(x, y, e, limit)) {
+        throw g_expectation_violation(valueViolation(
+            byValueExpectationName(e),
+            x_name,
+            x.time_since_epoch().count(),
+            y_name,
+            y.time_since_epoch().count()
+        ));
     }
 }
 
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
  * This function checks whether two std::chrono::duration types fulfill a given
  * expectation. A check for similarity is treated the same as a check for
  * equality. The function will throw a g_expectation_violation exception if the expectation
- * was violated.
+ * was violated. The message shows the durations as counts of their ticks.
  *
  * @tparam rep_type The arithmetic representation type of the compared durations
  * @tparam period_type The std::ratio tick period of the compared durations (defaults to std::ratio<1>)
@@ -519,34 +571,10 @@ void compare(
     Gem::Common::expectation e,
     [[maybe_unused]] double limit = 0.
 ) {
-    bool expectation_met = false;
-    std::string expectation_str;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY:
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-        if(x == y) {
-            expectation_met = true;
-        }
-        break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
-        if(x != y) {
-            expectation_met = true;
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        std::ostringstream error;
-        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
-              << "[" << '\n'
-              << x_name << " = " << x.count() << '\n'
-              << y_name << " = " << y.count() << '\n'
-              << "]" << '\n';
-        throw g_expectation_violation(error.str());
+    if(not valuesMeet(x, y, e, limit)) {
+        throw g_expectation_violation(
+            valueViolation(byValueExpectationName(e), x_name, x.count(), y_name, y.count())
+        );
     }
 }
 
@@ -554,7 +582,7 @@ void compare(
 /**
  * This function checks whether two floating point types meet a given expectation.
  * The function will throw a g_expectation_violation exception if the expectation
- * was violated.
+ * was violated; under FP_SIMILARITY its message also shows the limit and the deviation.
  *
  * @tparam fp_type The floating point type of the two values being compared
  * @param x The first parameter to be compared
@@ -573,460 +601,18 @@ void compare(
     Gem::Common::expectation e,
     double limit = CE_DEF_SIMILARITY_DIFFERENCE
 ) {
-    bool expectation_met = false;
-    std::string const expectation_str{Gem::Common::enumName(e)};
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-        if(std::abs(x - y) < Gem::Common::narrow<fp_type>(limit)) {
-            expectation_met = true;
-        }
-        break;
-    case Gem::Common::expectation::EQUALITY:
-        if(x == y) {
-            expectation_met = true;
-        }
-        break;
-    case Gem::Common::expectation::INEQUALITY:
-        if(x != y) {
-            expectation_met = true;
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        std::ostringstream error;
-
-        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
-              << "[" << '\n'
-              << x_name << " = " << x << '\n'
-              << y_name << " = " << y << '\n'
-              << "]" << '\n';
-        throw g_expectation_violation(error.str());
-    }
-}
-
-/******************************************************************************/
-/**
- * This function checks whether two containers of "basic" types meet a given expectation. It assumes that
- * these types understand the == and != operators. If they do not fulfill this requirement, you need to provide
- * a specialization of this function. A check for similarity is treated the same as a check for equality.
- * A specialization of this function is provided for floating point values. The function will throw a
- * g_expectation_violation exception if the expectation was violated.
- *
- * @tparam base_type The (non-floating-point) element type held by the containers
- * @tparam c_type The sequence container template (e.g. std::vector, std::deque) parameterised by element and allocator
- * @param x The first container to be compared
- * @param y The second container to be compared
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- *
- * @note The trailing double `limit` argument is an unused tolerance value,
- *       present only to match the common compare() signature for non-FP element types.
- */
-template <typename base_type, template <typename, typename> class c_type>
-    requires (!std::is_floating_point_v<base_type>)
-// NOLINTNEXTLINE(readability-function-size) -- one coherent expectation-comparison sweep (switch-on-expectation + per-element diff reporting) for non-FP sequence containers; splitting would scatter the tightly-coupled error-message assembly
-void compare(
-    c_type<base_type, std::allocator<base_type>> const &x,
-    c_type<base_type, std::allocator<base_type>> const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    [[maybe_unused]] double limit = 0.
-) {
-    bool expectation_met = false;
-    std::string expectation_str;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY:
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-        if(x == y) {
-            expectation_met = true;
-        }
-        break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
-        if(x != y) {
-            expectation_met = true;
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        std::ostringstream error;
-        error << "Expectation of " << expectation_str << " was violated for parameters " << x_name
-              << " and " << y_name << "!" << '\n';
-
-        if(Gem::Common::expectation::FP_SIMILARITY == e ||
-           Gem::Common::expectation::EQUALITY == e) {
-            if(x.size() != y.size()) {
-                error << "Sizes of containers differ:" << '\n'
-                      << x_name << ".size() == " << x.size() << " / " << y_name
-                      << ".size() == " << y.size() << '\n';
-            }
-            else { // Some data member differs
-                // Find out about the first entry that differs
-                typename c_type<base_type, std::allocator<base_type>>::const_iterator x_it;
-                typename c_type<base_type, std::allocator<base_type>>::const_iterator y_it;
-                std::size_t failed_index = 0;
-                for(x_it = x.begin(), y_it = y.begin(); x_it != x.end();
-                    ++x_it, ++y_it, ++failed_index) {
-                    if(*x_it != *y_it) {
-                        error << "Found inequality at index " << failed_index << ": " << x_name
-                              << "[" << failed_index << "] = " << *x_it << "; " << y_name << "["
-                              << failed_index << "] = " << *y_it;
-                        break; // break the loop
-                    }
-                }
-            }
-        }
-        else { // Gem::Common::expectation::INEQUALITY == e
-            error << "The two containers " << x_name << " and " << y_name << " are equal "
-                  << "even though differences were expected" << '\n';
-        }
-
-        throw g_expectation_violation(error.str());
-    }
-}
-
-/******************************************************************************/
-/**
- * This function checks whether two containers with a std::set-template interface holding "basic" types meet
- * a given expectation. It assumes that these types understand the == and != operators. If they do not fulfill
- * this requirement, you need to provide a specialization of this function. A check for similarity is treated
- * the same as a check for equality. A specialization of this function is provided for floating point values.
- * The function will throw a g_expectation_violation exception if the expectation was violated.
- *
- * @tparam base_type The (non-floating-point) element type held by the set-like containers
- * @tparam s_type The set container template (e.g. std::set) parameterised by element, comparator and allocator
- * @param x The first container to be compared
- * @param y The second container to be compared
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- *
- * @note The trailing double `limit` argument is an unused tolerance value,
- *       present only to match the common compare() signature for non-FP element types.
- */
-template <typename base_type, template <typename, typename, typename> class s_type>
-    requires (!std::is_floating_point_v<base_type>)
-// NOLINTNEXTLINE(readability-function-size) -- one coherent expectation-comparison sweep (switch-on-expectation + per-element diff reporting) for non-FP set-like containers; splitting would scatter the tightly-coupled error-message assembly
-void compare(
-    s_type<base_type, std::less<base_type>, std::allocator<base_type>> const &x,
-    s_type<base_type, std::less<base_type>, std::allocator<base_type>> const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    [[maybe_unused]] double limit = 0.
-) {
-    bool expectation_met = false;
-    std::string expectation_str;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY:
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-        if(x == y) {
-            expectation_met = true;
-        }
-        break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
-        if(x != y) {
-            expectation_met = true;
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        std::ostringstream error;
-        error << "Expectation of " << expectation_str << " was violated for parameters " << x_name
-              << " and " << y_name << "!" << '\n';
-
-        if(Gem::Common::expectation::FP_SIMILARITY == e ||
-           Gem::Common::expectation::EQUALITY == e) {
-            if(x.size() != y.size()) {
-                error << "Sizes of containers differ:" << '\n'
-                      << x_name << ".size() == " << x.size() << " / " << y_name
-                      << ".size() == " << y.size() << '\n';
-            }
-            else { // Some data member differs
-                // Find out about the first entry that differs
-                typename s_type<base_type, std::less<base_type>, std::allocator<base_type>>::
-                    const_iterator x_it;
-                typename s_type<base_type, std::less<base_type>, std::allocator<base_type>>::
-                    const_iterator y_it;
-                std::size_t failed_index = 0;
-                for(x_it = x.begin(), y_it = y.begin(); x_it != x.end();
-                    ++x_it, ++y_it, ++failed_index) {
-                    if(*x_it != *y_it) {
-                        error << "Found inequality at index " << failed_index << ": " << x_name
-                              << "[" << failed_index << "] = " << *x_it << "; " << y_name << "["
-                              << failed_index << "] = " << *y_it;
-                        break; // break the loop
-                    }
-                }
-            }
-        }
-        else { // Gem::Common::expectation::INEQUALITY == e
-            error << "The two containers " << x_name << " and " << y_name << " are equal "
-                  << "even though differences were expected" << '\n';
-        }
-
-        throw g_expectation_violation(error.str());
-    }
-}
-
-/******************************************************************************/
-/**
- * This function checks whether two containers of floating point types meet a given expectation.
- *
- * @tparam fp_type The floating point element type held by the containers
- * @tparam c_type The sequence container template (e.g. std::vector, std::deque) parameterised by element and allocator
- * @param x The first vector to be compared
- * @param y The second vector to be compared
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- * @param limit The maximum allowed per-element deviation of two floating point values (only used for FP_SIMILARITY)
- */
-template <std::floating_point fp_type, template <typename, typename> class c_type>
-// NOLINTNEXTLINE(readability-function-size) -- one coherent expectation-comparison sweep (switch-on-expectation + per-element FP-similarity/equality diff reporting) for FP sequence containers; splitting would scatter the tightly-coupled error-message assembly
-void compare(
-    c_type<fp_type, std::allocator<fp_type>> const &x,
-    c_type<fp_type, std::allocator<fp_type>> const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    double limit = CE_DEF_SIMILARITY_DIFFERENCE
-) {
-    bool expectation_met = false;
-    std::string const expectation_str{Gem::Common::enumName(e)};
-    std::size_t deviation_pos = 0;
-    std::ostringstream error;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY: {
-        if(x.size() != y.size()) {
-            error << "Different vector-sizes found : " << x_name << ".size() = " << x.size() << '\n'
-                  << y_name << ".size() = " << y.size() << '\n';
-            break; // expectationMet is false here
-        }
-
-        // Do a per-position comparison
-        bool found_deviation = false;
-        typename c_type<fp_type, std::allocator<fp_type>>::const_iterator x_it;
-        typename c_type<fp_type, std::allocator<fp_type>>::const_iterator y_it;
-        if(Gem::Common::expectation::FP_SIMILARITY == e) {
-            for(x_it = x.begin(), y_it = y.begin(); x_it != x.end(); ++x_it, ++y_it) {
-                if(std::abs(*x_it - *y_it) >= Gem::Common::narrow<fp_type>(limit)) {
-                    found_deviation = true;
-                    deviation_pos =
-                        Gem::Common::narrow<std::size_t>(std::distance(x.begin(), x_it));
-                    error << "Found deviation between containers:" << '\n'
-                          << x_name << "[" << deviation_pos << "] = " << *x_it << "; " << '\n'
-                          << y_name << "[" << deviation_pos << "] = " << *y_it << "; " << '\n'
-                          << "limit = " << Gem::Common::narrow<fp_type>(limit) << "; " << '\n'
-                          << "deviation = " << std::abs(*x_it - *y_it) << '\n';
-                    break; // break the loop
-                }
-            }
-        }
-        else { // May only be FP_SIMILARITY or EQUALITY in this case
-            for(x_it = x.begin(), y_it = y.begin(); x_it != x.end(); ++x_it, ++y_it) {
-                if(*x_it != *y_it) {
-                    found_deviation = true;
-                    deviation_pos =
-                        Gem::Common::narrow<std::size_t>(std::distance(x.begin(), x_it));
-                    error << "Found deviation between containers:" << '\n'
-                          << x_name << "[" << deviation_pos << "] = " << *x_it << "; " << '\n'
-                          << y_name << "[" << deviation_pos << "] = " << *y_it << "; " << '\n';
-                    break; // break the loop
-                }
-            }
-        }
-
-        if(not found_deviation) {
-            expectation_met = true;
-        }
-    } break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        if(x != y) {
-            expectation_met = true;
-        }
-        else {
-            error << "The containers " << x_name << " and " << y_name << '\n'
-                  << "do not differ even though they should" << '\n';
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        throw g_expectation_violation(error.str());
-    }
-}
-
-/******************************************************************************/
-/**
- * This function checks whether two containers with a std::set template interface,
- * holding floating point types meet a given expectation.
- *
- * @tparam fp_type The floating point element type held by the set-like containers
- * @tparam s_type The set container template (e.g. std::set) parameterised by element, comparator and allocator
- * @param x The first vector to be compared
- * @param y The second vector to be compared
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- * @param limit The maximum allowed per-element deviation of two floating point values (only used for FP_SIMILARITY)
- */
-template <std::floating_point fp_type, template <typename, typename, typename> class s_type>
-// NOLINTNEXTLINE(readability-function-size) -- one coherent expectation-comparison sweep (switch-on-expectation + per-element FP-similarity/equality diff reporting) for FP set-like containers; splitting would scatter the tightly-coupled error-message assembly
-void compare(
-    s_type<fp_type, std::less<fp_type>, std::allocator<fp_type>> const &x,
-    s_type<fp_type, std::less<fp_type>, std::allocator<fp_type>> const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    double limit = CE_DEF_SIMILARITY_DIFFERENCE
-) {
-    bool expectation_met = false;
-    std::string const expectation_str{Gem::Common::enumName(e)};
-    std::size_t deviation_pos = 0;
-    std::ostringstream error;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY: {
-        if(x.size() != y.size()) {
-            error << "Different vector-sizes found : " << x_name << ".size() = " << x.size() << '\n'
-                  << y_name << ".size() = " << y.size() << '\n';
-            break; // expectationMet is false here
-        }
-
-        // Do a per-position comparison
-        bool found_deviation = false;
-        typename s_type<fp_type, std::less<fp_type>, std::allocator<fp_type>>::const_iterator x_it;
-        typename s_type<fp_type, std::less<fp_type>, std::allocator<fp_type>>::const_iterator y_it;
-        if(Gem::Common::expectation::FP_SIMILARITY == e) {
-            for(x_it = x.begin(), y_it = y.begin(); x_it != x.end(); ++x_it, ++y_it) {
-                if(std::abs(*x_it - *y_it) >= Gem::Common::narrow<fp_type>(limit)) {
-                    found_deviation = true;
-                    deviation_pos =
-                        Gem::Common::narrow<std::size_t>(std::distance(x.begin(), x_it));
-                    error << "Found deviation between containers:" << '\n'
-                          << x_name << "[" << deviation_pos << "] = " << *x_it << "; " << '\n'
-                          << y_name << "[" << deviation_pos << "] = " << *y_it << "; " << '\n'
-                          << "limit = " << Gem::Common::narrow<fp_type>(limit) << "; " << '\n'
-                          << "deviation = " << std::abs(*x_it - *y_it) << '\n';
-                    break; // break the loop
-                }
-            }
-        }
-        else { // May only be FP_SIMILARITY or EQUALITY in this case
-            for(x_it = x.begin(), y_it = y.begin(); x_it != x.end(); ++x_it, ++y_it) {
-                if(*x_it != *y_it) {
-                    found_deviation = true;
-                    deviation_pos =
-                        Gem::Common::narrow<std::size_t>(std::distance(x.begin(), x_it));
-                    error << "Found deviation between containers:" << '\n'
-                          << x_name << "[" << deviation_pos << "] = " << *x_it << "; " << '\n'
-                          << y_name << "[" << deviation_pos << "] = " << *y_it << "; " << '\n';
-                    break; // break the loop
-                }
-            }
-        }
-
-        if(not found_deviation) {
-            expectation_met = true;
-        }
-    } break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        if(x != y) {
-            expectation_met = true;
-        }
-        else {
-            error << "The containers " << x_name << " and " << y_name << '\n'
-                  << "do not differ even though they should" << '\n';
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        throw g_expectation_violation(error.str());
-    }
-}
-
-/******************************************************************************/
-/**
- * This function checks whether two sequence containers of sequence containers (e.g. the rows of a
- * matrix held as a std::vector of std::vector) meet a given expectation. The rows are compared one by
- * one through the compare() overload of their type, so floating point rows honour the similarity
- * limit. A check for inequality is met if the sizes or any row differ. The function will throw a
- * g_expectation_violation exception if the expectation was violated.
- *
- * @tparam elem_type The element type held by the rows
- * @tparam row_type The row container template (e.g. std::vector) parameterised by element and allocator
- * @tparam c_type The outer container template parameterised by row and allocator
- * @param x The first container to be compared
- * @param y The second container to be compared
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- * @param limit The maximum allowed deviation of two floating point values (only used for FP_SIMILARITY)
- */
-template <
-    typename elem_type,
-    template <typename, typename> class row_type,
-    template <typename, typename> class c_type>
-void compare(
-    c_type<
-        row_type<elem_type, std::allocator<elem_type>>,
-        std::allocator<row_type<elem_type, std::allocator<elem_type>>>> const &x,
-    c_type<
-        row_type<elem_type, std::allocator<elem_type>>,
-        std::allocator<row_type<elem_type, std::allocator<elem_type>>>> const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    double limit = CE_DEF_SIMILARITY_DIFFERENCE
-) {
-    if(Gem::Common::expectation::INEQUALITY == e) {
-        if(x == y) {
-            throw g_expectation_violation(
-                "The containers " + x_name + " and " + y_name +
-                " do not differ even though they should\n"
-            );
-        }
+    if(valuesMeet(x, y, e, limit)) {
         return;
     }
-
-    if(x.size() != y.size()) {
+    if(Gem::Common::expectation::FP_SIMILARITY == e) {
+        std::ostringstream deviation;
+        deviation << "limit = " << Gem::Common::narrow<fp_type>(limit)
+                  << ", deviation = " << std::abs(x - y) << '\n';
         throw g_expectation_violation(
-            "Different container sizes found: " + x_name + ".size() = " + std::to_string(x.size()) +
-            ", " + y_name + ".size() = " + std::to_string(y.size()) + '\n'
+            valueViolation(Gem::Common::enumName(e), x_name, x, y_name, y) + deviation.str()
         );
     }
-
-    std::size_t row = 0;
-    for(auto x_it = x.begin(), y_it = y.begin(); x_it != x.end(); ++x_it, ++y_it, ++row) {
-        compare(
-            *x_it,
-            *y_it,
-            x_name + "[" + std::to_string(row) + "]",
-            y_name + "[" + std::to_string(row) + "]",
-            e,
-            limit
-        );
-    }
+    throw g_expectation_violation(valueViolation(Gem::Common::enumName(e), x_name, x, y_name, y));
 }
 
 /******************************************************************************/
@@ -1052,397 +638,187 @@ void compare(
     Gem::Common::expectation e,
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
 ) {
-    bool expectation_met = false;
-    std::string expectation_str;
-    std::ostringstream error;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY: {
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-
-        // If we reach this line, then both pointers have content
-
-        { // Check whether the content differs
-            try {
-                x.compare(y, e, limit);
-            }
-            catch(g_expectation_violation &g) {
-                error << "Content of " << x_name << " and " << y_name << " differ." << '\n'
-                      << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
-                      << g.what() << '\n';
-                break; // Terminate the switch statement
-            }
-
-            // If we reach this line, the expectation was met
-            expectation_met = true;
-        }
-    } break;
-
-    case Gem::Common::expectation::INEQUALITY: {
-        expectation_str = "INEQUALITY";
-
-        // Check whether the content differs
-        try {
-            x.compare(y, e, limit);
-        }
-        catch(g_expectation_violation &g) {
-            // If we catch an expectation violation for expectation "inequality",
-            // we simply break the switch statement so that expectationMet remains to be false
-            error << "Content of " << x_name << " and " << y_name << " are equal/similar." << '\n'
-                  << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
-                  << g.what() << '\n';
-            break;
-        }
-        expectation_met = true;
-    } break;
-    };
-
-    if(not expectation_met) {
+    try {
+        x.compare(y, e, limit);
+    }
+    catch(g_expectation_violation const &g) {
+        std::ostringstream error;
+        error << "Content of " << x_name << " and " << y_name
+              << (Gem::Common::expectation::INEQUALITY == e ? " are equal/similar." : " differ.")
+              << '\n'
+              << "Thus the expectation of " << byValueExpectationName(e) << " was violated:" << '\n'
+              << g.what() << '\n';
         throw g_expectation_violation(error.str());
     }
 }
 
 /******************************************************************************/
 /**
- * This function checks whether two smart pointers to complex types meet a given expectation.
- * It is assumed that these types have the standard Geneva interface with corresponding "compare"
- * functions.
+ * This function checks whether two smart pointers (std::shared_ptr or std::unique_ptr) to complex
+ * types meet a given expectation. Two pointers that both hold an object are compared through the
+ * compare() of these objects; two empty pointers are equal; an empty and a full pointer differ.
  *
- * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
- * @param x The first parameter to be compared (a smart pointer; may be empty)
- * @param y The second parameter to be compared (a smart pointer; may be empty)
+ * @tparam pointer_type The smart pointer type (see GemPointer)
+ * @param x The first parameter to be compared (may be empty)
+ * @param y The second parameter to be compared (may be empty)
  * @param x_name The name of the first parameter
  * @param y_name The name of the second parameter
  * @param e The expectation both parameters need to fulfill
  * @param limit The maximum allowed deviation of two floating point values, forwarded to the pointee compare()
  */
-template <typename gem_type>
-    requires Gem::Common::gemfony_common_interface<gem_type>
+template <typename pointer_type>
+    requires GemPointer<pointer_type>
 void compare(
-    std::shared_ptr<gem_type> const &x,
-    std::shared_ptr<gem_type> const &y,
+    pointer_type const &x,
+    pointer_type const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
 ) {
-    bool expectation_met = false;
-    std::string expectation_str;
+    if(x && y) {
+        compare(*x, *y, x_name, y_name, e, limit);
+        return;
+    }
+
+    bool const both_empty = not x && not y;
+    bool const inequality_expected = Gem::Common::expectation::INEQUALITY == e;
+    if(both_empty != inequality_expected) {
+        return; // Two empty pointers are equal, an empty and a full one differ
+    }
+
     std::ostringstream error;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY: {
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-
-        // Check whether the pointers hold content
-        if(x && not y) {
-            error << "Smart pointer " << x_name << " holds content while " << y_name << " does not."
-                  << '\n'
-                  << "Thus the expectation of " << expectation_str << " was violated" << '\n';
-            break; //
-        }
-        if(not x && y) {
-            error << "Smart pointer " << x_name << " doesn't hold content while " << y_name
-                  << " does." << '\n'
-                  << "Thus the expectation of " << expectation_str << " was violated" << '\n';
-            break; // The expectation was clearly not met
-        }
-        if(not x && not y) { // No content to check. Both smart pointers can be considered equal
-            expectation_met = true;
-            break;
-        }
-
-        // If we reach this line, then both pointers have content
-
-        { // Check whether the content differs
-            try {
-                x->compare(*y, e, limit);
-            }
-            catch(g_expectation_violation &g) {
-                error << "Content of " << x_name << " and " << y_name << " differ." << '\n'
-                      << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
-                      << g.what() << '\n';
-                break; // Terminate the switch statement
-            }
-
-            // If we reach this line, the expectation was met
-            expectation_met = true;
-        }
-    } break;
-
-    case Gem::Common::expectation::INEQUALITY: {
-        expectation_str = "INEQUALITY";
-
-        // Check whether the pointers hold content
-        if((x && not y) || (not x && y)) {
-            expectation_met = true;
-            break;
-        }
-        if(not x && not y) { // No content to check. Both smart pointers can be considered equal
-            error << "Both smart pointers are empty and are thus considered equal." << '\n'
-                  << "Thus the expectation of " << expectation_str << " was violated:" << '\n';
-            break; // The expectation was not met
-        }
-
-        // Check whether the content differs
-        try {
-            x->compare(*y, e, limit);
-        }
-        catch(g_expectation_violation &g) {
-            // If we catch an expectation violation for expectation "inequality",
-            // we simply break the switch statement so that expectationMet remains to be false
-            error << "Content of " << x_name << " and " << y_name << " are equal/similar." << '\n'
-                  << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
-                  << g.what() << '\n';
-            break;
-        }
-        expectation_met = true;
-    } break;
-    };
-
-    if(not expectation_met) {
-        throw g_expectation_violation(error.str());
+    if(both_empty) {
+        error << "Both smart pointers are empty and are thus considered equal." << '\n';
     }
+    else {
+        error << "Smart pointer " << x_name << (x ? " holds" : " doesn't hold") << " content while "
+              << y_name << (x ? " does not." : " does.") << '\n';
+    }
+    error << "Thus the expectation of " << byValueExpectationName(e) << " was violated" << '\n';
+    throw g_expectation_violation(error.str());
 }
 
 /******************************************************************************/
 /**
- * unique_ptr counterpart of the shared_ptr compare() above. A uniquely-owned member is deep-compared
- * by its pointee, exactly like the shared_ptr case -- without it, compare_t(IDENTITY(unique_ptr, ...))
- * would fall back to comparing the raw pointer addresses, so two independent clones would always be
- * reported as unequal. The pointees are viewed through NON-OWNING shared_ptrs (no-op deleter) so the
- * full shared_ptr comparison logic (null handling, EQUALITY / INEQUALITY) is reused verbatim.
- *
- * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
- * @param x The first parameter to be compared (a uniquely-owned pointer; may be empty)
- * @param y The second parameter to be compared (a uniquely-owned pointer; may be empty)
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- * @param limit The maximum allowed deviation of two floating point values, forwarded to the pointee compare()
+ * @brief Checks whether two ranges meet a given expectation, element by element (declaration; the
+ * definition follows elementsMeet(), which it uses and which uses it for nested ranges).
  */
-template <typename gem_type>
-    requires Gem::Common::gemfony_common_interface<gem_type>
+template <typename range_type>
+    requires ComparedAsRange<range_type>
 void compare(
-    std::unique_ptr<gem_type> const &x,
-    std::unique_ptr<gem_type> const &y,
+    range_type const &x,
+    range_type const &y,
     std::string const &x_name,
     std::string const &y_name,
     Gem::Common::expectation e,
     double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
-) {
-    compare(
-        std::shared_ptr<gem_type>(x.get(), [](gem_type *) { /* non-owning */ }),
-        std::shared_ptr<gem_type>(y.get(), [](gem_type *) { /* non-owning */ }),
-        x_name,
-        y_name,
-        e,
-        limit
-    );
-}
-
-/******************************************************************************/
-/**
- * This function checks whether two containers of smart pointers to complex types meet a given expectation.
- * It is assumed that these types have the standard Geneva interface with corresponding "compare"
- * functions. For an idea of what the template specifier does, search for "template template" in conjunction
- * with containers.
- *
- * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
- * @tparam c_type The sequence container template (e.g. std::vector) holding the smart pointers
- * @param x The first vector to be compared
- * @param y The second vector to be compared
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- * @param limit The maximum allowed deviation of two floating point values, forwarded to each element compare()
- */
-template <typename gem_type, template <typename, typename> class c_type>
-    requires Gem::Common::gemfony_common_interface<gem_type>
-// NOLINTNEXTLINE(readability-function-size,readability-function-cognitive-complexity) -- one coherent expectation-comparison sweep (switch-on-expectation + per-element null/content diff reporting via nested compare()) for containers of smart pointers to Geneva types; splitting would scatter the tightly-coupled error-message assembly
-void compare(
-    c_type<std::shared_ptr<gem_type>, std::allocator<std::shared_ptr<gem_type>>> const &x,
-    c_type<std::shared_ptr<gem_type>, std::allocator<std::shared_ptr<gem_type>>> const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
-) {
-    bool expectation_met = false;
-    std::string expectation_str;
-    std::ostringstream error;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY: {
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-
-        // First check sizes
-        if(x.size() != y.size()) {
-            error << "containers " << x_name << " and " << y_name << " have different sizes "
-                  << x.size() << " / " << y.size() << '\n'
-                  << "Thus the expectation of " << expectation_str << " was violated" << '\n';
-            // Terminate the switch statement. expectationMet will be false then
-            break;
-        }
-
-        // Now loop over all members of the containers (equal sizes guaranteed above)
-        bool found_deviation = false;
-        for(auto const &[index, elems] : std::views::zip(x, y) | std::views::enumerate) {
-            auto const &[x_ptr, y_ptr] = elems;
-            // First check that both pointers have content
-            // Check whether the pointers hold content
-            if(x_ptr && not y_ptr) {
-                error << "Smart pointer " << x_name << "[" << index << "] holds content while "
-                      << y_name << "[" << index << "]  does not." << '\n'
-                      << "Thus the expectation of " << expectation_str << " was violated" << '\n';
-                found_deviation = true;
-                break; // terminate the loop
-            }
-            if(not x_ptr && y_ptr) {
-                error << "Smart pointer " << x_name << "[" << index
-                      << "] doesn't hold content while " << y_name << "[" << index << "]  does."
-                      << '\n'
-                      << "Thus the expectation of " << expectation_str << " was violated" << '\n';
-                found_deviation = true;
-                break; // terminate the loop
-            }
-            if(not x_ptr &&
-               not y_ptr) { // No content to check. Both smart pointers can be considered equal
-                continue;   // Go on with next iteration in the loop
-            }
-
-            // At this point we know that both pointers have content. We can now check the content
-            // which is assumed to have the compare() function
-            try {
-                x_ptr->compare(*y_ptr, e, limit);
-            }
-            catch(g_expectation_violation &g) {
-                error << "Content of " << x_name << "[" << index << "] and " << y_name << "["
-                      << index << "] differs." << '\n'
-                      << "Thus the expectation of " << expectation_str << " was violated:" << '\n'
-                      << g.what() << '\n';
-                found_deviation = true;
-                break; // Terminate the loop
-            }
-        }
-
-        if(not found_deviation) {
-            expectation_met = true;
-        }
-    } break;
-
-    case Gem::Common::expectation::INEQUALITY: {
-        expectation_str = "INEQUALITY";
-
-        // First check sizes. The expectation of inequality will be met if they differ
-        if(x.size() != y.size()) {
-            expectation_met = true;
-            break; // Terminate the switch statement
-        }
-
-        // Now loop over all members of the containers (sizes are equal here)
-        bool found_inequality = false;
-        for(auto const &[x_ptr, y_ptr] : std::views::zip(x, y)) {
-            // First check that both pointers have content
-            // Check whether the pointers hold content
-            if((x_ptr && not y_ptr) || (not x_ptr && y_ptr)) {
-                found_inequality = true;
-                break; // terminate the loop
-            }
-            if(not x_ptr &&
-               not y_ptr) { // No content to check. Both smart pointers can be considered equal
-                continue; // Go on with next iteration in the loop - there is nothing to check here
-            }
-
-            // At this point we know that both pointers have content. We can now check this content
-            // which is assumed to have the compare() function
-            try {
-                x_ptr->compare(*y_ptr, e, limit);
-                found_inequality = true;
-                break; // terminate the loop
-            }
-            catch(g_expectation_violation &) {
-                // Go on with the next item in the vector -- the content is equal or similar
-                continue;
-            }
-        }
-
-        if(found_inequality) {
-            expectation_met = true;
-        }
-        else {
-            error << "The two containers " << x_name << " and " << y_name << " are equal." << '\n'
-                  << "Thus the expectation of " << expectation_str << " was violated:" << '\n';
-        }
-    } break;
-    };
-
-    if(not expectation_met) {
-        throw g_expectation_violation(error.str());
-    }
-}
-
-/******************************************************************************/
-/**
- * unique_ptr counterpart of the shared_ptr container compare() above. A container of uniquely-owned
- * elements is deep-compared element-by-element, exactly like the shared_ptr case -- without it,
- * compare_t(IDENTITY(data_cnt_, ...)) for a unique_ptr container would fall back to comparing the raw
- * element addresses, so two independent clones would always be reported as unequal. Non-owning
- * shared_ptr views (no-op deleter) are built so the full shared_ptr container logic is reused verbatim.
- *
- * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
- * @tparam c_type The sequence container template (e.g. std::vector) holding the unique pointers
- * @param x The first vector to be compared
- * @param y The second vector to be compared
- * @param x_name The name of the first parameter
- * @param y_name The name of the second parameter
- * @param e The expectation both parameters need to fulfill
- * @param limit The maximum allowed deviation of two floating point values, forwarded to each element compare()
- */
-template <typename gem_type, template <typename, typename> class c_type>
-    requires Gem::Common::gemfony_common_interface<gem_type>
-void compare(
-    c_type<std::unique_ptr<gem_type>, std::allocator<std::unique_ptr<gem_type>>> const &x,
-    c_type<std::unique_ptr<gem_type>, std::allocator<std::unique_ptr<gem_type>>> const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    double limit = Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
-) {
-    std::vector<std::shared_ptr<gem_type>> x_view;
-    std::vector<std::shared_ptr<gem_type>> y_view;
-    x_view.reserve(x.size());
-    y_view.reserve(y.size());
-    for(auto const &p : x) {
-        x_view.emplace_back(p.get(), [](gem_type *) { /* non-owning */ });
-    }
-    for(auto const &p : y) {
-        y_view.emplace_back(p.get(), [](gem_type *) { /* non-owning */ });
-    }
-    compare(x_view, y_view, x_name, y_name, e, limit);
-}
-
-/******************************************************************************/
-/**
- * @brief This function checks whether two objects of type Gem::Common::tribool meet a given expectation.
- *
- * The parameters, in signature order, are: the first tribool to compare, the second tribool to compare,
- * the name of the first tribool, the name of the second tribool, the expectation both must fulfill,
- * and the limit (the maximum allowed deviation of two floating point values; unused for tribool and
- * present only to match the common compare() signature). A g_expectation_violation exception is thrown
- * if the expectation is violated.
- */
-void compare(
-    Gem::Common::tribool const &x,
-    Gem::Common::tribool const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    double limit = CE_DEF_SIMILARITY_DIFFERENCE
 );
+
+/******************************************************************************/
+/**
+ * @brief Tells whether two elements of a range meet an expectation, without composing a message.
+ *
+ * Floating point values and values (see ComparedByValue) are compared directly; objects with the
+ * Gemfony common interface, pointers to them and nested ranges through their compare() overload.
+ *
+ * @tparam T The element type of the range
+ * @param x The first element
+ * @param y The second element
+ * @param e The expectation both elements need to fulfill
+ * @param limit The maximum allowed deviation of two floating point values (only used for FP_SIMILARITY)
+ * @return true if the two elements meet the expectation
+ */
+template <typename T>
+[[nodiscard]] bool elementsMeet(T const &x, T const &y, Gem::Common::expectation e, double limit) {
+    if constexpr(std::floating_point<T> || ComparedByValue<T>) {
+        return valuesMeet(x, y, e, limit);
+    }
+    else {
+        try {
+            compare(x, y, std::string{}, std::string{}, e, limit);
+            return true;
+        }
+        catch(g_expectation_violation const &) {
+            return false;
+        }
+    }
+}
+
+/******************************************************************************/
+/**
+ * This function checks whether two ranges (see ComparedAsRange: containers of any shape, also nested)
+ * meet a given expectation. EQUALITY and FP_SIMILARITY need ranges of the same size whose elements
+ * meet the expectation pairwise; the message of the first pair that does not is the message of the
+ * violation, its names indexed by the position (x_name[i]). INEQUALITY is met if the sizes differ or
+ * one pair of elements differs. Elements are compared by their kind: floating point values with the
+ * limit, objects with the Gemfony common interface and pointers to them through their compare(),
+ * nested ranges by this function, all others as values. The function will throw a
+ * g_expectation_violation exception if the expectation was violated.
+ *
+ * @tparam range_type The type of the two ranges
+ * @param x The first range to be compared
+ * @param y The second range to be compared
+ * @param x_name The name of the first parameter
+ * @param y_name The name of the second parameter
+ * @param e The expectation both parameters need to fulfill
+ * @param limit The maximum allowed deviation of two floating point values (only used for FP_SIMILARITY)
+ */
+template <typename range_type>
+    requires ComparedAsRange<range_type>
+void compare(
+    range_type const &x,
+    range_type const &y,
+    std::string const &x_name,
+    std::string const &y_name,
+    Gem::Common::expectation e,
+    double limit
+) {
+    using element_type = std::ranges::range_value_t<range_type const>;
+    auto const x_size = std::ranges::size(x);
+    auto const y_size = std::ranges::size(y);
+    auto const violation = [&] {
+        return "Expectation of " + Gem::Common::enumName(e) + " was violated for parameters " +
+               x_name + " and " + y_name;
+    };
+
+    if(Gem::Common::expectation::INEQUALITY == e) {
+        auto const differ = [limit](auto const &xy) {
+            return elementsMeet<element_type>(
+                std::get<0>(xy),
+                std::get<1>(xy),
+                Gem::Common::expectation::INEQUALITY,
+                limit
+            );
+        };
+        if(x_size != y_size || std::ranges::any_of(std::views::zip(x, y), differ)) {
+            return;
+        }
+        throw g_expectation_violation(violation() + ": they do not differ\n");
+    }
+
+    if(x_size != y_size) {
+        throw g_expectation_violation(
+            violation() + ": different sizes " + x_name + ".size() = " + std::to_string(x_size) +
+            ", " + y_name + ".size() = " + std::to_string(y_size) + '\n'
+        );
+    }
+
+    for(auto const &[index, xy] : std::views::zip(x, y) | std::views::enumerate) {
+        element_type const &x_element = std::get<0>(xy);
+        element_type const &y_element = std::get<1>(xy);
+        if(not elementsMeet(x_element, y_element, e, limit)) {
+            compare(
+                x_element,
+                y_element,
+                x_name + "[" + std::to_string(index) + "]",
+                y_name + "[" + std::to_string(index) + "]",
+                e,
+                limit
+            );
+        }
+    }
+}
 
 /******************************************************************************/
 /**
