@@ -119,8 +119,6 @@ constexpr std::uint32_t GMETAOPT_DEF_ITERATIONTHRESHOLD =
 const metaOptimizationTarget GMETAOPT_DEF_MOTARGET =
     metaOptimizationTarget::BESTFITNESS; ///< The target used for the meta optimization
 
-const std::string GMETAOPT_DEF_INDCONFIG =
-    "./config/GFunctionIndividual.json"; ///< The default configuration file for our individuals -- we follow the default template argument
 const std::string GMETAOPT_DEF_SUBEACONFIG =
     "./config/GSubEvolutionaryAlgorithm.json"; ///< The default configuration file for the (sub-)evolutionary algorithms
 

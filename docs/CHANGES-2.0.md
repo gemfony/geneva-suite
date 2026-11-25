@@ -849,6 +849,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GExternalEvaluatorIndividual` passes file names without the quotes it used to add for the shell,
   and splits its `custom_options` at whitespace into separate arguments; quotes in them are not
   interpreted.
+- **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
+  read it.
 
 ## 8. Checkpointing
 
