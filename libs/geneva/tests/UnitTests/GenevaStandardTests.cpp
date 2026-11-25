@@ -34,6 +34,7 @@
 #include <catch2/catch_template_test_macros.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -1103,34 +1104,20 @@ TEST_CASE(
     // The file the factory wrote carries today's keys, each with its default
     const auto written = Gem::Common::parseJsonFile(config_file).as_object();
     const std::vector<std::pair<std::string, double>> keys{
-        {"init_n_parents", 1.},
-        {"n_parents_lb", 1.},
-        {"n_parents_ub", 6.},
-        {"init_n_children", 100.},
-        {"n_children_lb", 5.},
-        {"n_children_ub", 250.},
-        {"init_amalgamation_lklh", 0.},
-        {"amalgamation_lklh_lb", 0.},
-        {"amalgamation_lklh_ub", 1.},
-        {"init_min_ad_prob", 0.},
-        {"min_ad_prob_lb", 0.},
-        {"min_ad_prob_ub", 0.1},
-        {"init_ad_prob_range", 0.9},
-        {"ad_prob_range_lb", 0.1},
-        {"ad_prob_range_ub", 0.9},
-        {"init_ad_prob_start_percentage", 1.},
-        {"init_adapt_ad_prob", 0.1},
-        {"adapt_ad_prob_lb", 0.},
-        {"adapt_ad_prob_ub", 1.},
-        {"init_min_sigma", 0.001},
-        {"min_sigma_lb", 0.001},
-        {"min_sigma_ub", 0.09999},
-        {"init_sigma_range", 0.2},
-        {"sigma_range_lb", 0.1},
-        {"sigma_range_ub", 0.9},
-        {"init_sigma_range_percentage", 1.},
-        {"init_sigma_sigma", 0.1},
-        {"sigma_sigma_lb", 0.},
+        {"init_n_parents", 1.},         {"n_parents_lb", 1.},
+        {"n_parents_ub", 6.},           {"init_n_children", 100.},
+        {"n_children_lb", 5.},          {"n_children_ub", 250.},
+        {"init_amalgamation_lklh", 0.}, {"amalgamation_lklh_lb", 0.},
+        {"amalgamation_lklh_ub", 1.},   {"init_min_ad_prob", 0.},
+        {"min_ad_prob_lb", 0.},         {"min_ad_prob_ub", 0.1},
+        {"init_ad_prob_range", 0.9},    {"ad_prob_range_lb", 0.1},
+        {"ad_prob_range_ub", 0.9},      {"init_ad_prob_start_percentage", 1.},
+        {"init_adapt_ad_prob", 0.1},    {"adapt_ad_prob_lb", 0.},
+        {"adapt_ad_prob_ub", 1.},       {"init_min_sigma", 0.001},
+        {"min_sigma_lb", 0.001},        {"min_sigma_ub", 0.09999},
+        {"init_sigma_range", 0.2},      {"sigma_range_lb", 0.1},
+        {"sigma_range_ub", 0.9},        {"init_sigma_range_percentage", 1.},
+        {"init_sigma_sigma", 0.1},      {"sigma_sigma_lb", 0.},
         {"sigma_sigma_ub", 1.}
     };
     for(const auto &[key, default_value] : keys) {
@@ -1139,10 +1126,11 @@ TEST_CASE(
         CHECK(boost::json::value_to<double>(written.at(key).at("default")) == default_value);
     }
     // The two start positions within a band have no range keys: their range is [0, 1]
-    for(const char *absent : {"ad_prob_start_percentage_lb",
-                              "ad_prob_start_percentage_ub",
-                              "sigma_range_percentage_lb",
-                              "sigma_range_percentage_ub"}) {
+    for(const char *absent :
+        {"ad_prob_start_percentage_lb",
+         "ad_prob_start_percentage_ub",
+         "sigma_range_percentage_lb",
+         "sigma_range_percentage_ub"}) {
         INFO(absent);
         CHECK(not written.contains(absent));
     }
@@ -1199,6 +1187,83 @@ TEST_CASE(
     CHECK(sameValues(s.values, {0.2, 0.01, 0.5, 0.5, 0.2, 0.01, 0.3, 0.25, 0.3}));
     CHECK(sameValues(s.lower, {0.1, 0.005, 0.2, 0., 0.05, 0.002, 0.15, 0., 0.1}));
     CHECK(sameValues(s.upper, {0.6, 0.05, 0.8, 1., 0.7, 0.05, 0.6, 1., 0.9}));
+}
+
+// ============================================================================
+// The options of a tunable manifest come from its knobs alone: every knob of a test manifest,
+// including one added to it, is registered with its default and range and is set from a file.
+// ============================================================================
+
+TEST_CASE(
+    "Meta-optimizer: every knob of a tunable manifest is an option with its default and range",
+    "[geneva][meta]"
+) {
+    const auto dir = freshConfigDirectory("geneva-meta-tunable-options");
+    std::vector<oa::TunableParam> manifest{
+        {"count", true, 3., 1., 9., "number of things", "", false},
+        {"rate", false, 0.5, 0.1, 0.9, "rate of things", "speed", false},
+        {"share", false, 0.25, 0., 1., "share of things", "", true}
+    };
+    // A knob added to the manifest needs nothing else
+    manifest.push_back({"weight", false, 2., 1., 4., "weight of things", "", false});
+
+    // The defaults: the file written from the registered options
+    {
+        auto knobs = manifest;
+        Gem::Common::GParserBuilder gpb;
+        gind::registerTunableOptions(gpb, manifest, knobs);
+        CHECK(gpb.numberOfFileOptions() == 3 + 3 + 1 + 3);
+        gpb.writeConfigFile(dir / "defaults.json");
+    }
+    const auto written = Gem::Common::parseJsonFile(dir / "defaults.json").as_object();
+    const std::vector<std::pair<std::string, double>> defaults{
+        {"init_count", 3.},
+        {"count_lb", 1.},
+        {"count_ub", 9.},
+        {"init_speed", 0.5},
+        {"speed_lb", 0.1},
+        {"speed_ub", 0.9},
+        {"init_share", 0.25},
+        {"init_weight", 2.},
+        {"weight_lb", 1.},
+        {"weight_ub", 4.}
+    };
+    for(const auto &[key, default_value] : defaults) {
+        INFO(key);
+        REQUIRE(written.contains(key));
+        CHECK(boost::json::value_to<double>(written.at(key).at("default")) == default_value);
+    }
+    CHECK(
+        written.at("init_count").at("default").is_int64()
+    ); // an integer knob is read as an integer
+    CHECK(not written.contains("share_lb"));
+    CHECK(not written.contains("share_ub"));
+
+    // The values: a file sets every knob; the fixed range stays as it is
+    {
+        std::ofstream out(dir / "values.json");
+        out << R"({
+            "init_count": { "value": 4 }, "count_lb": { "value": 2 }, "count_ub": { "value": 7 },
+            "init_speed": { "value": 0.3 }, "speed_lb": { "value": 0.2 }, "speed_ub": { "value": 0.4 },
+            "init_share": { "value": 0.75 },
+            "init_weight": { "value": 3 }, "weight_lb": { "value": 2.5 }, "weight_ub": { "value": 3.5 }
+        })";
+    }
+    std::vector<oa::TunableParam> knobs = manifest;
+    {
+        Gem::Common::GParserBuilder gpb;
+        gind::registerTunableOptions(gpb, manifest, knobs);
+        gpb.parseConfigFile(dir / "values.json");
+    }
+    const std::vector<std::array<double, 3>>
+        expected{{4., 2., 7.}, {0.3, 0.2, 0.4}, {0.75, 0., 1.}, {3., 2.5, 3.5}};
+    REQUIRE(knobs.size() == expected.size());
+    for(std::size_t i = 0; i < knobs.size(); ++i) {
+        INFO(knobs[i].name);
+        CHECK(std::abs(knobs[i].init - expected[i][0]) < 1e-12);
+        CHECK(std::abs(knobs[i].lower - expected[i][1]) < 1e-12);
+        CHECK(std::abs(knobs[i].upper - expected[i][2]) < 1e-12);
+    }
 }
 
 // ============================================================================
