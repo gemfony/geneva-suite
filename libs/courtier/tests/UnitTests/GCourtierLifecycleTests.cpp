@@ -43,6 +43,7 @@
 #include <memory>
 #include <span>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -112,6 +113,41 @@ TEST_CASE(
 
     CHECK(watch.expired());
     CHECK(connectIsRefused(port));
+}
+
+// The server listens on the address of its configuration: on 127.0.0.1 it is reached there, and an
+// address that is no IP address stops its start with a message that names it. (Which addresses
+// reach a listener: GCourtierWebsocketTransportTests.)
+TEST_CASE(
+    "courtier(lifecycle): the server listens on the address of its configuration",
+    "[courtier][lifecycle][net]"
+) {
+    WebsocketConsumer local(
+        Gem::Courtier::GWebsocketConsumerConfig{
+            .listenAddress = "127.0.0.1",
+            .serializationMode = BIN,
+            .nThreads = 2
+        }
+    );
+    local.startServer();
+    CHECK_FALSE(connectIsRefused(local.getPort()));
+    local.stopServer();
+
+    WebsocketConsumer named(
+        Gem::Courtier::GWebsocketConsumerConfig{
+            .listenAddress = "localhost",
+            .serializationMode = BIN,
+            .nThreads = 2
+        }
+    );
+    std::string message;
+    try {
+        named.startServer();
+    }
+    catch(const std::exception &e) {
+        message = e.what();
+    }
+    CHECK(message.contains("\"localhost\""));
 }
 
 TEST_CASE(
