@@ -876,8 +876,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GOAFactoryT::get<target_type>()` defaults `target_type` to the factory's product type, so
   `factory.get()` compiles on a concrete factory (it did not: the member template hid the base's
   `get()`) and returns what `get()` returns through the `GFactoryT` base. `get<T>()` is the way to
-  an algorithm; `provide()` stays as the algorithm store's interface. All three refuse an empty
-  product with `gem_exception` (before, only `get<T>()` did).
+  an algorithm; `provide()` stays as the algorithm store's interface.
+- **common: a `GFactoryT` refuses an empty product.** When `getObject_()` returns an empty pointer,
+  `get()` (and with it every algorithm factory's `get()`, `get<T>()` and `provide()`) and
+  `writeConfigFile()` throw `gem_exception` before `postProcess_()` sees the pointer; before,
+  `postProcess_()` received it and a dereference there crashed.
 - **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
   read it.
 

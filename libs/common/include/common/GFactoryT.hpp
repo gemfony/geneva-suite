@@ -43,6 +43,7 @@
 #include <boost/json.hpp>
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -195,11 +196,12 @@ public:
 	  * if possible.
 	  *
 	  * @tparam target_type The type the produced object should be converted to
-	  * @return The produced object converted to target_type, or an empty pointer if production yielded nothing
+	  * @return The produced object converted to target_type, or an empty pointer if a derived
+	  *         get_() yielded nothing
 	  */
     template <typename target_type>
     std::shared_ptr<target_type> get_as() {
-        // An empty product passes through as an empty pointer
+        // An empty product (only a derived get_() can yield one) passes through as an empty pointer
         return Gem::Common::g_ptr_conversion<prod_type, target_type>(this->get());
     }
 
@@ -225,6 +227,8 @@ public:
         // Retrieve an object (will be discarded at the end of this function)
         // Here, further options may be added to the parser builder.
         std::shared_ptr<prod_type> p = this->getObject_(gpb);
+        // Checked before postProcess_(), which may dereference it
+        Gem::Common::checkThat(p != nullptr, "the factory produced no object");
 
         // Allow the factory to act on configuration options received
         // in the parsing process.
@@ -324,6 +328,8 @@ protected:
         // creation, add further configuration options and call-backs to
         // the parser
         std::shared_ptr<prod_type> p = this->getObject_(gpb);
+        // Checked before postProcess_(), which may dereference it, so every path refuses it alike
+        Gem::Common::checkThat(p != nullptr, "the factory produced no object");
 
         // Read + parse the configuration file only ONCE: the first call captures the
         // parsed document in the load-once cell, every subsequent call re-applies that
@@ -388,7 +394,8 @@ private:
      * The argument is the parser builder to which the object may add further configuration
      * options.
      *
-     * @return A newly created object of type prod_type
+     * @return A newly created object of type prod_type; an empty pointer is refused
+     *         with gem_exception
      */
     virtual std::shared_ptr<prod_type> getObject_(Gem::Common::GParserBuilder &) = 0;
 
