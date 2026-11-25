@@ -52,6 +52,20 @@ struct TunableParam {
     double init = 0.;        ///< Default initial value
     double lower = 0.;       ///< Lower search bound
     double upper = 1.;       ///< Upper search bound
+    std::string
+        description; ///< What the knob means, in words; the comment of its configuration keys
+    /** The stem of the meta-optimizer's configuration keys of this knob ("init_STEM", "STEM_lb",
+     *  "STEM_ub"), where it differs from @c name; empty: the name. Configuration keys are frozen
+     *  (CODING-STYLE 4.4), so a knob whose keys predate its name carries them here. */
+    std::string config_key;
+    /** true: the range is part of the knob's meaning (a position within [0, 1]); a configuration
+     *  sets only the start value */
+    bool fixed_range = false;
+
+    /** @brief The stem of this knob's configuration keys: @c config_key, or @c name if it is empty */
+    [[nodiscard]] std::string const &configKey() const {
+        return config_key.empty() ? name : config_key;
+    }
 };
 
 /******************************************************************************/

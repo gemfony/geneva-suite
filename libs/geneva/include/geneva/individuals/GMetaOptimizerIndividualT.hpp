@@ -110,73 +110,8 @@ using Gem::Common::operator<<;
 using Gem::Common::operator>>;
 
 /******************************************************************************/
-// A number of default settings for the factory and individual
+// Default settings of the individual (the knobs' defaults are those of the tunable manifest)
 
-// Pertaining to the population
-constexpr std::size_t GMETAOPT_DEF_INITNPARENTS = 1; ///< The initial number of parents
-constexpr std::size_t GMETAOPT_DEF_NPARENTS_LB =
-    1; ///< The lower boundary for variations of the number of parents
-constexpr std::size_t GMETAOPT_DEF_NPARENTS_UB =
-    6; ///< The upper boundary for variations of the number of parents
-
-constexpr std::size_t GMETAOPT_DEF_INITNCHILDREN = 100; ///< The initial number of children
-constexpr std::size_t GMETAOPT_DEF_NCHILDREN_LB =
-    5; ///< The lower boundary for the variation of the number of children
-constexpr std::size_t GMETAOPT_DEF_NCHILDREN_UB =
-    250; ///< The upper boundary for the variation of the number of children
-
-constexpr double GMETAOPT_DEF_INITAMALGLKLHOOD =
-    0.; ///< The initial likelihood for an individual being created from cross-over rather than "just" duplication
-constexpr double GMETAOPT_DEF_AMALGLKLHOOD_LB =
-    0.; ///< The lower boundary for the variation of the amalgamation likelihood
-constexpr double GMETAOPT_DEF_AMALGLKLHOOD_UB =
-    1.; ///< The upper boundary for the variation of the amalgamation likelihood
-
-// Concerning the individual
-constexpr double GMETAOPT_DEF_INITMINADPROB =
-    0.; ///< The initial lower boundary for the variation of ad_prob
-constexpr double GMETAOPT_DEF_MINADPROB_LB = 0.; ///< The lower boundary for min_ad_prob
-constexpr double GMETAOPT_DEF_MINADPROB_UB =
-    0.1; ///< The upper boundary for min_ad_prob -- 0.1, effectively
-
-constexpr double GMETAOPT_DEF_INITADPROBRANGE =
-    0.9; ///< The initial upper boundary for the variation of ad_prob
-constexpr double GMETAOPT_DEF_ADPROBRANGE_LB = 0.1; ///< The lower boundary for ad_prob_range
-constexpr double GMETAOPT_DEF_ADPROBRANGE_UB = 0.9; ///< The upper boundary for ad_prob_range
-
-constexpr double GMETAOPT_DEF_INITADPROBSTARTPERCENTAGE =
-    1.; ///< Defines the place inside of the allowed value range where ad_prob starts. Boundaries are 0./1.
-
-constexpr double GMETAOPT_DEF_INITADAPTADPROB =
-    0.1; ///< The initial value of the strength of adProb_ adaption
-constexpr double GMETAOPT_DEF_ADAPTADPROB_LB =
-    0.; ///< The lower boundary for the variation of the strength of adProb_ adaption
-constexpr double GMETAOPT_DEF_ADAPTADPROB_UB =
-    1.; ///< The upper boundary for the variation of the strength of adProb_ adaption
-
-constexpr double GMETAOPT_DEF_INITMINSIGMA = 0.001; ///< The initial lower boundary for sigma
-constexpr double GMETAOPT_DEF_MINSIGMA_LB =
-    0.001; ///< The lower boundary for the variation of the lower boundary of sigma
-constexpr double GMETAOPT_DEF_MINSIGMA_UB =
-    0.09999; ///< The upper boundary for the variation of the lower boundary of sigma, means ~0.1
-
-constexpr double GMETAOPT_DEF_INITSIGMARANGE =
-    0.2; ///< The initial maximum range for sigma --> note that the initial start value for sigma will always be set to the upper boundary of its variation limits
-constexpr double GMETAOPT_DEF_SIGMARANGE_LB =
-    0.1; ///< The lower boundary for the variation of the maximum range of sigma --> max_sigma is 0.2
-constexpr double GMETAOPT_DEF_SIGMARANGE_UB =
-    0.9; ///< The upper boundary for the variation of the maximum range of sigma --> max_sigma is 1.
-
-constexpr double GMETAOPT_DEF_INITSIGMARANGEPERCENTAGE =
-    1.; ///< The initial percentage of the sigma range as a start value
-
-constexpr double GMETAOPT_DEF_INITSIGMASIGMA = 0.1; ///< The initial strength of sigma adaption
-constexpr double GMETAOPT_DEF_SIGMASIGMA_LB =
-    0.; ///< The lower boundary for the variation of the strength of sigma adaption
-constexpr double GMETAOPT_DEF_SIGMASIGMA_UB =
-    1.; ///< The upper boundary for the variation of the strength of sigma adaption
-
-// General meta-optimization parameters
 constexpr std::size_t GMETAOPT_DEF_NRUNSPEROPT = 10; ///< The number of successive optimization runs
 constexpr double GMETAOPT_DEF_FITNESSTARGET = 0.001; ///< The fitness target
 constexpr std::uint32_t GMETAOPT_DEF_ITERATIONTHRESHOLD =
@@ -982,6 +917,83 @@ std::ostream &operator<<(std::ostream &stream, const GMetaOptimizerIndividualT<i
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
+ * Registers the configuration options of a tunable manifest, as the meta-optimizer's factory reads
+ * them: per knob "init_KEY" for its start value and, unless its range is fixed, "KEY_lb" and
+ * "KEY_ub" for its search range, where KEY is oa::TunableParam::configKey(). The defaults are the
+ * values of @p manifest, the comments come from its descriptions, and integer knobs are read as
+ * integers. A value read from the configuration goes to the knob at the same position in @p knobs.
+ *
+ * @param gpb The GParserBuilder object to which the options are added
+ * @param manifest The knobs, with their default start values and ranges
+ * @param knobs Receives the configured values; same size and order as @p manifest, and it must
+ *        outlive the parsing through @p gpb
+ */
+inline void registerTunableOptions(
+    Gem::Common::GParserBuilder &gpb,
+    std::vector<oa::TunableParam> const &manifest,
+    std::vector<oa::TunableParam> &knobs
+) {
+    Gem::Common::checkThat(
+        manifest.size() == knobs.size(),
+        "registerTunableOptions(): the manifest and the configured knobs differ in size"
+    );
+
+    for(std::size_t i = 0; i < manifest.size(); ++i) {
+        oa::TunableParam const &knob = manifest[i];
+        auto add_option = [&gpb, &knob](
+                              std::string const &key,
+                              double default_value,
+                              double &value,
+                              std::string const &comment
+                          ) {
+            if(knob.is_integer) {
+                gpb.registerFileParameter<std::int32_t>(
+                    key,
+                    static_cast<std::int32_t>(default_value),
+                    [&value](std::int32_t v) { value = static_cast<double>(v); },
+                    Gem::Common::VAR_IS_ESSENTIAL,
+                    comment
+                );
+            }
+            else {
+                gpb.registerFileParameter<double>(
+                    key,
+                    value,
+                    default_value,
+                    Gem::Common::VAR_IS_ESSENTIAL,
+                    comment
+                );
+            }
+        };
+
+        std::string const &key = knob.configKey();
+        add_option(
+            "init_" + key,
+            knob.init,
+            knobs[i].init,
+            "The initial value of the " + knob.description + ";"
+        );
+        if(not knob.fixed_range) {
+            add_option(
+                key + "_lb",
+                knob.lower,
+                knobs[i].lower,
+                "The lower boundary for the variation of the " + knob.description + ";"
+            );
+            add_option(
+                key + "_ub",
+                knob.upper,
+                knobs[i].upper,
+                "The upper boundary for the variation of the " + knob.description + ";"
+            );
+        }
+    }
+}
+
+/******************************************************************************/
+////////////////////////////////////////////////////////////////////////////////
+/******************************************************************************/
+/**
  * A factory for GMetaOptimizerIndividualT<ind_type> objects.
  *
  * This is intentionally a hand-written factory rather than the generic
@@ -1039,302 +1051,9 @@ protected:
      *
      * @param gpb The GParserBuilder object to which configuration options should be added
      */
-    // NOLINTNEXTLINE(readability-function-size) -- one coherent config-registration sweep for the meta-optimizer factory's option list; splitting would scatter the option list
     void describeLocalOptions_(Gem::Common::GParserBuilder &gpb) override {
-        // Describe our own options
-        using namespace Gem::Courtier;
-
-        std::string comment;
-        comment = "";
-        comment += "The initial number of parents in a population;";
-        gpb.registerFileParameter<std::size_t>(
-            "init_n_parents",
-            init_n_parents_,
-            GMETAOPT_DEF_INITNPARENTS,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for variations of the number of parents;";
-        gpb.registerFileParameter<std::size_t>(
-            "n_parents_lb",
-            n_parents_lb_,
-            GMETAOPT_DEF_NPARENTS_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for variations of the number of parents;";
-        gpb.registerFileParameter<std::size_t>(
-            "n_parents_ub",
-            n_parents_ub_,
-            GMETAOPT_DEF_NPARENTS_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial number of children in a population;";
-        gpb.registerFileParameter<std::size_t>(
-            "init_n_children",
-            init_n_children_,
-            GMETAOPT_DEF_INITNCHILDREN,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for the variation of the number of children;";
-        gpb.registerFileParameter<std::size_t>(
-            "n_children_lb",
-            n_children_lb_,
-            GMETAOPT_DEF_NCHILDREN_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for the variation of the number of children;";
-        gpb.registerFileParameter<std::size_t>(
-            "n_children_ub",
-            n_children_ub_,
-            GMETAOPT_DEF_NCHILDREN_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial likelihood for an individual being created from cross-over rather "
-                   "than just duplication;";
-        gpb.registerFileParameter<double>(
-            "init_amalgamation_lklh",
-            init_amalgamation_lklh_,
-            GMETAOPT_DEF_INITAMALGLKLHOOD,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for the variation of the amalgamation likelihood ;";
-        gpb.registerFileParameter<double>(
-            "amalgamation_lklh_lb",
-            amalgamation_lklh_lb_,
-            GMETAOPT_DEF_AMALGLKLHOOD_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for the variation of the amalgamation likelihood ;";
-        gpb.registerFileParameter<double>(
-            "amalgamation_lklh_ub",
-            amalgamation_lklh_ub_,
-            GMETAOPT_DEF_AMALGLKLHOOD_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial lower boundary for the variation of ad_prob;";
-        gpb.registerFileParameter<double>(
-            "init_min_ad_prob",
-            init_min_ad_prob_,
-            GMETAOPT_DEF_INITMINADPROB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for min_ad_prob;";
-        gpb.registerFileParameter<double>(
-            "min_ad_prob_lb",
-            min_ad_prob_lb_,
-            GMETAOPT_DEF_MINADPROB_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for min_ad_prob;";
-        gpb.registerFileParameter<double>(
-            "min_ad_prob_ub",
-            min_ad_prob_ub_,
-            GMETAOPT_DEF_MINADPROB_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial range for the variation of ad_prob;";
-        gpb.registerFileParameter<double>(
-            "init_ad_prob_range",
-            init_ad_prob_range_,
-            GMETAOPT_DEF_INITADPROBRANGE,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for ad_prob_range;";
-        gpb.registerFileParameter<double>(
-            "ad_prob_range_lb",
-            ad_prob_range_lb_,
-            GMETAOPT_DEF_ADPROBRANGE_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for ad_prob_range;";
-        gpb.registerFileParameter<double>(
-            "ad_prob_range_ub",
-            ad_prob_range_ub_,
-            GMETAOPT_DEF_ADPROBRANGE_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The start value for ad_prob relative to the allowed value range;";
-        gpb.registerFileParameter<double>(
-            "init_ad_prob_start_percentage",
-            init_ad_prob_start_percentage_,
-            GMETAOPT_DEF_INITADPROBSTARTPERCENTAGE,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial value of the strength of adProb_ adaption;";
-        gpb.registerFileParameter<double>(
-            "init_adapt_ad_prob",
-            init_adapt_ad_prob_,
-            GMETAOPT_DEF_INITADAPTADPROB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for the variation of the strength of adProb_ adaption;";
-        gpb.registerFileParameter<double>(
-            "adapt_ad_prob_lb",
-            adapt_ad_prob_lb_,
-            GMETAOPT_DEF_ADAPTADPROB_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for the variation of the strength of adProb_ adaption;";
-        gpb.registerFileParameter<double>(
-            "adapt_ad_prob_ub",
-            adapt_ad_prob_ub_,
-            GMETAOPT_DEF_ADAPTADPROB_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial minimum sigma for gauss-adaption in ES;";
-        gpb.registerFileParameter<double>(
-            "init_min_sigma",
-            init_min_sigma_,
-            GMETAOPT_DEF_INITMINSIGMA,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for the variation of the lower boundary of sigma;";
-        gpb.registerFileParameter<double>(
-            "min_sigma_lb",
-            min_sigma_lb_,
-            GMETAOPT_DEF_MINSIGMA_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for the variation of the lower boundary of sigma;";
-        gpb.registerFileParameter<double>(
-            "min_sigma_ub",
-            min_sigma_ub_,
-            GMETAOPT_DEF_MINSIGMA_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial maximum range for sigma;";
-        gpb.registerFileParameter<double>(
-            "init_sigma_range",
-            init_sigma_range_,
-            GMETAOPT_DEF_INITSIGMARANGE,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for the variation of the maximum range of sigma;";
-        gpb.registerFileParameter<double>(
-            "sigma_range_lb",
-            sigma_range_lb_,
-            GMETAOPT_DEF_SIGMARANGE_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for the variation of the maximum range of sigma;";
-        gpb.registerFileParameter<double>(
-            "sigma_range_ub",
-            sigma_range_ub_,
-            GMETAOPT_DEF_SIGMARANGE_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial percentage of the sigma range as a start value;";
-        gpb.registerFileParameter<double>(
-            "init_sigma_range_percentage",
-            init_sigma_range_percentage_,
-            GMETAOPT_DEF_INITSIGMARANGEPERCENTAGE,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The initial strength of self-adaption of gauss-mutation in ES;";
-        gpb.registerFileParameter<double>(
-            "init_sigma_sigma",
-            init_sigma_sigma_,
-            GMETAOPT_DEF_INITSIGMASIGMA,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The lower boundary for the variation of the strength of sigma adaption;";
-        gpb.registerFileParameter<double>(
-            "sigma_sigma_lb",
-            sigma_sigma_lb_,
-            GMETAOPT_DEF_SIGMASIGMA_LB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
-
-        comment = "";
-        comment += "The upper boundary for the variation of the strength of sigma adaption;";
-        gpb.registerFileParameter<double>(
-            "sigma_sigma_ub",
-            sigma_sigma_ub_,
-            GMETAOPT_DEF_SIGMASIGMA_UB,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            comment
-        );
+        // The start value and the search range of every knob the evolutionary algorithm publishes
+        registerTunableOptions(gpb, oa::GEvolutionaryAlgorithm::tunableManifest(), knobs_);
 
         // Allow our parent class to describe its options
         Gem::Common::GFactoryT<gen::GGenome>::describeLocalOptions_(gpb);
@@ -1356,50 +1075,9 @@ protected:
                 p_base
             );
 
-        // Build the search genome from the EA's tunable manifest, overriding the default search ranges
-        // with this factory's configured values (read from the config file). Addressing each knob by name
-        // keeps the genome build and the readers in sync through the single manifest -- no positional
-        // coupling, so a config option can be added or reordered without silently shifting another knob.
-        namespace n = oa::ea_tunable;
-        std::vector<oa::TunableParam> manifest = oa::GEvolutionaryAlgorithm::tunableManifest();
-        auto override_knob =
-            [&manifest](const char *name, double init, double lower, double upper) {
-                for(auto &tp : manifest) {
-                    if(tp.name == name) {
-                        tp.init = init;
-                        tp.lower = lower;
-                        tp.upper = upper;
-                    }
-                }
-            };
-        override_knob(
-            n::n_parents,
-            double(init_n_parents_),
-            double(n_parents_lb_),
-            double(n_parents_ub_)
-        );
-        override_knob(
-            n::n_children,
-            double(init_n_children_),
-            double(n_children_lb_),
-            double(n_children_ub_)
-        );
-        override_knob(
-            n::amalgamation,
-            init_amalgamation_lklh_,
-            amalgamation_lklh_lb_,
-            amalgamation_lklh_ub_
-        );
-        override_knob(n::min_ad_prob, init_min_ad_prob_, min_ad_prob_lb_, min_ad_prob_ub_);
-        override_knob(n::ad_prob_range, init_ad_prob_range_, ad_prob_range_lb_, ad_prob_range_ub_);
-        override_knob(n::ad_prob_start_pct, init_ad_prob_start_percentage_, 0., 1.);
-        override_knob(n::adapt_ad_prob, init_adapt_ad_prob_, adapt_ad_prob_lb_, adapt_ad_prob_ub_);
-        override_knob(n::min_sigma, init_min_sigma_, min_sigma_lb_, min_sigma_ub_);
-        override_knob(n::sigma_range, init_sigma_range_, sigma_range_lb_, sigma_range_ub_);
-        override_knob(n::sigma_range_pct, init_sigma_range_percentage_, 0., 1.);
-        override_knob(n::sigma_sigma, init_sigma_sigma_, sigma_sigma_lb_, sigma_sigma_ub_);
-
-        GMetaOptimizerIndividualT<ind_type>::addContent(p, manifest);
+        // Build the search genome from the EA's tunable manifest, with the start values and search
+        // ranges read from the configuration file (see describeLocalOptions_())
+        GMetaOptimizerIndividualT<ind_type>::addContent(p, knobs_);
 
         // Finally add the individual factory to p
         p->registerIndividualFactory(ind_factory_);
@@ -1430,70 +1108,8 @@ private:
     /***************************************************************************/
     // Data
 
-    // Parameters pertaining to the ea population
-    std::size_t init_n_parents_ = GMETAOPT_DEF_INITNPARENTS; ///< The initial number of parents
-    std::size_t n_parents_lb_ =
-        GMETAOPT_DEF_NPARENTS_LB; ///< The lower boundary for variations of the number of parents
-    std::size_t n_parents_ub_ =
-        GMETAOPT_DEF_NPARENTS_UB; ///< The upper boundary for variations of the number of parents
-
-    std::size_t init_n_children_ = GMETAOPT_DEF_INITNCHILDREN; ///< The initial number of children
-    std::size_t n_children_lb_ =
-        GMETAOPT_DEF_NCHILDREN_LB; ///< The lower boundary for the variation of the number of children
-    std::size_t n_children_ub_ =
-        GMETAOPT_DEF_NCHILDREN_UB; ///< The upper boundary for the variation of the number of children
-
-    double init_amalgamation_lklh_ =
-        GMETAOPT_DEF_INITAMALGLKLHOOD; ///< The initial likelihood for an individual being created from cross-over rather than "just" duplication
-    double amalgamation_lklh_lb_ =
-        GMETAOPT_DEF_AMALGLKLHOOD_LB; ///< The lower boundary for the variation of the amalgamation likelihood
-    double amalgamation_lklh_ub_ =
-        GMETAOPT_DEF_AMALGLKLHOOD_UB; ///< The upper boundary for the variation of the amalgamation likelihood
-
-    double init_min_ad_prob_ =
-        GMETAOPT_DEF_INITMINADPROB; ///< The initial lower boundary for the variation of ad_prob
-    double min_ad_prob_lb_ = GMETAOPT_DEF_MINADPROB_LB; ///< The lower boundary for min_ad_prob
-    double min_ad_prob_ub_ = GMETAOPT_DEF_MINADPROB_UB; ///< The upper boundary for min_ad_prob
-
-    double init_ad_prob_range_ =
-        GMETAOPT_DEF_INITADPROBRANGE; ///< The initial range for the variation of ad_prob
-    double ad_prob_range_lb_ =
-        GMETAOPT_DEF_ADPROBRANGE_LB; ///< The lower boundary for ad_prob_range
-    double ad_prob_range_ub_ =
-        GMETAOPT_DEF_ADPROBRANGE_UB; ///< The upper boundary for ad_prob_range
-
-    double init_ad_prob_start_percentage_ =
-        GMETAOPT_DEF_INITADPROBSTARTPERCENTAGE; ///< The start value for ad_prob relative to the allowed value range
-
-    double init_adapt_ad_prob_ =
-        GMETAOPT_DEF_INITADAPTADPROB; ///< The initial value of the strength of adProb_ adaption
-    double adapt_ad_prob_lb_ =
-        GMETAOPT_DEF_ADAPTADPROB_LB; ///< The lower boundary for the variation of the strength of adProb_ adaption
-    double adapt_ad_prob_ub_ =
-        GMETAOPT_DEF_ADAPTADPROB_UB; ///< The upper boundary for the variation of the strength of adProb_ adaption
-
-    double init_min_sigma_ = GMETAOPT_DEF_INITMINSIGMA; ///< The initial minimal value of sigma
-    double min_sigma_lb_ =
-        GMETAOPT_DEF_MINSIGMA_LB; ///< The lower boundary for the variation of the lower boundary of sigma
-    double min_sigma_ub_ =
-        GMETAOPT_DEF_MINSIGMA_UB; ///< The upper boundary for the variation of the lower boundary of sigma
-
-    double init_sigma_range_ =
-        GMETAOPT_DEF_INITSIGMARANGE; ///< The initial range of sigma (beyond min_sigma
-    double sigma_range_lb_ =
-        GMETAOPT_DEF_SIGMARANGE_LB; ///< The lower boundary for the variation of the maximum range of sigma
-    double sigma_range_ub_ =
-        GMETAOPT_DEF_SIGMARANGE_UB; ///< The upper boundary for the variation of the maximum range of sigma
-
-    double init_sigma_range_percentage_ =
-        GMETAOPT_DEF_INITSIGMARANGEPERCENTAGE; ///< The initial percentage of the sigma range as a start value
-
-    double init_sigma_sigma_ =
-        GMETAOPT_DEF_INITSIGMASIGMA; ///< The initial strength of sigma adaption
-    double sigma_sigma_lb_ =
-        GMETAOPT_DEF_SIGMASIGMA_LB; ///< The lower boundary for the variation of the strength of sigma adaption
-    double sigma_sigma_ub_ =
-        GMETAOPT_DEF_SIGMASIGMA_UB; ///< The upper boundary for the variation of the strength of sigma adaption
+    /** @brief The evolutionary algorithm's knobs, with the configured start values and ranges */
+    std::vector<oa::TunableParam> knobs_ = oa::GEvolutionaryAlgorithm::tunableManifest();
 
     std::shared_ptr<typename ind_type::FACTORYTYPE>
         ind_factory_; ///< Holds a factory for our individuals. It will be added to the individuals when needed
