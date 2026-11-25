@@ -148,6 +148,10 @@ SRV=""; MPIJOB=""; PIDS=()
 cleanup() {
     # shellcheck disable=SC2086
     kill $SRV $MPIJOB "${PIDS[@]}" 2>/dev/null
+    # The directory goes once they have ended: a launcher that is still running creates the
+    # directory of its job again (mpirun makes a missing PRTE_MCA_prte_tmpdir_base) and leaves it
+    # shellcheck disable=SC2086
+    wait $SRV $MPIJOB "${PIDS[@]}" 2>/dev/null
     rm -rf "$SMDIR"
 }
 trap cleanup EXIT
@@ -203,8 +207,11 @@ fi
 if [ "$C" = mpi ]; then
     # The ranks take their roles from MPI (and with groups from the cascade); the options reach
     # every rank.
+    # The directory is made here, not in the background process, so that it exists before a
+    # signal can reach the trap
+    DIR=$(jobdir job)
     # shellcheck disable=SC2086
-    OMPI_MCA_btl_sm_backing_directory=$(jobdir job) PRTE_MCA_prte_tmpdir_base=$(jobdir job) \
+    OMPI_MCA_btl_sm_backing_directory=$DIR PRTE_MCA_prte_tmpdir_base=$DIR \
         ${MPIRUN:-mpirun --oversubscribe -np} $((1 + N * GROUP)) "$X" -c mpi "${GATE[@]}" \
         "${GROUPOPT[@]}" "$@" > server.log 2>&1 &
     # In the background, so that a signal reaches the script's trap at once (bash runs a trap only
@@ -267,8 +274,9 @@ else
             done
             sleep "$LAST_CLIENT_DELAY"
         fi
-        OMPI_MCA_btl_sm_backing_directory=$(jobdir "client-$i") \
-            PRTE_MCA_prte_tmpdir_base=$(jobdir "client-$i") \
+        # Made here, not in the background process (see the job of the mpi consumer)
+        DIR=$(jobdir "client-$i")
+        OMPI_MCA_btl_sm_backing_directory=$DIR PRTE_MCA_prte_tmpdir_base=$DIR \
             "${LAUNCH[@]}" "$X" -c "$C" --client "${CONNECT[@]}" "${GROUPOPT[@]}" "$@" \
             >> clients.log 2>&1 &
         PIDS+=($!)
