@@ -54,9 +54,8 @@ int main(int argc, char **argv) {
         //-----------------------------------------------------------------------
         // Create a factory for GFunctionIndividual objects and perform
         // any necessary initial work.
-        std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-            new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-        );
+        auto const gfi_ptr =
+            std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
 
         // Add a content creator so Go2 can generate its own individuals, if necessary
         go.registerContentCreator(gfi_ptr);

@@ -60,16 +60,15 @@ int optimize(Go2 &go) {
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-        new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-    );
+    auto const gfi_ptr =
+        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
 
     // Create a factory for GMetaOptimizerIndividual objects and perform
     // any necessary initial work.
-    std::shared_ptr<gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>> const
-        gmoi_ptr(new gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>(
+    auto const gmoi_ptr =
+        std::make_shared<gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>>(
             "./config/GMetaOptimizerIndividual.json"
-        ));
+        );
 
     // Add a pluggable optimization monitor (targeted at evolutionary algorithms) and register
     // it with Go2.

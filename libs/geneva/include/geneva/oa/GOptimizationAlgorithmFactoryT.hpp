@@ -149,7 +149,7 @@ private:
      */
     std::shared_ptr<GOptimizationAlgorithmBase>
     getObject_(Gem::Common::GParserBuilder &gpb) override {
-        std::shared_ptr<oa_type> target(new oa_type());
+        auto target = std::make_shared<oa_type>();
         target->addConfigurationOptions(gpb);
         return target;
     }

@@ -389,7 +389,7 @@ int main(int argc, char **argv) {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // We can now start creating populations. Executors are registered for different execution modes
 
-    std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(new oa::GEvolutionaryAlgorithm());
+    auto const pop_ptr = std::make_shared<oa::GEvolutionaryAlgorithm>();
 
     // Both modes are local: build and register the ONE process-wide consumer, stc with one thread
     // (serial) or with nEvaluationThreads (multi-threaded).

@@ -1419,9 +1419,7 @@ private:
      */
     std::shared_ptr<gen::GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
         // Will hold the result
-        std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> target(
-            new GMetaOptimizerIndividualT<ind_type>()
-        );
+        auto target = std::make_shared<GMetaOptimizerIndividualT<ind_type>>();
 
         // Make the object's local configuration options known
         target->addConfigurationOptions(gpb);

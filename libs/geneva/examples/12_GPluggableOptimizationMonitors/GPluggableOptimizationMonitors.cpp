@@ -85,9 +85,8 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-        new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-    );
+    auto const gfi_ptr =
+        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
 
     //---------------------------------------------------------------------------
     // Register pluggable optimization monitors, if requested by the user. Each records into a
@@ -97,7 +96,7 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     // Register a progress plotter with the global optimization algorithm factory
     //! [monitors:register-plotter]
     if(monitorSpec != "empty") {
-        std::shared_ptr<GProgressPlotter> const progplot_ptr(new GProgressPlotter());
+        auto const progplot_ptr = std::make_shared<GProgressPlotter>();
 
         progplot_ptr->setProfileSpec(monitorSpec);
         progplot_ptr->setObserveBoundaries(observeBoundaries);

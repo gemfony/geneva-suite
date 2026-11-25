@@ -168,9 +168,8 @@ int main(int argc, char **argv) {
     //    config; toJSON() serialises that genome's parameters.
 
     {
-        std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-            new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-        );
+        auto const gfi_ptr =
+            std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
 
         std::shared_ptr<gen::GGenome> const gfi_test = gfi_ptr->get();
 

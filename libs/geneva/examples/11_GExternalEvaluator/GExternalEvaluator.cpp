@@ -62,10 +62,8 @@ int main(int argc, char **argv) {
 
         // Create a factory for GExternalEvaluatorIndividual objects and perform
         // any necessary initial work.
-        std::shared_ptr<gind::GExternalEvaluatorIndividualFactory> const geei_ptr(
-            new gind::GExternalEvaluatorIndividualFactory(
-                "./config/GExternalEvaluatorIndividual.json"
-            )
+        auto const geei_ptr = std::make_shared<gind::GExternalEvaluatorIndividualFactory>(
+            "./config/GExternalEvaluatorIndividual.json"
         );
 
         // Add a content creator so Go2 can generate its own individuals, if necessary^

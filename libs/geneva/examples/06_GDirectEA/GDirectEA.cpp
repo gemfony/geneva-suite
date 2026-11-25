@@ -331,9 +331,7 @@ int main(int argc, char **argv) {
     // clang-format off
     //! [algo-ea:direct-setup]
     // Create an empty population
-    std::shared_ptr<oa::GEvolutionaryAlgorithm> const pop_ptr(
-        new oa::GEvolutionaryAlgorithm()
-    );
+    auto const pop_ptr = std::make_shared<oa::GEvolutionaryAlgorithm>();
 
     // General settings
     pop_ptr->setPopulationSizes(populationSize, nParents);

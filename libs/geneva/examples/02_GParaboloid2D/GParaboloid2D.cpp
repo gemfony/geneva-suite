@@ -61,7 +61,7 @@ int main(int argc, char **argv) {
         Go2 go(geneva);
 
         // Make an individual known to the optimizer
-        std::shared_ptr<GParaboloidIndividual2D> const p(new GParaboloidIndividual2D());
+        auto const p = std::make_shared<GParaboloidIndividual2D>();
         go.push_back(p);
 
         // The genome carries only structure; its Gauss adaptors live on an OA-owned
