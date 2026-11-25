@@ -144,8 +144,8 @@ int main(int argc, char **argv) {
     auto produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
         // Create a factory for GNeuralNetworkIndividual objects and perform
         // any necessary initial work.
-        std::shared_ptr<gind::GNeuralNetworkIndividualFactory> const gnn_ptr(
-            new gind::GNeuralNetworkIndividualFactory("./config/GNeuralNetworkIndividual.json")
+        auto const gnn_ptr = std::make_shared<gind::GNeuralNetworkIndividualFactory>(
+            "./config/GNeuralNetworkIndividual.json"
         );
 
         // Add a content creator so Go2 can generate its own individuals, if necessary

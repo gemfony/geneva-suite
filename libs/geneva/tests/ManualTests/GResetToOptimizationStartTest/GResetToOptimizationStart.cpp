@@ -60,8 +60,8 @@ int main(int argc, char **argv) {
             //---------------------------------------------------------------------------
             // Create a factory for GFunctionIndividual objects and perform
             // any necessary initial work.
-            std::shared_ptr<gind::GFunctionIndividualFactory> const gfif_ptr(
-                new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+            auto const gfif_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
+                "./config/GFunctionIndividual.json"
             );
 
             // Check that algorithms were indeed registered and fix, if this was not the case.

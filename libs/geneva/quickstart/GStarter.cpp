@@ -62,9 +62,8 @@ int main(int argc, char **argv) {
 
         // Create a factory for GStarterIndividual objects and perform
         // any necessary initial work.
-        std::shared_ptr<GStarterIndividualFactory> gsif_ptr(
-            new GStarterIndividualFactory("./config/GStarterIndividual.json")
-        );
+        auto gsif_ptr =
+            std::make_shared<GStarterIndividualFactory>("./config/GStarterIndividual.json");
 
         // Add a content creator so Go2 can generate its own individuals if necessary
         go.registerContentCreator(gsif_ptr);

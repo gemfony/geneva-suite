@@ -82,20 +82,17 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-        new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-    );
+    auto const gfi_ptr =
+        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
 
     //---------------------------------------------------------------------------
     // Register a post-processor, if this was requested by the user
     // clang-format off
     //! [results-postprocessor]
     if(usePostProcessor) {
-        std::shared_ptr<GEvolutionaryAlgorithmPostOptimizer> const eaPostOptimizer_ptr(
-            new GEvolutionaryAlgorithmPostOptimizer(
+        auto const eaPostOptimizer_ptr = std::make_shared<GEvolutionaryAlgorithmPostOptimizer>(
                 "./config/GPostEvolutionaryAlgorithm.json"
-            )
-        );
+            );
 
         // Make sure only evolutionary algorithms may perform postprocessing
         eaPostOptimizer_ptr->allowPostProcessingFor("ea");

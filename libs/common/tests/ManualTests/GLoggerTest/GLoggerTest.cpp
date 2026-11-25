@@ -70,7 +70,7 @@ int main(int argc, char **argv) {
         return 0; // Do not continue
     }
 
-    std::shared_ptr<GBaseLogTarget> const gcl_ptr(new GConsoleLogger());
+    std::shared_ptr<GBaseLogTarget> const gcl_ptr = std::make_shared<GConsoleLogger>();
     // The log as plain text in records/GLoggerTest.log
     std::shared_ptr<GBaseLogTarget> const gfl_ptr = std::make_shared<GRecordLogTarget>(
         "GLoggerTest",

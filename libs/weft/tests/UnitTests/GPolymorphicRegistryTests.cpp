@@ -245,6 +245,8 @@ public:
     }
     // A public maker that reaches the private ctor from inside the class.
     static std::unique_ptr<PrivRoot> make() {
+        // The test needs PrivDer's constructor private, so make_unique cannot reach it.
+        // NOLINTNEXTLINE(modernize-make-unique)
         return std::unique_ptr<PrivRoot>(new PrivDer());
     }
 

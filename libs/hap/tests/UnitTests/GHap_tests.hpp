@@ -124,9 +124,7 @@ public:
             constexpr std::int32_t MINRANDOM = -10;
             constexpr std::int32_t MAXRANDOM = 10;
 
-            std::shared_ptr<GRandomT<Gem::Hap::randomSource::LOCAL>> gr_ptr(
-                new Gem::Hap::GRandomT<Gem::Hap::randomSource::LOCAL>()
-            );
+            auto gr_ptr = std::make_shared<Gem::Hap::GRandomT<Gem::Hap::randomSource::LOCAL>>();
             std::uniform_int_distribution<std::int32_t> uniform_int_distribution(
                 MINRANDOM,
                 MAXRANDOM
@@ -165,9 +163,7 @@ public:
             constexpr std::int32_t MINRANDOM = -10;
             constexpr std::int32_t MAXRANDOM = 10;
 
-            std::shared_ptr<GRandomT<Gem::Hap::randomSource::QUEUE>> gr_ptr(
-                new Gem::Hap::GRandomT<Gem::Hap::randomSource::QUEUE>()
-            );
+            auto gr_ptr = std::make_shared<Gem::Hap::GRandomT<Gem::Hap::randomSource::QUEUE>>();
             std::uniform_int_distribution<std::int32_t> uniform_int_distribution(
                 MINRANDOM,
                 MAXRANDOM
@@ -202,9 +198,7 @@ public:
         //------------------------------------------------------------------------------
 
         { // Check that using extreme values for the boundaries of uniform_int(min,max) and producing random numbers doesn't throw in randomSource::LOCAL mode
-            std::shared_ptr<GRandomT<Gem::Hap::randomSource::LOCAL>> gr_ptr(
-                new Gem::Hap::GRandomT<Gem::Hap::randomSource::LOCAL>()
-            );
+            auto gr_ptr = std::make_shared<Gem::Hap::GRandomT<Gem::Hap::randomSource::LOCAL>>();
             std::uniform_int_distribution<std::int32_t> uniform_int_distribution(
                 -(std::numeric_limits<std::int32_t>::max)(),
                 (std::numeric_limits<std::int32_t>::max)()
@@ -219,9 +213,7 @@ public:
         //------------------------------------------------------------------------------
 
         { // Check that using extreme values for the boundaries of uniform_int(min,max) and producing random numbers doesn't throw in randomSource::QUEUE mode
-            std::shared_ptr<GRandomT<Gem::Hap::randomSource::QUEUE>> gr_ptr(
-                new Gem::Hap::GRandomT<Gem::Hap::randomSource::QUEUE>()
-            );
+            auto gr_ptr = std::make_shared<Gem::Hap::GRandomT<Gem::Hap::randomSource::QUEUE>>();
             std::uniform_int_distribution<std::int32_t> uniform_int_distribution(
                 -(std::numeric_limits<std::int32_t>::max)(),
                 (std::numeric_limits<std::int32_t>::max)()

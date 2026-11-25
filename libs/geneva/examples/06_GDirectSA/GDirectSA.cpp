@@ -316,7 +316,7 @@ int main(int argc, char **argv) {
 
     //! [sa-direct-setup#1]
     // Create an empty population
-    std::shared_ptr<oa::GSimulatedAnnealing> const pop_ptr(new oa::GSimulatedAnnealing());
+    auto const pop_ptr = std::make_shared<oa::GSimulatedAnnealing>();
 
     // General settings
     pop_ptr->setPopulationSizes(populationSize, nParents);

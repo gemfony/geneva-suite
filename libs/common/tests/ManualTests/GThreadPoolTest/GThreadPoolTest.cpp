@@ -218,7 +218,7 @@ int main(int argc, char **argv) {
     // Create a number of test tasks
     std::vector<std::shared_ptr<testTask>> tasks(nJobs);
     for(std::size_t i = 0; i < nJobs; i++) {
-        tasks.at(i).reset(new testTask);
+        tasks.at(i) = std::make_shared<testTask>();
     }
 
     // Submit each task to the pool a number of times

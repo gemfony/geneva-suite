@@ -150,8 +150,8 @@ std::shared_ptr<float[]> GTestIndividual3::getPlainData() const {
         10 * GTI_DEF_NITEMS
     );
 
-    // The array-aware shared_ptr<float[]> uses delete[] by itself -- no custom deleter needed
-    std::shared_ptr<float[]> result(new float[10 * GTI_DEF_NITEMS]);
+    // make_shared for an array builds a shared_ptr<float[]> that releases it with delete[]
+    auto result = std::make_shared<float[]>(10 * GTI_DEF_NITEMS);
     for(std::size_t m = 0; m < 10 * GTI_DEF_NITEMS; m++) {
         result[m] = Gem::Common::narrow<float>(par_vec[m]);
     }

@@ -55,9 +55,8 @@ int optimize(Go2 &go) {
     // Register a content creator so Go2 can populate the algorithms with
     // GFunctionIndividual objects (no problem-specific individual or factory has
     // to be written for this example -- both come from the Geneva library).
-    std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-        new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-    );
+    auto const gfi_ptr =
+        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
     go.registerContentCreator(gfi_ptr);
 
     // The genome carries only structure; the configured Gauss adaptor lives on an OA-owned config the

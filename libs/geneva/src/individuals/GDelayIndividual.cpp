@@ -354,7 +354,7 @@ GDelayIndividual::tupleToTime(const std::tuple<unsigned int, unsigned int> &time
  */
 std::shared_ptr<GDelayIndividual>
 GDelayIndividual::create(const Config &c, const std::chrono::duration<double> &sleepTime) {
-    std::shared_ptr<GDelayIndividual> p(new GDelayIndividual());
+    auto p = std::make_shared<GDelayIndividual>();
 
     p->setFixedSleepTime(sleepTime);
     p->setMayCrash(c.may_crash, c.throw_likelihood);
