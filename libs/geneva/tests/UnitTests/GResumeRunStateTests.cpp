@@ -58,6 +58,7 @@
 #include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
+#include "geneva/oa/GNelderMead.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 
@@ -608,4 +609,36 @@ TEST_CASE(
         other_size.optimize(other_size.getIteration() + 1),
         Catch::Matchers::ContainsSubstring("does not fit the population")
     );
+}
+
+/******************************************************************************/
+
+TEST_CASE("A resumed Nelder-Mead goes on with its simplices", "[oa][resume]") {
+    oa::GNelderMead run;
+    run.setNSimplices(2);
+    auto const cp = runToCheckpoint(run);
+    oa::GNelderMead saved;
+    saved.loadCheckpoint(cp);
+
+    // The simplices and the pending trials of the checkpoint, which the first iteration of the
+    // resumed run decides on
+    auto const resumed = resumedSetupOf<oa::GNelderMead>(cp);
+    CHECK(positions(resumed) == positions(saved));
+    CHECK(member(resumed, "trials_pending_") == "true");
+    checkRoundTrips(resumed);
+
+    // Another number of simplices cannot go on with this population
+    oa::GNelderMead other_size;
+    other_size.loadCheckpoint(cp);
+    fs::remove_all(cp.parent_path());
+    other_size.setNSimplices(3);
+    CHECK_THROWS_WITH(
+        other_size.optimize(other_size.getIteration() + 1),
+        Catch::Matchers::ContainsSubstring("does not fit the population")
+    );
+
+    // A new run builds its simplices afresh and proposes its first trials in its second iteration
+    auto const started = newSetupOf(run);
+    CHECK(member(started, "trials_pending_") == "false");
+    CHECK(positions(started) != positions(saved));
 }
