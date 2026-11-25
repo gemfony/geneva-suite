@@ -46,6 +46,7 @@
 // Boost header files go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"
@@ -183,20 +184,20 @@ public:
 
     /***************************************************************************/
     /**
-	  * Triggers the creation of objects of the desired type and converts them
-	  * to a given target type. Throws if production yields nothing; without
-	  * NDEBUG also if the conversion is unsuccessful.
+	  * Produces a freshly configured algorithm and converts it to a given target type -- the way to
+	  * an algorithm through a factory. Without a template argument it returns the algorithm as
+	  * oa_type, so get() means the same through this factory as through its GFactoryT<oa_type> base.
+	  * Throws if production yields nothing (see get_()); without NDEBUG also if the conversion is
+	  * unsuccessful.
 	  *
-	  * @tparam target_type The type the produced algorithm should be converted to
+	  * @tparam target_type The type the produced algorithm should be converted to (oa_type by default)
 	  * @return A converted copy of the desired production type
 	  */
-    template <typename target_type>
+    template <typename target_type = oa_type>
     std::shared_ptr<target_type> get() {
-        std::shared_ptr<oa_type> const p = Gem::Common::GFactoryT<oa_type>::get();
-        if(not p) {
-            throw gem_exception(g_error_streamer() << "the factory produced no algorithm" << '\n');
-        }
-        return Gem::Common::g_ptr_conversion<oa_type, target_type>(p);
+        return Gem::Common::g_ptr_conversion<oa_type, target_type>(
+            Gem::Common::GFactoryT<oa_type>::get()
+        );
     }
 
     /***************************************************************************/
@@ -394,13 +395,15 @@ protected:
     /***************************************************************************/
     /**
       * Triggers the creation of objects of the desired type with the preset
-      * parallelization mode.
+      * parallelization mode. Throws gem_exception if the base produced no algorithm.
       *
       * @return An object of the desired algorithm type
       */
     std::shared_ptr<oa_type> get_() override {
         // Retrieve a work item using the methods implemented in our parent class
         std::shared_ptr<oa_type> p_alg = Gem::Common::GFactoryT<oa_type>::get_();
+        // Checked here, so that get(), get<target_type>() and provide() refuse an empty product alike
+        Gem::Common::checkThat(p_alg != nullptr, "the factory produced no algorithm");
 
         // If we have been given a factory function for individuals, fill the object with data
         if(

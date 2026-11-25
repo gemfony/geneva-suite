@@ -867,6 +867,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   source-breaking where the result was used): a result is read in the same expression,
   `go.optimize().getBestGlobalIndividual<T>()` instead of `go.optimize()->...`; a call that ignores
   the return is unchanged. An algorithm's `optimize()` returns `GOptimizationAlgorithmBase &`.
+- **geneva: an algorithm factory's `get()` works without a template argument.**
+  `GOAFactoryT::get<target_type>()` defaults `target_type` to the factory's product type, so
+  `factory.get()` compiles on a concrete factory (it did not: the member template hid the base's
+  `get()`) and returns what `get()` returns through the `GFactoryT` base. `get<T>()` is the way to
+  an algorithm; `provide()` stays as the algorithm store's interface. All three refuse an empty
+  product with `gem_exception` (before, only `get<T>()` did).
 - **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
   read it.
 
