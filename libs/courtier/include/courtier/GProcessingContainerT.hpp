@@ -524,10 +524,8 @@ private:
     /***************************************************************************/
 
     /** @brief Allows derived classes to specify the tasks to be performed for this object
-     *  @param res_vec An optional externally injected evaluation result vector available to the implementation */
-    virtual void process_(
-        const std::vector<processing_result_type> &res_vec = std::vector<processing_result_type>()
-    ) = 0;
+     *  @param res_vec An externally injected evaluation result vector, empty if none was injected */
+    virtual void process_(const std::vector<processing_result_type> &res_vec) = 0;
 
     /***************************************************************************/
     /**

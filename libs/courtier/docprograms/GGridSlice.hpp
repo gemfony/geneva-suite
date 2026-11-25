@@ -96,7 +96,7 @@ private:
     GGridSlice() = default; ///< For deserialization
 
     /** @brief Evaluates f on the slice's points and keeps the smallest value and its point */
-    void process_(const std::vector<double> & /*res_vec*/ = std::vector<double>()) override {
+    void process_(const std::vector<double> & /*res_vec*/) override {
         double x_min = lo_;
         double f_min = f(lo_);
         for(std::size_t i = 1; i < n_; ++i) {

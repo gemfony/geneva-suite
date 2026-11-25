@@ -270,7 +270,7 @@ public:
 
 private:
     /** @brief Throws if the item was built to fail, registers a result otherwise */
-    void process_([[maybe_unused]] const std::vector<bool> &res_vec = std::vector<bool>()) final {
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) final {
         if(fail_) {
             throw std::runtime_error("ShapeItem: built to fail");
         }
@@ -408,7 +408,7 @@ public:
 
 private:
     /** @brief Throws while failures are left, registers a result otherwise */
-    void process_([[maybe_unused]] const std::vector<bool> &res_vec = std::vector<bool>()) final {
+    void process_([[maybe_unused]] const std::vector<bool> &res_vec) final {
         if(failures_left_ > 0) {
             --failures_left_;
             throw std::runtime_error("FlakyItem: built to fail");

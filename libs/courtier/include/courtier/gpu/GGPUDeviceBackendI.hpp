@@ -71,7 +71,7 @@ public:
      *  @p pconst is an opaque problem-constant blob; writes n_items scalar_type into @p results_out.
      *  @p threads_per_item requests intra-item (e.g. pixel-level) parallelism: a backend that supports
      *  it launches n_items * threads_per_item threads and the kernel accumulates each item's result
-     *  (the backend zeroes results_out first); the default 1 is one thread per item (overwrite).
+     *  (the backend zeroes results_out first); 1 is one thread per item (overwrite).
      *
      *  @param params Pointer to the flattened parameter buffer (n_items * dim, row-major)
      *  @param n_items Number of work items in the batch
@@ -79,7 +79,7 @@ public:
      *  @param pconst Pointer to the opaque problem-constant blob (may be ignored by a kernel)
      *  @param pconst_size Size in bytes of the problem-constant blob
      *  @param results_out Output buffer receiving n_items result values
-     *  @param threads_per_item Requested intra-item parallelism (default 1 == one thread per item) */
+     *  @param threads_per_item Requested intra-item parallelism (1 == one thread per item) */
     virtual void evaluate(
         const scalar_type *params,
         int n_items,
@@ -87,7 +87,7 @@ public:
         const std::byte *pconst,
         std::size_t pconst_size,
         scalar_type *results_out,
-        int threads_per_item = 1
+        int threads_per_item
     ) = 0;
 
     /** @brief A short human-readable backend name (for logging).
