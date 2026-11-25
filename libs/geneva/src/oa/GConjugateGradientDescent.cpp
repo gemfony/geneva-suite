@@ -1229,7 +1229,7 @@ std::shared_ptr<GPersonalityTraits> GConjugateGradientDescent::getPersonalityTra
  * @brief Resizes the population to the desired level and does some error checks. The population is
  * n_starting_points_ * (n_fp_parms_first_ * n_probes + 1) individuals, where n_probes is 1 (forward
  * difference) or 2 (central difference): each starting point plus its perturbed difference-quotient
- * children.
+ * children. A run resumed from a checkpoint keeps the population of the checkpoint.
  */
 void GConjugateGradientDescent::adjustPopulation_() {
     // Non-empty population + at least one active FP parameter; logs a note for int/bool riders
@@ -1253,6 +1253,19 @@ void GConjugateGradientDescent::adjustPopulation_() {
     GOptimizationAlgorithmBase::setDefaultPopulationSize(
         n_starting_points_ * (children_per_sp + 1)
     );
+
+    // A run resumed from a checkpoint goes on with its starting points and their evaluated
+    // difference-quotient children: the first iteration of the job steps from them
+    if(this->resumedFromCheckpoint()) {
+        checkThat(
+            this->size() == this->getDefaultPopulationSize(),
+            "The population of the checkpoint does not fit the population: expected ",
+            this->getDefaultPopulationSize(),
+            " individuals, found ",
+            this->size()
+        );
+        return;
+    }
 
     // Create the requested number of (randomized) starting points
     if(n_start < n_starting_points_) {

@@ -544,6 +544,7 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
     halted_ = true; // Also means: No optimization is currently running
     resumed_from_checkpoint_ =
         false; // The state a checkpoint supplied is gone: the next run starts its records anew
+    continues_run_ = false;
 
     worst_known_valids_cnt_
         .clear(); // Stores the worst known valid evaluations up to the current iteration (first entry: raw, second: tranformed)
@@ -567,6 +568,9 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
 
     // Set the iteration offset
     offset_ = offset;
+
+    // A job resumed from a checkpoint goes on with a run that is past its first iteration
+    continues_run_ = resumed_from_checkpoint_;
 
     // Store any *clean* individuals that have been added to this algorithm
     // in the priority queue. This happens so that best individuals from a
@@ -1501,23 +1505,25 @@ void GOptimizationAlgorithmBase::addCleanStoredBests(
 
 /******************************************************************************/
 /**
- * A little helper function that determines whether we are currently inside of the first
- * iteration
+ * Determines whether this is the first iteration of the run as a whole. A job resumed from a
+ * checkpoint goes on with a run that is past its first iteration, so its first iteration is none:
+ * the population, the bests and the run state of the algorithm come from the checkpoint.
  *
- * @return A boolean indicating whether we are inside of the first iteration
+ * @return A boolean indicating whether this is the first iteration of the run
  */
 bool GOptimizationAlgorithmBase::inFirstIteration() const {
-    return iteration_ == offset_;
+    return iteration_ == offset_ && not continues_run_;
 }
 
 /******************************************************************************/
 /**
- * A little helper function that determines whether we are after the first iteration
+ * Determines whether the run as a whole is past its first iteration; in a job resumed from a
+ * checkpoint it always is (see inFirstIteration()).
  *
- * @return A boolean indicating whether we are after the first iteration
+ * @return A boolean indicating whether the run is past its first iteration
  */
 bool GOptimizationAlgorithmBase::afterFirstIteration() const {
-    return iteration_ > offset_;
+    return not inFirstIteration();
 }
 
 /******************************************************************************/

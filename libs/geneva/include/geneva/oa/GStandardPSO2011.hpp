@@ -93,8 +93,8 @@ constexpr std::size_t DEFAULTSPSOK = 3; ///< The default number of particles eac
  * i.e. the best personal best among all particles that inform \f$i\f$.
  *
  * The topology is regenerated at the start of an iteration <em>only if</em> the swarm's global best did
- * not improve during the previous iteration (and it is generated once on the first iteration). A
- * stagnating swarm therefore reshuffles its communication graph, which helps it escape local optima.
+ * not improve during the previous iteration (and it is generated on the first iteration of every job).
+ * A stagnating swarm therefore reshuffles its communication graph, which helps it escape local optima.
  *
  * @par Velocity and position update
  * SPSO-2011 uses the constants
@@ -304,7 +304,8 @@ private:
     std::vector<std::vector<bool>> informs_;
 
     /// transient: whether the global best improved in the previous iteration; it gates the topology
-    /// rebuild of the next one, and the first iteration of every job rebuilds the topology anyway
+    /// rebuild of the next one. init() clears it, so the first iteration of every job builds the
+    /// topology
     bool global_best_improved_ = true;
 };
 

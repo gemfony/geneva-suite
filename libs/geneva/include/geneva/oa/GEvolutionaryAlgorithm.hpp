@@ -402,9 +402,6 @@ private:
     /// transient: the offspring success rate (fraction of children beating their own parent),
     /// measured anew before selection reorders the population (see measureOffspringSuccess_)
     double last_p_success_ = 0.;
-    /// transient: whether at least one generation's success rate has been measured (warm-up guard);
-    /// the first generation of every job, a resumed one as well, measures none
-    bool controller_warmed_up_ = false;
     /// transient: the adapted dimension n the controller reasons about, derived from the adaption
     /// config in init()
     std::size_t controller_dim_ = 0;

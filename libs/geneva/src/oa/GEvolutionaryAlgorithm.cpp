@@ -470,7 +470,6 @@ void GType::installStepController() {
         // config's seed sigma, which GParChild::init() just installed. A resumed run goes on with
         // the global sigma and the evolution path of its checkpoint.
         last_p_success_ = 0.;
-        controller_warmed_up_ = false;
         if(not this->resumedFromCheckpoint()) {
             p_sigma_ = 0.;
             global_sigma_ =
@@ -557,9 +556,10 @@ void GType::driveGlobalSigmaController() {
     // the fraction of children that beat their own parent -- the textbook Rechenberg signal.
     const double p_success = last_p_success_;
 
-    // Skip the very first measured generation (warm-up): measureOffspringSuccess_ leaves last_p_success_
-    // at 0 in iteration 0, which would otherwise spuriously shrink sigma before any real signal exists.
-    if(controller_warmed_up_) {
+    // Skip the first generation of a run (warm-up): measureOffspringSuccess_ leaves last_p_success_ at
+    // 0 there, which would otherwise spuriously shrink sigma before any real signal exists. A run
+    // resumed from a checkpoint has a parent-child lineage in its first generation and measures it.
+    if(this->afterFirstIteration()) {
         if(step_control_ == stepControl::ONE_FIFTH) {
             // Rechenberg 1/5 success rule: grow sigma while more than 1/5 of the offspring improve on
             // their parent, shrink it otherwise. A responsive damping lets sigma track the success rate.
@@ -593,8 +593,6 @@ void GType::driveGlobalSigmaController() {
     for(auto const &slot : *this) {
         writeGlobalSigma(slot->scratch(), *cfg, global_sigma_);
     }
-
-    controller_warmed_up_ = true;
 }
 
 /******************************************************************************/
