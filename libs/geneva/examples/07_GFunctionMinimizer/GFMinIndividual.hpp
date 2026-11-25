@@ -131,7 +131,7 @@ public:
     /** @brief A standard copy constructor */
     GFMinIndividual(const GFMinIndividual &);
     /** @brief The standard destructor */
-    virtual ~GFMinIndividual();
+    ~GFMinIndividual() override;
 
     /** @brief Allows to set the demo function */
     void setTargetFunction(targetFunction);

@@ -188,7 +188,7 @@ public:
         GProcessingContainerT<processable_type, processing_result_type> &&
     ) noexcept = default;
 
-    virtual ~GProcessingContainerT() = default;
+    ~GProcessingContainerT() override = default;
 
     /***************************************************************************/
     /**
