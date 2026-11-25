@@ -369,7 +369,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   interface. The default, 0.0.0.0 (every IPv4 interface), is where the server always listened
   before. An address that is no IP address, or of no interface of the host,
   ends the server's start with an error that names it. `--beast_ip` stays the address under which
-  the clients reach the server.
+  the clients reach the server. Geneva assumes a trusted network (INSTALL, "Distributed runs need
+  a trusted network").
 - **A websocket client connects again.** It may be started before its server: a failed attempt
   is followed by another after a pause that grows from 0.25 to 30 s, until
   `--beast_firstContactLimit` seconds (default 0: no limit) pass without contact (the server's
