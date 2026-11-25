@@ -64,6 +64,11 @@ struct GWebsocketConsumerConfig {
     /// The command line's default is GCONSUMERDEFAULTPORT instead: there server and client are
     /// two processes and have to agree on a port without being told
     unsigned short port = 0;
+    /// Server: the IP address it listens on, IPv4 or IPv6, not a host name: "0.0.0.0" (the
+    /// default) every IPv4 interface, "::" every IPv6 interface (on Linux usually IPv4 as well),
+    /// "127.0.0.1" this host only (clients that come through an ssh tunnel), or the address of one
+    /// interface (a cluster's internal network)
+    std::string listenAddress = GCONSUMERDEFAULTLISTENADDRESS;
     /// Both: the serialization of work items on the wire
     Gem::Common::serializationMode serializationMode = GCONSUMERSERIALIZATIONMODE;
     /// Server: the number of io threads, and of the threads the sessions run on (they encode and

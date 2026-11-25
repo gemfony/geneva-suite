@@ -67,6 +67,8 @@ constexpr std::chrono::milliseconds LISTENER_STOP_BOUND{1000};
  * Prepares the listener; nothing happens before start().
  *
  * @param name The owner's name, for the log and for the thread budget ("<name>:io")
+ * @param listen_address The IP address to listen on, IPv4 or IPv6 ("0.0.0.0": every IPv4
+ *        interface); checked by start()
  * @param port The port to listen on; 0 lets the system choose (see getPort())
  * @param options How the peer of every connection is set up (name, frame type, control-frame
  *        logging, ping interval)
@@ -75,12 +77,14 @@ constexpr std::chrono::milliseconds LISTENER_STOP_BOUND{1000};
  */
 GWebsocketListener::GWebsocketListener(
     std::string name,
+    std::string listen_address,
     unsigned short port,
     GWebsocketPeer::GOptions options,
     std::size_t n_threads,
     std::chrono::milliseconds stop_grace
 )
   : name_(std::move(name))
+  , listen_address_(std::move(listen_address))
   , port_(port)
   , options_(std::move(options))
   , n_threads_(
@@ -108,15 +112,17 @@ GWebsocketListener::~GWebsocketListener() {
 
 /******************************************************************************/
 /**
- * Opens the acceptor on the port, binds and listens, writes the bound port back, starts the I/O
- * threads and arms the first accept. If the port cannot be had, or not every I/O thread can be
+ * Opens the acceptor on the address and port, binds and listens, writes the bound port back,
+ * starts the I/O threads and arms the first accept. If the address or the port cannot be had, or not every I/O thread can be
  * made, the acceptor is closed again, no thread runs and nothing of @p executor and @p on_peer is
- * kept (GListenerI::start()).
+ * kept (GListenerI::start()). The address is IPv4 or IPv6; one that is no IP address (a host name
+ * included) or that belongs to no interface of this host makes the start fail with a message that
+ * names it.
  *
  * @param executor Where the peers' handlers run (the shell's session pool)
  * @param on_peer Called for every accepted connection, on the accept strand (an I/O thread)
- * @throws gem_exception if the acceptor cannot be opened, bound or set to listen, or if the I/O
- *         threads cannot be started
+ * @throws gem_exception if the address is no IP address, if the acceptor cannot be opened, bound
+ *         or set to listen, or if the I/O threads cannot be started
  */
 void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_type on_peer) {
     const auto fail = [this](std::string_view what, const error_code &ec) {
@@ -128,7 +134,14 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
     };
 
     error_code ec;
-    const tcp::endpoint endpoint{tcp::v4(), port_.load()};
+    const auto address = boost::asio::ip::make_address(listen_address_, ec);
+    if(ec) {
+        fail("the listening address \"" + listen_address_ + "\" is no IP address", ec);
+    }
+    const tcp::endpoint endpoint{address, port_.load()};
+    // "port <n>" first: runWithClients.sh of the parallelisation benchmark looks for "could not
+    // bind to port" to try the next port (pinned by GCourtierWebsocketTransportTests)
+    const std::string where = "port " + std::to_string(endpoint.port()) + " on " + listen_address_;
     std::ignore = acceptor_.open(endpoint.protocol(), ec); // returned ec duplicates the out-param
     if(ec || not acceptor_.is_open()) {
         fail("could not open the acceptor", ec);
@@ -136,11 +149,11 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
     std::ignore = acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
     std::ignore = acceptor_.bind(endpoint, ec);
     if(ec) {
-        fail("could not bind to port " + std::to_string(endpoint.port()), ec);
+        fail("could not bind to " + where, ec);
     }
     std::ignore = acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
     if(ec) {
-        fail("could not listen on port " + std::to_string(endpoint.port()), ec);
+        fail("could not listen on " + where, ec);
     }
     // If port 0 was asked for, this is the port the system has chosen.
     port_.store(acceptor_.local_endpoint().port());

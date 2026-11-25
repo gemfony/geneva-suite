@@ -196,6 +196,9 @@ TEST_CASE("the defaults of the consumer configurations", "[courtier][config]") {
     CHECK_FALSE(beast.verboseControlFrames);
     CHECK(beast.clientPrefetchDepth == 1);
     CHECK(beast.ip == Gem::Courtier::GCONSUMERDEFAULTSERVER);
+    // The server listens on every IPv4 interface
+    CHECK(beast.listenAddress == "0.0.0.0");
+    CHECK(beast.listenAddress == Gem::Courtier::GCONSUMERDEFAULTLISTENADDRESS);
 
     // The MQTT consumer meets its clients on a broker on this host, under the prefix "gem"
     const GMqttConsumerConfig mqtt{};

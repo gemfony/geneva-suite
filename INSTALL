@@ -162,8 +162,9 @@ starts none; --mqtt_ip and --mqtt_port name it (default 127.0.0.1:1883).
    clients and evaluations of 10 ms the speed-up was 1.6 instead of websocket's
    6.0. With it, 402 clients reached 203 (websocket 286) at 10 ms and the same as
    websocket from about 1 s on.
- - Server and clients connect anonymously and without encryption, as the
-   websocket consumer does: run the broker on a trusted network only.
+ - Server and clients connect anonymously and without encryption: run the
+   broker on a trusted network only (see "Distributed runs need a trusted
+   network" below).
  - A run with N clients takes 2N+1 broker connections: one of each client, one
    of the server for each client, and the server's own for the joins. The 1024
    open files a broker started by systemd may have suffice for about 500 clients;
@@ -361,6 +362,28 @@ with a file /etc/ld.so.conf.d/geneva.conf that names them, one per line,
 followed by "sudo ldconfig", or per session:
 
 export LD_LIBRARY_PATH="/opt/geneva/lib:$LD_LIBRARY_PATH"
+
+
+Distributed runs need a trusted network
+=======================================
+
+Geneva assumes, as MPI does, that the processes of a distributed run talk to
+each other over a trusted network: a cluster's internal network, or a
+connection protected by a VPN or an ssh tunnel. Its websocket and MQTT
+consumers, like MPI itself, neither authenticate their peers nor encrypt their
+traffic.
+
+ - The ports of a websocket server and of an MQTT broker are never open to the
+   internet.
+ - Whoever can send on the network can hand the server arbitrary work items or
+   results, which the server deserializes.
+ - Modules (--module, --individual) are code; checkpoints and configuration
+   files are inputs. Load them only from trusted sources.
+ - Whoever needs protection runs clients and server through a VPN or an ssh
+   tunnel. The websocket server listens on every IPv4 interface by default;
+   --beast_listenAddress 127.0.0.1 restricts it to the server's own host, which
+   is all a tunnel needs, and the address of one interface (a cluster's
+   internal network, say) restricts it to that interface.
 
 
 Consuming Geneva from your own project
