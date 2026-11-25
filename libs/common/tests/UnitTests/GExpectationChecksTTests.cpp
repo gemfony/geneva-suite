@@ -29,7 +29,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <array>
 #include <chrono>
+#include <deque>
+#include <list>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <string>
@@ -183,7 +187,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): tribool — special overload, declared in the header.
+// compare(): tribool — an enum, compared as a value.
 
 TEST_CASE("compare<tribool>: equal values + EQUALITY pass", "[common][expectations][compare]") {
     CHECK_NOTHROW(compare(tribool::True, tribool::True, "a", "b", expectation::EQUALITY));
@@ -253,7 +257,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): vector<fp> overload — element-wise comparison with tolerance.
+// compare(): vector<fp> — element-wise comparison with tolerance.
 
 TEST_CASE(
     "compare<vector<double>>: equal vectors + EQUALITY pass",
@@ -431,7 +435,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): shared_ptr<gem_type> overload.
+// compare(): a shared_ptr<gem_type>, through its pointee.
 
 TEST_CASE(
     "compare<shared_ptr<gem_type>>: both null + EQUALITY pass",
@@ -470,7 +474,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): container<shared_ptr<gem_type>> overload — vector<shared_ptr>.
+// compare(): a vector<shared_ptr<gem_type>>, element by element through the pointees.
 
 TEST_CASE(
     "compare<vector<shared_ptr<gem_type>>>: identical contents + EQUALITY pass",
@@ -600,7 +604,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): non-FP container (vector<int>) — exercises the basic-type container overload
+// compare(): a container of values (vector<int>)
 
 TEST_CASE(
     "compare<vector<int>>: equal vectors + EQUALITY pass",
@@ -648,7 +652,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// compare(): set<int> — exercises the set/sorted-container overload
+// compare(): a sorted container (set<int>)
 
 TEST_CASE("compare<set<int>>: equal sets + EQUALITY pass", "[common][expectations][compare]") {
     std::set<int> const a{1, 2, 3};
@@ -744,4 +748,195 @@ TEST_CASE(
         std::make_shared<CmpObj>(2)
     };
     CHECK_THROWS_AS(compare(a, b, "a", "b", expectation::INEQUALITY, 0.), g_expectation_violation);
+}
+
+// ---------------------------------------------------------------------------
+// compare() over containers of every shape and element kind: each with an expected equality and an
+// expected difference, under EQUALITY / FP_SIMILARITY and under INEQUALITY.
+
+namespace {
+
+/** Checks that compare() of a and b meets EQUALITY and fails INEQUALITY. */
+template <typename T>
+void checkEqual(T const &a, T const &b) {
+    CHECK_NOTHROW(compare(a, b, "a", "b", expectation::EQUALITY));
+    CHECK_NOTHROW(compare(a, b, "a", "b", expectation::FP_SIMILARITY));
+    CHECK_THROWS_AS(compare(a, b, "a", "b", expectation::INEQUALITY), g_expectation_violation);
+}
+
+/** Checks that compare() of a and b fails EQUALITY and FP_SIMILARITY and meets INEQUALITY. */
+template <typename T>
+void checkDifferent(T const &a, T const &b) {
+    CHECK_THROWS_AS(compare(a, b, "a", "b", expectation::EQUALITY), g_expectation_violation);
+    CHECK_THROWS_AS(compare(a, b, "a", "b", expectation::FP_SIMILARITY), g_expectation_violation);
+    CHECK_NOTHROW(compare(a, b, "a", "b", expectation::INEQUALITY));
+}
+
+/** Returns the message of the violation compare() of a and b throws under the expectation e. */
+template <typename T>
+std::string violationOf(T const &a, T const &b, expectation e, double limit) {
+    try {
+        compare(a, b, "a", "b", e, limit);
+    }
+    catch(g_expectation_violation const &g) {
+        return g.what();
+    }
+    return {};
+}
+
+} // namespace
+
+TEST_CASE(
+    "compare<deque / list of values>: equal and different",
+    "[common][expectations][compare]"
+) {
+    checkEqual(std::deque<int>{1, 2, 3}, std::deque<int>{1, 2, 3});
+    checkDifferent(std::deque<int>{1, 2, 3}, std::deque<int>{1, 2, 4});
+    checkDifferent(std::deque<int>{1, 2, 3}, std::deque<int>{1, 2});
+    checkEqual(std::list<int>{1, 2, 3}, std::list<int>{1, 2, 3});
+    checkDifferent(std::list<int>{1, 2, 3}, std::list<int>{0, 2, 3});
+    checkEqual(std::vector<std::string>{"x", "y"}, std::vector<std::string>{"x", "y"});
+    checkDifferent(std::vector<std::string>{"x", "y"}, std::vector<std::string>{"x", "z"});
+    checkEqual(std::vector<bool>{true, false}, std::vector<bool>{true, false});
+    checkDifferent(std::vector<bool>{true, false}, std::vector<bool>{true, true});
+}
+
+TEST_CASE(
+    "compare<deque / list / set of floating point>: tolerance only under FP_SIMILARITY",
+    "[common][expectations][compare]"
+) {
+    std::deque<double> const d{1.0, 2.0};
+    std::deque<double> const d_near{1.0, 2.0 + 1e-7};
+    checkEqual(d, d);
+    CHECK_NOTHROW(compare(d, d_near, "a", "b", expectation::FP_SIMILARITY, 1e-5));
+    CHECK_THROWS_AS(compare(d, d_near, "a", "b", expectation::EQUALITY), g_expectation_violation);
+    CHECK_NOTHROW(compare(d, d_near, "a", "b", expectation::INEQUALITY));
+    checkDifferent(d, std::deque<double>{1.0, 3.0});
+
+    std::list<float> const l{1.f, 2.f};
+    checkEqual(l, l);
+    checkDifferent(l, std::list<float>{1.f, 2.5f});
+    checkDifferent(l, std::list<float>{1.f});
+
+    std::set<double> const s{1.0, 2.0};
+    std::set<double> const s_near{1.0, 2.0 + 1e-7};
+    checkEqual(s, std::set<double>{1.0, 2.0});
+    CHECK_NOTHROW(compare(s, s_near, "a", "b", expectation::FP_SIMILARITY, 1e-5));
+    CHECK_THROWS_AS(compare(s, s_near, "a", "b", expectation::EQUALITY), g_expectation_violation);
+    checkDifferent(s, std::set<double>{1.0, 2.5});
+}
+
+TEST_CASE(
+    "compare<vector<double>>: a deviation beyond the limit names its position",
+    "[common][expectations][compare]"
+) {
+    std::vector<double> const a{1.0, 2.0, 3.0};
+    std::vector<double> const b{1.0, 2.0, 3.5};
+    CHECK(violationOf(a, b, expectation::FP_SIMILARITY, 1e-5).contains("a[2]"));
+    CHECK(violationOf(a, b, expectation::EQUALITY, 1e-5).contains("b[2]"));
+    CHECK(violationOf(a, a, expectation::INEQUALITY, 1e-5).contains("a"));
+}
+
+TEST_CASE(
+    "compare<deque<vector<int>>>: rows are compared one by one",
+    "[common][expectations][compare]"
+) {
+    std::deque<std::vector<int>> const a{{1, 2}, {3}};
+    checkEqual(a, std::deque<std::vector<int>>{{1, 2}, {3}});
+    checkDifferent(a, std::deque<std::vector<int>>{{1, 2}, {4}});
+    checkDifferent(a, std::deque<std::vector<int>>{{1, 2}, {3, 4}});
+    checkDifferent(a, std::deque<std::vector<int>>{{1, 2}});
+}
+
+TEST_CASE(
+    "compare<unique_ptr<gem_type>>: null and content are compared like a shared_ptr",
+    "[common][expectations][compare]"
+) {
+    std::unique_ptr<CmpObj> const null_a;
+    std::unique_ptr<CmpObj> const null_b;
+    CHECK_NOTHROW(compare(null_a, null_b, "a", "b", expectation::EQUALITY));
+    CHECK_THROWS_AS(
+        compare(null_a, null_b, "a", "b", expectation::INEQUALITY),
+        g_expectation_violation
+    );
+    auto const one = std::make_unique<CmpObj>(1);
+    auto const one_again = std::make_unique<CmpObj>(1);
+    auto const two = std::make_unique<CmpObj>(2);
+    checkEqual(one, one_again);
+    checkDifferent(one, two);
+    checkDifferent(one, null_a);
+}
+
+TEST_CASE(
+    "compare<containers of smart pointers to gem_type>: pointees are compared",
+    "[common][expectations][compare]"
+) {
+    std::vector<std::unique_ptr<CmpObj>> u_a;
+    std::vector<std::unique_ptr<CmpObj>> u_b;
+    std::vector<std::unique_ptr<CmpObj>> u_c;
+    for(int const v : {1, 2}) {
+        u_a.push_back(std::make_unique<CmpObj>(v));
+        u_b.push_back(std::make_unique<CmpObj>(v));
+        u_c.push_back(std::make_unique<CmpObj>(v * 10));
+    }
+    checkEqual(u_a, u_b);
+    checkDifferent(u_a, u_c);
+    u_b.push_back(nullptr);
+    checkDifferent(u_a, u_b);
+
+    std::deque<std::shared_ptr<CmpObj>> const s_a{std::make_shared<CmpObj>(1), nullptr};
+    std::deque<std::shared_ptr<CmpObj>> const s_b{std::make_shared<CmpObj>(1), nullptr};
+    std::deque<std::shared_ptr<CmpObj>> const s_c{
+        std::make_shared<CmpObj>(1),
+        std::make_shared<CmpObj>(1)
+    };
+    checkEqual(s_a, s_b);
+    checkDifferent(s_a, s_c);
+    CHECK(violationOf(s_a, s_c, expectation::EQUALITY, 0.).contains("a[1]"));
+}
+
+TEST_CASE(
+    "compare<vector<gem_type>>: objects are compared through their own compare",
+    "[common][expectations][compare]"
+) {
+    checkEqual(
+        std::vector<CmpObj>{CmpObj(1), CmpObj(2)},
+        std::vector<CmpObj>{CmpObj(1), CmpObj(2)}
+    );
+    checkDifferent(
+        std::vector<CmpObj>{CmpObj(1), CmpObj(2)},
+        std::vector<CmpObj>{CmpObj(1), CmpObj(3)}
+    );
+}
+
+TEST_CASE(
+    "compare<array>: values and floating point numbers element by element",
+    "[common][expectations][compare]"
+) {
+    checkEqual(std::array<int, 3>{1, 2, 3}, std::array<int, 3>{1, 2, 3});
+    checkDifferent(std::array<int, 3>{1, 2, 3}, std::array<int, 3>{1, 2, 4});
+    std::array<double, 2> const a{1.0, 2.0};
+    std::array<double, 2> const a_near{1.0, 2.0 + 1e-7};
+    CHECK_NOTHROW(compare(a, a_near, "a", "b", expectation::FP_SIMILARITY, 1e-5));
+    CHECK_THROWS_AS(compare(a, a_near, "a", "b", expectation::EQUALITY), g_expectation_violation);
+    checkDifferent(a, std::array<double, 2>{1.0, 2.5});
+}
+
+TEST_CASE(
+    "compare: a floating point deviation reports the limit and a size difference both sizes",
+    "[common][expectations][compare]"
+) {
+    std::vector<double> const a{1.0, 2.0};
+    std::string const deviation =
+        violationOf(a, std::vector<double>{1.0, 2.5}, expectation::FP_SIMILARITY, 1e-5);
+    CHECK(deviation.contains("limit"));
+    CHECK(deviation.contains("deviation"));
+    std::string const sizes = violationOf(a, std::vector<double>{1.0}, expectation::EQUALITY, 0.);
+    CHECK(sizes.contains("a.size() = 2"));
+    CHECK(sizes.contains("b.size() = 1"));
+}
+
+TEST_CASE("compare<tribool>: compared as a value", "[common][expectations][compare]") {
+    checkEqual(tribool::Indeterminate, tribool::Indeterminate);
+    checkDifferent(tribool::True, tribool::Indeterminate);
 }

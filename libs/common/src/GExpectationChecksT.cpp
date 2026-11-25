@@ -34,7 +34,6 @@
 #include "common/GExceptions.hpp"
 #include <cstddef>
 #include <ostream>
-#include <sstream>
 #include <string>
 #include <tuple>
 #include <utility>
@@ -261,65 +260,5 @@ std::ostream &operator<<(std::ostream &s, GToken const &g) {
       << g.getErrorMessages() << '\n';
     return s;
 }
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * @brief This function checks whether two objects of type Gem::Common::tribool meet a given expectation.
- *
- * @param x The first tribool to be compared
- * @param y The second tribool to be compared
- * @param x_name The name of the first parameter (used in the violation message)
- * @param y_name The name of the second parameter (used in the violation message)
- * @param e The expectation both parameters need to fulfill (equality / similarity / inequality)
- * @param limit The (unused) floating-point comparison limit; present for interface uniformity with numeric overloads
- */
-void compare(
-    Gem::Common::tribool const &x,
-    Gem::Common::tribool const &y,
-    std::string const &x_name,
-    std::string const &y_name,
-    Gem::Common::expectation e,
-    [[maybe_unused]] double limit
-) {
-    bool expectation_met = false;
-    std::string expectation_str;
-
-    switch(e) {
-    case Gem::Common::expectation::FP_SIMILARITY:
-    case Gem::Common::expectation::EQUALITY:
-        expectation_str = "FP_SIMILARITY / EQUALITY";
-        if((x == Gem::Common::tribool::True && y == Gem::Common::tribool::True) ||
-           (x == Gem::Common::tribool::False && y == Gem::Common::tribool::False) ||
-           (x == Gem::Common::tribool::Indeterminate && y == Gem::Common::tribool::Indeterminate)) {
-            expectation_met = true;
-        }
-        break;
-
-    case Gem::Common::expectation::INEQUALITY:
-        expectation_str = "INEQUALITY";
-        if((x != Gem::Common::tribool::True || y != Gem::Common::tribool::True) &&
-           (x != Gem::Common::tribool::False || y != Gem::Common::tribool::False) &&
-           (x != Gem::Common::tribool::Indeterminate || y != Gem::Common::tribool::Indeterminate)) {
-            expectation_met = true;
-        }
-        break;
-    };
-
-    if(not expectation_met) {
-        std::ostringstream error;
-        error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
-              << "[" << '\n'
-              << x_name << " = " << x << '\n'
-              << y_name << " = " << y << '\n'
-              << "]" << '\n';
-        throw g_expectation_violation(error.str());
-    }
-}
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
 
 } /* namespace Gem::Common */
