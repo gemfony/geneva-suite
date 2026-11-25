@@ -121,6 +121,17 @@ struct Derived : Base {
     bool operator==(const Derived &) const = default;
 };
 
+/** @brief A tree node: each level nests an object and an array in the JSON text */
+struct Node {
+    std::vector<Node> children;
+
+    template <typename archive_type>
+    void serialize(archive_type &ar, unsigned) {
+        ar &Gem::Weft::make_nvp("children", children);
+    }
+    bool operator==(const Node &) const = default;
+};
+
 enum class Color : std::uint8_t {
     red = 1,
     green = 2,
@@ -319,6 +330,16 @@ TEST_CASE("GJsonArchive: containers round-trip", "[common][archive][json]") {
     CHECK(roundtrip(pr) == pr);
     std::tuple<int, double, std::string> t{1, 2.5, "x"};
     CHECK(roundtrip(t) == t);
+}
+
+TEST_CASE("GJsonArchive: a deeply nested archive round-trips", "[common][archive][json]") {
+    // The checkpoint of a swarm nests about 43 levels, beyond the parser's default limit of 32
+    Node root;
+    Node *leaf = &root;
+    for(int level = 0; level < 100; ++level) {
+        leaf = &leaf->children.emplace_back();
+    }
+    CHECK(roundtrip(root) == root);
 }
 
 // ---------------------------------------------------------------------------

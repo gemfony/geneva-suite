@@ -861,6 +861,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   of the value in the document and the reason (text that is no JSON, a value of the wrong type, a
   missing key, an array of the wrong length, a number out of range, a malformed floating-point or
   hex string), as a malformed binary archive does; no exception of Boost.JSON leaves the codec.
+  A JSON archive may nest up to 1024 levels; the parser's default of 32 refused the checkpoint of
+  a swarm, which nests about 43.
 - **The personality-traits archive layout changed within the 1.99 development series**:
   the position-only traits of CGD / Nelder-Mead / parameter scan / GSA / ACO / PSO2011 and
   the parent-child traits now serialize their population position through the shared
