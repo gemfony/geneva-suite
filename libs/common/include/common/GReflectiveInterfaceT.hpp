@@ -136,6 +136,9 @@ struct GReflectiveInterfaceAccess {
      */
     template <typename T>
     static std::unique_ptr<T> construct() {
+        // T's default constructor is private and befriends this struct; make_unique cannot
+        // reach it.
+        // NOLINTNEXTLINE(modernize-make-unique)
         return std::unique_ptr<T>(new T());
     }
 };

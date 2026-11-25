@@ -578,6 +578,9 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
         // Fills (fresh=true) or refreshes (fresh=false) a container from the backend.
         auto fill = [&](std::unique_ptr<random_container> &cont, bool fresh) {
             if(fresh) {
+                // random_container's constructor is private to its friend, this factory, so
+                // make_unique cannot reach it.
+                // NOLINTNEXTLINE(modernize-make-unique)
                 cont.reset(new random_container(backend));
             }
             else {

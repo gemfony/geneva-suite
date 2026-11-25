@@ -135,19 +135,19 @@ int main(int argc, char **argv) {
     std::tuple<double, double> const minMaxX(-std::numbers::pi, std::numbers::pi);
     std::tuple<double, double> const minMaxY(-std::numbers::pi, std::numbers::pi);
 
-    std::shared_ptr<GGraph2D> const gsin_ptr(new GGraph2D());
+    auto const gsin_ptr = std::make_shared<GGraph2D>();
     gsin_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     gsin_ptr->setPlotLabel("Sine and cosine functions, plotted through TGraph");
     gsin_ptr->setXAxisLabel("x");
     gsin_ptr->setYAxisLabel("sin(x) vs. cos(x)");
 
-    std::shared_ptr<GGraph2D> const gcos_ptr(new GGraph2D());
+    auto const gcos_ptr = std::make_shared<GGraph2D>();
     gcos_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     gcos_ptr->setPlotLabel("A cosine function, plotted through TGraph");
     gcos_ptr->setXAxisLabel("x");
     gcos_ptr->setYAxisLabel("cos(x)");
 
-    std::shared_ptr<GGraph2D> const gcos_ptr_2(new GGraph2D());
+    auto const gcos_ptr_2 = std::make_shared<GGraph2D>();
     gcos_ptr_2->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     gsin_ptr->registerSecondaryPlotter(gcos_ptr_2);
 
@@ -159,22 +159,20 @@ int main(int argc, char **argv) {
         (*gcos_ptr_2) & std::tuple<double, double>(x, cos(x));
     }
 
-    std::shared_ptr<GFunctionPlotter1D> const gsin_plotter_1D_ptr(
-        new GFunctionPlotter1D("sin(x)", minMaxX)
-    );
+    auto const gsin_plotter_1D_ptr = std::make_shared<GFunctionPlotter1D>("sin(x)", minMaxX);
     gsin_plotter_1D_ptr->setPlotLabel("A sine function, plotted through TF1");
     gsin_plotter_1D_ptr->setXAxisLabel("x");
     gsin_plotter_1D_ptr->setYAxisLabel("sin(x)");
 
-    std::shared_ptr<GFunctionPlotter1D> const gcos_plotter_1D_ptr(
-        new GFunctionPlotter1D("cos(x)", minMaxX)
-    );
+    auto const gcos_plotter_1D_ptr = std::make_shared<GFunctionPlotter1D>("cos(x)", minMaxX);
     gcos_plotter_1D_ptr->setPlotLabel("A cosine function, plotted through TF1");
     gcos_plotter_1D_ptr->setXAxisLabel("x");
     gcos_plotter_1D_ptr->setYAxisLabel("cos(x)");
 
-    std::shared_ptr<GFunctionPlotter2D> const schwefel_plotter_2D_ptr(
-        new GFunctionPlotter2D("-0.5*(x*sin(sqrt(abs(x))) + y*sin(sqrt(abs(y))))", minMaxX, minMaxY)
+    auto const schwefel_plotter_2D_ptr = std::make_shared<GFunctionPlotter2D>(
+        "-0.5*(x*sin(sqrt(abs(x))) + y*sin(sqrt(abs(y))))",
+        minMaxX,
+        minMaxY
     );
     schwefel_plotter_2D_ptr->setPlotLabel("The Schwefel function");
     schwefel_plotter_2D_ptr->setXAxisLabel("x");
@@ -182,9 +180,8 @@ int main(int argc, char **argv) {
     schwefel_plotter_2D_ptr->setYAxisLabel("Schwefel function");
     schwefel_plotter_2D_ptr->setDrawingArguments("surf1");
 
-    std::shared_ptr<GFunctionPlotter2D> const noisyParabola_plotter_2D_ptr(
-        new GFunctionPlotter2D("(cos(x^2+y^2) + 2)*(x^2+y^2)", minMaxX, minMaxY)
-    );
+    auto const noisyParabola_plotter_2D_ptr =
+        std::make_shared<GFunctionPlotter2D>("(cos(x^2+y^2) + 2)*(x^2+y^2)", minMaxX, minMaxY);
     noisyParabola_plotter_2D_ptr->setPlotLabel("The noisy parabola");
     noisyParabola_plotter_2D_ptr->setXAxisLabel("x");
     noisyParabola_plotter_2D_ptr->setYAxisLabel("y");
@@ -277,19 +274,19 @@ int main(int argc, char **argv) {
     // A graphs-only designer emitted through the gnuplot backend. The gnuplot
     // backend supports only the graph plotters (GGraph2D/2ED/3D/4D), so this uses
     // a separate designer that registers only graphs (no functions / histograms).
-    std::shared_ptr<GGraph2D> const gp_sin_ptr(new GGraph2D());
+    auto const gp_sin_ptr = std::make_shared<GGraph2D>();
     gp_sin_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     gp_sin_ptr->setPlotLabel("sin(x), gnuplot");
     gp_sin_ptr->setXAxisLabel("x");
     gp_sin_ptr->setYAxisLabel("sin(x)");
 
     // A secondary plotter sharing the first pad (a second inline dataset).
-    std::shared_ptr<GGraph2D> const gp_cos_ptr(new GGraph2D());
+    auto const gp_cos_ptr = std::make_shared<GGraph2D>();
     gp_cos_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     gp_cos_ptr->setPlotLabel("cos(x), gnuplot");
     gp_sin_ptr->registerSecondaryPlotter(gp_cos_ptr);
 
-    std::shared_ptr<GGraph3D> const gp_helix_ptr(new GGraph3D());
+    auto const gp_helix_ptr = std::make_shared<GGraph3D>();
     gp_helix_ptr->setPlotLabel("a helix, gnuplot");
     gp_helix_ptr->setXAxisLabel("x");
     gp_helix_ptr->setYAxisLabel("y");
@@ -324,19 +321,19 @@ int main(int argc, char **argv) {
     // graph plotters and -- from stage 2 -- histograms). A fresh set of plotters is
     // used because a plotter is registered into exactly one designer; the data is
     // identical to the gnuplot demo above.
-    std::shared_ptr<GGraph2D> const mpl_sin_ptr(new GGraph2D());
+    auto const mpl_sin_ptr = std::make_shared<GGraph2D>();
     mpl_sin_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     mpl_sin_ptr->setPlotLabel("sin(x), matplotlib");
     mpl_sin_ptr->setXAxisLabel("x");
     mpl_sin_ptr->setYAxisLabel("sin(x)");
 
     // A secondary plotter sharing the first pad (overlaid on the same axes).
-    std::shared_ptr<GGraph2D> const mpl_cos_ptr(new GGraph2D());
+    auto const mpl_cos_ptr = std::make_shared<GGraph2D>();
     mpl_cos_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     mpl_cos_ptr->setPlotLabel("cos(x), matplotlib");
     mpl_sin_ptr->registerSecondaryPlotter(mpl_cos_ptr);
 
-    std::shared_ptr<GGraph3D> const mpl_helix_ptr(new GGraph3D());
+    auto const mpl_helix_ptr = std::make_shared<GGraph3D>();
     mpl_helix_ptr->setPlotLabel("a helix, matplotlib");
     mpl_helix_ptr->setXAxisLabel("x");
     mpl_helix_ptr->setYAxisLabel("y");
@@ -353,14 +350,12 @@ int main(int argc, char **argv) {
 
     // Histograms are a matplotlib strength (and a gnuplot gap): a 1-d and a 2-d
     // histogram exercise ax.hist / ax.hist2d.
-    std::shared_ptr<GHistogram1D> const mpl_hist1d_ptr(new GHistogram1D(20, -4.0, 4.0));
+    auto const mpl_hist1d_ptr = std::make_shared<GHistogram1D>(20, -4.0, 4.0);
     mpl_hist1d_ptr->setPlotLabel("a 1d histogram, matplotlib");
     mpl_hist1d_ptr->setXAxisLabel("value");
     mpl_hist1d_ptr->setYAxisLabel("count");
 
-    std::shared_ptr<GHistogram2D> const mpl_hist2d_ptr(
-        new GHistogram2D(20, 20, -4.0, 4.0, -4.0, 4.0)
-    );
+    auto const mpl_hist2d_ptr = std::make_shared<GHistogram2D>(20, 20, -4.0, 4.0, -4.0, 4.0);
     mpl_hist2d_ptr->setPlotLabel("a 2d histogram, matplotlib");
     mpl_hist2d_ptr->setXAxisLabel("x");
     mpl_hist2d_ptr->setYAxisLabel("y");
@@ -368,7 +363,7 @@ int main(int argc, char **argv) {
     // An INTEGER histogram, rendered by the matplotlib backend (it reads the int32
     // samples via the type-tagged dataColumns() and emits an ax.hist call just like the
     // double histogram).
-    std::shared_ptr<GHistogram1I> const mpl_hist1i_ptr(new GHistogram1I(11, -5.0, 6.0));
+    auto const mpl_hist1i_ptr = std::make_shared<GHistogram1I>(11, -5.0, 6.0);
     mpl_hist1i_ptr->setPlotLabel("an integer histogram, matplotlib");
     mpl_hist1i_ptr->setXAxisLabel("value");
     mpl_hist1i_ptr->setYAxisLabel("count");
@@ -399,19 +394,19 @@ int main(int argc, char **argv) {
     // (which supports the graph plotters and histograms, using only base Octave-and-MATLAB
     // functions). A fresh set of plotters is used because a plotter is registered into
     // exactly one designer; the data is identical to the matplotlib demo above.
-    std::shared_ptr<GGraph2D> const oct_sin_ptr(new GGraph2D());
+    auto const oct_sin_ptr = std::make_shared<GGraph2D>();
     oct_sin_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     oct_sin_ptr->setPlotLabel("sin(x), octave");
     oct_sin_ptr->setXAxisLabel("x");
     oct_sin_ptr->setYAxisLabel("sin(x)");
 
     // A secondary plotter sharing the first pad (overlaid via `hold on`).
-    std::shared_ptr<GGraph2D> const oct_cos_ptr(new GGraph2D());
+    auto const oct_cos_ptr = std::make_shared<GGraph2D>();
     oct_cos_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::SCATTER);
     oct_cos_ptr->setPlotLabel("cos(x), octave");
     oct_sin_ptr->registerSecondaryPlotter(oct_cos_ptr);
 
-    std::shared_ptr<GGraph3D> const oct_helix_ptr(new GGraph3D());
+    auto const oct_helix_ptr = std::make_shared<GGraph3D>();
     oct_helix_ptr->setPlotLabel("a helix, octave");
     oct_helix_ptr->setXAxisLabel("x");
     oct_helix_ptr->setYAxisLabel("y");
@@ -426,19 +421,17 @@ int main(int argc, char **argv) {
         (*oct_helix_ptr) & std::tuple<double, double, double>(std::cos(t), std::sin(t), t);
     }
 
-    std::shared_ptr<GHistogram1D> const oct_hist1d_ptr(new GHistogram1D(20, -4.0, 4.0));
+    auto const oct_hist1d_ptr = std::make_shared<GHistogram1D>(20, -4.0, 4.0);
     oct_hist1d_ptr->setPlotLabel("a 1d histogram, octave");
     oct_hist1d_ptr->setXAxisLabel("value");
     oct_hist1d_ptr->setYAxisLabel("count");
 
-    std::shared_ptr<GHistogram2D> const oct_hist2d_ptr(
-        new GHistogram2D(20, 20, -4.0, 4.0, -4.0, 4.0)
-    );
+    auto const oct_hist2d_ptr = std::make_shared<GHistogram2D>(20, 20, -4.0, 4.0, -4.0, 4.0);
     oct_hist2d_ptr->setPlotLabel("a 2d histogram, octave");
     oct_hist2d_ptr->setXAxisLabel("x");
     oct_hist2d_ptr->setYAxisLabel("y");
 
-    std::shared_ptr<GHistogram1I> const oct_hist1i_ptr(new GHistogram1I(11, -5.0, 6.0));
+    auto const oct_hist1i_ptr = std::make_shared<GHistogram1I>(11, -5.0, 6.0);
     oct_hist1i_ptr->setPlotLabel("an integer histogram, octave");
     oct_hist1i_ptr->setXAxisLabel("value");
     oct_hist1i_ptr->setYAxisLabel("count");
@@ -481,7 +474,7 @@ int main(int argc, char **argv) {
     // The first series (a GGraph2D "data graph") holds simple, exactly-representable
     // values; the harness asserts that series_0's shape and a couple of values
     // round-trip bit-exactly through numpy.load().
-    std::shared_ptr<GGraph2D> const data_g2d_ptr(new GGraph2D());
+    auto const data_g2d_ptr = std::make_shared<GGraph2D>();
     data_g2d_ptr->setPlotLabel("data graph");
     data_g2d_ptr->setXAxisLabel("x");
     data_g2d_ptr->setYAxisLabel("y");
@@ -491,7 +484,7 @@ int main(int argc, char **argv) {
         (*data_g2d_ptr) & std::tuple<double, double>(x, y);
     }
 
-    std::shared_ptr<GHistogram1D> const data_hist1d_ptr(new GHistogram1D(10, 0.0, 10.0));
+    auto const data_hist1d_ptr = std::make_shared<GHistogram1D>(10, 0.0, 10.0);
     data_hist1d_ptr->setPlotLabel("data histogram");
     data_hist1d_ptr->setXAxisLabel("value");
     for(std::size_t i = 0; i < 8; i++) {
@@ -509,7 +502,7 @@ int main(int argc, char **argv) {
 
     // NPZ mode -> result_data.npz (binary numpy archive). Fresh plotters, identical data,
     // because each plotter belongs to a single designer.
-    std::shared_ptr<GGraph2D> const npz_g2d_ptr(new GGraph2D());
+    auto const npz_g2d_ptr = std::make_shared<GGraph2D>();
     npz_g2d_ptr->setPlotLabel("data graph");
     npz_g2d_ptr->setXAxisLabel("x");
     npz_g2d_ptr->setYAxisLabel("y");
@@ -519,7 +512,7 @@ int main(int argc, char **argv) {
         (*npz_g2d_ptr) & std::tuple<double, double>(x, y);
     }
 
-    std::shared_ptr<GHistogram1D> const npz_hist1d_ptr(new GHistogram1D(10, 0.0, 10.0));
+    auto const npz_hist1d_ptr = std::make_shared<GHistogram1D>(10, 0.0, 10.0);
     npz_hist1d_ptr->setPlotLabel("data histogram");
     npz_hist1d_ptr->setXAxisLabel("value");
     for(std::size_t i = 0; i < 8; i++) {
