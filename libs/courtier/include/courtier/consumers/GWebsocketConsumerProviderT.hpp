@@ -104,6 +104,15 @@ protected:
             "[beast] The port of the server"
         );
         this->option(
+            gpb,
+            "beast_listenAddress",
+            &config_type::listenAddress,
+            defaults.listenAddress,
+            "[beast] The IP address the server listens on, IPv4 or IPv6, not a host name "
+            "(0.0.0.0: every IPv4 interface; \"::\": every IPv6 interface; 127.0.0.1: this host "
+            "only, for clients that come through an ssh tunnel)"
+        );
+        this->option(
                 gpb,
                 "beast_serializationMode",
                 &config_type::serializationMode,

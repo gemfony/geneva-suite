@@ -772,6 +772,7 @@ TEST_CASE("The websocket consumer's options default to its configuration", "[lau
     const Gem::Courtier::GWebsocketConsumerConfig defaults;
     CHECK(beast.ip == defaults.ip);
     CHECK(beast.port == Gem::Courtier::GCONSUMERDEFAULTPORT);
+    CHECK(beast.listenAddress == defaults.listenAddress);
     CHECK(beast.serializationMode == defaults.serializationMode);
     CHECK(beast.nThreads == defaults.nThreads);
     CHECK(beast.pingInterval == defaults.pingInterval);
@@ -780,6 +781,16 @@ TEST_CASE("The websocket consumer's options default to its configuration", "[lau
     CHECK(beast.clientParallelEvaluations == defaults.clientParallelEvaluations);
     CHECK(beast.clientFirstContactLimit == defaults.clientFirstContactLimit);
     CHECK(beast.clientReconnectLimit == defaults.clientReconnectLimit);
+}
+
+// --beast_listenAddress sets the address the server listens on; --beast_ip, the server's address
+// for its clients, is another option and stays as it was.
+TEST_CASE("The option --beast_listenAddress sets listenAddress", "[launcher][options]") {
+    GWebsocketProvider provider;
+    const auto beast =
+        parsedConfig<GWebsocketConfig>(provider, {"--beast_listenAddress", "127.0.0.1"});
+    CHECK(beast.listenAddress == "127.0.0.1");
+    CHECK(beast.ip == Gem::Courtier::GWebsocketConsumerConfig{}.ip);
 }
 
 // The thread consumer once registered an option "stcCapableOfFullReturn" that nothing read. An

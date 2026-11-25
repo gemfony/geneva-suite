@@ -343,6 +343,7 @@ TEST_CASE(
     auto held = std::make_unique<HeldOnPeerListener>(
         std::make_unique<Gem::Courtier::Consumers::GWebsocketListener>(
             "held listener",
+            Gem::Courtier::GCONSUMERDEFAULTLISTENADDRESS,
             0,
             Gem::Courtier::Consumers::GWebsocketPeer::GOptions{
                 .name = "held listener",

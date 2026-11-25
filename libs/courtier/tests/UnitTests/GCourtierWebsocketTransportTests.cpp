@@ -35,6 +35,7 @@
 #include <atomic>
 #include <chrono>
 #include <csignal>
+#include <cstddef>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -61,6 +62,7 @@
 #include "courtier/transport/GWebsocketPeerTransport.hpp"
 
 using boost::asio::ip::tcp;
+using Gem::Courtier::GCONSUMERDEFAULTLISTENADDRESS;
 using Gem::Courtier::GWirePeerId;
 using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
@@ -135,6 +137,87 @@ GWebsocketPeer::GOptions withPing(std::chrono::milliseconds ping) {
     return GWebsocketPeer::GOptions{.name = "transport test", .pingInterval = ping};
 }
 
+/// Another address of this host where its loopback network spans 127.0.0.0/8 (Linux)
+const std::string OTHER_LOOPBACK = "127.0.0.2"; // NOLINT(cert-err58-cpp)
+
+/** @brief @return Whether a socket can be bound to @p address, an address of this host */
+bool isLocalAddress(const std::string &address) {
+    boost::asio::io_context ctx;
+    tcp::acceptor probe(ctx);
+    const tcp::endpoint endpoint{boost::asio::ip::make_address(address), 0};
+    boost::system::error_code ec;
+    std::ignore = probe.open(endpoint.protocol(), ec);
+    if(not ec) {
+        std::ignore = probe.bind(endpoint, ec);
+    }
+    return not ec;
+}
+
+/** @brief @return Whether a TCP connection to @p address and @p port is accepted */
+bool reaches(const std::string &address, unsigned short port) {
+    boost::asio::io_context ctx;
+    tcp::socket socket(ctx);
+    boost::system::error_code ec;
+    std::ignore = socket.connect({boost::asio::ip::make_address(address), port}, ec);
+    return not ec;
+}
+
+/** @brief A started listener on an address and a port the system chooses; it keeps the peers it
+ *  is handed without starting them, and stops when it goes */
+class KeepingListener {
+public:
+    explicit KeepingListener(const std::string &address)
+      : listener_("listener test", address, 0, withPing(1s), 1) {
+        listener_.start(sessions_.executor(), [this](std::shared_ptr<GPeerI> peer, GWirePeerId) {
+            const std::scoped_lock lock(mutex_);
+            ends_.push_back(std::move(peer));
+        });
+    }
+    ~KeepingListener() {
+        listener_.stop();
+        {
+            const std::scoped_lock lock(mutex_);
+            ends_.clear(); // before the I/O context goes (endWork())
+        }
+        listener_.endWork();
+    }
+    KeepingListener(const KeepingListener &) = delete;
+    KeepingListener(KeepingListener &&) = delete;
+    KeepingListener &operator=(const KeepingListener &) = delete;
+    KeepingListener &operator=(KeepingListener &&) = delete;
+
+    /** @brief @return The bound port */
+    [[nodiscard]] unsigned short port() const {
+        return listener_.getPort();
+    }
+    /** @brief @return How many peers it was handed */
+    [[nodiscard]] std::size_t nPeers() {
+        const std::scoped_lock lock(mutex_);
+        return ends_.size();
+    }
+
+private:
+    OneThread sessions_;
+    GWebsocketListener listener_;
+    std::mutex mutex_;
+    std::vector<std::shared_ptr<GPeerI>> ends_;
+};
+
+/** @brief Starts a listener on @p address @return The message start() threw, or nothing */
+std::string startFailure(const std::string &address) {
+    OneThread sessions;
+    GWebsocketListener listener("listener test", address, 0, withPing(1s), 1);
+    try {
+        listener.start(sessions.executor(), [](const std::shared_ptr<GPeerI> &, GWirePeerId) {});
+    }
+    catch(const std::exception &e) {
+        return e.what();
+    }
+    listener.stop();
+    listener.endWork();
+    return {};
+}
+
 } /* anonymous namespace */
 
 /******************************************************************************/
@@ -150,7 +233,8 @@ TEST_CASE(
     const unsigned short port = taken.local_endpoint().port();
 
     OneThread sessions;
-    GWebsocketListener listener("listener test", port, withPing(1s), 1);
+    GWebsocketListener
+        listener("listener test", GCONSUMERDEFAULTLISTENADDRESS, port, withPing(1s), 1);
     std::string message;
     try {
         listener.start(sessions.executor(), [](const std::shared_ptr<GPeerI> &, GWirePeerId) {});
@@ -158,7 +242,8 @@ TEST_CASE(
     catch(const std::exception &e) {
         message = e.what();
     }
-    CHECK(message.contains(std::to_string(port)));
+    // runWithClients.sh of the parallelisation benchmark tries the next port on this text
+    CHECK(message.contains("could not bind to port " + std::to_string(port)));
 }
 
 /******************************************************************************/
@@ -170,7 +255,7 @@ TEST_CASE(
 ) {
     OneThread sessions;
     OneThread client;
-    GWebsocketListener listener("listener test", 0, withPing(1s), 1);
+    GWebsocketListener listener("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(1s), 1);
     std::atomic<int> n_open{0};
     std::atomic<int> n_closed{0};
     std::atomic<GWirePeerId> seen_id{0};
@@ -214,6 +299,75 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+/** A listener told to listen on 127.0.0.1 takes a client that connects there. */
+TEST_CASE(
+    "GWebsocketListener: a listener on 127.0.0.1 takes a client there",
+    "[courtier][websocket][transport]"
+) {
+    KeepingListener listener("127.0.0.1");
+    CHECK(reaches("127.0.0.1", listener.port()));
+    CHECK(eventually([&] { return listener.nPeers() == 1; }));
+}
+
+/******************************************************************************/
+/** A listener on 127.0.0.1 is not reached on another address of this host; one on the default
+ *  address, every IPv4 interface, is reached on both. */
+TEST_CASE(
+    "GWebsocketListener: only the default address is reached on every address of this host",
+    "[courtier][websocket][transport]"
+) {
+    if(not isLocalAddress(OTHER_LOOPBACK)) {
+        SKIP("this host has no address " << OTHER_LOOPBACK << " besides 127.0.0.1");
+    }
+    const KeepingListener local("127.0.0.1");
+    CHECK_FALSE(reaches(OTHER_LOOPBACK, local.port()));
+
+    const KeepingListener everywhere(GCONSUMERDEFAULTLISTENADDRESS);
+    CHECK(reaches("127.0.0.1", everywhere.port()));
+    CHECK(reaches(OTHER_LOOPBACK, everywhere.port()));
+}
+
+/******************************************************************************/
+/** An IPv6 address is taken as well. */
+TEST_CASE("GWebsocketListener: listens on an IPv6 address", "[courtier][websocket][transport]") {
+    if(not isLocalAddress("::1")) {
+        SKIP("this host has no IPv6 loopback address ::1");
+    }
+    KeepingListener listener("::1");
+    CHECK(reaches("::1", listener.port()));
+    CHECK(eventually([&] { return listener.nPeers() == 1; }));
+}
+
+/******************************************************************************/
+/** A listening address that is no IP address -- a host name included -- makes start() throw with
+ *  the address in the message. */
+TEST_CASE(
+    "GWebsocketListener: an address that is no IP address makes start throw and names it",
+    "[courtier][websocket][transport]"
+) {
+    for(const std::string address : {"localhost", "127.0.0.256", "no address"}) {
+        INFO(address);
+        CHECK(startFailure(address).contains('"' + address + '"'));
+    }
+}
+
+/******************************************************************************/
+/** An IP address that belongs to no interface of this host makes start() throw with the address
+ *  in the message (192.0.2.1 is reserved for documentation). */
+TEST_CASE(
+    "GWebsocketListener: an address of no interface of this host makes start throw and names it",
+    "[courtier][websocket][transport]"
+) {
+    const std::string address = "192.0.2.1";
+    if(isLocalAddress(address)) {
+        SKIP(
+            "this host binds " << address << " (an address of its own, or non-local binds allowed)"
+        );
+    }
+    CHECK(startFailure(address).contains(address));
+}
+
+/******************************************************************************/
 /**
  * A client that connects while every thread of the shell's executor is busy for longer than its
  * handshake limit -- on a server, every session thread encoding a large item; the client, typically,
@@ -237,7 +391,8 @@ TEST_CASE(
     const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
     OneThread sessions; // the shell's executor, with its one session thread
     OneThread client;
-    GWebsocketListener listener("listener test", 0, withPing(PING), 1);
+    GWebsocketListener
+        listener("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(PING), 1);
     std::shared_ptr<GPeerI> server_end;
     std::mutex mutex;
     listener.start(sessions.executor(), [&](std::shared_ptr<GPeerI> peer, GWirePeerId) {
@@ -361,8 +516,10 @@ TEST_CASE(
     "GWebsocketListener: keepAlive names the ping interval",
     "[courtier][websocket][transport]"
 ) {
-    const GWebsocketListener with_ping("listener test", 0, withPing(1s), 1);
-    const GWebsocketListener without_ping("listener test", 0, withPing(0ms), 1);
+    const GWebsocketListener
+        with_ping("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(1s), 1);
+    const GWebsocketListener
+        without_ping("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(0ms), 1);
     CHECK(with_ping.keepAlive() == 1s);
     CHECK(without_ping.keepAlive() == 0ms);
 }
@@ -375,7 +532,7 @@ TEST_CASE(
     "[courtier][websocket][transport]"
 ) {
     OneThread sessions;
-    GWebsocketListener listener("listener test", 0, withPing(1s), 1);
+    GWebsocketListener listener("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(1s), 1);
     std::mutex mutex;
     std::vector<GWirePeerId> ids;
     std::vector<std::shared_ptr<GPeerI>> ends; // never started: the client sockets just connect
@@ -427,7 +584,7 @@ TEST_CASE(
     auto sessions_work = std::make_optional(boost::asio::make_work_guard(sessions_ctx));
     std::thread sessions_thread([&sessions_ctx] { sessions_ctx.run(); });
     OneThread client;
-    GWebsocketListener listener("listener test", 0, withPing(1s), 1);
+    GWebsocketListener listener("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(1s), 1);
     std::atomic<int> n_open{0};
     std::atomic<int> n_closed_server{0};
     auto token = std::make_shared<int>(0); // held by the server end's handlers
@@ -519,7 +676,8 @@ TEST_CASE(
         int code = 2; // start() did not throw
         {
             boost::asio::io_context sessions; // never runs: no peer is made here
-            GWebsocketListener listener("listener test", 0, withPing(1s), 64);
+            GWebsocketListener
+                listener("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(1s), 64);
             try {
                 listener.start(
                     sessions.get_executor(),
@@ -612,7 +770,8 @@ TEST_CASE(
 
         OneThread sessions;
         std::atomic<int> n_peers{0};
-        GWebsocketListener listener("listener test", 0, withPing(1s), 1);
+        GWebsocketListener
+            listener("listener test", GCONSUMERDEFAULTLISTENADDRESS, 0, withPing(1s), 1);
         listener.start(
             sessions.executor(),
             [&n_peers](const std::shared_ptr<GPeerI> &, GWirePeerId) { n_peers.fetch_add(1); }

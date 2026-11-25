@@ -135,6 +135,9 @@ enum class processRole : Gem::Common::ENUMBASETYPE {
  */
 constexpr unsigned short GCONSUMERDEFAULTPORT = 10000;
 const std::string GCONSUMERDEFAULTSERVER = "localhost"; // NOLINT
+/// The address the websocket server listens on by default (--beast_listenAddress): every IPv4
+/// interface of the host
+const std::string GCONSUMERDEFAULTLISTENADDRESS = "0.0.0.0"; // NOLINT
 constexpr std::uint16_t GCONSUMERLISTENERTHREADS = 4;
 const Gem::Common::serializationMode GCONSUMERSERIALIZATIONMODE =
     Gem::Common::serializationMode::GEM_BINARY;

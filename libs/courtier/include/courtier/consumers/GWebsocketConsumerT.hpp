@@ -76,8 +76,8 @@ public:
     /***************************************************************************/
     /** @brief Constructs the websocket consumer from the configuration of its family.
      *
-     *  @param config Reads port (0 lets the OS pick; the chosen port is read back with getPort()
-     *         after startServer()), nThreads (the I/O threads, and as many threads for the
+     *  @param config Reads listenAddress (the IP address to listen on), port (0 lets the OS
+     *         pick; the chosen port is read back with getPort() after startServer()), nThreads (the I/O threads, and as many threads for the
      *         sessions; 0 selects the hardware concurrency), serializationMode (the wire format),
      *         pingInterval (seconds of silence after which a ping is sent; after twice that time
      *         without any inbound data the client is presumed gone; 0 switches this off) and
@@ -91,6 +91,7 @@ public:
             CONSUMER_NAME,
             std::make_unique<Consumers::GWebsocketListener>(
                 CONSUMER_NAME,
+                config.listenAddress,
                 config.port,
                 Consumers::GWebsocketPeer::GOptions{
                     .name = "GWebsocketConsumerT<> session",

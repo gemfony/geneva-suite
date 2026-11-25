@@ -94,6 +94,7 @@ public:
     /** @brief Prepares the listener; nothing happens before start(). */
     GWebsocketListener(
         std::string,
+        std::string,
         unsigned short,
         GWebsocketPeer::GOptions,
         std::size_t,
@@ -110,7 +111,7 @@ public:
     GWebsocketListener &operator=(GWebsocketListener &&) = delete;
 
     /** @brief Opens, binds and listens, then starts the I/O threads and the accept loop. Throws
-     *  (and is then as if not started) if the port cannot be had. */
+     *  (and is then as if not started) if the address or the port cannot be had. */
     void start(boost::asio::any_io_executor, on_peer_type) override;
     /** @brief Closes the acceptor, after the call of on_peer under way: no new peers. Bounded;
      *  idempotent. */
@@ -133,6 +134,7 @@ private:
     void joinIo_();
 
     std::string name_;                     ///< The owner's name, for the log and the thread budget
+    std::string listen_address_;           ///< The IP address to listen on, as given
     std::atomic<unsigned short> port_;     ///< The port (see getPort())
     GWebsocketPeer::GOptions options_;     ///< How every connection's peer is set up
     std::size_t n_threads_;                ///< The number of I/O threads
