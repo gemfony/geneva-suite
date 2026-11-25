@@ -581,6 +581,12 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // This function will also check that individuals have indeed been registered
     adjustPopulation_();
 
+    // A new run builds the run state of its algorithm; a run resumed from a checkpoint goes on with
+    // the state the checkpoint holds
+    if(not resumed_from_checkpoint_) {
+        initRunState_();
+    }
+
     // Set the individual's personalities (some algorithm-specific information needs to be stored
     // in individuals. Optimization algorithms need to re-implement this function to add
     // the required functionality.)
@@ -609,8 +615,8 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // Give derived classes the opportunity to perform any other necessary preparatory work.
     init();
 
-    // The resume marker has now been consumed by setIndividualPersonalities() + init() (which preserved
-    // the restored scratch). Clear it so the remainder of the run -- and any subsequent algorithm in a
+    // The resume marker has now been consumed by the setup (which preserved the restored scratch and
+    // run state). Clear it so the remainder of the run -- and any subsequent algorithm in a
     // Go2 chain -- treats the scratch as ordinary OA-owned state (seeded / reset normally).
     resumed_from_checkpoint_ = false;
 

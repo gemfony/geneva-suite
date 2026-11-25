@@ -29,7 +29,7 @@
 
 /**
  * A run resumed from a checkpoint goes on with the run state of its algorithm: the state is part of the
- * checkpoint, and the setup of the resumed run (init()) keeps it. A new run builds it afresh.
+ * checkpoint, and the setup of the resumed run keeps it. A new run builds it afresh (initRunState_()).
  */
 
 #include <catch2/catch_test_macros.hpp>
@@ -383,6 +383,25 @@ std::vector<std::vector<double>> positions(oa_type const &alg) {
 /// A best fitness before any evaluation
 constexpr double UNSET = std::numeric_limits<double>::max();
 
+/**
+ * @brief An algorithm that counts how often the setup builds its run state. Like an algorithm a user
+ * adds, it does not ask whether its run was resumed.
+ *
+ * @tparam oa_type The algorithm it extends
+ */
+template <typename oa_type>
+class GRunStateCounter final : public oa_type {
+public:
+    std::size_t fresh_starts = 0; ///< How often the setup built the run state
+
+protected:
+    /** @brief Counts and builds the run state of the algorithm it extends */
+    void initRunState_() override {
+        ++fresh_starts;
+        oa_type::initRunState_();
+    }
+};
+
 } /* anonymous namespace */
 
 /******************************************************************************/
@@ -658,4 +677,36 @@ TEST_CASE("A resumed random parameter scan goes on with its count", "[oa][resume
 
     // A new run counts from zero
     CHECK(newSetupOf(run).getNScansPerformed() == 0);
+}
+
+/******************************************************************************/
+
+TEST_CASE("The setup builds the run state of a new run and not of a resumed one", "[oa][resume]") {
+    // A new run builds it (the counting algorithm writes no checkpoint: its type is not registered)
+    GRunStateCounter<oa::GStandardPSO2011> fresh;
+    fresh.setSwarmSize(5);
+    fresh.push_back(lineFit().clone());
+    fresh.setMaxIteration(2);
+    fresh.setReportIteration(0);
+    fresh.setCheckpointInterval(0);
+    fresh.optimize();
+    CHECK(fresh.fresh_starts == 1);
+
+    // A resumed run goes on with the run state of its checkpoint
+    oa::GStandardPSO2011 run;
+    run.setSwarmSize(5);
+    auto const cp = runToCheckpoint(run);
+    GRunStateCounter<oa::GStandardPSO2011> resumed;
+    resumed.loadCheckpoint(cp);
+    fs::remove_all(cp.parent_path());
+    resumed.setCheckpointInterval(0);
+    resumed.setReportIteration(0);
+    resumed.setMaxIteration(resumed.getIteration() + 2); // one iteration
+    resumed.optimize(resumed.getIteration() + 1);
+    CHECK(resumed.fresh_starts == 0);
+
+    // The next run of the same algorithm is a new one
+    resumed.setMaxIteration(2);
+    resumed.optimize();
+    CHECK(resumed.fresh_starts == 1);
 }

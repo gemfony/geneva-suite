@@ -898,9 +898,7 @@ std::size_t GParameterScan::getMaxFailedRetries() const {
 
 /******************************************************************************/
 /**
- * @brief Does some preparatory work before the optimization starts. A run resumed from a checkpoint
- * goes on with the count of its random scans; the position of a grid scan lives in the parameter
- * objects, which the checkpoint carries.
+ * @brief Does some preparatory work before every start of a run.
  */
 void GParameterScan::init() {
     // To be performed before any other action
@@ -909,16 +907,22 @@ void GParameterScan::init() {
     // Reset the custom halt criterion
     cycle_logic_halt_ = false;
 
-    // No scans have been peformed so far in a new run
-    if(not this->resumedFromCheckpoint()) {
-        scans_performed_ = 0;
-    }
-
     // Make sure we start with a fresh central vector of parameter objects
     this->clearAllParVec();
 
     // Copy all parameter objects to the central vector for easier handling
     this->fillAllParVec();
+}
+
+/******************************************************************************/
+/**
+ * @brief Builds the run state of a new run: no random scans have been performed yet. A resumed run goes
+ * on with the count of its checkpoint; the position of a grid scan lives in the parameter objects, which
+ * the checkpoint carries.
+ */
+void GParameterScan::initRunState_() {
+    GOptimizationAlgorithmBase::initRunState_();
+    scans_performed_ = 0;
 }
 
 /******************************************************************************/

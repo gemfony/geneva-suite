@@ -588,7 +588,7 @@ void GParChild::actOnStalls_() {
 
 /******************************************************************************/
 /**
- * @brief Adapts all children in parallel, driven by the OA-owned adaption config (built at init()).
+ * @brief Adapts all children in parallel, driven by the OA-owned adaption config of the run.
  * Identical for every mu/lambda algorithm, so it lives here rather than being duplicated in each
  * derived class. The config is read-only inside the parallel schedule, so the loop is lock-free.
  */
@@ -844,55 +844,31 @@ void GParChild::init() {
     // network environment, some individuals might not return and some individuals return
     // late. The factual size of the population then changes and we need to take action.
     default_n_children_ = GOptimizationAlgorithmBase::getDefaultPopulationSize() - n_parents_;
+}
 
-    // Build the OA-owned adaption configuration from a representative genome (all individuals share the
-    // same genome layout). It drives the data-oriented adaption free functions, replacing the
-    // individual's own adapt(). It is transient run scratch, rebuilt on every optimize().
-    adaption_config_.reset();
-    if(not this->empty()) {
-        if(const auto *flat = dynamic_cast<const gen::GGenome *>(&(*this->at(0)))) {
-            // The genome carries only structure -- the adaptors live on an OA-owned GAdaptionConfig that
-            // MUST be provided explicitly (via setAdaptionConfig(), e.g. Go2::registerAdaptionConfig() for
-            // this algorithm's personality type). Adaption intent is never inferred from the genome, so an
-            // adapting algorithm with no config is a hard error. The provided config is validated against
-            // the population's genome, rejecting a config authored for a different genome early.
-            if(not provided_adaption_config_) {
-                throw gem_exception(
-                    g_error_streamer()
-                    << "This adapting algorithm has no adaption config. The genome carries only "
-                       "structure;"
-                    << '\n'
-                    << "author an OA-owned GAdaptionConfig and provide it via setAdaptionConfig() "
-                       "(or, with"
-                    << '\n'
-                    << "Go2, register it via go.registerAdaptionConfig(\""
-                    << getAlgorithmPersonalityType() << "\", cfg))." << '\n'
-                );
-            }
-            provided_adaption_config_->checkConsistency(*flat);
-            adaption_config_ = provided_adaption_config_;
+/******************************************************************************/
+/**
+ * @brief Builds the run state of a new run: seeds each slot's OA-owned scratch with the per-group
+ * adaption state (sigma / ad_prob / counter, ...) of the adaption config. Children created by
+ * recombination copy their chosen parent's whole slot (scratch included), so the evolved state propagates
+ * with the parent; a resumed run goes on with the state its checkpoint holds in the slots.
+ */
+void GParChild::initRunState_() {
+    GOptimizationAlgorithmBase::initRunState_();
 
-            // Seed each slot's OA-owned scratch with the per-group adaption state from the shared
-            // config. The state (sigma / ad_prob / counter, …) lives on the individual's OA-owned scratch.
-            // Children created by recombination copy their chosen parent's whole slot (scratch included),
-            // so the evolved state propagates with the parent.
-            // On a checkpoint resume the slots already carry their restored, evolved adaption state --
-            // preserve it (skip the re-seed) so a resumed run keeps its sigma rather than restarting.
-            if(not this->resumedFromCheckpoint()) {
-                for(auto const &slot : *this) {
-                    adaption_config_->installInto(slot->scratch());
-                }
-            }
+    if(adaption_config_) {
+        for(auto const &slot : *this) {
+            adaption_config_->installInto(slot->scratch());
         }
     }
 }
 
 /******************************************************************************/
 /**
- * @brief Stores the externally-supplied OA-owned adaption configuration. init() adopts it -- after a
- * checkConsistency() against the population's genome -- as the algorithm's run config; an adapting
- * algorithm with no config provided is a hard error (the genome carries no adaption intent). Passing a
- * null pointer clears it.
+ * @brief Stores the externally-supplied OA-owned adaption configuration. adjustPopulation_() adopts it
+ * -- after a checkConsistency() against the population's genome -- as the algorithm's run config; an
+ * adapting algorithm with no config provided is a hard error (the genome carries no adaption intent).
+ * Passing a null pointer clears it.
  *
  * @param config The OA-owned adaption configuration to store (shared ownership; a null pointer clears it)
  */
@@ -914,8 +890,8 @@ void GParChild::finalize() {
  * @brief The function checks that the population size meets the requirements and resizes the
  * population to the appropriate size, if required. An obvious precondition is that at
  * least one individual has been added to the population. Individuals that have already
- * been added will not be replaced. This function is called once before the optimization
- * cycle from within GOptimizationAlgorithmBase::optimize()
+ * been added will not be replaced. It also adopts the adaption config of the run. This function is
+ * called once before the optimization cycle from within GOptimizationAlgorithmBase::optimize()
  */
 void GParChild::adjustPopulation_() {
     // Has the population size been set at all ?
@@ -956,6 +932,35 @@ void GParChild::adjustPopulation_() {
             it != GOptimizationAlgorithmBase::data_cnt_.end();
             ++it) {
             (*it)->randomInit(activityMode::ACTIVEONLY);
+        }
+    }
+
+    // Build the OA-owned adaption configuration from a representative genome (all individuals share the
+    // same genome layout). It drives the data-oriented adaption free functions, replacing the
+    // individual's own adapt(). It is transient run scratch, adopted anew at every start of a run.
+    adaption_config_.reset();
+    if(not this->empty()) {
+        if(const auto *flat = dynamic_cast<const gen::GGenome *>(&(*this->at(0)))) {
+            // The genome carries only structure -- the adaptors live on an OA-owned GAdaptionConfig that
+            // MUST be provided explicitly (via setAdaptionConfig(), e.g. Go2::registerAdaptionConfig() for
+            // this algorithm's personality type). Adaption intent is never inferred from the genome, so an
+            // adapting algorithm with no config is a hard error. The provided config is validated against
+            // the population's genome, rejecting a config authored for a different genome early.
+            if(not provided_adaption_config_) {
+                throw gem_exception(
+                    g_error_streamer()
+                    << "This adapting algorithm has no adaption config. The genome carries only "
+                       "structure;"
+                    << '\n'
+                    << "author an OA-owned GAdaptionConfig and provide it via setAdaptionConfig() "
+                       "(or, with"
+                    << '\n'
+                    << "Go2, register it via go.registerAdaptionConfig(\""
+                    << getAlgorithmPersonalityType() << "\", cfg))." << '\n'
+                );
+            }
+            provided_adaption_config_->checkConsistency(*flat);
+            adaption_config_ = provided_adaption_config_;
         }
     }
 }

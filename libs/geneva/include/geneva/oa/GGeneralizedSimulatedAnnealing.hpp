@@ -322,6 +322,8 @@ protected:
 
     /** @brief Does some preparatory work before the optimization starts */
     void init() override;
+    /** @brief Builds the run state of a new run: the chains and their cooling clocks */
+    void initRunState_() override;
     /** @brief Does any necessary finalization work */
     void finalize() override;
 
@@ -379,7 +381,7 @@ private:
         DEFAULTGSACOOLING; ///< Divides the step counter in the schedule (1 = strict; larger slows cooling)
 
     /***************************************************************************/
-    // The per-chain run state: built by init() for a new run, kept by init() for a resumed one
+    // The per-chain run state: built by initRunState_() for a new run, held by a resumed run's checkpoint
 
     /// transient: the number of active floating point parameters, derived from the genome in init()
     std::size_t n_fp_parms_ = 0;

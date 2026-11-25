@@ -428,7 +428,6 @@ std::shared_ptr<GPersonalityTraits> GType::getPersonalityTraits_() const {
 /******************************************************************************/
 
 void GType::init() {
-    // GParChild::init() adopts + validates the provided adaption config and seeds each slot's scratch.
     GParChild::init();
 
     // Mirror the chosen knobs onto the OA-owned config so the kernels read them.
@@ -437,11 +436,30 @@ void GType::init() {
 
 /******************************************************************************/
 /**
- * @brief Installs the chosen step controller onto the OA-owned adaption config (after GParChild::init()
- * adopted and seeded it). For SELF_ADAPT_SCALED the per-group sigma_sigma is rescaled to the textbook
- * dimension-aware value; for ONE_FIFTH / CSA the per-group log-normal self-adaption is suppressed (the
- * global controller owns sigma) and the controller's state is seeded from the config's seed sigma -- or,
- * in a run resumed from a checkpoint, kept as the checkpoint holds it.
+ * @brief Builds the run state of a new run: the slots' adaption state (GParChild) and, for the global
+ * step-size controllers ONE_FIFTH / CSA, the global sigma -- seeded from a representative sigma in the
+ * slots' scratch, the config's seed sigma -- and an empty evolution path.
+ */
+void GType::initRunState_() {
+    GParChild::initRunState_();
+
+    if(this->adaption_config_ and
+       (step_control_ == stepControl::ONE_FIFTH or step_control_ == stepControl::CSA)) {
+        p_sigma_ = 0.;
+        global_sigma_ =
+            this->empty()
+                ? 1.
+                : readRepresentativeSigma(this->at(0)->scratch(), *this->adaption_config_, 1.);
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief Installs the chosen step controller onto the OA-owned adaption config (which adjustPopulation_()
+ * adopted). For SELF_ADAPT_SCALED the per-group sigma_sigma is rescaled to the textbook dimension-aware
+ * value; for ONE_FIFTH / CSA the per-group log-normal self-adaption is suppressed (the global controller
+ * owns sigma) and the global sigma -- seeded by initRunState_() or held by the checkpoint of a resumed
+ * run -- is pushed into every slot.
  */
 void GType::installStepController() {
     auto cfg = this->adaption_config_;
@@ -466,15 +484,7 @@ void GType::installStepController() {
     case stepControl::CSA: {
         // The global controller owns sigma: stop the per-group log-normal self-adaption.
         cfg->suppressPerGroupSigmaSelfAdaption();
-        // A new run seeds the global sigma from a representative sigma in the slots' scratch: the
-        // config's seed sigma, which GParChild::init() just installed. A resumed run goes on with
-        // the global sigma and the evolution path of its checkpoint.
         last_p_success_ = 0.;
-        if(not this->resumedFromCheckpoint()) {
-            p_sigma_ = 0.;
-            global_sigma_ =
-                this->empty() ? 1. : readRepresentativeSigma(this->at(0)->scratch(), *cfg, 1.);
-        }
         // Push the global sigma into every slot so the first adaption uses it uniformly.
         for(auto const &slot : *this) {
             writeGlobalSigma(slot->scratch(), *cfg, global_sigma_);

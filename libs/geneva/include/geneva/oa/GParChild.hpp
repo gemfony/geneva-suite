@@ -175,12 +175,12 @@ public:
         );
     }
 
-    /** @brief Hands this mu/lambda algorithm an OA-owned adaption config to use. When
-     *  set, init() adopts it (after validating it matches the population's genome) instead of deriving a
-     *  default from the genome layout. Transient run scratch -- NOT serialized. */
+    /** @brief Hands this mu/lambda algorithm an OA-owned adaption config to use. When set,
+     *  adjustPopulation_() adopts it (after validating it matches the population's genome) instead of
+     *  deriving a default from the genome layout. Transient run scratch -- NOT serialized. */
     void setAdaptionConfig(std::shared_ptr<GAdaptionConfigBase> config) override;
 
-    /** @brief The OA-owned adaption config built at init() (or the externally-provided one), for telemetry.
+    /** @brief The OA-owned adaption config adopted at the start of a run, for telemetry.
      *  @return A shared_ptr to the adaption configuration currently in effect */
     std::shared_ptr<const GAdaptionConfigBase> getAdaptionConfig() const override {
         return adaption_config_;
@@ -223,6 +223,8 @@ protected:
 
     /** @brief performs initialization work before the optimization loop starts */
     void init() override;
+    /** @brief Builds the run state of a new run: the adaption state in the slots' scratch */
+    void initRunState_() override;
     /** @brief Does any necessary finalization work atfer the optimization loop has ended */
     void finalize() override;
 
@@ -285,16 +287,17 @@ protected:
     /***************************************************************************/
     /**
      * @brief transient: the OA-owned adaption configuration in effect for this run: the
-     * externally-provided config (validated and adopted at init()). Run scratch: NOT serialized,
-     * NOT compared, NOT part of localMembers(); a clone re-adopts it at its own init(). Read-only
-     * during the parallel adaptChildren_, so it is shared safely.
+     * externally-provided config (validated and adopted in adjustPopulation_()). Run scratch: NOT
+     * serialized, NOT compared, NOT part of localMembers(); a clone re-adopts it at the start of its own
+     * run. Read-only during the parallel adaptChildren_, so it is shared safely.
      */
     std::shared_ptr<GAdaptionConfigBase> adaption_config_;
 
     /**
      * @brief transient: an optionally externally-supplied adaption configuration (set via
-     * setAdaptionConfig() -- Go2 installs the one it holds for this algorithm's type). When present, init()
-     * uses it (validating it against the population's genome) in place of the layout-derived default.
+     * setAdaptionConfig() -- Go2 installs the one it holds for this algorithm's type). When present,
+     * adjustPopulation_() uses it (validating it against the population's genome) in place of the
+     * layout-derived default.
      * Transient run scratch: NOT serialized, NOT compared, NOT part of localMembers().
      */
     std::shared_ptr<GAdaptionConfigBase> provided_adaption_config_;

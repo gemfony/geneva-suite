@@ -318,6 +318,8 @@ protected:
 
     /** @brief Performs initialization work before the optimization loop starts (installs the step controller). */
     void init() override;
+    /** @brief Builds the run state of a new run: the slots' adaption state and the global sigma */
+    void initRunState_() override;
 
     /** @brief Recombination + (optionally) intermediate sigma-recombination of children. */
     void recombine() override;
@@ -395,8 +397,8 @@ private:
     bool inline_evaluation_ = false;
 
     /***************************************************************************/
-    // The run state of the global-sigma controllers (ONE_FIFTH / CSA): init() seeds it for a new run
-    // from the sigma in the slots' scratch and keeps it for a resumed one.
+    // The run state of the global-sigma controllers (ONE_FIFTH / CSA): initRunState_() seeds it for a
+    // new run from the sigma in the slots' scratch; a resumed run goes on with its checkpoint's.
     double global_sigma_ = 1.; ///< The single global step size (ONE_FIFTH / CSA)
     double p_sigma_ = 0.;      ///< The CSA evolution-path accumulator (scalar proxy)
     /// transient: the offspring success rate (fraction of children beating their own parent),

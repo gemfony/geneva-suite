@@ -104,8 +104,8 @@ void gem_archive_serialize(archive_type &ar, ACOSolution &sol) {
  * and truncates in one call -- so it IS that queue rather than a second implementation of it. Value
  * storage is the natural holder: a solution record is plain data with no identity of its own.
  *
- * The archive is the algorithm's run state: init() builds it for a new run, and it is part of the
- * algorithm's member list, so a checkpoint carries it and a resumed run goes on with it.
+ * The archive is the algorithm's run state: initRunState_() builds it for a new run, and it is part of
+ * the algorithm's member list, so a checkpoint carries it and a resumed run goes on with it.
  */
 class GACOSolutionArchive // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<
@@ -126,7 +126,7 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GACOSolutionArchive";
 
-    /** @brief The default constructor (an unsized archive; init() sets the capacity k). */
+    /** @brief The default constructor (an unsized archive; initRunState_() sets the capacity k). */
     GACOSolutionArchive() = default;
     /** @brief Initialization with the archive size k.
      *  @param max_size The maximum number of solutions the archive keeps. */
@@ -358,6 +358,8 @@ protected:
 
     /** @brief Does some preparatory work before the optimization starts */
     void init() override;
+    /** @brief Builds the run state of a new run: the initial archive */
+    void initRunState_() override;
     /** @brief Does any necessary finalization work */
     void finalize() override;
 
@@ -409,7 +411,7 @@ private:
     double xi_ = DEFAULTACORXI;             ///< Evaporation / convergence-speed parameter
 
     /***************************************************************************/
-    // The archive: built by init() for a new run, kept by init() for a resumed one
+    // The archive: built by initRunState_() for a new run, held by a resumed run's checkpoint
 
     /// transient: the number of active floating point parameters, derived from the genome in init()
     std::size_t n_fp_parms_ = 0;

@@ -236,8 +236,8 @@ void GGeneralizedSimulatedAnnealing::resetToOptimizationStart_() {
  * init(), so every slot (including the freshly cloned ones) receives a personality.
  *
  * Chain 0's current slot is seeded from the registered start individual; the remaining chains' current
- * slots are randomized within the parameter ranges (in init()). Each proposal slot starts as a clone of
- * its chain's current slot.
+ * slots are randomized within the parameter ranges (in initRunState_()). Each proposal slot starts as a
+ * clone of its chain's current slot.
  */
 void GGeneralizedSimulatedAnnealing::adjustPopulation_() {
     if(this->empty()) {
@@ -261,12 +261,9 @@ void GGeneralizedSimulatedAnnealing::adjustPopulation_() {
 
 /******************************************************************************/
 /**
- * Does some preparatory work before the optimization starts: determines the floating-point parameter
- * count, derives the effective initial visiting temperature, seeds the chains (chain 0's current slot keeps the
- * registered start individual; the other chains' current slots are randomized uniformly inside the box;
- * each proposal slot is initialized from its current slot) and initializes the per-chain cooling clocks.
- * A run resumed from a checkpoint keeps its chains and their clocks instead; the clocks are checked
- * against the number of chains.
+ * Does some preparatory work before every start of a run: determines the floating-point parameter count,
+ * derives the effective initial visiting temperature and checks the per-chain clocks -- built by
+ * initRunState_() or held by the checkpoint of a resumed run -- against the number of chains.
  */
 void GGeneralizedSimulatedAnnealing::init() {
     GOptimizationAlgorithmT<GGeneralizedSimulatedAnnealing>::init();
@@ -295,18 +292,25 @@ void GGeneralizedSimulatedAnnealing::init() {
     // practical over a finite iteration budget -- broad early exploration, fine late refinement.
     t0_effective_ = (t0_ > 0.) ? t0_ : 1.;
 
-    if(this->resumedFromCheckpoint()) {
-        Gem::Common::checkThat(
-            chain_step_.size() == n_chains_ && chain_best_energy_.size() == n_chains_ &&
-                chain_stall_.size() == n_chains_,
-            "The chain state of the checkpoint does not fit the population: expected ",
-            n_chains_,
-            " chains, found ",
-            chain_step_.size()
-        );
-        markIndividualPositions();
-        return;
-    }
+    Gem::Common::checkThat(
+        chain_step_.size() == n_chains_ && chain_best_energy_.size() == n_chains_ &&
+            chain_stall_.size() == n_chains_,
+        "The chain state does not fit the population: expected ",
+        n_chains_,
+        " chains, found ",
+        chain_step_.size()
+    );
+    markIndividualPositions();
+}
+
+/******************************************************************************/
+/**
+ * Builds the run state of a new run: seeds the chains (chain 0's current slot keeps the registered start
+ * individual; the other chains' current slots are randomized uniformly inside the box; each proposal slot
+ * is initialized from its current slot) and initializes the per-chain cooling clocks.
+ */
+void GGeneralizedSimulatedAnnealing::initRunState_() {
+    GOptimizationAlgorithmT<GGeneralizedSimulatedAnnealing>::initRunState_();
 
     // Seed the chains. Chain 0's current slot keeps the registered start individual unchanged; the other
     // chains' current slots are randomized uniformly inside the box. Each proposal slot is initialized
@@ -322,8 +326,6 @@ void GGeneralizedSimulatedAnnealing::init() {
     chain_step_.assign(n_chains_, 1u);
     chain_best_energy_.assign(n_chains_, std::numeric_limits<double>::max());
     chain_stall_.assign(n_chains_, 0u);
-
-    markIndividualPositions();
 }
 
 /******************************************************************************/

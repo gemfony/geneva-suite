@@ -778,6 +778,8 @@ protected:
 
     /** @brief Does some preparatory work before the optimization starts */
     void init() override;
+    /** @brief Builds the run state of a new run: the count of random scans */
+    void initRunState_() override;
     /** @brief Does any necessary finalization work */
     void finalize() override;
 

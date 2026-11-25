@@ -209,10 +209,10 @@ void GAntColonyOptimization::adjustPopulation_() {
 
 /******************************************************************************/
 /**
- * Does some preparatory work before the optimization starts: determines the floating-point parameter
- * count, computes the ranked selection probabilities and seeds the initial archive into the first k population slots
- * (member 0 keeps the registered start individual; the rest are randomized uniformly inside the box).
- * A run resumed from a checkpoint keeps its archive instead; it is checked against k and the genome.
+ * Does some preparatory work before every start of a run: determines the floating-point parameter
+ * count, computes the ranked selection probabilities and checks the archive against k and the genome.
+ * The archive of a new run is empty (its first iteration fills it, see initRunState_()); a resumed run
+ * goes on with the archive of its checkpoint.
  */
 void GAntColonyOptimization::init() {
     GOptimizationAlgorithmT<GAntColonyOptimization>::init();
@@ -232,26 +232,32 @@ void GAntColonyOptimization::init() {
     }
 
     computeSelectionProbabilities();
-    if(this->resumedFromCheckpoint()) {
-        Gem::Common::checkThat(
-            archive_.size() == archive_size_ &&
-                std::ranges::all_of(
-                    archive_,
-                    [this](ACOSolution const &sol) { return sol.parms.size() == n_fp_parms_; }
-                ),
-            "The archive of the checkpoint does not fit the population: expected ",
-            archive_size_,
-            " solutions with ",
-            n_fp_parms_,
-            " floating point parameters, found ",
-            archive_.size(),
-            " solutions."
-        );
-    }
-    else {
-        seedInitialArchive();
-    }
+    Gem::Common::checkThat(
+        archive_.empty() ||
+            (archive_.size() == archive_size_ &&
+             std::ranges::all_of(
+                 archive_,
+                 [this](ACOSolution const &sol) { return sol.parms.size() == n_fp_parms_; }
+             )),
+        "The archive does not fit the population: expected ",
+        archive_size_,
+        " solutions with ",
+        n_fp_parms_,
+        " floating point parameters, found ",
+        archive_.size(),
+        " solutions."
+    );
     markIndividualPositions();
+}
+
+/******************************************************************************/
+/**
+ * Builds the run state of a new run: seeds the initial archive into the first k population slots (member
+ * 0 keeps the registered start individual; the rest are randomized uniformly inside the box).
+ */
+void GAntColonyOptimization::initRunState_() {
+    GOptimizationAlgorithmT<GAntColonyOptimization>::initRunState_();
+    seedInitialArchive();
 }
 
 /******************************************************************************/
@@ -456,7 +462,7 @@ void GAntColonyOptimization::evaluatePopulation_() {
  * The actual business logic to be performed during each iteration.
  *
  *   - while the archive is empty (the first iteration of a new run): the k seed candidates were
- *     written into the first k population slots by init(); evaluate all k and read them into the
+ *     written into the first k population slots by initRunState_(); evaluate all k and read them into the
  *     archive, which ranks them best-first.
  *   - otherwise (later iterations, and every iteration of a resumed run): construct m new ants
  *     (sampling from the ranked archive), evaluate them, then merge them into the archive and
