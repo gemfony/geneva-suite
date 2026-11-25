@@ -198,8 +198,9 @@ void GStandardPSO2011::init() {
         );
     }
 
+    // The topology is transient: the first iteration of every job, a resumed one as well, builds it
     informs_.assign(swarm_size_, std::vector<bool>(swarm_size_, false));
-    global_best_improved_ = true;
+    global_best_improved_ = false;
 
     // Particle index bookkeeping.
     for(std::size_t i = 0; i < swarm_size_; ++i) {
@@ -510,8 +511,8 @@ std::tuple<double, double> GStandardPSO2011::updateBests() {
 /**
  * The actual business logic to be performed during each iteration.
  *
- *   1. (Re-)build the random informant topology if needed (always in the first iteration; thereafter
- *      only if the global best did not improve).
+ *   1. (Re-)build the random informant topology if needed (always in the first iteration of a job;
+ *      thereafter only if the global best did not improve).
  *   2. In iterations after the first, update all velocities and positions.
  *   3. (Re-)evaluate the whole swarm.
  *   4. Update the personal bests and the global best.
@@ -520,7 +521,7 @@ std::tuple<double, double> GStandardPSO2011::updateBests() {
  */
 //! [spso-cycle]
 std::tuple<double, double> GStandardPSO2011::cycleLogic_() {
-    if(inFirstIteration() || not global_best_improved_) {
+    if(not global_best_improved_) {
         buildTopology();
     }
 

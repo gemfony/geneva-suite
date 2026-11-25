@@ -35,6 +35,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <filesystem>
 #include <functional>
@@ -50,11 +52,16 @@
 
 #include "common/GCommonEnums.hpp"
 #include "common/testing/GStandardTests.hpp"
+#include "geneva/GFaultInjector.hpp"
 #include "geneva/individuals/GLineFitIndividual.hpp"
 #include "geneva/oa/GAntColonyOptimization.hpp"
+#include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
+#include "geneva/oa/GNelderMead.hpp"
+#include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
+#include "geneva/oa/GSwarmAlgorithm.hpp"
 
 namespace fs = std::filesystem;
 namespace gind = Gem::Geneva::Individuals;
@@ -292,6 +299,87 @@ oa_type newSetupOf(
     return setupOf(probe, 0);
 }
 
+/** @brief Counts the evaluations of the process; it injects no fault */
+class GEvaluationCounter final : public Gem::Geneva::GFaultInjector {
+public:
+    /** @brief Counts one evaluation @return No fault */
+    Fault
+    evaluate(Gem::Geneva::Genome::GGenome const & /*item*/, Gem::Hap::GRandomBase & /*gr*/)
+        override {
+        count_.fetch_add(1);
+        return Fault::NONE;
+    }
+
+    /** @brief @return The evaluations counted so far */
+    [[nodiscard]] std::size_t count() const {
+        return count_.load();
+    }
+
+private:
+    std::atomic<std::size_t> count_{0}; ///< The evaluations counted so far
+};
+
+/** @brief Registers an evaluation counter for its lifetime */
+class GCountingScope {
+public:
+    GCountingScope() {
+        Gem::Geneva::GFaultInjectorRegistry::set(std::make_unique<GEvaluationCounter>());
+    }
+    ~GCountingScope() {
+        Gem::Geneva::GFaultInjectorRegistry::clear();
+    }
+    GCountingScope(GCountingScope const &) = delete;
+    GCountingScope &operator=(GCountingScope const &) = delete;
+
+    /** @brief @return The evaluations counted so far */
+    [[nodiscard]] static std::size_t count() {
+        auto const *counter =
+            dynamic_cast<GEvaluationCounter const *>(Gem::Geneva::GFaultInjectorRegistry::get());
+        REQUIRE(counter != nullptr);
+        return counter->count();
+    }
+};
+
+/**
+ * @brief Resumes an algorithm from a checkpoint for one iteration.
+ * @param cp The checkpoint
+ * @param configure Gives the algorithm the job settings a run needs (an adaption config)
+ * @param evaluations Receives the number of evaluations of that iteration
+ * @return The algorithm after the iteration
+ */
+template <typename oa_type>
+oa_type oneMoreIteration(
+    fs::path const &cp,
+    std::type_identity_t<std::function<void(oa_type &)>> const &configure,
+    std::size_t &evaluations
+) {
+    oa_type alg;
+    alg.loadCheckpoint(cp);
+    configure(alg);
+    alg.setCheckpointInterval(0);
+    alg.setReportIteration(0);
+    alg.setMaxIteration(alg.getIteration() + 2); // one iteration
+    GCountingScope const counting;
+    alg.optimize(alg.getIteration() + 1);
+    evaluations = GCountingScope::count();
+    return alg;
+}
+
+/**
+ * @brief The floating point parameters of every individual of an algorithm.
+ * @param alg The algorithm
+ * @return One vector per individual
+ */
+template <typename oa_type>
+std::vector<std::vector<double>> positions(oa_type const &alg) {
+    std::vector<std::vector<double>> result;
+    for(auto const &ind : alg) {
+        result.emplace_back();
+        ind->streamlineFPInternal(result.back());
+    }
+    return result;
+}
+
 /// A best fitness before any evaluation
 constexpr double UNSET = std::numeric_limits<double>::max();
 
@@ -385,12 +473,9 @@ TEST_CASE("A resumed ant colony optimization goes on with its archive", "[oa][re
 
     // The first iteration of the resumed run samples two ants from the archive and merges them, so
     // no rank of the archive gets worse (re-seeding it from the population would lose its best)
-    oa::GAntColonyOptimization one_more;
-    one_more.loadCheckpoint(cp);
-    one_more.setCheckpointInterval(0);
-    one_more.setReportIteration(0);
-    one_more.setMaxIteration(one_more.getIteration() + 2); // one iteration
-    one_more.optimize(one_more.getIteration() + 1);
+    std::size_t evaluations = 0;
+    auto const one_more =
+        oneMoreIteration<oa::GAntColonyOptimization>(cp, [](auto &) {}, evaluations);
     auto const merged = numbersNamed(one_more, "archive_", "fitness");
     REQUIRE(merged.size() == saved.size());
     for(std::size_t rank = 0; rank < saved.size(); ++rank) {
@@ -444,4 +529,133 @@ TEST_CASE(
     auto const started = newSetupOf(run, configure);
     CHECK(numbers(started, "p_sigma_") == std::vector<double>{0.});
     CHECK(started.getGlobalSigma() == newSetupOf(brand_new, configure).getGlobalSigma());
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "The first iteration of a resumed evolutionary algorithm evaluates only the children",
+    "[oa][resume]"
+) {
+    auto const adaption_config = lineFit().getAdaptionConfig();
+    auto const configure = [&adaption_config](oa::GEvolutionaryAlgorithm &alg) {
+        alg.setAdaptionConfig(adaption_config);
+    };
+    oa::GEvolutionaryAlgorithm run;
+    run.setPopulationSizes(8, 2);
+    configure(run);
+    auto const cp = runToCheckpoint(run);
+
+    // The parents of the checkpoint were evaluated in the run that wrote it
+    std::size_t evaluations = 0;
+    oneMoreIteration<oa::GEvolutionaryAlgorithm>(cp, configure, evaluations);
+    fs::remove_all(cp.parent_path());
+    CHECK(evaluations == 6);
+}
+
+/******************************************************************************/
+
+TEST_CASE("A resumed swarm goes on with its neighborhood bests", "[oa][resume]") {
+    oa::GSwarmAlgorithm run;
+    run.setSwarmSizes(2, 3);
+    auto const cp = runToCheckpoint(run);
+    oa::GSwarmAlgorithm saved;
+    saved.loadCheckpoint(cp);
+
+    std::size_t evaluations = 0;
+    auto resumed = oneMoreIteration<oa::GSwarmAlgorithm>(cp, [](auto &) {}, evaluations);
+    fs::remove_all(cp.parent_path());
+
+    // No neighborhood best gets worse (starting them anew from this iteration would lose them)
+    for(std::size_t n = 0; n < 2; ++n) {
+        INFO("neighborhood " << n);
+        CHECK(
+            resumed.getBestNeighborhoodIndividual<Gem::Geneva::Genome::GGenome>(n)
+                ->transformed_fitness(0) <=
+            saved.getBestNeighborhoodIndividual<Gem::Geneva::Genome::GGenome>(n)
+                ->transformed_fitness(0)
+        );
+    }
+
+    // The particles move on in the first iteration of the resumed run
+    auto const before = positions(saved);
+    auto const after = positions(resumed);
+    CHECK(std::ranges::count_if(after, [&before](auto const &p) {
+              return std::ranges::find(before, p) == before.end();
+          }) > 0);
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "A resumed conjugate gradient descent goes on with its difference-quotient children",
+    "[oa][resume]"
+) {
+    oa::GConjugateGradientDescent run;
+    run.setNStartingPoints(1);
+    auto const cp = runToCheckpoint(run);
+    oa::GConjugateGradientDescent saved;
+    saved.loadCheckpoint(cp);
+
+    // The first iteration of the resumed run steps from the evaluated children of the checkpoint
+    auto const resumed = resumedSetupOf<oa::GConjugateGradientDescent>(cp);
+    CHECK(positions(resumed) == positions(saved));
+
+    // Another number of starting points cannot go on with this population
+    oa::GConjugateGradientDescent other_size;
+    other_size.loadCheckpoint(cp);
+    fs::remove_all(cp.parent_path());
+    other_size.setNStartingPoints(2);
+    CHECK_THROWS_WITH(
+        other_size.optimize(other_size.getIteration() + 1),
+        Catch::Matchers::ContainsSubstring("does not fit the population")
+    );
+}
+
+/******************************************************************************/
+
+TEST_CASE("A resumed Nelder-Mead goes on with its simplices", "[oa][resume]") {
+    oa::GNelderMead run;
+    run.setNSimplices(2);
+    auto const cp = runToCheckpoint(run);
+    oa::GNelderMead saved;
+    saved.loadCheckpoint(cp);
+
+    // The simplices and the pending trials of the checkpoint, which the first iteration of the
+    // resumed run decides on
+    auto const resumed = resumedSetupOf<oa::GNelderMead>(cp);
+    CHECK(positions(resumed) == positions(saved));
+    CHECK(member(resumed, "trials_pending_") == "true");
+    checkRoundTrips(resumed);
+
+    // Another number of simplices cannot go on with this population
+    oa::GNelderMead other_size;
+    other_size.loadCheckpoint(cp);
+    fs::remove_all(cp.parent_path());
+    other_size.setNSimplices(3);
+    CHECK_THROWS_WITH(
+        other_size.optimize(other_size.getIteration() + 1),
+        Catch::Matchers::ContainsSubstring("does not fit the population")
+    );
+
+    // A new run builds its simplices afresh and proposes its first trials in its second iteration
+    auto const started = newSetupOf(run);
+    CHECK(member(started, "trials_pending_") == "false");
+    CHECK(positions(started) != positions(saved));
+}
+
+/******************************************************************************/
+
+TEST_CASE("A resumed random parameter scan goes on with its count", "[oa][resume]") {
+    oa::GParameterScan run;
+    run.setNSimpleScans(1000);
+    auto const cp = runToCheckpoint(run);
+    REQUIRE(run.getNScansPerformed() > 0);
+
+    auto const resumed = resumedSetupOf<oa::GParameterScan>(cp);
+    fs::remove_all(cp.parent_path());
+    CHECK(resumed.getNScansPerformed() == run.getNScansPerformed());
+
+    // A new run counts from zero
+    CHECK(newSetupOf(run).getNScansPerformed() == 0);
 }

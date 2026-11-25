@@ -861,6 +861,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   of the value in the document and the reason (text that is no JSON, a value of the wrong type, a
   missing key, an array of the wrong length, a number out of range, a malformed floating-point or
   hex string), as a malformed binary archive does; no exception of Boost.JSON leaves the codec.
+  A JSON archive may nest up to 1024 levels; the parser's default of 32 refused the checkpoint of
+  a swarm, which nests about 43.
 - **The personality-traits archive layout changed within the 1.99 development series**:
   the position-only traits of CGD / Nelder-Mead / parameter scan / GSA / ACO / PSO2011 and
   the parent-child traits now serialize their population position through the shared
@@ -875,7 +877,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   member lists, so the checkpoint carries it, and `init()` keeps it on a resume instead of
   starting it afresh; a state that does not fit the population (another swarm size, number of
   chains or archive size) is refused. Checkpoints of these algorithms written by earlier 1.99
-  builds do not load.
+  builds do not load. Nelder-Mead keeps the simplices of its checkpoint, the conjugate gradient
+  descent its difference-quotient children and the parameter scan the count of its random scans.
+  The first iteration of a resumed run is not the first of the run (`inFirstIteration()`,
+  `afterFirstIteration()` answer for the run as a whole): the EA does not evaluate its parents
+  again, the swarm moves on from its bests, and the gradient descent, Nelder-Mead and the
+  generalized simulated annealing take the step that was due when the checkpoint was written.
 
 ## 9. Recording: monitors write streams
 

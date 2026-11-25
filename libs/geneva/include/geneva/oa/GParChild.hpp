@@ -34,7 +34,9 @@
 #include "geneva/GNamespaceAliases.hpp"
 
 // Standard headers go here
+#include <algorithm>
 #include <concepts>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <random>
@@ -198,12 +200,17 @@ protected:
      *  @return A tuple holding the [start, end) index range of individuals to be evaluated */
     virtual std::tuple<std::size_t, std::size_t> getEvaluationRange_() const {
         // Default shared by the parent/child algorithms (EA / SA): evaluate everything in the
-        // first iteration (so pluggable optimization monitors need not distinguish between
-        // algorithms), and only the children afterwards.
-        return std::tuple<std::size_t, std::size_t>{
-            this->inFirstIteration() ? 0 : this->getNParents(),
-            this->size()
-        };
+        // first iteration of a run (so pluggable optimization monitors need not distinguish between
+        // algorithms), and only the children afterwards -- from the first parent not yet evaluated,
+        // should a run resumed from a checkpoint have been given more parents than it held.
+        if(this->inFirstIteration()) {
+            return {0, this->size()};
+        }
+        auto const parents_end = this->begin() + static_cast<std::ptrdiff_t>(this->getNParents());
+        auto const first_due = std::find_if(this->begin(), parents_end, [](auto const &p) {
+            return p->is_due_for_processing();
+        });
+        return {static_cast<std::size_t>(first_due - this->begin()), this->size()};
     }
 
 private:
