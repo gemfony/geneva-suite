@@ -64,7 +64,8 @@
  * evaluates it.
  *
  * It follows the config-driven flat-individual pattern GIndividualFactory<Derived> drives (a @c Config of
- * tunables, @c describeConfig / @c buildGenome / @c buildAdaptionConfig / @c evaluate + a serialize()).
+ * tunables, @c describeConfig / @c buildGenome / @c buildAdaptionConfig / @c evaluate; its serialize() is
+ * generated from the @c genome_only marker).
  */
 class GGPUParaboloid : public Gem::Geneva::Genome::GGenomeT<GGPUParaboloid> {
 public:
@@ -149,17 +150,6 @@ protected:
             0.,
             std::plus{}
         )};
-    }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<Gem::Geneva::Genome::GGenomeT<GGPUParaboloid>>(
-            ar,
-            "GGenomeT",
-            *this
-        );
     }
 };
 

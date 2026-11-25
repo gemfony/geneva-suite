@@ -94,13 +94,6 @@ protected:
             std::plus{}
         )};
     }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<FISphere>>(ar, "GGenomeT", *this);
-    }
 };
 
 /** @brief An injector that always requests the given fault. */

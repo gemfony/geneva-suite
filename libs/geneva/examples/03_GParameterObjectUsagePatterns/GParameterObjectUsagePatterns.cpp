@@ -71,14 +71,6 @@ public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 
-    friend struct Gem::Weft::access;
-
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<gen::GGenomeT<GDemoIndividual>>(ar, "GGenomeT", *this);
-    }
-
-public:
     GDemoIndividual() {
         // The builder declares only the genome's STRUCTURE; the adaptors live on an OA-owned config
         // (getAdaptionConfig()), authored from the same parameters.

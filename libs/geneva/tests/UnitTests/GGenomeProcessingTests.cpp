@@ -125,12 +125,6 @@ private:
         }
         this->setGenome(b.build());
     }
-
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<NewSphere>>(ar, "GGenomeT", *this);
-    }
 };
 
 } // namespace Gem::Tests
@@ -170,13 +164,6 @@ protected:
             std::plus{}
         )};
     }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<SeamSphere>>(ar, "GGenomeT", *this);
-    }
 };
 
 /******************************************************************************/
@@ -210,13 +197,6 @@ protected:
             2. * v.at(1) * v.at(1),
             3. * v.at(2) * v.at(2)
         };
-    }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<SeamMulti>>(ar, "GGenomeT", *this);
     }
 };
 
@@ -535,13 +515,6 @@ protected:
         this->force_set_error("ErrorFlaggingSphere: user-flagged evaluation error\n");
         return {0.};
     }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<ErrorFlaggingSphere>>(ar, "GGenomeT", *this);
-    }
 };
 
 } // namespace Gem::Tests
@@ -712,13 +685,6 @@ protected:
             0.,
             std::plus{}
         )};
-    }
-
-private:
-    friend struct Gem::Weft::access;
-    template <typename archive_type>
-    void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<GGenomeT<CountingSphere>>(ar, "GGenomeT", *this);
     }
 };
 
