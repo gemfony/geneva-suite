@@ -1044,11 +1044,14 @@ private:
                 process(present);
                 if(present) {
                     using Pointee = typename U::element_type;
-                    // reset(ptr) serves unique_ptr and shared_ptr alike. A publicly
-                    // default-constructible pointee is built inline; one whose default ctor is
-                    // private (kept only for de-serialization) is built through the access shim
-                    // it befriends -- the concrete-pointer analogue of the polymorphic factory seam.
+                    // reset(ptr) serves shared_ptr and a unique_ptr with any deleter alike
+                    // (make_unique cannot build a unique_ptr<T, D>, hence the naked new below).
+                    // A publicly default-constructible pointee is built inline; one whose default
+                    // ctor is private (kept only for de-serialization) is built through the access
+                    // shim it befriends -- the concrete-pointer analogue of the polymorphic
+                    // factory seam.
                     if constexpr(std::is_default_constructible_v<Pointee>) {
+                        // NOLINTNEXTLINE(modernize-make-shared,modernize-make-unique)
                         v.reset(new Pointee());
                     }
                     else {

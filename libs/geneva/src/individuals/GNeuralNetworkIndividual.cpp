@@ -515,7 +515,7 @@ std::string networkData::getNetworkGeometryString() const {
 std::shared_ptr<networkData> networkData::clone() const {
     // Lock access to this function
     std::scoped_lock<std::mutex> const lock(m_);
-    std::shared_ptr<networkData> result(new networkData(*this));
+    auto result = std::make_shared<networkData>(*this);
     return result;
 }
 

@@ -99,8 +99,8 @@ int main(int argc, char **argv) {
              //---------------------------------------------------------------------------
              // Create a factory for GFunctionIndividual objects and perform
              // any necessary initial work.
-             std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-                 new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+             auto const gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
+                 "./config/GFunctionIndividual.json"
              );
 
              // We want the GFunctionIndividual objects to always use bounded parameters. This is expressed in the
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
              //---------------------------------------------------------------------------
              // Register a progress plotter with the global optimization algorithm factory
              if(monitorSpec != "empty") {
-                 std::shared_ptr<GProgressPlotter> const progplot_ptr(new GProgressPlotter());
+                 auto const progplot_ptr = std::make_shared<GProgressPlotter>();
 
                  progplot_ptr->setProfileSpec(monitorSpec);
                  progplot_ptr->setObserveBoundaries(observeBoundaries);
@@ -132,22 +132,18 @@ int main(int argc, char **argv) {
                      gfi_ptr->get_as<gind::GFunctionIndividual>();
 
                  // Create the constraint objects
-                 std::shared_ptr<gind::GDoubleSumConstraint> const doublesum_constraint_ptr(
-                     new gind::GDoubleSumConstraint(1.)
-                 );
-                 std::shared_ptr<gind::GSphereConstraint> const sphere_constraint_ptr(
-                     new gind::GSphereConstraint(3.)
-                 );
-                 std::shared_ptr<gind::GDoubleSumGapConstraint> const gap_constraint(
-                     new gind::GDoubleSumGapConstraint(1., 0.05)
+                 auto const doublesum_constraint_ptr =
+                     std::make_shared<gind::GDoubleSumConstraint>(1.);
+                 auto const sphere_constraint_ptr = std::make_shared<gind::GSphereConstraint>(3.);
+                 auto const gap_constraint = std::make_shared<gind::GDoubleSumGapConstraint>(
+                     1.,
+                     0.05
                  ); // The sum of all variables must be 1 +/- 0.05
 
                  // Create a check combiner and add the constraint objects to it. Constraints are
                  // expressed directly as C++ constraint objects (subclasses of GGenomeConstraint),
                  // which is the general, type-safe way to formulate arbitrary dependent constraints.
-                 std::shared_ptr<GCheckCombinerT<gen::GGenome>> const combiner_ptr(
-                     new GCheckCombinerT<gen::GGenome>()
-                 );
+                 auto const combiner_ptr = std::make_shared<GCheckCombinerT<gen::GGenome>>();
                  combiner_ptr->setCombinerPolicy(
                      Gem::Geneva::validityCheckCombinerPolicy::MULTIPLYINVALID
                  );

@@ -290,6 +290,8 @@ CheckOptions:
 # - std::uint32_t etc. (from <cstdint>) replace boost::uint32_t.
 # - noexcept replaces throw() specifications.
 # - Macros for constants are flagged (cppcoreguidelines-macro-usage).
+# - A smart pointer built from a naked new is flagged (modernize-make-shared,
+#   modernize-make-unique; named here because CODING-STYLE.md relies on them).
 # - C-style casts are flagged (google-readability-casting,
 #   cppcoreguidelines-pro-type-cstyle-cast).
 ...

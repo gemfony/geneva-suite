@@ -60,8 +60,8 @@ int main(int argc, char **argv) {
         {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
             //---------------------------------------------------------------------------
             // Supply the (compiled-in) optimization individual: the standard benchmark-function individual.
-            std::shared_ptr<gind::GFunctionIndividualFactory> const gfi_ptr(
-                new gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+            auto const gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
+                "./config/GFunctionIndividual.json"
             );
 
             // Let Go2 generate its own individuals from this factory as needed.

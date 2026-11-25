@@ -535,7 +535,7 @@ void GParameterScan::resetParameterObjects() {
  */
 std::shared_ptr<parSet> GParameterScan::getParameterSet() {
     // Create a new parSet object
-    std::shared_ptr<parSet> result(new parSet());
+    auto result = std::make_shared<parSet>();
 
     auto append = [this](const auto &scan_par_cnt, auto &target_vec) {
         using single_t = typename std::remove_reference_t<decltype(target_vec)>::value_type;

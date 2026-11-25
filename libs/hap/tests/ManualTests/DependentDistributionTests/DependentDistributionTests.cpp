@@ -73,36 +73,23 @@ int main(int argc, char **argv) {
     double sum3 = NAN;
     double sum4 = NAN;
 
-    std::shared_ptr<GRandomT<randomSource::QUEUE>> const gr_ptr(
-        new GRandomT<randomSource::QUEUE>()
-    );
+    auto const gr_ptr = std::make_shared<GRandomT<randomSource::QUEUE>>();
 
-    std::shared_ptr<GHistogram1D> const x1_ptr(new GHistogram1D(NBINS, 0., 1.));
-    std::shared_ptr<GHistogram1D> const x2_ptr(new GHistogram1D(NBINS, 0., 1.));
-    std::shared_ptr<GHistogram1D> const x3_ptr(new GHistogram1D(NBINS, 0., 1.));
-    std::shared_ptr<GHistogram1D> const x4_ptr(new GHistogram1D(NBINS, 0., 1.));
+    auto const x1_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.);
+    auto const x2_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.);
+    auto const x3_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.);
+    auto const x4_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.);
 
-    std::shared_ptr<GHistogram1D> const sum1_extract_ptr(new GHistogram1D(NBINS, 0., 1.)); // 1 - x1
-    std::shared_ptr<GHistogram1D> const sum2_extract_ptr(
-        new GHistogram1D(NBINS, 0., 1.)
-    ); // 1 - (x1+x2)
-    std::shared_ptr<GHistogram1D> const sum3_extract_ptr(
-        new GHistogram1D(NBINS, 0., 1.)
-    ); // 1 - (x1+x2+x3)
-    std::shared_ptr<GHistogram1D> const sum4_extract_ptr(
-        new GHistogram1D(NBINS, 0., 1.)
-    ); // 1 - (x1+x2+x3+x4)
+    auto const sum1_extract_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.); // 1 - x1
+    auto const sum2_extract_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.); // 1 - (x1+x2)
+    auto const sum3_extract_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.); // 1 - (x1+x2+x3)
+    auto const sum4_extract_ptr =
+        std::make_shared<GHistogram1D>(NBINS, 0., 1.); // 1 - (x1+x2+x3+x4)
 
-    std::shared_ptr<GHistogram1D> const sum1_all_ptr(new GHistogram1D(NBINS, 0., 1.)); // 1 - x1
-    std::shared_ptr<GHistogram1D> const sum2_all_ptr(
-        new GHistogram1D(NBINS, -1., 1.)
-    ); // 1 - (x1+x2)
-    std::shared_ptr<GHistogram1D> const sum3_all_ptr(
-        new GHistogram1D(NBINS, -2., 1.)
-    ); // 1 - (x1+x2+x3)
-    std::shared_ptr<GHistogram1D> const sum4_all_ptr(
-        new GHistogram1D(NBINS, -3., 1.)
-    ); // 1 - (x1+x2+x3+x4)
+    auto const sum1_all_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 1.);  // 1 - x1
+    auto const sum2_all_ptr = std::make_shared<GHistogram1D>(NBINS, -1., 1.); // 1 - (x1+x2)
+    auto const sum3_all_ptr = std::make_shared<GHistogram1D>(NBINS, -2., 1.); // 1 - (x1+x2+x3)
+    auto const sum4_all_ptr = std::make_shared<GHistogram1D>(NBINS, -3., 1.); // 1 - (x1+x2+x3+x4)
 
     x1_ptr->setXAxisLabel("x1");
     x1_ptr->setYAxisLabel("Number of Entries");

@@ -459,6 +459,13 @@ Inv 16). A number of older idioms have been retired, most of it enforced by the 
   project macro switches code on by build type.
 - **No C-style casts.** Use `static_cast` and the other named C++ casts, so the kind of conversion is explicit
   and searchable.
+- **Smart pointers are made with `std::make_shared` and `std::make_unique`**, not from a naked `new`
+  (`std::shared_ptr<T> p(new T(...))`, `p.reset(new T(...))`): the shared case needs one allocation
+  instead of two, the object is owned from the moment it exists, and a review finds no `new` to check (Inv 21).
+  `new` stays only where a make function cannot do the job -- a constructor that is private and reached
+  through a friend, a `unique_ptr` with a deleter of its own -- and then the site says why, in a comment
+  above a `NOLINTNEXTLINE` for `modernize-make-shared` / `modernize-make-unique`, the two checks that
+  keep the pattern out.
 - **Prefer the modern spelling.** `override` on overriding functions, `nullptr` for null pointers,
   `emplace_back` over `push_back` of a temporary, range-based `for` where it reads more clearly, and `auto`
   where it removes a long, redundant type name — all nudged by the `modernize` checks.
@@ -468,6 +475,11 @@ Inv 16). A number of older idioms have been retired, most of it enforced by the 
 //   #define DEFAULT_POPULATION_SIZE 100
 // but this:
 inline constexpr std::size_t DEFAULT_POPULATION_SIZE = 100;
+
+// Not this:
+//   std::shared_ptr<GHistogram1D> histogram(new GHistogram1D(100, 0., 1.));
+// but this:
+auto histogram = std::make_shared<GHistogram1D>(100, 0., 1.);
 ```
 
 Two long-standing rules carry over unchanged. **const-correctness** is taken seriously: anything that can be

@@ -418,7 +418,7 @@ public:
         }
 
         // Construct the result object
-        std::shared_ptr<hist_type> result(new hist_type(nBins, my_range));
+        auto result = std::make_shared<hist_type>(nBins, my_range);
         if constexpr(I == 0) {
             result->setXAxisLabel(this->xAxisLabel());
         }

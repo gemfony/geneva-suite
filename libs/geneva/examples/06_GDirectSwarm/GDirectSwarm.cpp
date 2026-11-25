@@ -355,9 +355,8 @@ int main(int argc, char **argv) {
 
     //! [swarm-direct-setup#1]
     // This smart pointer will hold the different population types
-    std::shared_ptr<oa::GSwarmAlgorithm> const pop_ptr(
-        new oa::GSwarmAlgorithm(nNeighborhoods, nNeighborhoodMembers)
-    );
+    auto const pop_ptr =
+        std::make_shared<oa::GSwarmAlgorithm>(nNeighborhoods, nNeighborhoodMembers);
     //! [swarm-direct-setup#1]
 
     // Build and register the ONE process-wide consumer, depending on the requested consumer type.

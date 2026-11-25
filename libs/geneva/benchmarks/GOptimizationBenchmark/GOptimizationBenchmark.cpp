@@ -188,13 +188,13 @@ int main(int argc, char **argv) {
             //-------------------------------------------------------------------------
             // Create plots from the result vector
 
-            std::shared_ptr<GGraph2ED> const timing_ptr(new GGraph2ED());
+            auto const timing_ptr = std::make_shared<GGraph2ED>();
             timing_ptr->setPlotMode(graphPlotMode::CURVE);
             timing_ptr->setPlotLabel("Timings of optimization runs [s]");
             timing_ptr->setXAxisLabel("Function Dimension");
             timing_ptr->setYAxisLabel("Seconds consumed");
 
-            std::shared_ptr<GGraph2ED> const gopt_ptr(new GGraph2ED());
+            auto const gopt_ptr = std::make_shared<GGraph2ED>();
             gopt_ptr->setPlotMode(graphPlotMode::CURVE);
             gopt_ptr->setPlotLabel("Best measurements and errors");
             gopt_ptr->setXAxisLabel("Function Dimension");

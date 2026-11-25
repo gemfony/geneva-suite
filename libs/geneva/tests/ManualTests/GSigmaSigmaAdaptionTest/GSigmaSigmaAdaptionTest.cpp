@@ -115,7 +115,7 @@ int main() {
     double fact_2_08 = NAN;
 
     std::shared_ptr<Gem::Hap::GRandomBase> const gr_ptr =
-        std::shared_ptr<GRandomT<randomSource::QUEUE>>(new GRandomT<randomSource::QUEUE>());
+        std::make_shared<GRandomT<randomSource::QUEUE>>();
 
     std::string const caption_dist =
         "Different random distributions for the adaption of sigma, varying sigmaSigma";
@@ -127,15 +127,15 @@ int main() {
     GPlotDesigner gpd_devel(caption_devel, 2, 4);
     gpd_devel.setCanvasDimensions(1600, 1200);
 
-    std::shared_ptr<GHistogram1D> const dist1_02_ptr(new GHistogram1D(NBINS, 0., 3.));
-    std::shared_ptr<GHistogram1D> const dist1_04_ptr(new GHistogram1D(NBINS, 0., 3.));
-    std::shared_ptr<GHistogram1D> const dist1_06_ptr(new GHistogram1D(NBINS, 0., 3.));
-    std::shared_ptr<GHistogram1D> const dist1_08_ptr(new GHistogram1D(NBINS, 0., 3.));
+    auto const dist1_02_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
+    auto const dist1_04_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
+    auto const dist1_06_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
+    auto const dist1_08_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
 
-    std::shared_ptr<GHistogram1D> const dist2_02_ptr(new GHistogram1D(NBINS, 0., 3.));
-    std::shared_ptr<GHistogram1D> const dist2_04_ptr(new GHistogram1D(NBINS, 0., 3.));
-    std::shared_ptr<GHistogram1D> const dist2_06_ptr(new GHistogram1D(NBINS, 0., 3.));
-    std::shared_ptr<GHistogram1D> const dist2_08_ptr(new GHistogram1D(NBINS, 0., 3.));
+    auto const dist2_02_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
+    auto const dist2_04_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
+    auto const dist2_06_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
+    auto const dist2_08_ptr = std::make_shared<GHistogram1D>(NBINS, 0., 3.);
 
     dist1_02_ptr->setXAxisLabel("Distribution 1 (random sign)");
     dist1_02_ptr->setYAxisLabel("Number of Entries");
@@ -163,15 +163,15 @@ int main() {
     dist2_08_ptr->setYAxisLabel("Number of Entries");
     dist2_08_ptr->setPlotLabel("sigmaSigma = 0.8");
 
-    std::shared_ptr<GGraph2D> const devel1_02_ptr(new GGraph2D());
-    std::shared_ptr<GGraph2D> const devel1_04_ptr(new GGraph2D());
-    std::shared_ptr<GGraph2D> const devel1_06_ptr(new GGraph2D());
-    std::shared_ptr<GGraph2D> const devel1_08_ptr(new GGraph2D());
+    auto const devel1_02_ptr = std::make_shared<GGraph2D>();
+    auto const devel1_04_ptr = std::make_shared<GGraph2D>();
+    auto const devel1_06_ptr = std::make_shared<GGraph2D>();
+    auto const devel1_08_ptr = std::make_shared<GGraph2D>();
 
-    std::shared_ptr<GGraph2D> const devel2_02_ptr(new GGraph2D());
-    std::shared_ptr<GGraph2D> const devel2_04_ptr(new GGraph2D());
-    std::shared_ptr<GGraph2D> const devel2_06_ptr(new GGraph2D());
-    std::shared_ptr<GGraph2D> const devel2_08_ptr(new GGraph2D());
+    auto const devel2_02_ptr = std::make_shared<GGraph2D>();
+    auto const devel2_04_ptr = std::make_shared<GGraph2D>();
+    auto const devel2_06_ptr = std::make_shared<GGraph2D>();
+    auto const devel2_08_ptr = std::make_shared<GGraph2D>();
 
     devel1_02_ptr->setXAxisLabel("Call");
     devel1_02_ptr->setYAxisLabel("Sigma with Distribution 1 (random sign)");

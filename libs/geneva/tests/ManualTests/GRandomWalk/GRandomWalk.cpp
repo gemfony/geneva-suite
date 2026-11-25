@@ -57,35 +57,35 @@ int main(int argc, char **argv) {
     std::string const caption = "Random walks by adaption of different FP-based parameter objects";
     GPlotDesigner gpd(caption, 2, 3);
 
-    std::shared_ptr<GGraph2D> const gdo_adapt_ptr(new GGraph2D());
+    auto const gdo_adapt_ptr = std::make_shared<GGraph2D>();
     gdo_adapt_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::CURVE);
     gdo_adapt_ptr->setPlotLabel("GDoubleObject");
     gdo_adapt_ptr->setXAxisLabel("x");
     gdo_adapt_ptr->setYAxisLabel("y");
     // gdo_adapt_ptr->setDrawArrows();
 
-    std::shared_ptr<GGraph2D> const gcdo_adapt_ptr(new GGraph2D());
+    auto const gcdo_adapt_ptr = std::make_shared<GGraph2D>();
     gcdo_adapt_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::CURVE);
     gcdo_adapt_ptr->setPlotLabel("GConstrainedDoubleObject");
     gcdo_adapt_ptr->setXAxisLabel("x");
     gcdo_adapt_ptr->setYAxisLabel("y");
     // gcdo_adapt_ptr->setDrawArrows();
 
-    std::shared_ptr<GGraph2D> const gcdoc_adapt_ptr(new GGraph2D());
+    auto const gcdoc_adapt_ptr = std::make_shared<GGraph2D>();
     gcdoc_adapt_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::CURVE);
     gcdoc_adapt_ptr->setPlotLabel("GConstrainedDoubleObjectCollection");
     gcdoc_adapt_ptr->setXAxisLabel("x");
     gcdoc_adapt_ptr->setYAxisLabel("y");
     // gcdoc_adapt_ptr->setDrawArrows();
 
-    std::shared_ptr<GGraph2D> const gdc_adapt_ptr(new GGraph2D());
+    auto const gdc_adapt_ptr = std::make_shared<GGraph2D>();
     gdc_adapt_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::CURVE);
     gdc_adapt_ptr->setPlotLabel("GDoubleCollection");
     gdc_adapt_ptr->setXAxisLabel("x");
     gdc_adapt_ptr->setYAxisLabel("y");
     // gdc_adapt_ptr->setDrawArrows();
 
-    std::shared_ptr<GGraph2D> const gcdc_adapt_ptr(new GGraph2D());
+    auto const gcdc_adapt_ptr = std::make_shared<GGraph2D>();
     gcdc_adapt_ptr->setPlotMode(Gem::Dietrich::graphPlotMode::CURVE);
     gcdc_adapt_ptr->setPlotLabel("GConstrainedDoubleCollection");
     gcdc_adapt_ptr->setXAxisLabel("x");
@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
 
     for(std::size_t o = 0; o < NPERFOBJECTTYPES; o++) {
         // Create a GTestIndividual2 object of size 2
-        std::shared_ptr<GTestIndividual2> const gti_ptr(new GTestIndividual2(2, PERFOBJECTTYPE(o)));
+        auto const gti_ptr = std::make_shared<GTestIndividual2>(2, PERFOBJECTTYPE(o));
 
         // One adapter held across the walk, so the self-adapting sigma persists between steps (the
         // adaption state + logic are OA-owned; a standalone individual drives them via a

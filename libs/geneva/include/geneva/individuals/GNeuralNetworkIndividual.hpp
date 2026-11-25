@@ -504,7 +504,7 @@ inline std::shared_ptr<networkData> createNetworkData(
 
     // Create the actual networkData object and attach the architecture,
     // checking the layer sizes on the way
-    std::shared_ptr<networkData> n_d(new networkData(n_data_sets));
+    auto n_d = std::make_shared<networkData>(n_data_sets);
     std::size_t layer_counter = 0;
     for(auto layer_size : architecture) {
         if(layer_size == 0) {
@@ -522,7 +522,7 @@ inline std::shared_ptr<networkData> createNetworkData(
     const std::size_t n_input_nodes = architecture.front();
     const std::size_t n_output_nodes = architecture.back();
     for(std::size_t dat_counter = 0; dat_counter < n_data_sets; dat_counter++) {
-        std::shared_ptr<trainingSet> const t_s(new trainingSet(n_input_nodes, n_output_nodes));
+        auto const t_s = std::make_shared<trainingSet>(n_input_nodes, n_output_nodes);
         fillSet(gr_l, *t_s);
         n_d->addTrainingSet(t_s, dat_counter);
     }
