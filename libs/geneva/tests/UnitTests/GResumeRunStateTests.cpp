@@ -59,6 +59,7 @@
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
 #include "geneva/oa/GNelderMead.hpp"
+#include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 
@@ -641,4 +642,20 @@ TEST_CASE("A resumed Nelder-Mead goes on with its simplices", "[oa][resume]") {
     auto const started = newSetupOf(run);
     CHECK(member(started, "trials_pending_") == "false");
     CHECK(positions(started) != positions(saved));
+}
+
+/******************************************************************************/
+
+TEST_CASE("A resumed random parameter scan goes on with its count", "[oa][resume]") {
+    oa::GParameterScan run;
+    run.setNSimpleScans(1000);
+    auto const cp = runToCheckpoint(run);
+    REQUIRE(run.getNScansPerformed() > 0);
+
+    auto const resumed = resumedSetupOf<oa::GParameterScan>(cp);
+    fs::remove_all(cp.parent_path());
+    CHECK(resumed.getNScansPerformed() == run.getNScansPerformed());
+
+    // A new run counts from zero
+    CHECK(newSetupOf(run).getNScansPerformed() == 0);
 }
