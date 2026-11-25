@@ -41,7 +41,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include <geneva/Go2.hpp>
+#include <geneva/GOptimizer.hpp>
 
 // The individual that should be optimized
 #include "geneva/individuals/GDelayIndividual.hpp"
@@ -77,7 +77,7 @@ int main(int argc, char **argv) {
         argc,
         argv,
         {.userOptions = user_options,
-         .produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+         .produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
              //---------------------------------------------------------------------------
              // Read the delay-individual configuration (the individual owns its own config
              // parsing and construction; there is no bespoke factory anymore).
@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
 
              //---------------------------------------------------------------------------
 
-             // Add a content creator so Go2 can generate its own individuals, if necessary
+             // Add a content creator so GOptimizer can generate its own individuals, if necessary
              auto firstInd = gind::GDelayIndividual::create(
                  delay_config,
                  gind::GDelayIndividual::tupleToTime(sleep_times.at(0))
@@ -120,7 +120,7 @@ int main(int argc, char **argv) {
                  go.registerAdaptionConfig("PERSONALITY_EA", cfg);
              }
 
-             // Add a default optimization algorithm to the Go2 object. This is optional.
+             // Add a default optimization algorithm to the GOptimizer object. This is optional.
              // Indeed "ea" is the default setting anyway. However, if you do not like it, you
              // can register another default algorithm here, which will then be used, unless
              // you specify other algorithms on the command line. You can also add a smart
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
              go.registerDefaultAlgorithm("ea");
 
              // Perform the actual optimization
-             auto const p = go.optimize()->getBestGlobalIndividual<gind::GDelayIndividual>();
+             auto const p = go.optimize().getBestGlobalIndividual<gind::GDelayIndividual>();
              return 0;
          }}
     );

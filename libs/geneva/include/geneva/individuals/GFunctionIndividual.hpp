@@ -152,7 +152,7 @@ enum class solverFunction : Gem::Common::ENUMBASETYPE {
 	 * Negative parabola: f(x) = -Σxᵢ².
 	 * Global maximum: f=0 at x=(0,...,0). Recommended domain: any.
 	 * Used exclusively for maximisation tests to verify that Geneva's internal
-	 * maximisation mode (Go2 maxMode) functions correctly. The
+	 * maximisation mode (GOptimizer maxMode) functions correctly. The
 	 * landscape is identical to PARABOLA but sign-inverted.
 	 */
     NEGPARABOLA = 7,

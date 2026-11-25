@@ -37,7 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GMetaOptimizerIndividualT.hpp"
@@ -53,10 +53,10 @@ using namespace Gem::Geneva;
 /**
  * The optimization, on the process that submits the work.
  *
- * @param go The Go2 of the run
+ * @param go The GOptimizer of the run
  * @return The exit code
  */
-int optimize(Go2 &go) {
+int optimize(GOptimizer &go) {
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
@@ -71,7 +71,7 @@ int optimize(Go2 &go) {
         );
 
     // Add a pluggable optimization monitor (targeted at evolutionary algorithms) and register
-    // it with Go2.
+    // it with GOptimizer.
     go.registerPluggableOM(std::make_shared<gind::GOptOptMonitorT<gind::GFunctionIndividual>>());
 
     //! [meta.example-main#1]
@@ -79,7 +79,7 @@ int optimize(Go2 &go) {
     // so it can be handed to the meta-optimization individuals later
     gmoi_ptr->registerIndividualFactory(gfi_ptr);
 
-    // Add a content creator so Go2 can generate its own individuals, if necessary
+    // Add a content creator so GOptimizer can generate its own individuals, if necessary
     go.registerContentCreator(gmoi_ptr);
     //! [meta.example-main#1]
 
@@ -119,7 +119,7 @@ int optimize(Go2 &go) {
     // Perform the actual optimization
     auto const bestIndividual_ptr =
         go.optimize()
-            ->getBestGlobalIndividual<
+            .getBestGlobalIndividual<
                 gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
     //! [meta.example-main#3]
     // clang-format on
@@ -134,7 +134,7 @@ int optimize(Go2 &go) {
 /******************************************************************************/
 
 int main(int argc, char **argv) {
-    return runOptimization(argc, argv, {.produce = [&](Go2 &go, const auto &) {
+    return runOptimization(argc, argv, {.produce = [&](GOptimizer &go, const auto &) {
                                return optimize(go);
                            }});
 }

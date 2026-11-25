@@ -74,7 +74,7 @@
 #include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPICascade.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 #include "GSleepGroup.hpp"
 #include "GSleepGroupIndividual.hpp"
@@ -168,14 +168,14 @@ void benchmarkOptions(Gem::Common::GParserBuilder &gpb, Settings &settings) {
  * @param settings What the options set
  * @return The exit code
  */
-int measure(Go2 &go, const Settings &settings) {
+int measure(GOptimizer &go, const Settings &settings) {
     const auto config_ref =
         GSleepGroupIndividual::readConfig("./config/GSleepGroupIndividual-reference.json");
     const auto config_par =
         GSleepGroupIndividual::readConfig("./config/GSleepGroupIndividual.json");
     go.registerDefaultAlgorithm("ea");
     if(Gem::Common::GParserBuilder::updateInPlace()) {
-        go.optimize(); // refreshes Go2's owned configs, then ends the process
+        go.optimize(); // refreshes GOptimizer's owned configs, then ends the process
         return 0;
     }
     std::cout << "GSubClientOverhead: poll pauses " << config_par.poll_pause_min << " to "
@@ -270,7 +270,7 @@ int runOnLauncher(
          .prepare = std::move(prepare),
          .produce =
              [&geneva, &settings] {
-                 Go2 go(geneva);
+                 GOptimizer go(geneva);
                  return measure(go, settings);
              }}
     );
@@ -279,8 +279,8 @@ int runOnLauncher(
 /******************************************************************************/
 /**
  * A process of a job that is laid out in groups (GMPICascade): a member serves its lead; the
- * submitter (only with -c mpi) measures through Go2; a lead runs its client and evaluates every
- * item in a round of its group. With -c mpi the job is everything (the layout
+ * submitter (only with -c mpi) measures through GOptimizer; a lead runs its client and evaluates
+ * every item in a round of its group. With -c mpi the job is everything (the layout
  * SUBMITTER_AND_GROUPS); a networked client is a job of its own (GROUPS_ONLY).
  *
  * @param launcher The launcher, not run yet
@@ -365,7 +365,7 @@ int main(int argc, char **argv) {
     // Built before a cascade, so that a request for the help text is answered before the cascade
     // would start MPI
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
     if(not role.updateConfigs and not launcher.helpRequested() and role.group > 1) {
         if(role.consumer == "mpi") {
             return runGroupProcess(

@@ -119,8 +119,6 @@ constexpr std::uint32_t GMETAOPT_DEF_ITERATIONTHRESHOLD =
 const metaOptimizationTarget GMETAOPT_DEF_MOTARGET =
     metaOptimizationTarget::BESTFITNESS; ///< The target used for the meta optimization
 
-const std::string GMETAOPT_DEF_INDCONFIG =
-    "./config/GFunctionIndividual.json"; ///< The default configuration file for our individuals -- we follow the default template argument
 const std::string GMETAOPT_DEF_SUBEACONFIG =
     "./config/GSubEvolutionaryAlgorithm.json"; ///< The default configuration file for the (sub-)evolutionary algorithms
 
@@ -416,7 +414,7 @@ public:
     /**
      * @brief Builds the OA-owned adaption configuration for the meta genome: n_parents gets a flip adaptor,
      * n_children an integer-Gauss adaptor, and every meta double a Gauss adaptor. Used by the outer EA
-     * (via Go2 / setAdaptionConfig) and by the self-driven modify hook.
+     * (via GOptimizer / setAdaptionConfig) and by the self-driven modify hook.
      *
      * @return A shared pointer to the populated OA-owned adaption config
      */
@@ -1132,10 +1130,10 @@ constexpr std::size_t P_YDIM = 1400;
  * them over the iterations at the end of the stream (a ROOT macro "<stream>.C"). It is targeted at
  * one type of individual.
  *
- * Like every recording monitor it declares its stream at the first INFOINIT -- in a Go2 chain one
- * stream for the whole chain -- and the stream ends with the run (courtier's launcher closes it,
- * GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to it. Two
- * monitors of one class in one process need different stream names.
+ * Like every recording monitor it declares its stream at the first INFOINIT -- in a GOptimizer
+ * chain one stream for the whole chain -- and the stream ends with the run (courtier's launcher
+ * closes it, GRecorder::closeAll()) or with the monitor; a run resumed from a checkpoint appends to
+ * it. Two monitors of one class in one process need different stream names.
  *
  * @tparam ind_type The sub-individual type wrapped by the GMetaOptimizerIndividualT being monitored
  */

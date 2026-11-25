@@ -37,7 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -49,14 +49,14 @@ const std::size_t NRESETS = 3; // The number of resets performed for each algori
 /**
  * This manual test checks the functionality of the
  * resetToOptimizationStart() function of optimization algorithms.
- * We simply use the Go2 class so we may use its command line
+ * We simply use the GOptimizer class so we may use its command line
  * parsing ability to retrieve algorithms.
  */
 int main(int argc, char **argv) {
     return runOptimization(
         argc,
         argv,
-        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+        {.produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
             //---------------------------------------------------------------------------
             // Create a factory for GFunctionIndividual objects and perform
             // any necessary initial work.

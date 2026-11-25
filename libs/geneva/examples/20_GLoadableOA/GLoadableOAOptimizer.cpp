@@ -36,17 +36,17 @@
  *
  *   ./GLoadableOAOptimizer --module ./libGRandomSearch.so --optimizationAlgorithms rsearch
  *
- * Go2 loads the module during construction (before the mnemonics are resolved), so "rsearch" resolves to the
- * loaded GRandomSearch exactly as a built-in algorithm would. This is the OA analogue of example 18's
- * loadable individual: an optimization algorithm authored, compiled and shipped entirely outside the Geneva
- * library, usable without recompiling anything.
+ * GOptimizer loads the module during construction (before the mnemonics are resolved), so "rsearch"
+ * resolves to the loaded GRandomSearch exactly as a built-in algorithm would. This is the OA
+ * analogue of example 18's loadable individual: an optimization algorithm authored, compiled and
+ * shipped entirely outside the Geneva library, usable without recompiling anything.
  */
 
 // Standard header files go here
 #include <iostream>
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual to be optimized (compiled in). The algorithm comes from --module.
 #include "geneva/individuals/GFunctionIndividual.hpp"
@@ -57,14 +57,14 @@ int main(int argc, char **argv) {
     return runOptimization(
         argc,
         argv,
-        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+        {.produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
             //---------------------------------------------------------------------------
             // Supply the (compiled-in) optimization individual: the standard benchmark-function individual.
             auto const gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
                 "./config/GFunctionIndividual.json"
             );
 
-            // Let Go2 generate its own individuals from this factory as needed.
+            // Let GOptimizer generate its own individuals from this factory as needed.
             go.registerContentCreator(gfi_ptr);
 
             // The adaptor lives on an OA-owned config the factory authors. Register it for the adapting algorithms
@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
 
             //---------------------------------------------------------------------------
             // Run the optimization with the algorithm chosen on the command line (e.g. the loaded "rsearch").
-            auto const best = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+            auto const best = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
 
             std::cout << "Best result found:" << '\n' << best << '\n';
             return 0;

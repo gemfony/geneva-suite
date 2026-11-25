@@ -4,8 +4,8 @@ This example shows parallelism inside one evaluation: the processes of an MPI jo
 evaluation of an individual. It uses courtier's MPI cascade, `Gem::Courtier::GMPICascade`
 (`courtier/mpi/GMPICascade.hpp`, library `gemfony-courtier-mpi`).
 
-Rank 0 of the job is the submitter: it runs the optimization through `Go2`. The other processes
-form groups of `sub_client_group_size` processes, set in `config/GMPICascade.json` (4 by
+Rank 0 of the job is the submitter: it runs the optimization through `GOptimizer`. The other
+processes form groups of `sub_client_group_size` processes, set in `config/GMPICascade.json` (4 by
 default). The first process of a group is its lead, a client of the MPI consumer; the others are
 its members (sub-clients), which run no Geneva code. A lead evaluates every individual in a round
 of its group: it scatters the 64 parameter values over the group, every process squares its part

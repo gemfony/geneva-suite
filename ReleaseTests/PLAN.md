@@ -134,7 +134,7 @@ are structured stubs with explicit TODOs:
   present). Serial + threaded implemented (run from the example build dir so it
   finds its `config/`); websocket/MPI are STUBS with the intended command lines.
 * `checks/algorithms.py` — EA, SA, Swarm, GD, ParameterScan each run to
-  completion on a simple individual (`-a <key> -c stc`); `Go2` JSON config
+  completion on a simple individual (`-a <key> -c stc`); `GOptimizer` JSON config
   round-trip; checkpoint
   save/restore identity. Wiring + example mapping present; checkpoint-identity
   comparison is a STUB (TODO: byte/objective compare of two runs).

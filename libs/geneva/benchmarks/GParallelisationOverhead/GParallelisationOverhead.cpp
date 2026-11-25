@@ -40,7 +40,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GDelayIndividual.hpp"
@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
         argc,
         argv,
         {.userOptions = user_options,
-         .produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+         .produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
              //---------------------------------------------------------------------
              // Read the delay-individual configuration for reference measurements ...
              auto delay_config_ref =
@@ -90,13 +90,13 @@ int main(int argc, char **argv) {
              auto delay_config_par =
                  gind::GDelayIndividual::readConfig("./config/GDelayIndividual.json");
 
-             // Add default optimization algorithms to the parallel Go2 object
+             // Add default optimization algorithms to the parallel GOptimizer object
              go.registerDefaultAlgorithm("ea");
 
              // --update-configs: the delay-individual configs were materialized by the readConfig calls above; now
-             // let Go2 refresh the configs it owns and exit, without measuring anything.
+             // let GOptimizer refresh the configs it owns and exit, without measuring anything.
              if(Gem::Common::GParserBuilder::updateInPlace()) {
-                 go.optimize(); // refreshes Go2's owned configs, then ends the process
+                 go.optimize(); // refreshes GOptimizer's owned configs, then ends the process
                  return 0;      // not reached
              }
 

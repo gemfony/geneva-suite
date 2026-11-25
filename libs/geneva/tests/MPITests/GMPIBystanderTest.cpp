@@ -28,7 +28,7 @@
  ********************************************************************************/
 
 /*
- * A bystander in a plain Go2 program on the MPI consumer.
+ * A bystander in a plain GOptimizer program on the MPI consumer.
  *
  * The program initializes MPI itself and splits MPI_COMM_WORLD: ranks 0 and 1 share a communicator,
  * rank 2 gets MPI_COMM_NULL. It hands that communicator to courtier's MPI library
@@ -58,7 +58,7 @@
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 
@@ -74,8 +74,8 @@ constexpr std::chrono::seconds BYSTANDERLIMIT{1};
 constexpr std::chrono::seconds SHUTDOWNLIMIT{5};
 
 /** @brief The submitter's part: one iteration of a small population.
- *  @param go The Go2 of the run */
-void optimize(Go2 &go) {
+ *  @param go The GOptimizer of the run */
+void optimize(GOptimizer &go) {
     const auto factory =
         std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
     go.registerContentCreator(factory);
@@ -101,10 +101,10 @@ int runAsGenevaProgram(int argc, char **argv, int world_rank) {
     processRole role = processRole::SUBMITTER;
     {
         GOptimizationDescription geneva;
-        Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+        Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
         const auto start = std::chrono::steady_clock::now();
         const int rc = launcher.run(geneva, {.produce = [&] {
-                                        Go2 go(geneva);
+                                        GOptimizer go(geneva);
                                         optimize(go);
                                         end_of_optimization = std::chrono::steady_clock::now();
                                         return 0;

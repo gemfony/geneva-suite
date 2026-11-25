@@ -63,7 +63,7 @@ namespace Gem::Geneva {
 
 /******************************************************************************/
 // Default values for the variables used by the optimizer
-constexpr bool GO2_DEF_COPYBESTINDIVIDUALSONLY = true;
+constexpr bool GOPTIMIZER_DEF_COPYBESTINDIVIDUALSONLY = true;
 
 /******************************************************************************/
 /** Syntactic sugar -- make the code easier to read */
@@ -75,28 +75,28 @@ using GOABase = oa::GOptimizationAlgorithmBase;
  * individuals can be optimized using more than one algorithm in sequence. It knows nothing of the
  * command line, of consumers or of the role of a process: courtier's launcher owns those, and
  * every algorithm submits to the one process consumer the launcher established (Invariant 5). A
- * program builds Go2 on the submitter from Geneva's description (runOptimization(), or
- * Go2(const GOptimizationDescription &) inside the launcher's producing function); Go2() serves
- * code that only chains algorithms.
+ * program builds GOptimizer on the submitter from Geneva's description (runOptimization(), or
+ * GOptimizer(const GOptimizationDescription &) inside the launcher's producing function);
+ * GOptimizer() serves code that only chains algorithms.
  */
-class Go2 // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Interface::GOptimizerIT<Go2>
+class GOptimizer // NOLINT(cppcoreguidelines-special-member-functions)
+  : public Interface::GOptimizerIT<GOptimizer>
   , public Gem::Common::GPtrContainerT<gen::GGenome> {
 public:
     /** @brief A driver that only chains algorithms: the defaults of the configuration file, no
      *  algorithms from the command line, no checkpoint, no loaded individual */
-    Go2();
+    GOptimizer();
     /**
      * @brief The driver of a program on the launcher: the algorithms of -a (they win over
      * setAlgorithmChain()), the checkpoint of --cp_file, the key copy_best_individuals_only and
      * the individual a module contributed (it claims the one content-creator slot)
      * @param description Geneva's description, after the launcher's parse
      */
-    explicit Go2(const GOptimizationDescription &description);
+    explicit GOptimizer(const GOptimizationDescription &description);
     /** @brief Deleted copy constructor */
-    Go2(Go2 const &) = delete;
+    GOptimizer(GOptimizer const &) = delete;
     /** @brief The (defaulted) destructor */
-    ~Go2() override = default;
+    ~GOptimizer() override = default;
 
     /**
      * @brief Specifies whether only the best individuals of an algorithm go on to the next algorithm
@@ -120,7 +120,7 @@ public:
     /**
      * @brief Makes it easier to add algorithms (operator form of addAlgorithm).
      */
-    Go2 &operator&(const std::shared_ptr<GOABase> &alg);
+    GOptimizer &operator&(const std::shared_ptr<GOABase> &alg);
     /**
      * @brief Allows to add an optimization algorithm through its mnemonic.
      */
@@ -128,7 +128,7 @@ public:
     /**
      * @brief Makes it easier to add algorithms by mnemonic (operator form of addAlgorithm).
      */
-    Go2 &operator&(std::string const &mn);
+    GOptimizer &operator&(std::string const &mn);
 
     /** @brief Sets the chain of optimization algorithms by mnemonic (e.g. {"ea", "sa"}) -- the programmatic
      *  equivalent of --optimizationAlgorithms. The mnemonics are resolved when optimize() runs. A
@@ -200,15 +200,25 @@ public:
 
     /**
      * @brief Registers an OA-owned adaption configuration for an algorithm type. When an
-     * algorithm of the given personality type (e.g. "PERSONALITY_EA") runs in the chain, Go2 hands it this
-     * config, which it adopts (after validating it matches the population's genome) instead of deriving a
-     * default from the genome layout. This separates adaption authoring (OA-owned, optionally from a config
-     * file) from genome authoring (the individual's factory). Passing a null config clears the entry.
+     * algorithm of the given personality type (e.g. "PERSONALITY_EA") runs in the chain, GOptimizer
+     * hands it this config, which it adopts (after validating it matches the population's genome)
+     * instead of deriving a default from the genome layout. This separates adaption authoring
+     * (OA-owned, optionally from a config file) from genome authoring (the individual's factory).
+     * Passing a null config clears the entry.
      */
     void registerAdaptionConfig(
         const std::string &oa_personality_type,
         std::shared_ptr<oa::GAdaptionConfigBase> config
     );
+
+    /**
+     * @brief Runs the chain of algorithms and returns this optimizer, so that a result is read in
+     * the same expression: go.optimize().getBestGlobalIndividual<T>()
+     */
+    // Deliberately takes the place of GOptimizerIT's optimize(), whose const pointer the
+    // algorithms keep
+    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
+    GOptimizer &optimize(std::uint32_t offset = 0);
 
 private:
     /***************************************************************************/
@@ -269,13 +279,13 @@ private:
     /**
      * @brief Performs the actual optimization cycle.
      */
-    Go2 const *optimize_(std::uint32_t offset) final;
+    GOptimizer const *optimize_(std::uint32_t offset) final;
 
     /** @brief --update-configs pass: with GParserBuilder in update-in-place mode, produce one object from
      *  each registered algorithm factory and one individual from the content creator, so every algorithm
-     *  config and the individual config is parsed and rewritten in canonical form (Go2.json and the
-     *  consumers' files were already refreshed by the launcher). Runs no optimization; optimize_()
-     *  ends the process after it. */
+     *  config and the individual config is parsed and rewritten in canonical form (GOptimizer.json
+     *  and the consumers' files were already refreshed by the launcher). Runs no optimization;
+     *  optimize_() ends the process after it. */
     void refreshAllConfigs_();
 
     // --- optimize_ sub-steps (decomposition) ---
@@ -319,7 +329,7 @@ private:
         0; ///< The iterations of the chain so far: the chain offset of the next algorithm, and getIteration_()
     /// Whether only the best individuals of an algorithm are copied to the next one
     //! [coding-naming-example#3]
-    bool copy_best_individuals_only_ = GO2_DEF_COPYBESTINDIVIDUALSONLY;
+    bool copy_best_individuals_only_ = GOPTIMIZER_DEF_COPYBESTINDIVIDUALSONLY;
     //! [coding-naming-example#3]
     //---------------------------------------------------------------------------
     // Name and path of a checkpoint file, if supplied by the user
@@ -343,7 +353,7 @@ private:
     // A user-defined means for information retrieval. Shared ownership is deliberate: on
     // hand-over, every algorithm of a chain registers the SAME monitor object rather than a
     // clone of it, so a monitor accumulates across the whole chain (which is what a progress
-    // plotter wants). Go2 and each algorithm are therefore co-owners for the run's duration.
+    // plotter wants). GOptimizer and each algorithm are therefore co-owners for the run's duration.
     std::vector<std::shared_ptr<oa::GBasePluggableOM>> pluggable_monitors_cnt_;
 
     //---------------------------------------------------------------------------

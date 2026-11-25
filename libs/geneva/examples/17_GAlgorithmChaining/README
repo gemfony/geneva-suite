@@ -4,11 +4,11 @@ GAlgorithmChaining
 This example demonstrates how to *chain* several optimization algorithms in a
 single optimization run.
 
-Algorithms are appended to the Go2 object with the &-operator:
+Algorithms are appended to the GOptimizer object with the &-operator:
 
     go & "ea" & "cgd";
 
-Go2 then executes them in sequence, handing the best individual(s) found by one
+GOptimizer then executes them in sequence, handing the best individual(s) found by one
 algorithm to the next. Each algorithm runs its own full iteration budget (as
 configured in its JSON file under ./config/), starting its iteration counter at
 zero -- a chained algorithm does NOT inherit the previous algorithm's final

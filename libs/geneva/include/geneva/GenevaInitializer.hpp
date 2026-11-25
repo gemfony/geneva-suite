@@ -52,10 +52,10 @@ namespace Gem::Geneva {
  * @brief The start of Geneva in a program, and the one place that states in which order the
  * process-wide objects of the six libraries begin and end.
  *
- * A program holds one in main(); Go2 holds one as well (Go2::gi_). Its constructor makes sure the
- * random-number factory exists, which hap's lifecycle guard has normally done before main(); its
- * destructor does nothing. It must not finalize the factory: it is not the factory's only holder,
- * and a finalized factory never hands out random numbers again.
+ * A program holds one in main(); GOptimizer holds one as well (GOptimizer::gi_). Its constructor
+ * makes sure the random-number factory exists, which hap's lifecycle guard has normally done before
+ * main(); its destructor does nothing. It must not finalize the factory: it is not the factory's
+ * only holder, and a finalized factory never hands out random numbers again.
  *
  * @par Start
  *  1. Before main(), while the shared libraries are initialized, each after those it depends on
@@ -72,8 +72,8 @@ namespace Gem::Geneva {
  *
  * @par End
  *  1. In main(), when the launcher's run() ends: the consumer leaves the registry (its threads are
- *     joined when its last holder lets go), the recorder closes its streams. Then Go2 and this
- *     object end. The factory still runs: random numbers can be drawn after a run.
+ *     joined when its last holder lets go), the recorder closes its streams. Then GOptimizer and
+ *     this object end. The factory still runs: random numbers can be drawn after a run.
  *  2. After main() has returned, the statics made during main() end, the newest first: the lease
  *     pool (its proxies return their packages to the factory), the STAGED and QUARANTINE pools
  *     (their refill threads are joined), the consumer registry (with a consumer a program

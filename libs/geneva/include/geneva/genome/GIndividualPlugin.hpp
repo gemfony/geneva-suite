@@ -53,8 +53,9 @@ namespace Gem::Geneva {
 inline constexpr const char *INDIVIDUAL_CONTRIBUTION_KIND = "geneva.individual";
 
 /******************************************************************************/
-/** @brief The factory type a plugin hands back: the same content-creator type Go2::registerContentCreator
- *  accepts, so a loaded problem is indistinguishable from a compiled-in one downstream. */
+/** @brief The factory type a plugin hands back: the same content-creator type
+ *  GOptimizer::registerContentCreator accepts, so a loaded problem is indistinguishable from a
+ *  compiled-in one downstream. */
 using GIndividualFactoryPtr = std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>>;
 
 /** @brief The compile-time fixed string NTTP the manifest helpers use (shared, in common). */

@@ -42,7 +42,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 
 // The individual that should be optimized
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
@@ -51,9 +51,9 @@ using namespace Gem::Geneva;
 using namespace Gem::Courtier;
 using namespace Gem::Common;
 using namespace Gem::Hap;
-//! [go2-user-options#1]
+//! [goptimizer-user-options#1]
 using Gem::Common::GParserBuilder; // the program's options join the launcher's parser
-//! [go2-user-options#1]
+//! [goptimizer-user-options#1]
 
 /******************************************************************************/
 /**
@@ -64,7 +64,7 @@ int main(int argc, char **argv) {
     //---------------------------------------------------------------------------
     // The program's own options, in the launcher's command line and help text
     // clang-format off
-    //! [go2-user-options#2]
+    //! [goptimizer-user-options#2]
     gind::trainingDataType tdt = gind::trainingDataType::TDTNONE;
     std::string trainingDataFile = "./DataSets/hyper_sphere.dat";
     // two input nodes, one output node, two hidden layers with 4 nodes each
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
             "The name of the visualization file"
         );
     };
-    //! [go2-user-options#2]
+    //! [goptimizer-user-options#2]
     // clang-format on
 
     //---------------------------------------------------------------------------
@@ -141,25 +141,25 @@ int main(int argc, char **argv) {
 
     //---------------------------------------------------------------------------
     // The submitter only: the optimization
-    auto produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
+    auto produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
         // Create a factory for GNeuralNetworkIndividual objects and perform
         // any necessary initial work.
         auto const gnn_ptr = std::make_shared<gind::GNeuralNetworkIndividualFactory>(
             "./config/GNeuralNetworkIndividual.json"
         );
 
-        // Add a content creator so Go2 can generate its own individuals, if necessary
+        // Add a content creator so GOptimizer can generate its own individuals, if necessary
         go.registerContentCreator(gnn_ptr);
 
         // The network genome carries only structure; the per-weight Gauss adaptor lives on an
         // OA-owned config the factory authors. Register it for the adapting algorithms (EA / SA)
-        // so Go2 hands it over.
+        // so GOptimizer hands it over.
         //
         // Skipped in --update-configs mode: building the sample constructs a neural-network
         // individual, which loads the training data set from disk -- irrelevant to a
         // configuration refresh and unavailable when the configs are materialized (e.g. at build
-        // time). Go2 still refreshes the individual's config via the content creator registered
-        // above.
+        // time). GOptimizer still refreshes the individual's config via the content creator
+        // registered above.
         if(not Gem::Common::GParserBuilder::updateInPlace()) {
             auto sample = gnn_ptr->get_as<gind::GNeuralNetworkIndividual>();
             auto cfg = gnn_ptr->getAdaptionConfig(*sample);
@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
         }
 
         // Perform the actual optimization and retrieve the best individual
-        auto const p = go.optimize()->getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
+        auto const p = go.optimize().getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
 
         //-----------------------------------------------------------------------
         // Write the trained network as a C++ header, and the figure of its output over the
@@ -180,13 +180,13 @@ int main(int argc, char **argv) {
 
     //---------------------------------------------------------------------------
     // Geneva's description on courtier's launcher, with the program's options and functions
-    //! [go2-user-options#3]
+    //! [goptimizer-user-options#3]
     return runOptimization(
         argc,
         argv,
         {.userOptions = user_options, .prepare = prepare, .produce = produce}
     );
-    //! [go2-user-options#3]
+    //! [goptimizer-user-options#3]
 }
 
 /******************************************************************************/

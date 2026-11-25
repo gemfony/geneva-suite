@@ -60,7 +60,7 @@
 #include "courtier/GLauncherT.hpp"
 #include "courtier/consumers/GStdThreadConsumerConfig.hpp"
 #include "dietrich/GPlotDesigner.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
@@ -240,8 +240,11 @@ inline Line measureReference(const Schedule &schedule, const IndividualFactory &
  * @param make_individual Builds the individual for one evaluation time
  * @return Per evaluation time: the evaluation time, 0, the mean run time and its standard deviation
  */
-inline Timings
-measureParallel(Go2 &go, const Schedule &schedule, const IndividualFactory &make_individual) {
+inline Timings measureParallel(
+    GOptimizer &go,
+    const Schedule &schedule,
+    const IndividualFactory &make_individual
+) {
     std::cout << "Starting parallel measurement" << std::endl;
 
     Timings parallel_times;
@@ -366,7 +369,7 @@ inline void writeResults(
  * @param short_result_file The table
  */
 inline void
-run(Go2 &go,
+run(GOptimizer &go,
     bool reference_run,
     const std::string &reference_file,
     const Schedule &reference,

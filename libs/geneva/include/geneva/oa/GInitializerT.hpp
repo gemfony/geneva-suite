@@ -52,7 +52,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * Registers one built-in optimization-algorithm factory with the global algorithm store. A static object
  * of this type, one per algorithm, lives in the single registration translation unit
  * (src/oa/GBuiltinAlgorithms.cpp), so the algorithms Geneva itself ships become selectable by mnemonic at
- * library-load time and Go2 needs no explicit registration call.
+ * library-load time and GOptimizer needs no explicit registration call.
  *
  * The factory IS the provider (GOAFactoryT implements Gem::Common::GProviderT), and registration goes
  * through Gem::Geneva::registerOptimizationAlgorithm() -- the same function the module loader calls for a

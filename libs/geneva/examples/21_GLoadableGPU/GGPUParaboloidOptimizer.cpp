@@ -49,24 +49,26 @@
 
 // Geneva headers
 #include "courtier/gpu/GGPUConsumerConfig.hpp" // materialize the GPU config under --update-configs
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeFactory.hpp"
 
 using namespace Gem::Geneva;
 
 int main(int argc, char **argv) {
-    // Go2 parses config + command line and loads the --module here, in its constructor: the module
-    // contributes BOTH the individual (claimed as the optimization problem) AND its GPU marshaller
-    // (registered under the "cuda" device target), so `--consumer gpu` can build the GPU consumer around it.
+    // GOptimizer parses config + command line and loads the --module here, in its constructor: the
+    // module contributes BOTH the individual (claimed as the optimization problem) AND its GPU
+    // marshaller (registered under the "cuda" device target), so `--consumer gpu` can build the GPU
+    // consumer around it.
     return runOptimization(
         argc,
         argv,
-        {.produce = [&](Go2 &go, const GOptimizationDescription &) -> int {
-            // --update-configs: Go2 forces the local thread-pool consumer for a config refresh, so the GPU consumer
-            // -- and hence GGPUConsumer.json -- would otherwise be skipped. Materialize it directly (created with
-            // defaults if absent; the example's config-overrides.json then sets the kernel path). No device is
-            // touched. go.optimize() below then refreshes Go2's own and the loaded individual's configs, and exits.
+        {.produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
+            // --update-configs: GOptimizer forces the local thread-pool consumer for a config
+            // refresh, so the GPU consumer -- and hence GGPUConsumer.json -- would otherwise be
+            // skipped. Materialize it directly (created with defaults if absent; the example's
+            // config-overrides.json then sets the kernel path). No device is touched. go.optimize()
+            // below then refreshes GOptimizer's own and the loaded individual's configs, and exits.
             if(Gem::Common::GParserBuilder::updateInPlace()) {
                 Gem::Courtier::GPU::GGPUConsumerConfig gpu_cfg;
                 gpu_cfg.load("./config/GGPUConsumer.json");
@@ -100,7 +102,7 @@ int main(int argc, char **argv) {
 
             // Optimize and report. The best individual is read back through the flat-genome base, so this program
             // stays problem-agnostic.
-            auto best = go.optimize()->getBestGlobalIndividual<Genome::GGenome>();
+            auto best = go.optimize().getBestGlobalIndividual<Genome::GGenome>();
             const auto [raw, transformed] = best->getFitnessTuple();
 
             std::vector<double> v;

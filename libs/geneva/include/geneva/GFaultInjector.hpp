@@ -93,10 +93,11 @@ public:
 /**
  * @brief The process-global holder for the active GFaultInjector (geneva-side, no courtier dependency).
  *
- * Null unless a test / diagnostic registers an injector (directly, or via Go2::registerFaultInjector()).
- * get() returns a raw, non-owning pointer so the per-evaluation consultation on the hot path is a plain
- * pointer read with no reference-count churn. The injector is expected to be registered before an
- * optimization run starts and cleared afterwards, so concurrent evaluation threads only ever read it.
+ * Null unless a test / diagnostic registers an injector (directly, or via
+ * GOptimizer::registerFaultInjector()). get() returns a raw, non-owning pointer so the
+ * per-evaluation consultation on the hot path is a plain pointer read with no reference-count
+ * churn. The injector is expected to be registered before an optimization run starts and cleared
+ * afterwards, so concurrent evaluation threads only ever read it.
  */
 class GFaultInjectorRegistry {
 public:

@@ -37,7 +37,7 @@
 // Boost header files go here
 
 // Geneva header files go here
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
 // The individual that should be optimized
@@ -63,12 +63,12 @@ struct ProgramOptions {
 /**
  * The optimization, on the process that submits the work.
  *
- * @param go The Go2 of the run
+ * @param go The GOptimizer of the run
  * @param options The program's own options
  * @return The exit code
  */
 // NOLINTNEXTLINE(readability-function-size) -- single example driver: the pluggable monitors the options ask for, and the optimization run
-int optimize(Go2 &go, const ProgramOptions &options) {
+int optimize(GOptimizer &go, const ProgramOptions &options) {
     const auto
         &[printValid,
           useRawFitness,
@@ -171,12 +171,13 @@ int optimize(Go2 &go, const ProgramOptions &options) {
         go.push_back(gfi_ptr->get());
     }
     else {
-        // Add a content creator so Go2 can generate its own individuals, if necessary
+        // Add a content creator so GOptimizer can generate its own individuals, if necessary
         go.registerContentCreator(gfi_ptr);
     }
 
     // The genome carries only structure; the configured adaptor lives on an OA-owned config the factory
-    // authors. Register it for the adapting algorithms (EA / SA) so Go2 hands it over before they run.
+    // authors. Register it for the adapting algorithms (EA / SA) so GOptimizer hands it over before
+    // they run.
     {
         auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
         auto cfg = gfi_ptr->getAdaptionConfig(*sample);
@@ -184,7 +185,7 @@ int optimize(Go2 &go, const ProgramOptions &options) {
         go.registerAdaptionConfig("PERSONALITY_SA", cfg);
     }
 
-    // Add a default optimization algorithm to the Go2 object. This is optional.
+    // Add a default optimization algorithm to the GOptimizer object. This is optional.
     // Indeed "ea" is the default setting anyway. However, if you do not like it, you
     // can register another default algorithm here, which will then be used, unless
     // you specify other algorithms on the command line. You can also add a smart
@@ -192,7 +193,7 @@ int optimize(Go2 &go, const ProgramOptions &options) {
     go.registerDefaultAlgorithm("ea");
 
     // Perform the actual optimization
-    auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented
@@ -315,6 +316,6 @@ int main(int argc, char **argv) {
         argc,
         argv,
         {.userOptions = user_options,
-         .produce = [&](Go2 &go, const auto &) { return optimize(go, options); }}
+         .produce = [&](GOptimizer &go, const auto &) { return optimize(go, options); }}
     );
 }

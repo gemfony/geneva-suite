@@ -79,11 +79,11 @@ GEM_ADD_MPI_TEST ( NAME GMPIBystanderTest TIMEOUT 60
 SET_TESTS_PROPERTIES ( GMPIBystanderTest PROPERTIES LABELS "geneva" PROCESSORS 3 )
 GEM_TEST_SIZE ( GMPIBystanderTest M )
 
-# No rank enters MPI on the way out: a Go2 program asked for its help text, or for a refresh of its
-# configuration files, with the MPI consumer named, must end with 0 under the launcher. A rank that
-# initialized MPI and exited without finalizing it would make mpirun fail the job. Each rank
-# runs in a directory of its own below a scratch directory, because both paths write configuration
-# files.
+# No rank enters MPI on the way out: a GOptimizer program asked for its help text, or for a refresh
+# of its configuration files, with the MPI consumer named, must end with 0 under the launcher. A
+# rank that initialized MPI and exited without finalizing it would make mpirun fail the job. Each
+# rank runs in a directory of its own below a scratch directory, because both paths write
+# configuration files.
 IF ( GEM_BUILD_EXAMPLES )
 	SET ( NOMPI_WORKDIR ${CMAKE_CURRENT_BINARY_DIR}/no-mpi-on-the-way-out )
 	FILE ( MAKE_DIRECTORY ${NOMPI_WORKDIR} )

@@ -69,8 +69,8 @@ namespace {
 // language-agnostic ABI boundary), so they are named unqualified below.
 
 /** @brief Contribution 1 -- the individual (claim-once). The thunk hands back a heap GIndividualFactoryPtr
- *  across the plain-C void* boundary; the loader moves it out and returns it for Go2 to claim. The factory
- *  is the standard config-driven flat-individual factory on GImageIndividual. */
+ *  across the plain-C void* boundary; the loader moves it out and returns it for GOptimizer to
+ *  claim. The factory is the standard config-driven flat-individual factory on GImageIndividual. */
 void *make_individual() {
     return new Gem::Geneva::GIndividualFactoryPtr(
         std::make_shared<Gem::Geneva::GImageIndividualFactory>("./config/GImageIndividual.json")

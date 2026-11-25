@@ -7,7 +7,7 @@ The main purpose of this example is to provide users with a first insight into
 how an optimization problem may be specified in Geneva. You should thus particularly
 look at the GParaboloidIndividual2D class. The main function illustrates additional
 ways of specifying the optimization algorithms to be used, and how individuals can
-be added to the optimization driver Go2.
+be added to the optimization driver GOptimizer.
 
 Its main() has the long form of a Geneva program: Geneva's description
 (GOptimizationDescription) and courtier's launcher (GLauncherT<GGenome>) are built in main(), and

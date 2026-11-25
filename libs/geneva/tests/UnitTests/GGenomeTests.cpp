@@ -59,8 +59,8 @@
 #include "geneva/GMarshallerPlugin.hpp" // marshallerManifest / GMarshallerProviderPtr / the marshaller store
 #include "geneva/GModuleLoader.hpp"
 #include "geneva/GOptimizationEnums.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/GenevaInitializer.hpp"
-#include "geneva/Go2.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeArchitecture.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
@@ -2770,14 +2770,14 @@ TEST_CASE("A built-in and a module register an algorithm through the same seam",
 /******************************************************************************/
 
 TEST_CASE(
-    "Go2 enforces exactly one individual (optimization problem) per process",
-    "[flat][plugin][go2]"
+    "GOptimizer enforces exactly one individual (optimization problem) per process",
+    "[flat][plugin][goptimizer]"
 ) {
     namespace fs = std::filesystem;
     const fs::path base = fs::temp_directory_path() / "geneva_claimonce_tests";
     fs::create_directories(base);
 
-    Go2 go;
+    GOptimizer go;
 
     auto f1 = std::make_shared<GIndividualFactory<FactorySphere>>(base / "claimonce1.json");
     auto f2 = std::make_shared<GIndividualFactory<FactorySphere>>(base / "claimonce2.json");
@@ -2790,7 +2790,7 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-// Go2 built from Geneva's description: the algorithms of -a win over a chain set in code
+// GOptimizer built from Geneva's description: the algorithms of -a win over a chain set in code
 // (setAlgorithmChain()), and the chain is resolved when optimize() runs. The description is parsed
 // here as the launcher parses it (its options in a parser of their own), without a launcher.
 namespace {
@@ -2815,9 +2815,12 @@ struct GParsedDescription {
 
 } // namespace
 
-TEST_CASE("Go2 from the description: -a and setAlgorithmChain()", "[flat][go2][config]") {
+TEST_CASE(
+    "GOptimizer from the description: -a and setAlgorithmChain()",
+    "[flat][goptimizer][config]"
+) {
     SECTION("the chain set in code is kept as it was set") {
-        Go2 go;
+        GOptimizer go;
         go.setAlgorithmChain({"ea", "sa"});
         CHECK(go.getAlgorithmChain() == std::vector<std::string>{"ea", "sa"});
     }
@@ -2827,7 +2830,7 @@ TEST_CASE("Go2 from the description: -a and setAlgorithmChain()", "[flat][go2][c
     SECTION("an -a list on the command line overrides setAlgorithmChain()") {
         const GParsedDescription parsed({"unit-test", "-a", "ea"});
         CHECK(parsed.geneva.algorithms() == std::vector<std::string>{"ea"});
-        Go2 go(parsed.geneva);
+        GOptimizer go(parsed.geneva);
         go.setAlgorithmChain({"sa", "cgd"}); // a two-element chain in code, to be overridden
         CHECK_THROWS(go.optimize());
         CHECK(go.getNAlgorithms() == 1);
@@ -2837,7 +2840,7 @@ TEST_CASE("Go2 from the description: -a and setAlgorithmChain()", "[flat][go2][c
         const GParsedDescription parsed({"unit-test"});
         CHECK(parsed.geneva.algorithms().empty());
         CHECK(parsed.geneva.checkpointFile() == "empty");
-        Go2 go(parsed.geneva);
+        GOptimizer go(parsed.geneva);
         go.setAlgorithmChain({"ea", "sa"});
         CHECK(go.getNAlgorithms() == 0); // nothing is resolved before optimize()
         CHECK_THROWS(go.optimize());
@@ -2852,18 +2855,22 @@ TEST_CASE("Go2 from the description: -a and setAlgorithmChain()", "[flat][go2][c
 
 /******************************************************************************/
 
-TEST_CASE("destroying a GenevaInitializer keeps the process RNG alive", "[go2][rng][regression]") {
-    // Regression guard for the ctest hang. GenevaInitializer -- embedded in every Go2 as Go2::gi_ --
-    // must NOT finalize the process-global Hap random-number factory on destruction. If it does, the
-    // factory's producer threads are joined and its buffers are terminally closed, and the very next
-    // random-number consumer spins forever in GRandomT::getNewRandomContainer() (a 100%-CPU livelock
-    // that hung the whole GenevaStandardTests binary right after the "Go2 enforces exactly one
-    // individual" case destroyed its Go2). We destroy a GenevaInitializer in a nested scope and then
-    // exercise the RNG: constructing a GRandom already pulls a fresh container from the factory, and a
-    // run of draws forces at least one buffer refill. This must COMPLETE -- not hang, not throw. It
-    // fails on the unfixed code (the factory reports finalized(), so the draw throws) and passes once
-    // ~GenevaInitializer() no longer finalizes the shared singleton (hap's lifecycle guard finalizes
-    // it at the end of the process; GenevaInitializer's class comment states the order).
+TEST_CASE(
+    "destroying a GenevaInitializer keeps the process RNG alive",
+    "[goptimizer][rng][regression]"
+) {
+    // Regression guard for the ctest hang. GenevaInitializer -- embedded in every GOptimizer as
+    // GOptimizer::gi_ -- must NOT finalize the process-global Hap random-number factory on
+    // destruction. If it does, the factory's producer threads are joined and its buffers are
+    // terminally closed, and the very next random-number consumer spins forever in
+    // GRandomT::getNewRandomContainer() (a 100%-CPU livelock that hung the whole
+    // GenevaStandardTests binary right after the "GOptimizer enforces exactly one individual" case
+    // destroyed its GOptimizer). We destroy a GenevaInitializer in a nested scope and then exercise
+    // the RNG: constructing a GRandom already pulls a fresh container from the factory, and a run
+    // of draws forces at least one buffer refill. This must COMPLETE -- not hang, not throw. It
+    // fails on the unfixed code (the factory reports finalized(), so the draw throws) and passes
+    // once ~GenevaInitializer() no longer finalizes the shared singleton (hap's lifecycle guard
+    // finalizes it at the end of the process; GenevaInitializer's class comment states the order).
     {
         Gem::Geneva::GenevaInitializer const gi;
     } // came online here; must NOT tear the factory down at scope exit

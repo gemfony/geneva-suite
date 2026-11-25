@@ -68,8 +68,8 @@ struct LoadedModule {
  * @brief Geneva's handlers for the contributions of modules, for Gem::Common::loadModule() or the
  * launcher (GOptimizationDescription::moduleHandlers()):
  *  - an individual: its factory and module are recorded in @p taken for the caller to claim (the
- *    one content-creator slot is Go2's); a second individual among the modules these handlers load
- *    is refused (one problem per process);
+ *    one content-creator slot is GOptimizer's); a second individual among the modules these
+ *    handlers load is refused (one problem per process);
  *  - an optimization algorithm: registered through registerOptimizationAlgorithm() under its
  *    mnemonic;
  *  - a GPU marshaller: registered in courtier's marshaller store under its device target.

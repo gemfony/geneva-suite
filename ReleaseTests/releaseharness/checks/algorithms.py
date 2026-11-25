@@ -1,7 +1,7 @@
 """Optimization-algorithm checks (ReleaseTestplan.md: "Optimization algorithms").
 
 Runs each algorithm to completion on a simple individual via example 01, which
-selects the algorithm with ``--algorithm`` (ea/sa/swarm/gd/ps). The Go2 config
+selects the algorithm with ``--algorithm`` (ea/sa/swarm/gd/ps). The GOptimizer config
 round-trip and checkpoint save/restore identity are structured stubs.
 """
 
@@ -12,7 +12,7 @@ import time
 from ..model import CheckResult, Tier
 from ..runner import GUEST_BUILD, JobContext
 
-# Run from the example's own build dir so it finds/creates ./config/Go2.json.
+# Run from the example's own build dir so it finds/creates ./config/GOptimizer.json.
 _EX01_DIR = "libs/geneva/examples/01_GSimpleOptimizer"
 _EX01 = "./GSimpleOptimizer"
 _ALGOS = {
@@ -50,7 +50,7 @@ def run_all_algorithms(ctx: JobContext) -> list[CheckResult]:
     return out
 
 
-def go2_config_roundtrip(ctx: JobContext) -> CheckResult:
+def goptimizer_config_roundtrip(ctx: JobContext) -> CheckResult:
     """Wipe config, let Geneva regenerate defaults, then re-run consuming them.
 
     GParserBuilder auto-writes a default config file when one is missing (see
@@ -62,9 +62,9 @@ def go2_config_roundtrip(ctx: JobContext) -> CheckResult:
     """
     tier = Tier.SHORT
     if not ctx.job.spec.build_examples:
-        return ctx.skipped("algorithm/go2-config-roundtrip", tier, "examples not built")
+        return ctx.skipped("algorithm/goptimizer-config-roundtrip", tier, "examples not built")
     if not ctx.should_run(tier):
-        return ctx.skipped("algorithm/go2-config-roundtrip", tier, "skipped")
+        return ctx.skipped("algorithm/goptimizer-config-roundtrip", tier, "skipped")
     started = time.monotonic()
     script = (
         "set -e\n"
@@ -75,8 +75,8 @@ def go2_config_roundtrip(ctx: JobContext) -> CheckResult:
         # First run: defaults missing -> GParserBuilder regenerates them, then
         # the optimization runs on those just-written values.
         f"{_EX01} >/tmp/cfg_run1.log 2>&1\n"
-        'test -s config/Go2.json '
-        '|| { echo "Go2.json was not regenerated"; head -20 /tmp/cfg_run1.log; exit 1; }\n'
+        'test -s config/GOptimizer.json '
+        '|| { echo "GOptimizer.json was not regenerated"; head -20 /tmp/cfg_run1.log; exit 1; }\n'
         'echo "regenerated configs:"; ls config/ | sed "s/^/  /"\n'
         # Second run: consumes the freshly-written defaults (round-trip).
         f"{_EX01} >/tmp/cfg_run2.log 2>&1\n"
@@ -84,19 +84,19 @@ def go2_config_roundtrip(ctx: JobContext) -> CheckResult:
     )
     res = ctx.exec_in_guest(["bash", "-lc", script],
                             workdir=GUEST_BUILD, timeout=900)
-    return ctx.record("algorithm/go2-config-roundtrip", tier, res, started=started)
+    return ctx.record("algorithm/goptimizer-config-roundtrip", tier, res, started=started)
 
 
 def checkpoint_identity(ctx: JobContext) -> CheckResult:
-    """Save a checkpoint mid-run, restore via `Go2 -f`, confirm it continues.
+    """Save a checkpoint mid-run, restore via `GOptimizer -f`, confirm it continues.
 
     With the default config Geneva's checkpoint_interval is 0 (never). The check
     therefore: (1) lets the example regenerate its default config, (2) flips
     cp_interval to 1 in the EA config so a checkpoint is written every iteration,
     (3) runs the example so checkpoint files accumulate under ./checkpoints/, (4)
-    picks the most recent one, (5) re-runs with ``-f <cp_file>`` which makes Go2
-    load that checkpoint before the run (see Go2::cp_personality_fits +
-    loadCheckpoint in geneva/src/Go2.cpp). PASS requires both runs to exit 0 and
+    picks the most recent one, (5) re-runs with ``-f <cp_file>`` which makes GOptimizer
+    load that checkpoint before the run (see GOptimizer::cp_personality_fits +
+    loadCheckpoint in geneva/src/GOptimizer.cpp). PASS requires both runs to exit 0 and
     the restore-side run NOT to print Geneva's "Checkpoint file ... does not fit"
     rejection -- i.e. the serialised state actually round-tripped through
     save/load. This is a high-value smoke for the recent
@@ -132,7 +132,7 @@ def checkpoint_identity(ctx: JobContext) -> CheckResult:
         '[ -n "$cps" ] || { echo "no checkpoint files written"; '
         'ls -la checkpoints/ 2>&1; tail -20 /tmp/cp_save.log; exit 1; }\n'
         'echo "saved checkpoint: $cps"\n'
-        # Restore-side run: Go2 loads the checkpoint via -f before the run.
+        # Restore-side run: GOptimizer loads the checkpoint via -f before the run.
         f"{_EX01} -f \"checkpoints/$cps\" >/tmp/cp_restore.log 2>&1\n"
         # Reject "does not fit" -- that means the checkpoint failed to round-trip.
         'if grep -q "does not" /tmp/cp_restore.log; then\n'

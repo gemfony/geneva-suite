@@ -23,10 +23,10 @@ changes are itemized. In short -- checkpoints and binary archives from 1.11 do n
 definitions must move to the flat-genome / evaluate() model, configuration files are strict JSON.
 
 A program's main() hands Geneva to courtier's launcher (runOptimization()), which owns the
-command line, the consumer and the role of each process; Go2 is the optimization driver only.
-Every consumer is a module (libgemfony-geneva-<consumer>), loaded when chosen, so no program needs
-a library a machine may lack (MPI, the CUDA driver). Clients switch GPU random numbers off
-(Gem::Hap::setGpuRandomNumbersAllowed); a failing CUDA call moves them to the CPU.
+command line, the consumer and the role of each process; GOptimizer (was Go2) is the optimization
+driver only. Every consumer is a module (libgemfony-geneva-<consumer>), loaded when chosen, so no
+program needs a library a machine may lack (MPI, the CUDA driver). Clients switch GPU random
+numbers off (Gem::Hap::setGpuRandomNumbersAllowed); a failing CUDA call moves them to the CPU.
 
 Websocket and MPI clients without work wait at the server instead of asking again after a pause:
 an iteration with 400 clients takes a few milliseconds longer than its evaluations (it was 70 to

@@ -41,7 +41,7 @@
  * already supplies @c itemDimension() / @c flatten() / @c scatter() / @c scalarKind() in pure host code
  * (the device math is the runtime-compiled kernel, not this class). It exists only so the module has a
  * concrete marshaller type to contribute to the marshaller store under the "cuda" device target, which is
- * what lets Go2 build the GPU consumer around this problem for @c --consumer @c gpu.
+ * what lets GOptimizer build the GPU consumer around this problem for @c --consumer @c gpu.
  */
 class GGPUParaboloidMarshaller final : public Gem::Geneva::GBaseGPUMarshallerT<double> {};
 

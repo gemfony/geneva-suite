@@ -10,12 +10,12 @@ run a new problem **without being recompiled**. It has two artifacts:
 ## Run it
 
 ```bash
-# from this example's build directory (so ./config/Go2.json is found):
+# from this example's build directory (so ./config/GOptimizer.json is found):
 ./GGenericOptimizer --individual ./libGLoadableParaboloid.so
 ```
 
 You can also point at the plugin from the config file instead of the command line — set
-`individual_plugin_path` in `config/Go2.json` (the `--individual` option overrides it).
+`individual_plugin_path` in `config/GOptimizer.json` (the `--individual` option overrides it).
 
 Because a Geneva server and client are the **same binary** launched with different options, a networked run
 just needs the same `.so` present on every node (already there on a shared HPC filesystem; staged next to

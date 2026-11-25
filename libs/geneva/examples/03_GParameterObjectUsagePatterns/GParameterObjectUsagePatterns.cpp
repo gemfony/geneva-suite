@@ -49,7 +49,7 @@
 #include "common/GConfigEmission.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GJsonIO.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/genome/GGenomeT.hpp"
@@ -191,7 +191,8 @@ int main(int argc, char **argv) {
     // the init policy (.init / .perimeter / .adaptionMode); the *adaptors* live on an OA-owned
     // GAdaptionConfig built from the finished genome and authored through a fluent API that mirrors the
     // builder one-to-one (groupDouble(i).gauss(...) / groupInt32(i).flip(...) / forLabel(...)). The
-    // optimization algorithm is then handed that config (via setAdaptionConfig / Go2::registerAdaptionConfig).
+    // optimization algorithm is then handed that config (via setAdaptionConfig /
+    // GOptimizer::registerAdaptionConfig).
     //
     // Three group shapes exist per parameter type:
     //   addX(init[,min,max])      -- one parameter, its own adaption group

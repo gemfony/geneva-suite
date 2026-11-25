@@ -44,7 +44,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/oa/GFactoryStore.hpp"
 #include "hap/GRandomFactory.hpp"
 #include "weft/GArchivePolymorphic.hpp" // verifyArchiveRegistrations()
@@ -249,7 +249,7 @@ int runOptimization(int argc, char **argv, GOptimizationProgram program) {
              if(not produce) {
                  return 0;
              }
-             Go2 go(description);
+             GOptimizer go(description);
              return produce(go, description);
          }}
     );

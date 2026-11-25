@@ -1,7 +1,7 @@
 # geneva/doc
 
 Per-library documentation directory for the **Geneva** library
-(the largest of the five; core optimisation: `Go2` driver, the flat
+(the largest of the five; core optimisation: `GOptimizer` driver, the flat
 `GGenome` model with OA-owned adaption configs, the optimisation
 algorithms -- EA, SA, swarm, CGD, Nelder-Mead, parameter scan, ACO,
 PSO, generalized SA, sepCMA-ES, the meta-EA -- per-category
@@ -39,7 +39,7 @@ Generated HTML / XML / tag files land in the **build tree**:
                        `doc-courtier` dependencies
 - `README.md`       -- this file
 
-Reserved for future Geneva-library manuals: the `Go2` workflow tutorial,
+Reserved for future Geneva-library manuals: the `GOptimizer` workflow tutorial,
 the algorithm-chaining example walkthrough, the per-category CRTP-roots
 design note, the personality-traits dispatch model, the pluggable-monitor
 extension guide, JSON config-file reference, etc.

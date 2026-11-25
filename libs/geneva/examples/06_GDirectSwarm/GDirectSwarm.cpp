@@ -34,7 +34,7 @@
 /*
  * *****************************************************************************
  * NOTE: This file shows how to access some of the optimization algorithms
- * directly (Swarm in this case), without going through the Go2 class. Usually, Go2
+ * directly (Swarm in this case), without going through the GOptimizer class. Usually, GOptimizer
  * is the recommended way and will relieve you from many burdensome tasks you
  * otherwise have to perform. Thus, if you are new to Geneva, we recommend that
  * you start with example 01 first rather than following what is shown in this file.
@@ -258,7 +258,7 @@ bool parseCommandLine(
 /**
  * The main function.
  */
-// NOLINTNEXTLINE(readability-function-size) -- single example main: CLI parsing, Go2 setup and the optimization run all belong to one driver
+// NOLINTNEXTLINE(readability-function-size) -- single example main: CLI parsing, GOptimizer setup and the optimization run all belong to one driver
 int main(int argc, char **argv) {
     Gem::Common::installFatalReport(); // an error nobody handles: its message and the exit code 1
     consumerType cType;

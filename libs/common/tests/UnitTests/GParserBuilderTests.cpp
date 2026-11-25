@@ -237,7 +237,7 @@ TEST_CASE(
 // Regression: a vector file-parameter with an EMPTY default must emit + round-trip.
 // Its save_to() previously threw "You need to provide at least one default value" on an
 // empty default vector, which broke config emission (--update-configs) for any binary
-// registering such a parameter (e.g. Go2's list of module paths). An empty default is
+// registering such a parameter (e.g. GOptimizer's list of module paths). An empty default is
 // valid -- it denotes a list that is empty unless the user fills it in.
 
 TEST_CASE(
@@ -1486,7 +1486,7 @@ TEST_CASE(
 // The command line: sections of the help text and options listed only by --showAll
 
 TEST_CASE(
-    "GParserBuilder: --help and --showAll print what Go2 prints for the same options",
+    "GParserBuilder: --help and --showAll print what GOptimizer prints for the same options",
     "[common][parser-builder]"
 ) {
     namespace po = boost::program_options;
@@ -1507,7 +1507,8 @@ TEST_CASE(
     gpb.registerCLParameter<int>("eaMaxIterations", max_iterations, 0, "the iterations").setHidden();
     gpb.registerCLParameter<int>("port", port, 10000, "the port");
 
-    // Go2's construction (Go2::parseCommandLine(), Go2::emitHelpIfRequested()), by hand
+    // GOptimizer's construction (GOptimizer::parseCommandLine(),
+    // GOptimizer::emitHelpIfRequested()), by hand
     po::options_description general("Usage: prog [options]");
     po::options_description basic("Basic options");
     basic.add_options()("help,h", "Emit help message")("showAll", "Show all available options")(
@@ -1523,23 +1524,23 @@ TEST_CASE(
     general.add(basic).add(user).add(visible).add(hidden);
     po::options_description selected("Usage: prog [options]");
     selected.add(basic).add(user).add(visible);
-    std::ostringstream go2_all;
-    go2_all << general << '\n';
-    std::ostringstream go2_help;
-    go2_help << selected << '\n';
+    std::ostringstream goptimizer_all;
+    goptimizer_all << general << '\n';
+    std::ostringstream goptimizer_help;
+    goptimizer_help << selected << '\n';
 
     {
         CoutCapture capture;
         Argv help({"--help"});
         CHECK(gpb.parseCommandLine(help.argc(), help.argv()) == GCL_HELP_REQUESTED);
-        CHECK(capture.text() == go2_help.str());
+        CHECK(capture.text() == goptimizer_help.str());
         CHECK_THAT(capture.text(), !ContainsSubstring("eaMaxIterations"));
     }
     {
         CoutCapture capture;
         Argv show_all({"--showAll"});
         CHECK(gpb.parseCommandLine(show_all.argc(), show_all.argv()) == GCL_HELP_REQUESTED);
-        CHECK(capture.text() == go2_all.str());
+        CHECK(capture.text() == goptimizer_all.str());
     }
 
     // A hidden option is read like any other

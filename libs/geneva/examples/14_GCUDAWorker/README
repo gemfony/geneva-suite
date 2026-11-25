@@ -67,7 +67,7 @@ The best candidate of each iteration is rasterised and written to ./results/ as
 
 Configuration files (config/)
 -----------------------------
-  Go2.json                   top-level Go2 settings
+  GOptimizer.json            top-level GOptimizer settings
   GEvolutionaryAlgorithm.json the evolutionary algorithm (population size, iterations, ...)
   GImageIndividual.json      the image individual (number of triangles, adaption, ...)
   GGPUConsumer.json          GPU consumer: backend (cpu|cuda), kernel path/entry, launch sizes

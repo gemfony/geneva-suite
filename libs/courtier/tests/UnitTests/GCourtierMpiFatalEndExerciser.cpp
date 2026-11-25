@@ -29,11 +29,11 @@
 
 // A process that ends on an error nobody handles ends the whole MPI job, also when other processes
 // wait for it. Run on three ranks under mpirun: every rank initializes MPI through courtier's
-// environment (as a Go2 program asks for its role), rank 1 then fails, and the other ranks wait for
-// rank 1 at a barrier, as a submitter's clients wait for its greeting. main() installs the fatal
-// report (Gem::Common::installFatalReport()) first, as Go2 does: the exception reaches it without
-// unwinding, it prints the message and ends rank 1 with the exit code 1, and the launcher ends the
-// job. The scenario is the first argument:
+// environment (as a GOptimizer program asks for its role), rank 1 then fails, and the other ranks
+// wait for rank 1 at a barrier, as a submitter's clients wait for its greeting. main() installs the
+// fatal report (Gem::Common::installFatalReport()) first, as GOptimizer does: the exception reaches
+// it without unwinding, it prints the message and ends rank 1 with the exit code 1, and the
+// launcher ends the job. The scenario is the first argument:
 //  - "config": rank 1 applies a configuration entry of the wrong form; the environment is kept
 //    without a holder in main();
 //  - "holder": the same, while a local of main() holds the environment -- an unwinding would

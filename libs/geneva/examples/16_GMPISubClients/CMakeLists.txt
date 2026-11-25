@@ -74,7 +74,7 @@ SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" PROCES
 GEM_TEST_SIZE(${EXECUTABLENAME} L)
 
 # A help request under the launcher ends with 0: no rank starts the cascade, and with it MPI,
-# before Go2 prints the text and ends the process. Each rank runs in a directory of its own.
+# before GOptimizer prints the text and ends the process. Each rank runs in a directory of its own.
 SET(_help_dir ${CMAKE_CURRENT_BINARY_DIR}/help)
 FILE(MAKE_DIRECTORY ${_help_dir})
 GEM_ADD_MPI_TEST(NAME ${EXECUTABLENAME}Help TIMEOUT 60

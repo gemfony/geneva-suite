@@ -27,7 +27,7 @@
  *
  ********************************************************************************/
 
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GConfigEmission.hpp"
@@ -57,13 +57,13 @@ namespace Gem::Geneva {
 /**
  * A driver that only chains algorithms.
  */
-Go2::Go2() = default;
+GOptimizer::GOptimizer() = default;
 
 /******************************************************************************/
 /**
  * The driver of a program on the launcher, built from Geneva's description after the parse.
  */
-Go2::Go2(const GOptimizationDescription &description)
+GOptimizer::GOptimizer(const GOptimizationDescription &description)
   : copy_best_individuals_only_(description.copyBestIndividualsOnly())
   , cp_file_(description.checkpointFile())
   , cl_algorithm_mnemonics_(description.algorithms()) {
@@ -77,14 +77,14 @@ Go2::Go2(const GOptimizationDescription &description)
  * Allows to register a default algorithm to be used when no other algorithms
  * have been specified. When others have been specified, this algorithm will
  * not be used. Note that any individuals registered with the default algorithm
- * will be copied into the Go2 object. This function takes the algorithm from a
+ * will be copied into the GOptimizer object. This function takes the algorithm from a
  * global algorithm factory store. The algorithm needs to be specified using a
  * small nickname, such as "ea" for "Evolutionary Algorithms". See the available
  * algorithms in the Geneva distribution for further information.
  *
  * @param mn A small mnemonic for the optimization algorithm
  */
-void Go2::registerDefaultAlgorithm(std::string const &mn) {
+void GOptimizer::registerDefaultAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
@@ -99,11 +99,11 @@ void Go2::registerDefaultAlgorithm(std::string const &mn) {
  * @brief Allows to register a default algorithm to be used when no other algorithms have been specified.
  *
  * When others have been specified, this algorithm will not be used. Note that any individuals registered
- * with the default algorithm will be copied into the Go2 object.
+ * with the default algorithm will be copied into the GOptimizer object.
  *
  * @param default_algorithm A smart pointer to the optimization algorithm to use as the default
  */
-void Go2::registerDefaultAlgorithm(const std::shared_ptr<GOABase> &default_algorithm) {
+void GOptimizer::registerDefaultAlgorithm(const std::shared_ptr<GOABase> &default_algorithm) {
     // Check that the pointer isn't empty
     if(not default_algorithm) {
         throw gem_exception(g_error_streamer() << "Got empty algorithm." << '\n');
@@ -129,7 +129,7 @@ void Go2::registerDefaultAlgorithm(const std::shared_ptr<GOABase> &default_algor
  *
  * @param pluggable_om A smart pointer to the pluggable optimization monitor to register (must not be empty)
  */
-void Go2::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &pluggable_om) {
+void GOptimizer::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &pluggable_om) {
     if(pluggable_om) {
         pluggable_monitors_cnt_.push_back(pluggable_om);
     }
@@ -144,7 +144,7 @@ void Go2::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &plugg
 /**
  * @brief Allows resetting the local pluggable optimization monitors.
  */
-void Go2::resetPluggableOM() {
+void GOptimizer::resetPluggableOM() {
     pluggable_monitors_cnt_.clear();
 }
 
@@ -154,7 +154,7 @@ void Go2::resetPluggableOM() {
  *
  * @return true if at least one pluggable optimization monitor has been registered, false otherwise
  */
-bool Go2::hasOptimizationMonitors() const {
+bool GOptimizer::hasOptimizationMonitors() const {
     return not pluggable_monitors_cnt_.empty();
 }
 
@@ -166,7 +166,7 @@ bool Go2::hasOptimizationMonitors() const {
  *
  * @param copy_best_individuals_only If true, only the best individuals are carried over between algorithms
  */
-void Go2::setCopyBestIndividualsOnly(bool copy_best_individuals_only) {
+void GOptimizer::setCopyBestIndividualsOnly(bool copy_best_individuals_only) {
     copy_best_individuals_only_ = copy_best_individuals_only;
 }
 
@@ -176,7 +176,7 @@ void Go2::setCopyBestIndividualsOnly(bool copy_best_individuals_only) {
  *
  * @return true if only the best individuals are carried over between algorithms, false otherwise
  */
-bool Go2::onlyBestIndividualsAreCopied() const {
+bool GOptimizer::onlyBestIndividualsAreCopied() const {
     return copy_best_individuals_only_;
 }
 
@@ -186,19 +186,19 @@ bool Go2::onlyBestIndividualsAreCopied() const {
  *
  * @return The number of optimization algorithms currently registered with this object
  */
-std::size_t Go2::getNAlgorithms() const {
+std::size_t GOptimizer::getNAlgorithms() const {
     return algorithms_cnt_.size();
 }
 
 /******************************************************************************/
 /**
  * Allows to add an optimization algorithm to the chain. If any individuals have
- * been stored in these algorithms, Go2 will unload them and store them for later
+ * been stored in these algorithms, GOptimizer will unload them and store them for later
  * usage.
  *
  * @param alg A base pointer to another optimization algorithm
  */
-void Go2::addAlgorithm(const std::shared_ptr<GOABase> &alg) {
+void GOptimizer::addAlgorithm(const std::shared_ptr<GOABase> &alg) {
     // Check that the pointer is not empty
     if(not alg) {
         throw gem_exception(g_error_streamer() << "Tried to register an empty pointer" << '\n');
@@ -227,7 +227,7 @@ void Go2::addAlgorithm(const std::shared_ptr<GOABase> &alg) {
  *
  * @return The algorithms that were registered with this class
  */
-std::vector<std::shared_ptr<GOABase>> Go2::getRegisteredAlgorithms() {
+std::vector<std::shared_ptr<GOABase>> GOptimizer::getRegisteredAlgorithms() {
     return algorithms_cnt_;
 }
 
@@ -240,7 +240,7 @@ std::vector<std::shared_ptr<GOABase>> Go2::getRegisteredAlgorithms() {
  *
  * @param mnemonics The ordered algorithm mnemonics forming the chain
  */
-void Go2::setAlgorithmChain(std::vector<std::string> const &mnemonics) {
+void GOptimizer::setAlgorithmChain(std::vector<std::string> const &mnemonics) {
     programmatic_algorithm_mnemonics_ = mnemonics;
 }
 
@@ -250,7 +250,7 @@ void Go2::setAlgorithmChain(std::vector<std::string> const &mnemonics) {
  *
  * @return The algorithm mnemonics (empty if none were set programmatically)
  */
-std::vector<std::string> Go2::getAlgorithmChain() const {
+std::vector<std::string> GOptimizer::getAlgorithmChain() const {
     return programmatic_algorithm_mnemonics_;
 }
 
@@ -258,14 +258,14 @@ std::vector<std::string> Go2::getAlgorithmChain() const {
 /**
  * Makes it easier to add algorithms. The idea is to call this function like this:
  *
- * Go2 go2;
- * go2 & alg1 & alg2 & alg3;
- * go2.optimize();
+ * GOptimizer go;
+ * go & alg1 & alg2 & alg3;
+ * go.optimize();
  *
  * @param alg A base pointer to another optimization algorithm
  * @return A reference to this object, allowing call chaining
  */
-Go2 &Go2::operator&(const std::shared_ptr<GOABase> &alg) {
+GOptimizer &GOptimizer::operator&(const std::shared_ptr<GOABase> &alg) {
     this->addAlgorithm(alg); // NOLINT
     return *this;
 }
@@ -276,7 +276,7 @@ Go2 &Go2::operator&(const std::shared_ptr<GOABase> &alg) {
  *
  * @param mn A small mnemonic identifying the optimization algorithm in the global factory store (e.g. "ea")
  */
-void Go2::addAlgorithm(std::string const &mn) {
+void GOptimizer::addAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
@@ -293,7 +293,7 @@ void Go2::addAlgorithm(std::string const &mn) {
  * @param mn A small mnemonic identifying the optimization algorithm in the global factory store (e.g. "ea")
  * @return A reference to this object, allowing call chaining
  */
-Go2 &Go2::operator&(std::string const &mn) {
+GOptimizer &GOptimizer::operator&(std::string const &mn) {
     this->addAlgorithm(mn);
     return *this;
 }
@@ -306,7 +306,7 @@ Go2 &Go2::operator&(std::string const &mn) {
  *
  * @param cc_ptr A smart pointer to a factory that produces optimizable entities (must not be empty)
  */
-void Go2::registerContentCreator(
+void GOptimizer::registerContentCreator(
     const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr
 ) {
     // A user-compiled-in individual: claim the single slot, so a later plugin load (or a second
@@ -323,7 +323,7 @@ void Go2::registerContentCreator(
  * @param cc_ptr The content-creator factory to install (must not be empty)
  * @param source Where this content creator came from (for the diagnostic on a double claim)
  */
-void Go2::claimContentCreator_(
+void GOptimizer::claimContentCreator_(
     const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr,
     individualSource source
 ) {
@@ -365,9 +365,26 @@ void Go2::claimContentCreator_(
 
 /******************************************************************************/
 /**
+ * @brief Runs the chain of algorithms (optimize_()) and returns this optimizer.
+ *
+ * It takes the place of GOptimizerIT<GOptimizer>::optimize(), which hands back a pointer to a
+ * constant object, the form every algorithm keeps: a reference lets a program read its result in
+ * the same expression, go.optimize().getBestGlobalIndividual<T>(), and a call that ignores the
+ * return reads as before.
+ *
+ * @param offset An iteration offset at which the first algorithm starts (e.g. for a resume)
+ * @return This optimizer, after the optimization has run
+ */
+GOptimizer &GOptimizer::optimize(std::uint32_t offset) {
+    this->optimize_(offset);
+    return *this;
+}
+
+/******************************************************************************/
+/**
  * Perform the actual optimization cycle. Note that we assume that individuals
- * have either been registered with the Go2 object or with the first algorithm
- * which has been added to the object. When no algorithm was added to the Go2
+ * have either been registered with the GOptimizer object or with the first algorithm
+ * which has been added to the object. When no algorithm was added to the GOptimizer
  * object (either on the command line or by passing a mnemonic or smart pointer),
  * a default algorithm will be used. Check the @c \#define @c DEFAULTOPTALG for information
  * on the type of algorithm being used. The default algorithm may also be altered
@@ -375,10 +392,10 @@ void Go2::claimContentCreator_(
  *
  * @param offset An iteration offset at which the first algorithm should start
  *               (e.g. for checkpoint resume); subsequent algorithms in the chain
- *               always start at 0. Defaults to 0 through the GOptimizerIT interface.
- * @return A pointer to this object (after the optimization has run)
+ *               always start at 0. Defaults to 0 through optimize().
+ * @return A pointer to this object (after the optimization has run), as GOptimizerIT requires
  */
-Go2 const *Go2::optimize_(std::uint32_t offset) {
+GOptimizer const *GOptimizer::optimize_(std::uint32_t offset) {
     // The algorithm chain of -a (it wins) or of setAlgorithmChain(), once
     if(not chain_resolved_) {
         chain_resolved_ = true;
@@ -389,15 +406,15 @@ Go2 const *Go2::optimize_(std::uint32_t offset) {
     }
 
     // --update-configs: refresh every config this binary owns and end the process without optimizing.
-    // Go2 is the one place that ends the process on --update-configs: no population exists afterwards,
-    // so the caller's code after optimize() (getBestGlobalIndividual() and its use) could not work, and
-    // a Go2 program needs no special case for this mode. std::exit runs the registered atexit / static
-    // teardown (flushing stdio and the logger, releasing the library's RNG factory guard); nothing
-    // produced by this pass needs a Go2 destructor.
+    // GOptimizer is the one place that ends the process on --update-configs: no population exists
+    // afterwards, so the caller's code after optimize() (getBestGlobalIndividual() and its use)
+    // could not work, and a GOptimizer program needs no special case for this mode. std::exit runs
+    // the registered atexit / static teardown (flushing stdio and the logger, releasing the
+    // library's RNG factory guard); nothing produced by this pass needs a GOptimizer destructor.
     if(Gem::Common::GParserBuilder::updateInPlace()) {
         this->refreshAllConfigs_();
         Gem::Common::finishConfigEmission();
-        // NOLINTNEXTLINE(concurrency-mt-unsafe) -- deliberate: a Go2 run under --update-configs ends here
+        // NOLINTNEXTLINE(concurrency-mt-unsafe) -- deliberate: a GOptimizer run under --update-configs ends here
         std::exit(0);
     }
     this->ensureAlgorithmPresent();
@@ -411,14 +428,14 @@ Go2 const *Go2::optimize_(std::uint32_t offset) {
 /**
  * @brief --update-configs pass: refresh every configuration file this binary owns.
  *
- * With GParserBuilder in update-in-place mode (begun by the launcher), Go2.json and the consumers'
- * files were already rewritten by the launcher. Here we additionally produce one object from each
- * registered algorithm factory -- which parses (and thus rewrites) that algorithm's config file --
- * and one individual from the content creator, refreshing the individual's config. No optimization
- * is run. Per-config failures are warned about rather than aborting, so one missing/odd config does
- * not stop the rest from being refreshed.
+ * With GParserBuilder in update-in-place mode (begun by the launcher), GOptimizer.json and the
+ * consumers' files were already rewritten by the launcher. Here we additionally produce one object
+ * from each registered algorithm factory -- which parses (and thus rewrites) that algorithm's
+ * config file -- and one individual from the content creator, refreshing the individual's config.
+ * No optimization is run. Per-config failures are warned about rather than aborting, so one
+ * missing/odd config does not stop the rest from being refreshed.
  */
-void Go2::refreshAllConfigs_() {
+void GOptimizer::refreshAllConfigs_() {
     // Every registered optimization-algorithm factory: producing one algorithm parses its config file.
     for(auto const &provider : oaFactoryStore()->getContentSnapshot()) {
         try {
@@ -446,14 +463,14 @@ void Go2::refreshAllConfigs_() {
 /**
  * @brief Adds the Geneva default algorithm if the user has registered none.
  */
-void Go2::ensureAlgorithmPresent() {
+void GOptimizer::ensureAlgorithmPresent() {
     if(algorithms_cnt_.empty()) {
         if(not default_algorithm_) {
             // No algorithms given, no default algorithm specified by the user:
             // Simply add the Geneva-side default algorithm
             this->registerDefaultAlgorithm(default_algorithm_str_);
 
-            glogger << "In Go2::optimize(): INFORMATION:" << '\n'
+            glogger << "In GOptimizer::optimize(): INFORMATION:" << '\n'
                     << "No user-defined optimization algorithm available." << '\n'
                     << "Using default algorithm \"" << default_algorithm_str_ << "\" instead."
                     << '\n'
@@ -480,7 +497,7 @@ void Go2::ensureAlgorithmPresent() {
  * @return The iteration offset the first algorithm should actually start at (offset, or one past the
  *         checkpoint's last iteration when resuming from a checkpoint)
  */
-std::uint32_t Go2::prepareInitialPopulation(std::uint32_t offset) {
+std::uint32_t GOptimizer::prepareInitialPopulation(std::uint32_t offset) {
     this->validateCheckpointFitsFirstAlgorithm();
 
     // Load the checkpoint file or create individuals from the content creator
@@ -502,7 +519,7 @@ std::uint32_t Go2::prepareInitialPopulation(std::uint32_t offset) {
 /**
  * @brief Throws if a configured checkpoint file does not fit the first algorithm in the chain.
  */
-void Go2::validateCheckpointFitsFirstAlgorithm() const {
+void GOptimizer::validateCheckpointFitsFirstAlgorithm() const {
     if(cp_file_ != "empty" &&
        not algorithms_cnt_[0]->cp_personality_fits(std::filesystem::path(cp_file_))) {
         throw gem_exception(
@@ -517,7 +534,7 @@ void Go2::validateCheckpointFitsFirstAlgorithm() const {
 /**
  * @brief Loads the configured checkpoint into the first algorithm in the chain.
  */
-void Go2::loadFirstAlgorithmCheckpoint() {
+void GOptimizer::loadFirstAlgorithmCheckpoint() {
     algorithms_cnt_[0]->loadCheckpoint(std::filesystem::path(cp_file_));
 }
 
@@ -526,7 +543,7 @@ void Go2::loadFirstAlgorithmCheckpoint() {
  * @brief Fills the (empty) population from the registered content creator, throwing if no creator and no
  * individuals are available.
  */
-void Go2::fillPopulationFromContentCreator() {
+void GOptimizer::fillPopulationFromContentCreator() {
     if(not this->empty()) {
         return; // individuals were already registered directly -- nothing to create
     }
@@ -551,7 +568,7 @@ void Go2::fillPopulationFromContentCreator() {
  * by calling the registered content creator, stopping early if it runs empty (but throwing if it never
  * produced a single individual).
  */
-void Go2::createIndividualsFromContentCreator() {
+void GOptimizer::createIndividualsFromContentCreator() {
     for(std::size_t ind = 0; ind < algorithms_cnt_.at(0)->getDefaultPopulationSize(); ind++) {
         std::shared_ptr<gen::GGenome> const p_ind = (*content_creator_ptr_)();
         if(p_ind) {
@@ -582,7 +599,7 @@ void Go2::createIndividualsFromContentCreator() {
  *
  * @param first_algorithm_offset The iteration offset at which the first algorithm in the chain should start
  */
-void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
+void GOptimizer::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
     total_iterations_ = 0;
     for(auto const &[alg_index, alg_ptr] : algorithms_cnt_ | std::views::enumerate) {
         // Every algorithm submits through the one process consumer (registered in GConsumerRegistry
@@ -612,8 +629,8 @@ void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
 
         // The iterations of the chain before this algorithm. The first algorithm of a run resumed
         // from a checkpoint keeps the offset its checkpoint holds: that says where in the earlier
-        // chain it stood. Go2 knows that case by resumedFromCheckpoint(), which loadCheckpoint()
-        // set and which only the algorithm's optimize() clears.
+        // chain it stood. GOptimizer knows that case by resumedFromCheckpoint(), which
+        // loadCheckpoint() set and which only the algorithm's optimize() clears.
         if(alg_index == 0 and alg_ptr->resumedFromCheckpoint()) {
             total_iterations_ = alg_ptr->getChainOffset();
         }
@@ -661,7 +678,7 @@ void Go2::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
  * @param oa_personality_type The algorithm personality type the configuration applies to (registry key)
  * @param config A smart pointer to the adaption configuration to register; a null pointer removes any existing entry
  */
-void Go2::registerAdaptionConfig(
+void GOptimizer::registerAdaptionConfig(
     const std::string &oa_personality_type,
     std::shared_ptr<oa::GAdaptionConfigBase> config
 ) {
@@ -678,7 +695,7 @@ void Go2::registerAdaptionConfig(
  * @brief Sorts the collected individuals by their (min-only transformed) fitness, best first, for a
  * caller that iterates over them after the run.
  */
-void Go2::sortIndividualsByFitness() {
+void GOptimizer::sortIndividualsByFitness() {
     std::ranges::sort(this->begin(), this->end(), [](const auto &x_ptr, const auto &y_ptr) -> bool {
         return minOnly_transformed_fitness(*x_ptr) < minOnly_transformed_fitness(*y_ptr);
     });
@@ -696,7 +713,7 @@ void Go2::sortIndividualsByFitness() {
  *
  * @return Copies of the best individuals of the run, best first
  */
-std::vector<std::unique_ptr<gen::GGenome>> Go2::bestsOfRun_() const {
+std::vector<std::unique_ptr<gen::GGenome>> GOptimizer::bestsOfRun_() const {
     auto last_bests = this->lastAlgorithm_().getBestGlobalIndividuals<gen::GGenome>();
     if(not copy_best_individuals_only_) {
         gen::GGenomeFixedSizePriorityQueue bests(last_bests.size());
@@ -724,7 +741,7 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::bestsOfRun_() const {
  *
  * @return The algorithm that ran last
  */
-GOABase const &Go2::lastAlgorithm_() const {
+GOABase const &GOptimizer::lastAlgorithm_() const {
     Gem::Common::checkThat(
         total_iterations_ > 0,
         "No optimization has run yet: optimize() comes first"
@@ -738,7 +755,7 @@ GOABase const &Go2::lastAlgorithm_() const {
  *
  * @return A copy of the best individual found
  */
-std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
+std::unique_ptr<gen::GGenome> GOptimizer::getBestGlobalIndividual_() const {
     return std::move(this->bestsOfRun_().front());
 }
 
@@ -748,7 +765,7 @@ std::unique_ptr<gen::GGenome> Go2::getBestGlobalIndividual_() const {
  *
  * @return Copies of the best individuals found, best first
  */
-std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() const {
+std::vector<std::unique_ptr<gen::GGenome>> GOptimizer::getBestGlobalIndividuals_() const {
     return this->bestsOfRun_();
 }
 
@@ -758,7 +775,7 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestGlobalIndividuals_() cons
  *
  * @return A copy of the best individual of the last iteration
  */
-std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
+std::unique_ptr<gen::GGenome> GOptimizer::getBestIterationIndividual_() const {
     return this->lastAlgorithm_().getBestIterationIndividual<gen::GGenome>();
 }
 
@@ -768,7 +785,7 @@ std::unique_ptr<gen::GGenome> Go2::getBestIterationIndividual_() const {
  *
  * @return Copies of the best individuals of the last iteration, best first
  */
-std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestIterationIndividuals_() const {
+std::vector<std::unique_ptr<gen::GGenome>> GOptimizer::getBestIterationIndividuals_() const {
     return this->lastAlgorithm_().getBestIterationIndividuals<gen::GGenome>();
 }
 
@@ -776,7 +793,7 @@ std::vector<std::unique_ptr<gen::GGenome>> Go2::getBestIterationIndividuals_() c
 /**
  * @brief Satisfies a requirement of GOptimizerIT (no-op for the algorithm combiner).
  */
-void Go2::evaluatePopulation_() { /* nothing */
+void GOptimizer::evaluatePopulation_() { /* nothing */
 }
 
 /******************************************************************************/
@@ -785,7 +802,7 @@ void Go2::evaluatePopulation_() { /* nothing */
  *
  * @return The iterations of the chain so far (in a resumed run including those before its checkpoint)
  */
-uint32_t Go2::getIteration_() const {
+uint32_t GOptimizer::getIteration_() const {
     return total_iterations_;
 }
 
@@ -795,7 +812,7 @@ uint32_t Go2::getIteration_() const {
  *
  * @return The name assigned to this optimization algorithm
  */
-std::string Go2::getAlgorithmName_() const {
+std::string GOptimizer::getAlgorithmName_() const {
     return {"Algorithm Combiner"};
 }
 
@@ -805,7 +822,7 @@ std::string Go2::getAlgorithmName_() const {
  *
  * @return A short string identifying the algorithm personality type
  */
-std::string Go2::getAlgorithmPersonalityType_() const {
+std::string GOptimizer::getAlgorithmPersonalityType_() const {
     return {"PERSONALITY_NONE"};
 }
 
@@ -815,7 +832,7 @@ std::string Go2::getAlgorithmPersonalityType_() const {
  *
  * @param mnemonics The ordered algorithm mnemonics to instantiate and append to the chain
  */
-void Go2::resolveAlgorithmChain_(std::vector<std::string> const &mnemonics) {
+void GOptimizer::resolveAlgorithmChain_(std::vector<std::string> const &mnemonics) {
     for(const auto &alg_str : mnemonics) {
         // Retrieve the algorithm provider from the global store
         std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;

@@ -103,7 +103,8 @@ ENDIF()
 ADD_SUBDIRECTORY( 17_GAlgorithmChaining )
 
 # ---------------------------------------------------------------------------------------------------
-# Optional: refresh every shipped example config in place via the Go2 --update-configs switch.
+# Optional: refresh every shipped example config in place via the GOptimizer --update-configs
+# switch.
 #
 # `make geneva_update_configs` runs each eligible example binary with --update-configs, which rewrites
 # the configs in that binary's BUILD directory in canonical form (drop keys no registered parameter
@@ -111,21 +112,22 @@ ADD_SUBDIRECTORY( 17_GAlgorithmChaining )
 # build tree; copying the refreshed configs back into the source tree is a deliberate, separate step
 # (Development Invariant 17 -- a build never writes into the checkout).
 #
-# Only standard Go2 examples that (a) construct Go2 and reach optimize() and (b) build their individual
-# without an external tool/service or a device are eligible. Deliberately NOT included, each for a
-# STRUCTURAL reason (verified, not a convenience drop):
-#   03_GParameterObjectUsagePatterns -- a parameter-object demo; it never constructs Go2, so the switch
+# Only standard GOptimizer examples that (a) construct GOptimizer and reach optimize() and (b) build
+# their individual without an external tool/service or a device are eligible. Deliberately NOT
+# included, each for a STRUCTURAL reason (verified, not a convenience drop):
+#   03_GParameterObjectUsagePatterns -- a parameter-object demo; it never constructs GOptimizer, so
+#   the switch
 #                                       never engages (its lone config is unaffected either way);
-#   06_GDirect{EA,SA,Swarm}          -- drive an optimization algorithm directly, without Go2;
-#   11_GExternalEvaluator            -- building its individual EXECUTES an external evaluator program;
-#   14_GCUDAWorker / 19_GFunctionGPU -- need a CUDA device;
+#   06_GDirect{EA,SA,Swarm}          -- drive an optimization algorithm directly, without
+#   GOptimizer; 11_GExternalEvaluator            -- building its individual EXECUTES an external
+#   evaluator program; 14_GCUDAWorker / 19_GFunctionGPU -- need a CUDA device;
 #   15_GMPIConsumer                  -- needs mpirun;
 #   16_GMPISubClients                -- refreshes its configs without mpirun (its MPI cascade makes no
 #                                       MPI call under --update-configs), but is not listed here yet;
 #   18_GLoadableIndividual           -- a plugin loader (needs --individual <plugin.so>).
 # Those are refreshed by hand (or via their own run) when needed.
 OPTION(GENEVA_UPDATE_CONFIGS
-	"Add a 'geneva_update_configs' target that refreshes eligible example configs in place (build tree only) via Go2 --update-configs"
+	"Add a 'geneva_update_configs' target that refreshes eligible example configs in place (build tree only) via GOptimizer --update-configs"
 	OFF)
 
 IF(GENEVA_UPDATE_CONFIGS)
@@ -162,10 +164,11 @@ ENDIF()
 # docs/config-reference/ from the code's registered parameters + comments. This is the one place a
 # source-browser sees every standard configuration and what each parameter means, without building.
 #
-# The reference is generated (never hand-edited) by running a representative Go2 example with
-# --update-configs, which materializes Go2.json, every registered optimization-algorithm config and the
-# standard individual config. The GEM_CONFIG_REFERENCE environment variable suppresses the header's
-# creation timestamp, so the output is byte-stable and regenerating it produces no spurious diff.
+# The reference is generated (never hand-edited) by running a representative GOptimizer example with
+# --update-configs, which materializes GOptimizer.json, every registered optimization-algorithm
+# config and the standard individual config. The GEM_CONFIG_REFERENCE environment variable
+# suppresses the header's creation timestamp, so the output is byte-stable and regenerating it
+# produces no spurious diff.
 #
 # Regenerating writes into the source tree -- the ONE deliberate exception to "a build never writes into
 # the checkout" (Development Invariant 17), because a *documentation* artifact is meant to be versioned.

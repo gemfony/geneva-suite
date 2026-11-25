@@ -38,9 +38,9 @@
  * loaded at run time, reports through its provider's role(): the module must find the environment
  * the cascade built. A consumer that took the roles from MPI_COMM_WORLD would make a member the
  * submitter. Then one iteration of a small population is run on courtier's launcher: the submitter
- * through Go2, every lead's client evaluates each item in a round of its group (the launcher's item
- * processor), every member serves the rounds. MPI stays the program's to finalize. Run with five
- * ranks.
+ * through GOptimizer, every lead's client evaluates each item in a round of its group (the
+ * launcher's item processor), every member serves the rounds. MPI stays the program's to finalize.
+ * Run with five ranks.
  */
 
 // Standard header files go here
@@ -60,7 +60,7 @@
 #include "courtier/GLauncherT.hpp"
 #include "courtier/mpi/GMPICascade.hpp"
 #include "courtier/mpi/GMPICascadeConfig.hpp"
-#include "geneva/Go2.hpp"
+#include "geneva/GOptimizer.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
 
@@ -89,8 +89,8 @@ processRole expectedRole(int base_rank) {
 }
 
 /** @brief The submitter's part: one iteration of a small population.
- *  @param go The Go2 of the run */
-void optimize(Go2 &go) {
+ *  @param go The GOptimizer of the run */
+void optimize(GOptimizer &go) {
     const auto factory =
         std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
     go.registerContentCreator(factory);
@@ -112,7 +112,7 @@ void optimize(Go2 &go) {
  *  @return The launcher's exit code */
 int runOnLauncher(int argc, char **argv, Gem::Courtier::GMPICascade &cascade) {
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/Go2.json");
+    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
     launcher.registerItemProcessor([&cascade](gen::GGenome &item) {
         std::ignore = item.process([&cascade](const gen::GGenome &candidate) {
             std::vector<double> parameters;
@@ -135,7 +135,7 @@ int runOnLauncher(int argc, char **argv, Gem::Courtier::GMPICascade &cascade) {
          },
          .produce =
              [&geneva] {
-                 Go2 go(geneva);
+                 GOptimizer go(geneva);
                  optimize(go);
                  return 0;
              }}

@@ -6,7 +6,7 @@ thread consumer with a single worker).
 The example demonstrates how the functionality of a given optimization
 algorithm can be accessed directly.
 NOTE: Usually, the user will not do so, but will
-rather use the Go2 class, which wraps all necessary functionality. However, there
+rather use the GOptimizer class, which wraps all necessary functionality. However, there
 may be special use cases where one might want to interact directly with a given
 optimization algorithm.
 NOTE: This example does not include the GMPIConsumerT. The reason for this is that we want to be able to build

@@ -31,7 +31,8 @@
 # runtime-loadable module, and it is optimized by the generic optimizer (example 18's GGenericOptimizer)
 # via --individual, rather than by a bespoke main. There is no example-specific executable -- "load a
 # problem, run an algorithm, print the best" is exactly what the generic optimizer already does. All
-# configuration (Go2, the algorithm, the individual) is auto-created from code defaults on first run.
+# configuration (GOptimizer, the algorithm, the individual) is auto-created from code defaults on
+# first run.
 
 # The loadable problem module -> libGFMinIndividual.so (problem code + archive tag + manifest glue),
 # linking none of the Geneva libraries (their symbols resolve from the generic optimizer at load).
