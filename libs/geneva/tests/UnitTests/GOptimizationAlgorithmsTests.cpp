@@ -57,6 +57,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -1423,6 +1424,56 @@ TEST_CASE(
         }
         // The case that tells the two apart occurred (best of N runs, Invariant 18)
         CHECK(n_lost > 0);
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "optimize() returns the optimizer itself for an algorithm and for GOptimizer",
+    "[oa][goptimizer]"
+) {
+    // GOptimizerIT::optimize() hands back a reference to the object it ran on, so a result is read
+    // in the same expression. Regression: the algorithms returned a pointer to a const object, and
+    // GOptimizer hid the interface's optimize() with one of its own.
+    static_assert(std::is_same_v<
+                  decltype(std::declval<oa::GEvolutionaryAlgorithm &>().optimize()),
+                  oa::GOptimizationAlgorithmBase &>);
+    static_assert(std::is_same_v<
+                  decltype(std::declval<Gem::Geneva::GOptimizer &>().optimize()),
+                  Gem::Geneva::GOptimizer &>);
+    SphereOA const src;
+
+    SECTION("an algorithm") {
+        auto ea = makeCommaEA();
+        ea->push_back(src.clone());
+        ea->setAdaptionConfig(largeFixedStep(src));
+        CHECK(&ea->optimize() == ea.get());
+
+        auto chained = makeCommaEA();
+        chained->push_back(src.clone());
+        chained->setAdaptionConfig(largeFixedStep(src));
+        auto const best = chained->optimize().getBestGlobalIndividual<SphereOA>();
+        REQUIRE(best);
+        CHECK(fitnessOf(*best) == fitnessOf(*chained->getBestGlobalIndividual<SphereOA>()));
+    }
+
+    SECTION("GOptimizer") {
+        Gem::Geneva::GOptimizer go;
+        go.push_back(src.clone());
+        go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+        auto ea = makeCommaEA();
+        go & ea;
+        CHECK(&go.optimize() == &go);
+
+        Gem::Geneva::GOptimizer chained;
+        chained.push_back(src.clone());
+        chained.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+        auto chained_ea = makeCommaEA();
+        chained & chained_ea;
+        auto const best = chained.optimize().getBestGlobalIndividual<SphereOA>();
+        REQUIRE(best);
+        CHECK(fitnessOf(*best) == fitnessOf(*chained.getBestGlobalIndividual<SphereOA>()));
     }
 }
 

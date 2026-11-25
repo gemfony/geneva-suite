@@ -862,11 +862,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
     `go2-user-options#1..3`, `go2-chain#1..2` and `go2-main-quickstart` are
     `adaptors-goptimizer-register`, `goptimizer-long-form`, `goptimizer-user-options#1..3`,
     `goptimizer-chain#1..2` and `goptimizer-main-quickstart`.
-- **geneva: `GOptimizer::optimize()` returns a reference to the optimizer** (`GOptimizer &`, was a
-  `const` pointer; source-breaking where the result was used): a result is read in the same
-  expression, `go.optimize().getBestGlobalIndividual<T>()` instead of `go.optimize()->...`; a call
-  that ignores the return is unchanged. The optimization algorithms' `optimize()` still returns a
-  pointer.
+- **geneva: `optimize()` returns a reference to the optimizer**, for every optimization algorithm
+  and for `GOptimizer` alike (`GOptimizerIT<T>::optimize()` returns `T &`, was a `const` pointer;
+  source-breaking where the result was used): a result is read in the same expression,
+  `go.optimize().getBestGlobalIndividual<T>()` instead of `go.optimize()->...`; a call that ignores
+  the return is unchanged. An algorithm's `optimize()` returns `GOptimizationAlgorithmBase &`.
 - **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
   read it.
 

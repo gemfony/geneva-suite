@@ -874,7 +874,7 @@ private:
     /**
      * @brief This function encapsulates some common functionality of iteration-based optimization algorithms.
      */
-    GOptimizationAlgorithmBase const *optimize_(std::uint32_t offset) final;
+    GOptimizationAlgorithmBase &optimize_(std::uint32_t offset) final;
     /**
      * @brief Creates a deep clone of this object.
      * @return A newly allocated deep copy of this object

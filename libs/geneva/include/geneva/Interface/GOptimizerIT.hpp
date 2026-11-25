@@ -78,10 +78,13 @@ public:
     /**
 	  * @brief Triggers the optimization cycle, starting to count iterations at a given offset.
 	  *
+	  * The optimizer is handed back, so that a result is read in the same expression:
+	  * alg.optimize().getBestGlobalIndividual<T>()
+	  *
 	  * @param offset The iteration number at which to start counting (default 0)
-	  * @return A pointer to this optimization algorithm once the cycle has completed
+	  * @return This optimization algorithm, once the cycle has completed
 	  */
-    optimizer_type const *optimize(std::uint32_t offset = 0) {
+    optimizer_type &optimize(std::uint32_t offset = 0) {
         return this->optimize_(offset);
     }
 
@@ -263,9 +266,9 @@ private:
      * @brief Performs the actual optimization cycle, starting to count iterations at a given offset.
      *
      * @param offset The iteration number at which to start counting
-     * @return A pointer to this optimization algorithm once the cycle has completed
+     * @return This optimization algorithm, once the cycle has completed
      */
-    virtual optimizer_type const *optimize_(std::uint32_t offset) = 0;
+    virtual optimizer_type &optimize_(std::uint32_t offset) = 0;
 
     /** @brief Calculates the fitness of all required individuals; to be re-implemented in derived classes */
     virtual void evaluatePopulation_() = 0;
