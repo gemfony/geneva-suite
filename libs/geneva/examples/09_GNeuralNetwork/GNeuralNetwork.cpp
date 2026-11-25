@@ -168,7 +168,7 @@ int main(int argc, char **argv) {
         }
 
         // Perform the actual optimization and retrieve the best individual
-        auto const p = go.optimize()->getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
+        auto const p = go.optimize().getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
 
         //-----------------------------------------------------------------------
         // Write the trained network as a C++ header, and the figure of its output over the

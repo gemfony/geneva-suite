@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
              }
 
              // Perform the actual optimization
-             auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+             auto const p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
 
              // Here you can do something with the best individual ("p") found.
              // We simply print its content here, by means of an operator<< implemented

@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
     return Gem::Geneva::runOptimization(argc, argv, {.produce = [](GOptimizer &go, const auto &) {
         go.registerContentCreator(factory);
         go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-        auto best = go.optimize()->getBestGlobalIndividual<MyProblem>();
+        auto best = go.optimize().getBestGlobalIndividual<MyProblem>();
         return 0;
     }});
 }

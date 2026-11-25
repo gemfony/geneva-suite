@@ -125,7 +125,7 @@ int solve(geneva::GOptimizer &go) {
     go.registerPluggableOM(plotter);
 
     // Run, then read the best candidate found.
-    auto best = go.optimize()->getBestGlobalIndividual<first::GFirstProblem>();
+    auto best = go.optimize().getBestGlobalIndividual<first::GFirstProblem>();
     std::vector<double> best_parameters;
     best->streamline<double>(best_parameters);
     std::cout << "best solution: x = " << best_parameters[0]

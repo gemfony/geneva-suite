@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
 
                     // Perform the actual optimization and extract the best individual
                     auto const p =
-                        go_loop.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+                        go_loop.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
 
                     endTime = std::chrono::system_clock::now();
 

@@ -81,7 +81,7 @@ int optimize(GOptimizer &go) {
     // Perform the actual (chained) optimization
     //! [algo-overview-chaining#2]
     //! [goptimizer-chain#2]
-    auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
     //! [algo-overview-chaining#2]
     //! [goptimizer-chain#2]
 

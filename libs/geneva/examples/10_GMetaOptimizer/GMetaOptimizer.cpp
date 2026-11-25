@@ -119,7 +119,7 @@ int optimize(GOptimizer &go) {
     // Perform the actual optimization
     auto const bestIndividual_ptr =
         go.optimize()
-            ->getBestGlobalIndividual<
+            .getBestGlobalIndividual<
                 gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
     //! [meta.example-main#3]
     // clang-format on

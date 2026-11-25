@@ -390,7 +390,7 @@ int main(int argc, char **argv) {
 
              // Perform the optimization. The per-iteration picture (the useful output) is written by GImagePOM. The
              // best individual is read back through the flat-genome base, so this program stays problem-agnostic.
-             auto best = go.optimize()->getBestGlobalIndividual<gen::GGenome>();
+             auto best = go.optimize().getBestGlobalIndividual<gen::GGenome>();
 
              glogger << "Example 14 finished. Best fitness: " << best->raw_fitness(0) << '\n'
                      << GLOGGING;

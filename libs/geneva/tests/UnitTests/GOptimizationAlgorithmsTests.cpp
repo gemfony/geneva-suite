@@ -1409,9 +1409,8 @@ TEST_CASE(
             go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
             auto ea = makeCommaEA();
             go & ea;
-            go.optimize();
-
-            auto const go_bests = go.getBestGlobalIndividuals<SphereOA>();
+            // optimize() returns the optimizer itself, so a result is read in the same expression
+            auto const go_bests = go.optimize().getBestGlobalIndividuals<SphereOA>();
             auto const ea_bests = ea->getBestGlobalIndividuals<SphereOA>();
             REQUIRE(go_bests.size() == ea_bests.size());
             for(std::size_t i = 0; i < go_bests.size(); ++i) {

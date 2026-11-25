@@ -193,7 +193,7 @@ int optimize(GOptimizer &go, const ProgramOptions &options) {
     go.registerDefaultAlgorithm("ea");
 
     // Perform the actual optimization
-    auto const p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented

@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
              go.registerDefaultAlgorithm("ea");
 
              // Perform the actual optimization
-             auto const p = go.optimize()->getBestGlobalIndividual<gind::GDelayIndividual>();
+             auto const p = go.optimize().getBestGlobalIndividual<gind::GDelayIndividual>();
              return 0;
          }}
     );

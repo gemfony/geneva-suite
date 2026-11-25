@@ -299,7 +299,7 @@ int main(int argc, char **argv) {
             go.registerDefaultAlgorithm("ea");
 
             // Perform the optimization. With "--consumer gpu" every generation is scored in one bulk kernel launch.
-            auto p = go.optimize()->getBestGlobalIndividual<gind::GFunctionIndividual>();
+            auto p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
 
             std::cout << "Best result found:" << '\n' << p << '\n';
             return 0;

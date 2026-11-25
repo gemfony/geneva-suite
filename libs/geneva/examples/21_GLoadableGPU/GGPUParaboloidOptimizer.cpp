@@ -102,7 +102,7 @@ int main(int argc, char **argv) {
 
             // Optimize and report. The best individual is read back through the flat-genome base, so this program
             // stays problem-agnostic.
-            auto best = go.optimize()->getBestGlobalIndividual<Genome::GGenome>();
+            auto best = go.optimize().getBestGlobalIndividual<Genome::GGenome>();
             const auto [raw, transformed] = best->getFitnessTuple();
 
             std::vector<double> v;

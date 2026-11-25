@@ -365,6 +365,23 @@ void GOptimizer::claimContentCreator_(
 
 /******************************************************************************/
 /**
+ * @brief Runs the chain of algorithms (optimize_()) and returns this optimizer.
+ *
+ * It takes the place of GOptimizerIT<GOptimizer>::optimize(), which hands back a pointer to a
+ * constant object, the form every algorithm keeps: a reference lets a program read its result in
+ * the same expression, go.optimize().getBestGlobalIndividual<T>(), and a call that ignores the
+ * return reads as before.
+ *
+ * @param offset An iteration offset at which the first algorithm starts (e.g. for a resume)
+ * @return This optimizer, after the optimization has run
+ */
+GOptimizer &GOptimizer::optimize(std::uint32_t offset) {
+    this->optimize_(offset);
+    return *this;
+}
+
+/******************************************************************************/
+/**
  * Perform the actual optimization cycle. Note that we assume that individuals
  * have either been registered with the GOptimizer object or with the first algorithm
  * which has been added to the object. When no algorithm was added to the GOptimizer
@@ -375,8 +392,8 @@ void GOptimizer::claimContentCreator_(
  *
  * @param offset An iteration offset at which the first algorithm should start
  *               (e.g. for checkpoint resume); subsequent algorithms in the chain
- *               always start at 0. Defaults to 0 through the GOptimizerIT interface.
- * @return A pointer to this object (after the optimization has run)
+ *               always start at 0. Defaults to 0 through optimize().
+ * @return A pointer to this object (after the optimization has run), as GOptimizerIT requires
  */
 GOptimizer const *GOptimizer::optimize_(std::uint32_t offset) {
     // The algorithm chain of -a (it wins) or of setAlgorithmChain(), once

@@ -88,7 +88,7 @@ int optimize(GOptimizer &go) {
     go & "ea";
 
     const auto start = std::chrono::steady_clock::now();
-    const auto best = go.optimize()->getBestGlobalIndividual<GParaboloidGroupIndividual>();
+    const auto best = go.optimize().getBestGlobalIndividual<GParaboloidGroupIndividual>();
     std::println(
         "Optimization finished in {} milliseconds",
         std::chrono::duration_cast<std::chrono::milliseconds>(

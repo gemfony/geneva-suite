@@ -81,7 +81,7 @@ int main(int argc, char **argv) {
         // Perform the actual optimization
         //! [results-harvest]
         auto bestIndividual_ptr =
-            go.optimize()->getBestGlobalIndividual<GStarterIndividual>();
+            go.optimize().getBestGlobalIndividual<GStarterIndividual>();
 
         // Do something with the best result. Here we simply print the result to stdout.
         std::cout << bestIndividual_ptr << '\n';
