@@ -559,10 +559,10 @@ void GOptimizationAlgorithmBase::resetToOptimizationStart_() {
  *
  * @param offset Specifies the iteration number to start with (non-zero when resuming from a
  *   checkpoint file; the later algorithms of a GOptimizer chain start at 0, see getChainOffset())
- * @return A constant pointer to this object, after the optimization run has completed
+ * @return This object, after the optimization run has completed
  */
 // NOLINTNEXTLINE(readability-function-size) -- the single top-level optimization lifecycle driver (setup, the init/cycle/checkpoint/halt loop, teardown) shared by every optimization algorithm; splitting the sequenced setup->loop->teardown would scatter one coherent control-flow entry point
-GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uint32_t offset) {
+GOptimizationAlgorithmBase &GOptimizationAlgorithmBase::optimize_(std::uint32_t offset) {
     // Reset the generation counter
     iteration_ = offset;
 
@@ -698,7 +698,7 @@ GOptimizationAlgorithmBase const *GOptimizationAlgorithmBase::optimize_(std::uin
     // Remove information particular to the optimization algorithms from the individuals
     resetIndividualPersonalities();
 
-    return this;
+    return *this;
 }
 
 /******************************************************************************/

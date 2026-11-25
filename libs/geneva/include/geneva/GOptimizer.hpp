@@ -211,15 +211,6 @@ public:
         std::shared_ptr<oa::GAdaptionConfigBase> config
     );
 
-    /**
-     * @brief Runs the chain of algorithms and returns this optimizer, so that a result is read in
-     * the same expression: go.optimize().getBestGlobalIndividual<T>()
-     */
-    // Deliberately takes the place of GOptimizerIT's optimize(), whose const pointer the
-    // algorithms keep
-    // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method)
-    GOptimizer &optimize(std::uint32_t offset = 0);
-
 private:
     /***************************************************************************/
 
@@ -279,7 +270,7 @@ private:
     /**
      * @brief Performs the actual optimization cycle.
      */
-    GOptimizer const *optimize_(std::uint32_t offset) final;
+    GOptimizer &optimize_(std::uint32_t offset) final;
 
     /** @brief --update-configs pass: with GParserBuilder in update-in-place mode, produce one object from
      *  each registered algorithm factory and one individual from the content creator, so every algorithm
