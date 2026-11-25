@@ -166,7 +166,8 @@ private:
             Gem::Common::make_member("sigma_", self.sigma_),
             Gem::Common::make_member("initial_edge_", self.initial_edge_),
             Gem::Common::make_member("restart_threshold_", self.restart_threshold_),
-            Gem::Common::make_member("max_failed_retries_", self.max_failed_retries_)
+            Gem::Common::make_member("max_failed_retries_", self.max_failed_retries_),
+            Gem::Common::make_member("trials_pending_", self.trials_pending_)
         );
     }
 
@@ -356,8 +357,8 @@ private:
     std::size_t max_failed_retries_ =
         0; ///< How often a failed evaluation is evaluated again before the run ends
 
-    /// transient: true once real trial points have been proposed (gates the first decision); reset
-    /// in init()
+    /// Whether the trial slots hold trial points proposed in the previous iteration (gates the
+    /// decision); init() clears it for a new run and keeps it for a resumed one
     bool trials_pending_ = false;
 };
 

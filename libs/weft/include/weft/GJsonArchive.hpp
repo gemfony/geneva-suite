@@ -424,10 +424,16 @@ private:
         std::string where; // the path of this object or array in the tree
     };
 
+    /// The deepest nesting of an archive the parser accepts. An archive nests as deep as the object
+    /// graph that wrote it (a swarm's checkpoint about 43 levels), beyond the parser's default of 32.
+    static constexpr std::size_t MAX_DEPTH = 1024;
+
     // Parses the document; text that is no JSON is a malformed archive
     static boost::json::value parse(std::string_view text) {
+        boost::json::parse_options opts;
+        opts.max_depth = MAX_DEPTH;
         boost::system::error_code ec;
-        boost::json::value v = boost::json::parse(text, ec);
+        boost::json::value v = boost::json::parse(text, ec, {}, opts);
         if(ec) {
             throw weft_exception(
                 weft_error_streamer() << "In GJsonIArchive: the archive is no JSON: " << ec.message()

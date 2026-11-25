@@ -649,13 +649,16 @@ void GNelderMead::evaluatePopulation_() {
  * @brief Does some preparatory work before the optimization starts.
  *
  * Clears the pending-trials flag, builds the initial simplices and records each individual's population
- * position. (The algorithm is boundary-agnostic: it works in the normalized internal coordinate.)
+ * position. (The algorithm is boundary-agnostic: it works in the normalized internal coordinate.) A run
+ * resumed from a checkpoint keeps its simplices and its pending trials instead.
  */
 void GNelderMead::init() {
     GOptimizationAlgorithmBase::init();
 
-    trials_pending_ = false;
-    buildInitialSimplices();
+    if(not this->resumedFromCheckpoint()) {
+        trials_pending_ = false;
+        buildInitialSimplices();
+    }
     markIndividualPositions();
 }
 
@@ -805,7 +808,8 @@ std::shared_ptr<GPersonalityTraits> GNelderMead::getPersonalityTraits_() const {
  * boolean parameters are left untouched (Nelder-Mead operates only on the continuous parameter space) and
  * merely logged. Each simplex gets a seed individual; simplices beyond the supplied individuals are seeded
  * with randomized clones of the first, and the remaining vertex slots are filled with clones; the real
- * initial simplex geometry is constructed later in init().
+ * initial simplex geometry is constructed later in init(). A run resumed from a checkpoint keeps the
+ * population of the checkpoint.
  */
 void GNelderMead::adjustPopulation_() {
     // Non-empty population + at least one active FP parameter; logs a note for int/bool riders
@@ -817,6 +821,18 @@ void GNelderMead::adjustPopulation_() {
     const std::size_t total_size = n_simplices_ * block_size;
 
     GOptimizationAlgorithmBase::setDefaultPopulationSize(total_size);
+
+    // A run resumed from a checkpoint goes on with the simplices and trial slots of the checkpoint
+    if(this->resumedFromCheckpoint()) {
+        checkThat(
+            this->size() == total_size,
+            "The population of the checkpoint does not fit the population: expected ",
+            total_size,
+            " individuals (the simplices and their trial slots), found ",
+            this->size()
+        );
+        return;
+    }
 
     // Make sure we have one (randomized) seed individual per simplex first.
     if(n_start < n_simplices_) {

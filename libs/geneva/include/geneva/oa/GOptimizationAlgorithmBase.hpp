@@ -634,11 +634,13 @@ public:
     void addCleanStoredBests(gen::GGenomeFixedSizePriorityQueue &best_individuals);
 
     /**
-     * @brief Helper function that determines whether we are currently inside of the first iteration.
+     * @brief Whether this is the first iteration of the run as a whole (never in a run resumed from
+     * a checkpoint).
      */
     bool inFirstIteration() const;
     /**
-     * @brief Helper function that determines whether we are after the first iteration.
+     * @brief Whether the run as a whole is past its first iteration (always in a run resumed from a
+     * checkpoint).
      */
     bool afterFirstIteration() const;
 
@@ -846,6 +848,9 @@ public:
 protected:
     bool resumed_from_checkpoint_ =
         false; ///< transient: set by the loading of a checkpoint (see resumedFromCheckpoint())
+    /// transient: whether this job goes on with a run resumed from a checkpoint; set at the setup of
+    /// the job from resumed_from_checkpoint_ and kept for the whole job (inFirstIteration())
+    bool continues_run_ = false;
 
 private:
     /***************************************************************************/
