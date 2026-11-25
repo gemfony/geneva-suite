@@ -882,15 +882,20 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   personal and global bests), the generalized simulated annealing (per-chain cooling clocks, best
   energies and stall counters), the ant colony optimization (its solution archive) and the EA's
   global step-size controllers ONE_FIFTH / CSA (global sigma, CSA evolution path) hold it in their
-  member lists, so the checkpoint carries it, and `init()` keeps it on a resume instead of
-  starting it afresh; a state that does not fit the population (another swarm size, number of
-  chains or archive size) is refused. Checkpoints of these algorithms written by earlier 1.99
+  member lists, so the checkpoint carries it, and only a new run builds it afresh; a state that
+  does not fit the population (another swarm size, number of chains or archive size) is refused. Checkpoints of these algorithms written by earlier 1.99
   builds do not load. Nelder-Mead keeps the simplices of its checkpoint, the conjugate gradient
   descent its difference-quotient children and the parameter scan the count of its random scans.
   The first iteration of a resumed run is not the first of the run (`inFirstIteration()`,
   `afterFirstIteration()` answer for the run as a whole): the EA does not evaluate its parents
   again, the swarm moves on from its bests, and the gradient descent, Nelder-Mead and the
   generalized simulated annealing take the step that was due when the checkpoint was written.
+- **The run state of a new run is built in one hook, `initRunState_()`**, a protected virtual
+  function of `GOptimizationAlgorithmBase` (empty by default). The setup calls it after
+  `adjustPopulation_()` when a run starts fresh, never when it was resumed from a checkpoint;
+  `init()` does what every start needs. No algorithm asks whether its run was resumed, so an
+  algorithm a module adds keeps its state across a resume by the same rule: what carries a run
+  is in the member list, what a new run starts with is built in the hook.
 
 ## 9. Recording: monitors write streams
 
