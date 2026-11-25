@@ -827,6 +827,10 @@ void GParserBuilder::writeConfigFile(
         }
     }
 
+    // Assemble the canonical document (shared with the update-in-place rewrite) before the file is
+    // opened, so that a refusal (no options registered) leaves no empty file behind.
+    boost::json::value const document = this->buildConfigDocument_(header, write_all);
+
     // Open the required configuration file
     std::ofstream ofs(config_file);
     if(not ofs) {
@@ -836,8 +840,7 @@ void GParserBuilder::writeConfigFile(
         );
     }
 
-    // Assemble the canonical document (shared with the update-in-place rewrite) and write it out.
-    Gem::Common::prettyPrintJson(ofs, this->buildConfigDocument_(header, write_all));
+    Gem::Common::prettyPrintJson(ofs, document);
     ofs << '\n';
 
     // Close the file handle
