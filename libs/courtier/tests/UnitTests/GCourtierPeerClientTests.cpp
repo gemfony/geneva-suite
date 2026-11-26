@@ -2375,11 +2375,19 @@ public:
      * @param build The Geneva commit the HELLO names @param program The program it names
      * @param end_after 0: no connection is closed by the server; n: each connection is closed at the
      * client's first message, with ERROR on the first n - 1 connections and RUN_ENDED on the n-th
+     * @param later_build The Geneva commit the HELLO names from the second connection on (empty:
+     * @p build)
      */
-    GreetingServer(std::string build, std::string program, std::size_t end_after = 0) {
+    GreetingServer(
+        std::string build,
+        std::string program,
+        std::size_t end_after = 0,
+        std::string later_build = {}
+    ) {
         listener_->start(
             io_.executor(),
-            [build = std::move(build),
+            [first_build = std::move(build),
+             later_build = std::move(later_build),
              program = std::move(program),
              end_after,
              received = received_,
@@ -2387,6 +2395,8 @@ public:
                 const std::size_t connection = connections->fetch_add(1) + 1;
                 const GPeerClose how =
                     connection < end_after ? GPeerClose::ERROR : GPeerClose::RUN_ENDED;
+                const std::string build =
+                    connection > 1 && not later_build.empty() ? later_build : first_build;
                 const std::weak_ptr<GPeerI> weak = peer;
                 peer->start(
                     GPeerHandlers{
@@ -2529,6 +2539,26 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
          Gem::Common::gemCommit(),
          GEM_VERSION_STRING}
     ));
+    glogger.resetLogTargets();
+}
+
+// The HELLO is checked on every connection, not only on the first: a server that comes back as
+// another build (an upgrade behind the same address) ends the client as well.
+TEST_CASE(
+    "GPeerClientT: a server that comes back as another build ends the client",
+    "[courtier][peer][client]"
+) {
+    auto log = std::make_shared<CapturedLog>();
+    glogger.addLogTarget(log);
+    // The first connection names this build and ends with ERROR at the client's PULL; the second
+    // names another build.
+    const GreetingServer
+        server{std::string(Gem::Common::gemCommit()), "", 2, std::string(OTHER_COMMIT)};
+    const auto client = runClientAgainst(server);
+    CHECK(client->terminalErrorFlagged());
+    CHECK(client->connections() == 2); // it did not come back a third time
+    CHECK(server.received() == 1);     // and asked for nothing on the second
+    CHECK(log->hasLineWith({"The server was built from another commit", OTHER_COMMIT}));
     glogger.resetLogTargets();
 }
 
