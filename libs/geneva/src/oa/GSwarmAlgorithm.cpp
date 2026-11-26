@@ -1081,6 +1081,9 @@ void GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(maxMode m) {
                 (neighborhood_bests_cnt_.at(n))->load((*(this->begin() + first_counter)));
             }
         }
+        // Clone and load copy the particle's OA scratch; the stored best keeps none (nor, through it, the
+        // global best), so no copy or checkpoint carries a particle's personality and personal best.
+        neighborhood_bests_cnt_.at(n)->resetPersonality();
     }
 }
 

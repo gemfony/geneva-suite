@@ -91,6 +91,7 @@
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
+#include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (the counting monitor)
 
 namespace gen = Gem::Geneva::Genome;
@@ -2117,6 +2118,44 @@ TEST_CASE(
     CHECK_NOTHROW(
         restored.compare(*original, Gem::Common::expectation::EQUALITY, 0.)
     ); // folded compare_: bests compared
+}
+
+/******************************************************************************/
+
+TEST_CASE("Swarm: a stored personal best carries no personality of its own", "[flat][oa]") {
+    // Regression: on every improvement the swarm registers a clone of the particle as its personal best.
+    // The clone carries the particle's OA scratch (Inv 6), i.e. the personality holding the previous
+    // personal best, so each improvement nested the previous best one level deeper and every copy of
+    // the particle grew for the rest of the run. The stored best must be a bare individual.
+    SphereOA particle;
+    particle.setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>());
+    particle.process();
+    auto traits = particle.getPersonalityTraits<oa::GSwarmAlgorithm_PersonalityTraits>();
+
+    for(std::size_t k = 0; k < 5; k++) {
+        traits->registerPersonalBest(particle.clone<gen::GGenome>()); // what each improvement does
+        REQUIRE(traits->getPersonalBest());
+        CHECK(traits->getPersonalBest()->getPersonality() == "PERSONALITY_NONE");
+    }
+}
+
+/******************************************************************************/
+
+TEST_CASE("Swarm: the stored neighborhood bests carry no personality", "[flat][oa]") {
+    // The neighborhood bests (and the global best cloned from them) are copies of particles; they too
+    // must not carry a particle's personality with its personal best into every copy and checkpoint.
+    auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+    pop->setSwarmSizes(2, 4);
+    pop->setMaxIteration(20);
+    pop->setReportIteration(100000);
+    pop->push_back(SphereOA().clone());
+    pop->optimize();
+
+    for(std::size_t n = 0; n < 2; n++) {
+        auto nb = pop->getBestNeighborhoodIndividual<SphereOA>(n);
+        REQUIRE(nb);
+        CHECK(nb->getPersonality() == "PERSONALITY_NONE");
+    }
 }
 
 /******************************************************************************/

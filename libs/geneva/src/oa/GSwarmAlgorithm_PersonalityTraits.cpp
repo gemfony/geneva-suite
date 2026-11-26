@@ -64,7 +64,7 @@ GSwarmAlgorithm_PersonalityTraits::GSwarmAlgorithm_PersonalityTraits(
 )
   : Gem::Common::GReflectiveInterfaceT<GSwarmAlgorithm_PersonalityTraits, GPersonalityTraits>(cp) {
     // The members are copied through localMembers_(); the personal best is deep-cloned. It is a bare
-    // individual carrying no personality, so there is no "chain" of individuals to break.
+    // individual carrying no personality (registerPersonalBest() clears it), so there is no chain to break.
     Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
 }
 
@@ -150,7 +150,7 @@ bool GSwarmAlgorithm_PersonalityTraits::checkNoPositionUpdateAndReset() {
 /**
  * @brief Allows to add a new personal best to the individual. Note that this function
  * will internally clone the argument and store it together with p's fitness, as this is
- * all we need.
+ * all we need. The stored copy carries no OA scratch (personality), so bests never nest.
  *
  * @param p A shared pointer to the personally best individual to be registered
  */
@@ -160,9 +160,10 @@ void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(
     checkThat(nullptr != p, "Got empty smart pointer.");
     checkThat(p->is_processed(), "Got individual which isn't processed.");
 
-    // Copy the personal_best_ vector over. The stored best is a bare individual carrying no personality
-    // (it lives on the population slot), so there is no "chain" of individuals to break.
+    // The copy brings p's OA scratch along (Inv 6), i.e. a personality holding the previous personal best.
+    // Clear it, so the stored best is a bare individual and the bests do not nest one inside the other.
     Gem::Common::copyCloneableSmartPointer(p, personal_best_);
+    personal_best_->resetPersonality();
 
     personal_best_quality_ = p->getFitnessTuple();
 }
