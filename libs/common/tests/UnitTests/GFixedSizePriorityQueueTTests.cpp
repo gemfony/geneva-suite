@@ -33,9 +33,12 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <limits>
+#include <iostream>
 #include <memory>
 #include <ranges>
+#include <sstream>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -1205,4 +1208,100 @@ TEST_CASE(
     CHECK(pq.at(0)->value() == 0.0);
     CHECK(pq.at(1)->value() == 1.0);
     CHECK(pq.at(2)->value() == 2.0);
+}
+
+// ---------------------------------------------------------------------------
+// The public functions that had no test of their own
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: the assignments copy or move the whole state",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    TestType const src = filledQueue<TestType>(sortOrder::HIGHERISBETTER);
+
+    TestType copied(10);
+    copied = src;
+    CHECK(copied.getMaxSize() == 3);
+    CHECK(copied.getSortOrder() == sortOrder::HIGHERISBETTER);
+    REQUIRE(copied.size() == 3);
+    CHECK(valueOf(copied.best()) == 3.0);
+    CHECK_NOTHROW(copied.compare(src, expectation::EQUALITY, 0.));
+    if constexpr(not TestType::holds_values) {
+        CHECK(copied.best().get() != src.best().get()); // deep-copied, not co-owned
+    }
+
+    TestType moved_from(src);
+    TestType moved(10);
+    moved = std::move(moved_from);
+    CHECK(moved.getMaxSize() == 3);
+    CHECK(moved.getSortOrder() == sortOrder::HIGHERISBETTER);
+    CHECK(moved.size() == 3);
+    CHECK(moved_from.empty()); // NOLINT(bugprone-use-after-move) -- the reset state is the contract
+    CHECK(moved_from.getMaxSize() == GFSPQ_DEF_MAX_SIZE);
+    CHECK(moved_from.getSortOrder() == GFSPQ_DEF_SORT_ORDER);
+}
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: cbegin and cend traverse the items best first",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    TestType const pq = filledQueue<TestType>(sortOrder::LOWERISBETTER);
+    std::vector<double> values;
+    for(auto it = pq.cbegin(); it != pq.cend(); ++it) {
+        values.push_back(valueOf(*it));
+    }
+    CHECK(values == std::vector<double>{1.0, 2.0, 3.0});
+}
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: printEvaluations prints the evaluations best first",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    TestType const pq = filledQueue<TestType>(sortOrder::HIGHERISBETTER);
+    std::ostringstream captured;
+    auto *const old_buffer = std::cout.rdbuf(captured.rdbuf());
+    pq.printEvaluations();
+    std::cout.rdbuf(old_buffer);
+    std::string const text = captured.str();
+    auto const pos3 = text.find("\n3\n");
+    auto const pos2 = text.find("\n2\n");
+    auto const pos1 = text.find("\n1\n");
+    REQUIRE(pos3 != std::string::npos);
+    REQUIRE(pos2 != std::string::npos);
+    REQUIRE(pos1 != std::string::npos);
+    CHECK(pos3 < pos2);
+    CHECK(pos2 < pos1);
+}
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: add over an iterator range takes the items over",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    TestType pq(2);
+    pq.add(item<TestType>(9.0));
+    typename TestType::ContainerType items;
+    items.push_back(item<TestType>(4.0));
+    items.push_back(item<TestType>(1.0));
+    items.push_back(item<TestType>(7.0));
+    pq.add(items.begin(), items.end(), /*replace=*/false);
+    REQUIRE(pq.size() == 2);
+    CHECK(valueOf(pq.best()) == 1.0);
+    CHECK(valueOf(pq.worst()) == 4.0);
+    if constexpr(std::same_as<TestType, UniquePQ>) {
+        // The handles of the items kept were taken over; the one not kept stays with the caller
+        CHECK(items[0] == nullptr);
+        CHECK(items[1] == nullptr);
+        REQUIRE(items[2] != nullptr);
+        CHECK(items[2]->value() == 7.0);
+    }
+
+    // An empty range is no error; with replace it leaves an empty queue
+    pq.add(items.begin(), items.begin(), /*replace=*/false);
+    CHECK(pq.size() == 2);
+    pq.add(items.begin(), items.begin(), /*replace=*/true);
+    CHECK(pq.empty());
 }
