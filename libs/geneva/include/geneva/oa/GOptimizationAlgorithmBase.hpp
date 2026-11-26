@@ -658,7 +658,7 @@ public:
      * @brief Checks whether a checkpoint file was written by an algorithm with our own mnemonic
      * (read from the file, not from its name).
      */
-    bool cp_personality_fits(const std::filesystem::path &p) const;
+    bool cp_mnemonic_fits(const std::filesystem::path &p) const;
 
     /**
      * @brief Changes this algorithm for the standard tests (common/testing/GStandardTests.hpp): its

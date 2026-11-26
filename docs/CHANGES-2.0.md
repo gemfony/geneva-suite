@@ -589,7 +589,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   Users change the key of `GOptimizer::registerAdaptionConfig()`: `"PERSONALITY_EA"` becomes
   `"ea"`, `"PERSONALITY_SA"` becomes `"sa"`, and so on (the meta-EA still shares the EA's key,
   `"ea"`). A checkpoint's first field and its file name carry the mnemonic
-  (`checkpoint-ea-<iteration>-...`), so checkpoints written before this change do not load.
+  (`checkpoint-ea-<iteration>-...`), so checkpoints written before this change do not load. The check whether a
+  checkpoint fits an algorithm is called `cp_mnemonic_fits()` (was `cp_personality_fits()`).
 
 ## 7. Renames and small API removals
 
@@ -926,7 +927,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   merely configuring an algorithm (`setCheckpointBaseName`) no longer touches the
   filesystem.
 - **A checkpoint names its algorithm inside the file**: the algorithm's mnemonic is its first
-  field, and `loadCheckpoint()` / `cp_personality_fits()` read it from there. The file name
+  field, and `loadCheckpoint()` / `cp_mnemonic_fits()` read it from there. The file name
   stays a convention, so a renamed checkpoint loads; `saveCheckpoint()` is public, and a
   checkpoint is no longer the plain `toFile()` archive of the algorithm.
 - **A final checkpoint is written when a run halts** (file name tagged `final`) whenever
