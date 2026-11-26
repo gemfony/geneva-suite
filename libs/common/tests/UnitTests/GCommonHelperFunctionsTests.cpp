@@ -47,6 +47,7 @@
 #if defined(__linux__)
 #include <sched.h> // sched_getaffinity
 #endif
+#include <unistd.h> // geteuid
 
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
@@ -64,6 +65,40 @@ std::filesystem::path scratch(std::string const &tag) {
     return base / tag;
 }
 } // namespace
+
+namespace {
+
+/** @brief A fresh, empty directory for one test case */
+std::filesystem::path freshDir(std::string const &tag) {
+    auto const dir = scratch(tag);
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    return dir;
+}
+
+/** @brief The number of entries in @p dir (target and temporary files alike) */
+std::size_t entriesIn(std::filesystem::path const &dir) {
+    std::size_t n = 0;
+    for([[maybe_unused]] auto const &entry : std::filesystem::directory_iterator(dir)) {
+        ++n;
+    }
+    return n;
+}
+
+/** @brief The whole content of @p p */
+std::string wholeFile(std::filesystem::path const &p) {
+    std::ifstream in(p, std::ios::binary);
+    std::ostringstream content;
+    content << in.rdbuf();
+    return content.str();
+}
+
+/** @brief Writes @p text through replaceFileAtomically() */
+void replaceWith(std::filesystem::path const &target, std::string const &text) {
+    replaceFileAtomically(target, [&text](std::ostream &os) { os << text; }, "GUnitTest");
+}
+
+} // anonymous namespace
 
 // ---------------------------------------------------------------------------
 // serializationModeToString — pure constexpr lookup.
@@ -456,43 +491,65 @@ TEST_CASE(
     std::filesystem::remove_all(dir);
 }
 
+TEST_CASE(
+    "backupExistingFile: backups within one millisecond keep their own names",
+    "[common][helper-nonT][backup]"
+) {
+    // Regression: the backup's name carried only the millisecond, and a rename over an existing
+    // file succeeds silently, so a second backup within one millisecond replaced the first.
+    constexpr std::size_t N_BACKUPS = 20;
+    auto const dir = freshDir("backup-same-millisecond");
+    auto const target = dir / "results.txt";
+
+    for(std::size_t i = 0; i < N_BACKUPS; ++i) {
+        std::ofstream(target) << "content " << i;
+        REQUIRE(backupExistingFile(target.string(), "GUnitTest: Warning!"));
+    }
+
+    std::set<std::string> contents;
+    for(auto const &entry : std::filesystem::directory_iterator(dir)) {
+        contents.insert(wholeFile(entry.path()));
+    }
+    CHECK(contents.size() == N_BACKUPS);
+    CHECK(entriesIn(dir) == N_BACKUPS);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "backupExistingFile: a failed rename is a gem_exception and no backup is reported",
+    "[common][helper-nonT][backup]"
+) {
+    // Regression: the warning that names the backup came before the rename, and a failed rename
+    // escaped as a std::filesystem::filesystem_error.
+    if(::geteuid() == 0) {
+        SKIP("run as root: a directory without write permission does not stop the rename");
+    }
+    auto const dir = freshDir("backup-rename-fails");
+    auto const target = dir / "results.txt";
+    std::ofstream(target) << "original";
+    std::filesystem::permissions(
+        dir,
+        std::filesystem::perms::owner_write,
+        std::filesystem::perm_options::remove
+    );
+
+    auto capture = std::make_shared<BackupCapturingTarget>();
+    glogger.addLogTarget(capture);
+    CHECK_THROWS_AS(backupExistingFile(target.string(), "GUnitTest: Warning!"), gem_exception);
+    glogger.resetLogTargets();
+    for(auto const &m : capture->messages) {
+        CHECK(m.find(".bak_") == std::string::npos);
+    }
+
+    std::filesystem::permissions(dir, std::filesystem::perms::owner_all);
+    CHECK(wholeFile(target) == "original");
+    std::filesystem::remove_all(dir);
+}
+
 // ---------------------------------------------------------------------------
 // replaceFileAtomically -- what the declaration promises: the new content as a whole, or nothing
 // changes, and no temporary file is left behind; also with several writers of one file at once.
-
-namespace {
-
-/** @brief A fresh, empty directory for one test case */
-std::filesystem::path freshDir(std::string const &tag) {
-    auto const dir = scratch(tag);
-    std::filesystem::remove_all(dir);
-    std::filesystem::create_directories(dir);
-    return dir;
-}
-
-/** @brief The number of entries in @p dir (target and temporary files alike) */
-std::size_t entriesIn(std::filesystem::path const &dir) {
-    std::size_t n = 0;
-    for([[maybe_unused]] auto const &entry : std::filesystem::directory_iterator(dir)) {
-        ++n;
-    }
-    return n;
-}
-
-/** @brief The whole content of @p p */
-std::string wholeFile(std::filesystem::path const &p) {
-    std::ifstream in(p, std::ios::binary);
-    std::ostringstream content;
-    content << in.rdbuf();
-    return content.str();
-}
-
-/** @brief Writes @p text through replaceFileAtomically() */
-void replaceWith(std::filesystem::path const &target, std::string const &text) {
-    replaceFileAtomically(target, [&text](std::ostream &os) { os << text; }, "GUnitTest");
-}
-
-} // anonymous namespace
 
 TEST_CASE(
     "replaceFileAtomically: creates and replaces a file and leaves no temporary file",

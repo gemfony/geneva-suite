@@ -694,15 +694,29 @@ bool backupExistingFile(const std::string &file_name, std::string_view context) 
         return false;
     }
 
-    std::string const new_file_name = file_name + ".bak_" + getMSSince1970();
+    // Two backups within one millisecond would have one name, and a rename over an existing file
+    // succeeds silently: a counter keeps the name free
+    std::string const stem = file_name + ".bak_" + getMSSince1970();
+    std::string new_file_name = stem;
+    for(std::size_t n = 1; std::filesystem::exists(new_file_name); ++n) {
+        new_file_name = stem + "_" + std::to_string(n);
+    }
+
+    std::error_code ec;
+    std::filesystem::rename(file_name, new_file_name, ec);
+    if(ec) {
+        throw gem_exception(
+            g_error_streamer() << "In " << context << '\n'
+                               << "Could not rename the existing file " << file_name << " to "
+                               << new_file_name << ": " << ec.message() << '\n'
+        );
+    }
 
     glogger << "In " << context << '\n'
             << "Attempt to output information to file " << file_name << '\n'
-            << "which already exists. We will rename the old file to" << '\n'
+            << "which already exists. The old file was renamed to" << '\n'
             << new_file_name << '\n'
             << GWARNING;
-
-    std::filesystem::rename(file_name, new_file_name);
 
     return true;
 }

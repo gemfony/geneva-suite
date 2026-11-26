@@ -184,8 +184,10 @@ std::string getMSSince1970();
  * @brief Moves an existing output file out of the way, so a fresh one can be written.
  *
  * If (and only if) @p file_name names an existing file, it is renamed to
- * "<file_name>.bak_<milliseconds-since-1970>" and a warning naming both the original and the
- * backup is emitted. Doing nothing when the file is absent is the normal case, not an error.
+ * "<file_name>.bak_<milliseconds-since-1970>" (with "_<n>" appended if a backup of that name exists
+ * already) and then a warning naming both the original and the backup is emitted. A failed rename
+ * is a gem_exception naming @p context. Doing nothing when the file is absent is the normal case,
+ * not an error.
  *
  * This exists as one shared function rather than as a block repeated at each output site: the
  * hand-copied form let a site test one file name while reporting another (a diagnostic naming
