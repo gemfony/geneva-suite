@@ -113,6 +113,37 @@ private:
 
 constexpr const char *COMMALOCALE = "de_DE.UTF-8";
 
+// A minimal class with the common interface (clone, load, compare), for the helpers that take one
+struct TCommon : Gem::Common::gemfony_common_interface_indicator {
+    int val = 0;
+
+    TCommon() = default;
+    explicit TCommon(int v)
+      : val(v) {
+    }
+
+    template <typename target_type>
+    [[nodiscard]] std::unique_ptr<target_type> clone() const {
+        return std::make_unique<target_type>(*this);
+    }
+
+    void load(const TCommon &cp) {
+        val = cp.val;
+    }
+
+    void load(const std::shared_ptr<TCommon> &cp) {
+        val = cp->val;
+    }
+
+    void
+    compare(const TCommon &cp, Gem::Common::expectation e, [[maybe_unused]] double limit) const {
+        const bool equal = val == cp.val;
+        if(e == Gem::Common::expectation::INEQUALITY ? equal : not equal) {
+            throw g_expectation_violation("TCommon::compare: the expectation does not hold");
+        }
+    }
+};
+
 } // namespace
 
 // --- ptrDifferenceCheck --------------------------------------------------
@@ -216,6 +247,139 @@ TEST_CASE(
     REQUIRE_THROWS_AS((Gem::Common::g_ptr_conversion<TBase, TDerived>(base_sp)), gem_exception);
 }
 #endif
+
+// --- g_convert_and_compare -----------------------------------------------
+
+TEST_CASE(
+    "g_convert_and_compare: converts and refuses an alias of the compared object",
+    "[common][helper][g_convert_and_compare]"
+) {
+    auto derived = std::make_shared<TDerived>();
+    auto other = std::make_shared<TDerived>();
+    const std::shared_ptr<TBase> base = derived;
+
+    // shared_ptr overload
+    CHECK(Gem::Common::g_convert_and_compare<TBase, TDerived>(base, other).get() == derived.get());
+    CHECK_THROWS_AS(
+        (Gem::Common::g_convert_and_compare<TBase, TDerived>(base, derived)),
+        gem_exception
+    );
+
+    // raw-pointer overload
+    const TBase *base_raw = derived.get();
+    CHECK(
+        Gem::Common::g_convert_and_compare<TBase, TDerived>(base_raw, other.get()) == derived.get()
+    );
+    CHECK_THROWS_AS(
+        (Gem::Common::g_convert_and_compare<TBase, TDerived>(base_raw, derived.get())),
+        gem_exception
+    );
+
+    // reference overload
+    const TBase &base_ref = *derived;
+    CHECK(
+        Gem::Common::g_convert_and_compare<TBase, TDerived>(base_ref, other.get()) == derived.get()
+    );
+    CHECK_THROWS_AS(
+        (Gem::Common::g_convert_and_compare<TBase, TDerived>(base_ref, derived.get())),
+        gem_exception
+    );
+}
+
+// --- generate_uuid_v4 ----------------------------------------------------
+
+TEST_CASE(
+    "generate_uuid_v4: the canonical form of a version-4 UUID",
+    "[common][helper][generate_uuid_v4]"
+) {
+    const std::string first = Gem::Common::generate_uuid_v4();
+    REQUIRE(first.size() == 36);
+    for(const std::size_t dash : {8UZ, 13UZ, 18UZ, 23UZ}) {
+        CHECK(first[dash] == '-');
+    }
+    for(std::size_t i = 0; i < first.size(); ++i) {
+        if(i != 8 && i != 13 && i != 18 && i != 23) {
+            CHECK(std::string_view("0123456789abcdef").find(first[i]) != std::string_view::npos);
+        }
+    }
+    CHECK(first[14] == '4');                                                   // the version
+    CHECK(std::string_view("89ab").find(first[19]) != std::string_view::npos); // the variant
+    CHECK(Gem::Common::generate_uuid_v4() != first);
+}
+
+// --- deep copies of objects with the common interface --------------------
+
+TEST_CASE(
+    "copyCloneableSmartPointer (shared_ptr): loads in place or clones or resets",
+    "[common][helper][copyCloneable]"
+) {
+    const auto from = std::make_shared<TCommon>(5);
+    auto to = std::make_shared<TCommon>(0);
+    const TCommon *to_raw = to.get();
+    Gem::Common::copyCloneableSmartPointer(from, to);
+    CHECK(to->val == 5);
+    CHECK(to.get() == to_raw);
+
+    std::shared_ptr<TCommon> empty_to;
+    Gem::Common::copyCloneableSmartPointer(from, empty_to);
+    REQUIRE(empty_to);
+    CHECK(empty_to->val == 5);
+    CHECK(empty_to.get() != from.get());
+
+    Gem::Common::copyCloneableSmartPointer(std::shared_ptr<TCommon>{}, to);
+    CHECK(not to);
+}
+
+TEST_CASE(
+    "copyCloneableObjectsContainer: loads the common part and grows or shrinks",
+    "[common][helper][copyCloneable]"
+) {
+    const std::vector<TCommon> from{TCommon(1), TCommon(2), TCommon(3)};
+
+    std::vector<TCommon> same{TCommon(0), TCommon(0), TCommon(0)};
+    Gem::Common::copyCloneableObjectsContainer(from, same);
+    REQUIRE(same.size() == 3);
+    CHECK(same[2].val == 3);
+
+    std::vector<TCommon> shorter{TCommon(0)};
+    Gem::Common::copyCloneableObjectsContainer(from, shorter);
+    REQUIRE(shorter.size() == 3);
+    CHECK(shorter[0].val == 1);
+    CHECK(shorter[2].val == 3);
+
+    std::vector<TCommon> longer(5, TCommon(9));
+    Gem::Common::copyCloneableObjectsContainer(from, longer);
+    REQUIRE(longer.size() == 3);
+    CHECK(longer[1].val == 2);
+}
+
+TEST_CASE(
+    "nonOwningShared: shares the object without owning it",
+    "[common][helper][nonOwningShared]"
+) {
+    auto owner = std::make_unique<int>(7);
+    {
+        const std::shared_ptr<int> view = Gem::Common::nonOwningShared(owner);
+        CHECK(view.get() == owner.get());
+        CHECK(*view == 7);
+    } // the view ends; the object must still be there
+    REQUIRE(owner);
+    CHECK(*owner == 7);
+    CHECK(Gem::Common::nonOwningShared(std::unique_ptr<int>{}) == nullptr);
+}
+
+TEST_CASE(
+    "operator== / operator!= for objects with the common interface use compare()",
+    "[common][helper][operators]"
+) {
+    const TCommon a(1);
+    const TCommon b(1);
+    const TCommon c(2);
+    CHECK(a == b);
+    CHECK_FALSE(a == c);
+    CHECK(a != c);
+    CHECK_FALSE(a != b);
+}
 
 // --- vecToString ---------------------------------------------------------
 
@@ -354,11 +518,13 @@ TEST_CASE(
         CAPTURE(v);
         CHECK(Gem::Common::from_string<double>(Gem::Common::to_string(v)) == v);
     }
-    CHECK(std::isnan(
-        Gem::Common::from_string<double>(
-            Gem::Common::to_string(std::numeric_limits<double>::quiet_NaN())
+    CHECK(
+        std::isnan(
+            Gem::Common::from_string<double>(
+                Gem::Common::to_string(std::numeric_limits<double>::quiet_NaN())
+            )
         )
-    ));
+    );
 }
 
 // A program may make a decimal-comma locale its global C++ locale. The text forms of numbers that
@@ -389,7 +555,10 @@ TEST_CASE("to_string: scoped enum yields its underlying integer", "[common][help
 
 // parseWhole() is the one strict reader of the collection: a text is one value of the type, or
 // nothing.
-TEST_CASE("parseWhole: a text is one value of the type or nothing", "[common][helper][parseWhole]") {
+TEST_CASE(
+    "parseWhole: a text is one value of the type or nothing",
+    "[common][helper][parseWhole]"
+) {
     using Gem::Common::parseWhole;
     CHECK(parseWhole<int>(" 12 ") == 12);
     CHECK(parseWhole<int>("+12") == 12);
