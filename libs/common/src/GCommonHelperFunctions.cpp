@@ -82,7 +82,7 @@ std::atomic<unsigned int> g_nHardwareThreads{
  * surrounding whitespace -- a hand-written replacement for the former
  * `qi::phrase_parse(from, to, (num % sep), qi::space, result)`. Returns true on a
  * full parse; on failure it returns false and reports the unconsumed remainder in
- * @p rest (so the caller can reproduce the original "Stopped at ..." diagnostic).
+ * @p rest (so the caller can say where the text stops being a list).
  *
  * @tparam num_type The arithmetic type each element is parsed into (via std::from_chars)
  * @param s The input text to parse
@@ -445,18 +445,22 @@ std::vector<std::string> splitString(std::string const &str, const char *sep) {
  * @param raw The string to be parsed (must contain at least one entry)
  * @param sep The separator character between entries (default: ',')
  * @return A std::vector holding the parsed unsigned int values
+ * @throws gem_exception naming the text and where it stops being such a list
  */
 std::vector<unsigned int> stringToUIntVec(std::string const &raw, char sep) {
     std::vector<unsigned int> result;
     std::string rest;
-
-    if(not parseSeparatedNumbers(std::string_view(raw), sep, result, rest)) {
-        throw gem_exception(
-            g_error_streamer() << "Parsing failed." << '\n'
-                               << "Stopped at: \": " << rest << "\"" << '\n'
-        );
-    }
-
+    const bool parsed = parseSeparatedNumbers(std::string_view(raw), sep, result, rest);
+    checkThat(
+        parsed,
+        "the text \"",
+        raw,
+        "\" is not a list of integers >= 0 separated by '",
+        sep,
+        "'; it stops being one at \"",
+        rest,
+        "\""
+    );
     return result;
 }
 
@@ -468,18 +472,20 @@ std::vector<unsigned int> stringToUIntVec(std::string const &raw, char sep) {
  *
  * @param raw The comma-separated string to be parsed (must contain at least one entry)
  * @return A std::vector holding the parsed double values
+ * @throws gem_exception naming the text and where it stops being such a list
  */
 std::vector<double> stringToDoubleVec(std::string const &raw) {
     std::vector<double> result;
     std::string rest;
-
-    if(not parseSeparatedNumbers(std::string_view(raw), ',', result, rest)) {
-        throw gem_exception(
-            g_error_streamer() << "Parsing failed." << '\n'
-                               << "Stopped at: \": " << rest << "\"" << '\n'
-        );
-    }
-
+    const bool parsed = parseSeparatedNumbers(std::string_view(raw), ',', result, rest);
+    checkThat(
+        parsed,
+        "the text \"",
+        raw,
+        "\" is not a list of numbers separated by ','; it stops being one at \"",
+        rest,
+        "\""
+    );
     return result;
 }
 
@@ -508,8 +514,9 @@ std::vector<std::tuple<unsigned int, unsigned int>> stringToUIntTupleVec(std::st
     };
     auto throwFail = [&]() {
         throw gem_exception(
-            g_error_streamer() << "Parsing failed." << '\n'
-                               << "Stopped at: \"" << std::string(s.substr(i)) << "\"" << '\n'
+            g_error_streamer() << "the text \"" << raw
+                               << "\" is not a list of pairs (a,b) of integers >= 0 separated by"
+                               << " ','; it stops being one at \"" << s.substr(i) << "\"" << '\n'
         );
     };
     auto expect = [&](char c) {
