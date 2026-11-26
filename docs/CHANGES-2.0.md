@@ -471,6 +471,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   with `beast`: the broker belongs on a trusted network and needs `set_tcp_nodelay` (`INSTALL`).
   With 402 clients it reached 71 % of `beast`'s speed-up at evaluations of 10 ms and the same
   from about 1 s on. Built when the Boost in use has Boost.MQTT5 (`BUILDMQTTCONSUMER`).
+- **0 threads means the hardware threads assigned to the process.** `getNHardwareThreads()`
+  counts the hardware threads the process may run on -- on Linux its affinity mask, so a job that
+  a batch system or `taskset` gives 4 cores of a 64-core node gets 4 -- and every request for 0
+  threads uses it: a `GThreadPool` (it started 2), an algorithm's `setNThreads(0)` and
+  `n_adaption_threads` 0 (they set 2 with a warning; the 0 is now kept and resolved on the
+  machine of the run), the meta-EA's orchestration pool, the thread-pool consumer, the session
+  and I/O threads of the networked consumers and hap's producer threads (they counted all
+  threads of the machine).
 
 ## 6. Packaging: libraries and runtime-loadable modules
 

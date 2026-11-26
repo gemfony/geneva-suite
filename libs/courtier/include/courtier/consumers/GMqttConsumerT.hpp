@@ -74,7 +74,7 @@ public:
     /** @brief Constructs the MQTT consumer from the configuration of its family.
      *
      *  @param config Reads ip, port and topic (the broker and the topic prefix), nThreads (the
-     *         threads of the sessions; 0 selects the hardware concurrency), serializationMode and
+     *         threads of the sessions; 0 selects getNHardwareThreads()), serializationMode and
      *         pingInterval (the MQTT keep-alive of the server's ends, in seconds; 0: off). The
      *         client members are ignored.
      *  @param stop_grace How long stopServer() waits for the connections to end */

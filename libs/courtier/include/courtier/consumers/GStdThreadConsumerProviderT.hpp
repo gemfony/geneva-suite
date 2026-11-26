@@ -83,7 +83,7 @@ protected:
                 "nWorkerThreads",
                 &GStdThreadConsumerConfig::nThreads,
                 GStdThreadConsumerConfig{}.nThreads,
-                "[stc] The number of worker threads (0 == hardware concurrency)"
+                "[stc] The number of worker threads (0: the hardware threads of the process)"
         )
             .setHidden();
     }

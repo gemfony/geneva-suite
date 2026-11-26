@@ -3291,6 +3291,17 @@ TEST_CASE(
 
 /******************************************************************************/
 
+TEST_CASE("OA setNThreads(0) means the assigned hardware threads", "[flat][oa]") {
+    // Regression: setNThreads(0) replaced the 0 by 2 (DEFAULTNSTDTHREADS) with a warning, although
+    // the option says "0 means automatic". The 0 is now kept; init() builds the pool with as many
+    // threads as the process has hardware threads assigned (GThreadPool's rule for 0).
+    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    ea->setNThreads(0);
+    CHECK(ea->getNThreads() == 0);
+    auto copy = std::make_shared<oa::GEvolutionaryAlgorithm>(*ea);
+    CHECK(copy->getNThreads() == 0);
+}
+
 TEST_CASE(
     "OA base copy preserves every configuration knob (copy ctor vs localMembers_)",
     "[flat][oa]"

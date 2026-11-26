@@ -2551,8 +2551,9 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     CHECK(client->terminalErrorFlagged());
     CHECK(client->losses() == 0);
     CHECK(client->connections() == 1); // it did not come back
-    CHECK(other.received() == 1);      // it asked for nothing,
-    CHECK(other.hellos() == 1);        // but said who it is
+    // The server counts on its own threads: the client may be done before they have run.
+    CHECK(eventually([&] { return other.received() == 1; })); // it asked for nothing,
+    CHECK(eventually([&] { return other.hellos() == 1; }));   // but said who it is
     // The log names both commits, and this build's version for the reader.
     CHECK(log->hasLineWith(
         {"The server was built from another commit",
@@ -2579,8 +2580,9 @@ TEST_CASE(
     const auto client = runClientAgainst(server);
     CHECK(client->terminalErrorFlagged());
     CHECK(client->connections() == 2); // it did not come back a third time
-    CHECK(server.received() == 2);     // a PULL on the first, on the second
-    CHECK(server.hellos() == 1);       // only its HELLO
+    // The server counts on its own threads: the client may be done before they have run.
+    CHECK(eventually([&] { return server.received() == 2; })); // a PULL on the first, on the second
+    CHECK(eventually([&] { return server.hellos() == 1; }));   // only its HELLO
     CHECK(log->hasLineWith({"The server was built from another commit", OTHER_COMMIT}));
     glogger.resetLogTargets();
 }
@@ -2626,8 +2628,9 @@ TEST_CASE(
         const auto client = runClientAgainst(server);
         CHECK(client->terminalErrorFlagged());
         CHECK(client->connections() == 1); // it did not come back
-        CHECK(server.received() == 1);     // it asked for nothing,
-        CHECK(server.hellos() == 1);       // but said who it is
+        // The server counts on its own threads: the client may be done before they have run.
+        CHECK(eventually([&] { return server.received() == 1; })); // it asked for nothing,
+        CHECK(eventually([&] { return server.hellos() == 1; }));   // but said who it is
         CHECK(
             log->hasLineWith({"The server runs another program", "another program", "this program"})
         );

@@ -479,8 +479,8 @@ inline constexpr auto enum_names_v<expectation> =
 
 /******************************************************************************/
 /**
- * Specification of the default number of threads, when no information about hardware
- * concurrency can be determined.
+ * The number of threads getNHardwareThreads() reports when the system does not say how many
+ * hardware threads the process may use; also the initial size of an algorithm's own thread pool.
  */
 constexpr unsigned int DEFAULTNHARDWARETHREADS = 2;
 /**

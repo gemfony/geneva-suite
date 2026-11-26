@@ -1975,21 +1975,14 @@ void GOptimizationAlgorithmBase::finalize() {
 /******************************************************************************/
 /**
  * @brief Sets the number of threads used for parallel organizational work (adaption,
- * recombination, ...). If n_threads is 0, the count falls back to the default.
+ * recombination, ...). 0 is kept as it is: the pool built in init() then has as many threads as
+ * the process has hardware threads assigned (Gem::Common::getNHardwareThreads()), on the machine
+ * the run takes place on.
  *
- * @param n_threads The number of threads to use; 0 selects the default thread count
+ * @param n_threads The number of threads to use; 0 means the assigned hardware threads
  */
 void GOptimizationAlgorithmBase::setNThreads(std::uint16_t n_threads) {
-    if(n_threads == 0) {
-        glogger << "n_threads == 0 was requested. n_threads_ was reset to the default "
-                << Gem::Courtier::DEFAULTNSTDTHREADS << '\n'
-                << GWARNING;
-
-        n_threads_ = Gem::Courtier::DEFAULTNSTDTHREADS;
-    }
-    else {
-        n_threads_ = n_threads;
-    }
+    n_threads_ = n_threads;
 }
 
 /******************************************************************************/

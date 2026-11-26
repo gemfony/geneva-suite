@@ -40,8 +40,11 @@
 #include <map>
 #include <memory>
 #include <numbers>
+#include <set>
 #include <stdexcept>
 #include <string>
+#include <string_view>
+#include <thread>
 #include <tuple>
 #include <vector>
 
@@ -305,6 +308,38 @@ TEST_CASE(
     CHECK(first[14] == '4');                                                   // the version
     CHECK(std::string_view("89ab").find(first[19]) != std::string_view::npos); // the variant
     CHECK(Gem::Common::generate_uuid_v4() != first);
+}
+
+TEST_CASE(
+    "generate_uuid_v4: the UUIDs of eight threads all differ and keep their form",
+    "[common][helper][generate_uuid_v4]"
+) {
+    constexpr std::size_t N_THREADS = 8;
+    constexpr std::size_t N_UUIDS = 10000;
+    std::vector<std::vector<std::string>> uuids(N_THREADS);
+    {
+        std::vector<std::jthread> threads;
+        for(auto &mine : uuids) {
+            threads.emplace_back([&mine] {
+                for(std::size_t i = 0; i < N_UUIDS; ++i) {
+                    mine.push_back(Gem::Common::generate_uuid_v4());
+                }
+            });
+        }
+    }
+    std::set<std::string> all;
+    std::size_t well_formed = 0;
+    for(const auto &mine : uuids) {
+        for(const auto &uuid : mine) {
+            all.insert(uuid);
+            if(uuid.size() == 36 && uuid[14] == '4'
+               && std::string_view("89ab").find(uuid[19]) != std::string_view::npos) {
+                ++well_formed;
+            }
+        }
+    }
+    CHECK(all.size() == N_THREADS * N_UUIDS);
+    CHECK(well_formed == N_THREADS * N_UUIDS);
 }
 
 // --- deep copies of objects with the common interface --------------------

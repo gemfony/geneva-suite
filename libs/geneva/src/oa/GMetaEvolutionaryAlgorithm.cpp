@@ -31,8 +31,6 @@
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 
 // Standard headers
-#include <algorithm>
-#include <thread>
 
 #include "common/GExpectationChecksT.hpp"
 #include "geneva/genome/GGenome.hpp"
@@ -45,16 +43,13 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 
 Gem::Courtier::submission_status_t
 GMetaEvolutionaryAlgorithm::evaluatePopulationRange_(std::size_t start, std::size_t end) {
-    // Build the orchestration pool on first use (transient run state, sized to hardware concurrency by
-    // default). It is this meta-EA's OWN pool -- separate from the process-wide work consumer the
+    // Build the orchestration pool on first use (transient run state; 0 threads means the hardware
+    // threads assigned to the process). It is this meta-EA's OWN pool -- separate from the process-wide work consumer the
     // umbrella-individuals' sub-optimizations submit to -- which is what keeps the two tiers deadlock-free.
     if(not orchestration_pool_) {
-        const unsigned int n = n_orchestration_threads_ != 0
-                                 ? n_orchestration_threads_
-                                 : std::max(1u, std::thread::hardware_concurrency());
         orchestration_pool_ = std::make_unique<Gem::Common::Concurrency::GThreadPool>(
             "meta:orchestration",
-            n,
+            n_orchestration_threads_,
             Gem::Common::Concurrency::ThreadElasticity::Elastic
         );
     }

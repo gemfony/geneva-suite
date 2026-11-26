@@ -31,13 +31,19 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <set>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
+
+#if defined(__linux__)
+#include <sched.h> // sched_getaffinity
+#endif
 
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
@@ -78,6 +84,65 @@ TEST_CASE("getNHardwareThreads: returns a positive value", "[common][helper-nonT
     // Default cap; the function applies a maximum to guard against silly
     // values. Bound is generous enough to survive 256-core CI rigs.
     CHECK(getNHardwareThreads() <= 4096u);
+    // Read once: the same number on every call
+    CHECK(getNHardwareThreads() == getNHardwareThreads());
+}
+
+// Regression: getNHardwareThreads() reported the hardware threads of the machine, also for a
+// process that a batch system or taskset had given a few of them. The test is meaningful in the
+// run that CTest makes under "taskset -c 0" (GCommonHelperFunctionsTests_affinity).
+TEST_CASE(
+    "getNHardwareThreads: counts the threads assigned to the process",
+    "[common][helper-nonT][threads][affinity]"
+) {
+#if defined(__linux__)
+    cpu_set_t assigned;
+    CPU_ZERO(&assigned);
+    if(0 == sched_getaffinity(0, sizeof(assigned), &assigned)) {
+        CHECK(getNHardwareThreads() == static_cast<unsigned int>(CPU_COUNT(&assigned)));
+    }
+    else { // more processors than a cpu_set_t holds: the function falls back to the machine's
+        CHECK(getNHardwareThreads() >= 1u);
+    }
+#else
+    CHECK(getNHardwareThreads() >= 1u);
+#endif
+}
+
+TEST_CASE(
+    "DEFAULTMAXNHARDWARETHREADS: not below the fallback thread count",
+    "[common][helper-nonT][threads]"
+) {
+    STATIC_CHECK(DEFAULTNHARDWARETHREADS >= 1u);
+    STATIC_CHECK(DEFAULTMAXNHARDWARETHREADS >= DEFAULTNHARDWARETHREADS);
+}
+
+// ---------------------------------------------------------------------------
+// randomBits64 -- whether two engines share a seed is a matter of probability that a unit test
+// cannot show (see the function); what can be pinned is that the draws of many threads differ.
+
+TEST_CASE(
+    "randomBits64: the draws of eight threads all differ",
+    "[common][helper-nonT][random-bits]"
+) {
+    constexpr std::size_t N_THREADS = 8;
+    constexpr std::size_t N_DRAWS = 10000;
+    std::vector<std::vector<std::uint64_t>> draws(N_THREADS);
+    {
+        std::vector<std::jthread> threads;
+        for(auto &mine : draws) {
+            threads.emplace_back([&mine] {
+                for(std::size_t i = 0; i < N_DRAWS; ++i) {
+                    mine.push_back(randomBits64());
+                }
+            });
+        }
+    }
+    std::set<std::uint64_t> all;
+    for(const auto &mine : draws) {
+        all.insert(mine.begin(), mine.end());
+    }
+    CHECK(all.size() == N_THREADS * N_DRAWS);
 }
 
 // ---------------------------------------------------------------------------

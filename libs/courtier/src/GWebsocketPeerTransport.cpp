@@ -42,6 +42,7 @@
 #include <boost/asio/post.hpp>
 
 // Geneva headers go here
+#include "common/GCommonHelperFunctions.hpp" // getNHardwareThreads
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
@@ -72,7 +73,8 @@ constexpr std::chrono::milliseconds LISTENER_STOP_BOUND{1000};
  * @param port The port to listen on; 0 lets the system choose (see getPort())
  * @param options How the peer of every connection is set up (name, frame type, control-frame
  *        logging, ping interval)
- * @param n_threads The number of I/O threads; 0 means one per hardware thread
+ * @param n_threads The number of I/O threads; 0 means one per hardware thread assigned to the
+ *        process (Gem::Common::getNHardwareThreads())
  * @param stop_grace How long the shell waits for the connections to end at the end of a run
  */
 GWebsocketListener::GWebsocketListener(
@@ -87,9 +89,7 @@ GWebsocketListener::GWebsocketListener(
   , listen_address_(std::move(listen_address))
   , port_(port)
   , options_(std::move(options))
-  , n_threads_(
-        n_threads == 0 ? std::max<std::size_t>(1, std::thread::hardware_concurrency()) : n_threads
-    )
+  , n_threads_(n_threads == 0 ? Gem::Common::getNHardwareThreads() : n_threads)
   , stop_grace_(stop_grace)
   , accept_strand_(io_context_.get_executor())
   , acceptor_(io_context_)

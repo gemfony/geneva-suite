@@ -135,11 +135,11 @@ public:
     ~GMetaEvolutionaryAlgorithm() override = default;
 
     /** @brief Sets the number of umbrella-individuals evaluated in parallel on the orchestration pool.
-     *  @param n The orchestration-pool size; 0 means hardware concurrency */
+     *  @param n The orchestration-pool size; 0 means the hardware threads assigned to the process */
     void setNOrchestrationThreads(unsigned int n) {
         n_orchestration_threads_ = n;
     }
-    /** @brief Retrieves the configured orchestration-pool size (0 == hardware concurrency).
+    /** @brief Retrieves the configured orchestration-pool size (0: the assigned hardware threads).
      *  @return The configured number of orchestration threads */
     [[nodiscard]] unsigned int getNOrchestrationThreads() const {
         return n_orchestration_threads_;
@@ -168,7 +168,7 @@ private:
     std::unique_ptr<Gem::Common::Concurrency::GThreadPool>
         orchestration_pool_; ///< transient: a run-time resource, built on first use
     unsigned int n_orchestration_threads_ =
-        0; ///< Orchestration-pool size (0 == hardware concurrency)
+        0; ///< Orchestration-pool size (0: the hardware threads assigned to the process)
 };
 
 /******************************************************************************/

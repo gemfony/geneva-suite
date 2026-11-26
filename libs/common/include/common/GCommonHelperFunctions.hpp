@@ -37,6 +37,7 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -73,9 +74,16 @@ std::filesystem::file_time_type touch_time(
 
 /******************************************************************************/
 /**
- * @brief Determines a suitable number of threads for the current architecture.
+ * @brief The number of hardware threads assigned to this process (its affinity mask on Linux).
  */
 unsigned int getNHardwareThreads();
+
+/******************************************************************************/
+/**
+ * @brief 64 random bits for identifiers, from an engine per thread seeded with 256 bits of
+ * std::random_device.
+ */
+[[nodiscard]] std::uint64_t randomBits64();
 
 /******************************************************************************/
 /**
