@@ -197,12 +197,10 @@ using monitor_types = std::tuple<
     gind::GOptOptMonitorT<gind::GFunctionIndividual>>;
 
 /** @brief The mnemonics of the registered algorithms, sorted.
- *  @return One personality nickname per algorithm of registered_algorithm_types */
+ *  @return One mnemonic per algorithm of registered_algorithm_types */
 template <typename... algorithm_types>
 std::vector<std::string> mnemonicsOf(std::tuple<algorithm_types...> const * /* list */) {
-    std::vector<std::string> mnemonics{
-        std::string(algorithm_types::personality_traits_type::nickname)...
-    };
+    std::vector<std::string> mnemonics{oa::algorithmMnemonicOf<algorithm_types>()...};
     std::ranges::sort(mnemonics);
     return mnemonics;
 }

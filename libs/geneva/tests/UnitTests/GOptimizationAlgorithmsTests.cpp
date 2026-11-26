@@ -82,12 +82,14 @@
 #include "geneva/oa/GBasePluggableOM.hpp"
 #include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
+#include "geneva/oa/GFactoryStore.hpp"
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GNelderMead.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
@@ -1747,6 +1749,74 @@ TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
             Catch::Matchers::ContainsSubstring("not by this one (PERSONALITY_EA)")
     );
     std::filesystem::remove(misnamed);
+}
+
+/******************************************************************************/
+
+TEST_CASE("an algorithm states its identity once and on itself", "[oa]") {
+    // The mnemonic lives on the algorithm (oa_mnemonic); its factory, the store key and the
+    // algorithm object all report that one string.
+    oa::GNelderMead const nm;
+    CHECK(nm.getAlgorithmMnemonic() == "nm");
+    CHECK(nm.getAlgorithmName() == "Nelder-Mead Simplex");
+    CHECK(oa::GOptimizationAlgorithmFactoryT<oa::GNelderMead>{}.getMnemonic() == "nm");
+    std::shared_ptr<Gem::Common::GProviderT<oa::GOptimizationAlgorithmBase>> stored;
+    REQUIRE(oaFactoryStore()->get("nm", stored));
+    REQUIRE(stored);
+    CHECK(stored->getMnemonic() == "nm");
+
+    oa::GEvolutionaryAlgorithm const ea;
+    CHECK(ea.getAlgorithmMnemonic() == "ea");
+
+    // Regression: the meta-EA derived from the EA without the identity scaffold, so the name it
+    // states was never read and it reported itself as "Evolutionary Algorithm". It inherits the
+    // EA's mnemonic and personality type, which it does not restate.
+    oa::GMetaEvolutionaryAlgorithm const meta;
+    CHECK(meta.getAlgorithmName() == "Meta Evolutionary Algorithm");
+    CHECK(meta.getAlgorithmMnemonic() == "ea");
+    CHECK(meta.getAlgorithmPersonalityType() == "PERSONALITY_EA");
+}
+
+/******************************************************************************/
+
+TEST_CASE("a Nelder-Mead checkpoint keeps its individuals' position personalities", "[oa]") {
+    // Nelder-Mead installs the shared GPositionPersonalityTraits rather than a traits class of its own.
+    // A checkpoint restores that personality with its position, and the check that a checkpoint belongs
+    // to this algorithm reads the algorithm named in the file, not the personality type.
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+
+    oa::GNelderMead nm;
+    for(std::size_t i = 0; i < 3; ++i) {
+        nm.push_back(gind::GLineFitIndividual(data_points).clone());
+        auto personality = std::make_shared<oa::GPositionPersonalityTraits>();
+        personality->setPopulationPosition(i + 7);
+        nm.at(i)->setPersonality(personality);
+    }
+
+    auto const cp = std::filesystem::temp_directory_path() / "nm-position-personality.cp";
+    nm.saveCheckpoint(cp);
+
+    oa::GNelderMead resumed;
+    CHECK(resumed.cp_personality_fits(cp));
+    REQUIRE_NOTHROW(resumed.loadCheckpoint(cp));
+    REQUIRE(resumed.size() == 3);
+    for(std::size_t i = 0; i < 3; ++i) {
+        auto const personality =
+            resumed.at(i)->getPersonalityTraits<oa::GPositionPersonalityTraits>();
+        REQUIRE(personality);
+        CHECK(personality->name() == "GPositionPersonalityTraits");
+        CHECK(personality->getPopulationPosition() == i + 7);
+    }
+
+    // Another algorithm refuses the file
+    oa::GConjugateGradientDescent cgd;
+    CHECK_FALSE(cgd.cp_personality_fits(cp));
+    CHECK_THROWS_WITH(
+        cgd.loadCheckpoint(cp),
+        Catch::Matchers::ContainsSubstring("was written by the algorithm PERSONALITY_NM")
+    );
+    std::filesystem::remove(cp);
 }
 
 /******************************************************************************/

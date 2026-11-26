@@ -48,15 +48,5 @@ const std::string GSimulatedAnnealing_PersonalityTraits::nickname = "sa";
 // Gem::Common::GReflectiveInterfaceT base from class_name and the empty localMembers_().
 
 /******************************************************************************/
-/**
- * @brief Retrieves the mnemonic of the optimization algorithm.
- *
- * @return The short identifier ("sa") of the simulated-annealing algorithm
- */
-std::string GSimulatedAnnealing_PersonalityTraits::getMnemonic() const {
-    return GSimulatedAnnealing_PersonalityTraits::nickname;
-}
-
-/******************************************************************************/
 
 } /* namespace Gem::Geneva::OptimizationAlgorithms */

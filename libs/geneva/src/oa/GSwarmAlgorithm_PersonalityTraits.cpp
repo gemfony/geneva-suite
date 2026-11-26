@@ -91,16 +91,6 @@ GSwarmAlgorithm_PersonalityTraits::operator=(const GSwarmAlgorithm_PersonalityTr
 
 /******************************************************************************/
 /**
- * @brief Retrieves the mnemonic of the optimization algorithm
- *
- * @return The mnemonic ("swarm") associated with this personality
- */
-std::string GSwarmAlgorithm_PersonalityTraits::getMnemonic() const {
-    return GSwarmAlgorithm_PersonalityTraits::nickname;
-}
-
-/******************************************************************************/
-/**
  * @brief Sets the no_position_update_ flag to true
  */
 void GSwarmAlgorithm_PersonalityTraits::setNoPositionUpdate() {

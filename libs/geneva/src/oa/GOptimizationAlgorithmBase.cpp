@@ -1853,7 +1853,7 @@ GOptimizationAlgorithmBase::getBestIterationIndividuals_() const {
  * @brief Allows to set the personality type of the individuals
  */
 void GOptimizationAlgorithmBase::setIndividualPersonalities() {
-    const std::string oa_mnemonic = this->getPersonalityTraits_()->getMnemonic();
+    const std::string oa_mnemonic = this->getAlgorithmMnemonic();
     for(auto const &ind : *this) {
         // The rich personality OBJECT is OA scratch -- it rides on the individual itself. Each individual
         // gets its own (getPersonalityTraits_() returns a fresh instance per call). On a checkpoint resume,

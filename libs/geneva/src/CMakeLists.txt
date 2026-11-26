@@ -63,7 +63,6 @@ SET ( OPTIMIZATIONSOURCES
     oa/GConjugateGradientDescent.cpp
     oa/GConjugateGradientDescent_PersonalityTraits.cpp
     oa/GNelderMead.cpp
-    oa/GNelderMead_PersonalityTraits.cpp
     oa/GParameterScan.cpp
     oa/GParameterScanFactory.cpp
     oa/GParameterScan_PersonalityTraits.cpp

@@ -56,8 +56,8 @@ namespace Gem::Geneva {
  * mnemonics, optimzation algorithms with these mnemonics are allowed. Registering
  * a mnemonic "all" will lead to all restrictions being lifted. This functionality
  * is required as not all optimization algorithms will react gracefully to a silent
- * change of their individuals (think e.g. of gradient descents). The mnemonics
- * must be accessible via the base_type-object through the member-function getMnemonic().
+ * change of their individuals (think e.g. of gradient descents). An algorithm asks
+ * with its own mnemonic (GOptimizationAlgorithmBase::getAlgorithmMnemonic()).
  *
  * @tparam base_type The processable type (the individual) this post-processor operates on
  */

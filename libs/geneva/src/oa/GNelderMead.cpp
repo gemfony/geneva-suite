@@ -44,8 +44,8 @@
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GNelderMead_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -511,7 +511,7 @@ void GNelderMead::applyNelderMeadDecision() {
         auto accept_trial_into_worst = [&](std::size_t trial_slot) {
             this->at(vertexPos(s, w))->load(this->at(trialPos(s, trial_slot)));
             this->at(vertexPos(s, w))
-                ->getPersonalityTraits<GNelderMead_PersonalityTraits>()
+                ->getPersonalityTraits<GPositionPersonalityTraits>()
                 ->setPopulationPosition(vertexPos(s, w));
         };
 
@@ -840,7 +840,7 @@ void GNelderMead::finalize() {
 /**
  * @brief Creates the personality traits object associated with this algorithm.
  *
- * @return A shared pointer to a freshly created GNelderMead_PersonalityTraits object
+ * @return A shared pointer to a freshly created GPositionPersonalityTraits object
  */
 std::shared_ptr<GPersonalityTraits> GNelderMead::getPersonalityTraits_() const {
     return std::make_shared<personality_traits_type>();

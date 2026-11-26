@@ -137,11 +137,6 @@ public:
      */
     [[nodiscard]] std::tuple<double, double> getPersonalBestQuality() const;
 
-    /**
-     * @brief Retrieves the mnemonic of the optimization algorithm
-     */
-    [[nodiscard]] std::string getMnemonic() const override;
-
     /** @brief Changes these traits for the standard tests: the neighborhood.
      *  @return Whether the traits were changed (always true) */
     bool modifyForTest();

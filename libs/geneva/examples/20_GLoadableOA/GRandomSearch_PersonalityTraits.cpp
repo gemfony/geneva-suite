@@ -41,16 +41,6 @@ const std::string GRandomSearch_PersonalityTraits::nickname = "rsearch"; // NOLI
 
 /******************************************************************************/
 /**
- * @brief Retrieves the mnemonic of the optimization algorithm.
- *
- * @return The short identifier of the random-search personality ("rsearch")
- */
-std::string GRandomSearch_PersonalityTraits::getMnemonic() const {
-    return GRandomSearch_PersonalityTraits::nickname;
-}
-
-/******************************************************************************/
-/**
  * @brief Emits a name for this class / object.
  *
  * @return The string "GRandomSearch_PersonalityTraits"

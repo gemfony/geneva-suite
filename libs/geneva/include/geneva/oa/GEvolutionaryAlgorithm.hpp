@@ -210,10 +210,10 @@ public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GEvolutionaryAlgorithm";
     static constexpr std::string_view oa_algorithm_name = "Evolutionary Algorithm";
+    static constexpr std::string_view oa_mnemonic = "ea";
     static constexpr std::string_view oa_personality_type = "PERSONALITY_EA";
-    /** @brief This algorithm's own personality traits -- what getPersonalityTraits_()
-     *  hands out, and the default second template argument of the algorithm factory
-     *  scaffold. */
+    /** @brief The personality traits getPersonalityTraits_() hands out, the
+     *  per-individual scratch of this algorithm. */
     using personality_traits_type = GEvolutionaryAlgorithm_PersonalityTraits;
     //! [geneva.oa.identifiers]
 

@@ -79,7 +79,7 @@ GOptimizer::GOptimizer(const GOptimizationDescription &description)
  * not be used. Note that any individuals registered with the default algorithm
  * will be copied into the GOptimizer object. This function takes the algorithm from a
  * global algorithm factory store. The algorithm needs to be specified using a
- * small nickname, such as "ea" for "Evolutionary Algorithms". See the available
+ * small mnemonic, such as "ea" for "Evolutionary Algorithms". See the available
  * algorithms in the Geneva distribution for further information.
  *
  * @param mn A small mnemonic for the optimization algorithm

@@ -49,23 +49,6 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
 /**
- * @brief Retrieves the mnemonic of the optimization algorithm
- *
- * This base class has no associated optimization algorithm of its own, so the
- * function always throws and never returns normally.
- *
- * @return Never returns normally; always throws a gem_exception
- */
-std::string GBaseParChildPersonalityTraits::getMnemonic() const {
-    throw gem_exception(
-        g_error_streamer() << "This function should never have been called" << '\n'
-    );
-
-    return "none";
-}
-
-/******************************************************************************/
-/**
  * @brief Checks whether this is a parent individual
  *
  * @return true if this object is currently a parent (parent_counter_ > 0), false otherwise

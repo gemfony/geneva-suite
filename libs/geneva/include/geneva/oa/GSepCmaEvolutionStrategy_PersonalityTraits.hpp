@@ -101,11 +101,6 @@ public:
     // is inherited from the GParetoTag mixin; the member is serialized below under
     // its historical NVP name.
 
-    /**
-     * @brief Retrieves the mnemonic of the optimization algorithm.
-     */
-    [[nodiscard]] std::string getMnemonic() const override;
-
     /** @brief Changes these traits for the standard tests: the selection rank.
      *  @return Whether the traits were changed (always true) */
     bool modifyForTest();

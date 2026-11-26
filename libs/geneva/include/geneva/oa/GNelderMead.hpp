@@ -44,9 +44,9 @@
 #include "common/GExceptions.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GNelderMead_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -146,10 +146,11 @@ public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GNelderMead";
     static constexpr std::string_view oa_algorithm_name = "Nelder-Mead Simplex";
+    static constexpr std::string_view oa_mnemonic = "nm";
     static constexpr std::string_view oa_personality_type = "PERSONALITY_NM";
-    /** @brief This algorithm's own personality traits -- what getPersonalityTraits_() hands out,
-     *  and the default second template argument of the algorithm factory scaffold. */
-    using personality_traits_type = GNelderMead_PersonalityTraits;
+    /** @brief The personality traits getPersonalityTraits_() hands out: an individual only needs to
+     *  know its position in the population (its simplex-vertex / trial-slot index). */
+    using personality_traits_type = GPositionPersonalityTraits;
 
 private:
     /** @brief Single declaration of this class'es local data members */

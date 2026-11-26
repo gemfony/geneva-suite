@@ -82,10 +82,6 @@ public:
     /** @brief The standard destructor */
     ~GRandomSearch_PersonalityTraits() override = default;
 
-    /** @brief Retrieves the mnemonic of the optimization algorithm.
-     *  @return The short mnemonic identifying the random-search algorithm ("rsearch") */
-    std::string getMnemonic() const override;
-
 protected:
     /** @brief Loads the data of another GRandomSearch_PersonalityTraits object.
      *  @param cp A pointer to another object of this type, camouflaged as a GPersonalityTraits */
