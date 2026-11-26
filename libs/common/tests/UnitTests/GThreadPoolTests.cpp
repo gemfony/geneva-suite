@@ -42,6 +42,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 // Geneva headers go here
+#include "common/GCommonHelperFunctions.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadPool.hpp"
 
@@ -62,8 +63,22 @@ TEST_CASE("GThreadPool construction and getNThreads", "[common][thread-pool]") {
     // created threads lazily on the first submission and reported 0 until then).
     REQUIRE(pool.getNThreads() == 4);
 
-    GThreadPool const zero(0); // 0 -> hardware default, never 0
-    REQUIRE(zero.getNThreads() > 0);
+    GThreadPool const zero(0); // 0: the hardware threads assigned to the process
+    REQUIRE(zero.getNThreads() == Gem::Common::getNHardwareThreads());
+}
+
+TEST_CASE(
+    "GThreadPool asked for 0 threads starts the assigned hardware threads",
+    "[common][thread-pool]"
+) {
+    // Regression: both constructors and setNThreads() started 2 threads for a request of 0
+    // (DEFAULTNHARDWARETHREADS), while their comments promised the hardware default.
+    GThreadPool const budgeted("test:zero", 0, Gem::Common::Concurrency::ThreadElasticity::Elastic);
+    CHECK(budgeted.getNThreads() == Gem::Common::getNHardwareThreads());
+
+    GThreadPool resized(3);
+    resized.setNThreads(0);
+    CHECK(resized.getNThreads() == Gem::Common::getNHardwareThreads());
 }
 
 TEST_CASE("GThreadPool is neither copyable nor movable", "[common][thread-pool]") {
@@ -252,8 +267,8 @@ TEST_CASE(
     pool.setNThreads(1); // no-op
     REQUIRE(pool.getNThreads() == 1);
 
-    pool.setNThreads(0); // 0 -> hardware default, never 0
-    REQUIRE(pool.getNThreads() > 0);
+    pool.setNThreads(0); // 0: the hardware threads assigned to the process
+    REQUIRE(pool.getNThreads() == Gem::Common::getNHardwareThreads());
     REQUIRE(run_batch(1000) == 1000);
 }
 

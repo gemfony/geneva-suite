@@ -96,7 +96,8 @@ public:
     /** @brief Deleted default constructor -- a thread count must be supplied */
     GThreadPool() = delete;
     /**
-     * @brief Initialisation with a number of threads (0 -> hardware default)
+     * @brief Initialisation with a number of threads (0: the hardware threads assigned to the
+     * process, getNHardwareThreads())
      */
     explicit GThreadPool(unsigned int n_threads);
     /**

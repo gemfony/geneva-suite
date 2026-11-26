@@ -397,11 +397,12 @@ public:
     /******************************************************************************/
     /**
      * @brief Sets the number of threads used for parallel organizational work (adaption,
-     *  recombination, ...). 0 means "automatic" (hardware concurrency).
+     *  recombination, ...). 0 means the hardware threads assigned to the process.
      */
     void setNThreads(std::uint16_t n_threads);
     /**
-     * @brief Retrieves the number of threads used for parallel organizational work.
+     * @brief Retrieves the number of threads used for parallel organizational work (0: the
+     *  hardware threads assigned to the process).
      */
     [[nodiscard]] std::uint16_t getNThreads() const;
 

@@ -78,7 +78,7 @@ public:
      *
      *  @param config Reads listenAddress (the IP address to listen on), port (0 lets the OS
      *         pick; the chosen port is read back with getPort() after startServer()), nThreads (the I/O threads, and as many threads for the
-     *         sessions; 0 selects the hardware concurrency), serializationMode (the wire format),
+     *         sessions; 0 selects getNHardwareThreads()), serializationMode (the wire format),
      *         pingInterval (seconds of silence after which a ping is sent; after twice that time
      *         without any inbound data the client is presumed gone; 0 switches this off) and
      *         verboseControlFrames. The client members (ip, clientPrefetchDepth, ...) are ignored.

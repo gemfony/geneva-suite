@@ -66,7 +66,7 @@ namespace {
 using item_ptr = std::unique_ptr<GFaultyContainer>;
 
 /** @brief Wires a local consumer of type @p consumer_type (built with @p n_threads worker threads,
- *  0 == hardware concurrency) for a test. */
+ *  0 == the assigned hardware threads) for a test. */
 template <typename consumer_type>
 struct LocalFixtureT {
     explicit LocalFixtureT(unsigned int n_threads = 0)

@@ -107,7 +107,7 @@ constexpr std::size_t DEFAULTSEEDVECTORSIZE = 2000;
  */
 constexpr std::uint16_t DEFAULT01PRODUCERTHREADS = 2;
 
-/** @brief Divisor applied to hardware_concurrency() when auto-sizing the RNG producer pool. */
+/** @brief Divisor applied to Gem::Common::getNHardwareThreads() when auto-sizing the RNG producer pool. */
 constexpr unsigned int PRODUCERTHREADS_HW_DIVISOR = 4;
 /** @brief Upper clamp on the auto-sized producer count (bounds fresh-queue lock contention). */
 constexpr std::uint16_t MAXAUTOPRODUCERTHREADS = 8;

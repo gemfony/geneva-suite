@@ -74,7 +74,7 @@ std::filesystem::file_time_type touch_time(
 
 /******************************************************************************/
 /**
- * @brief Determines a suitable number of threads for the current architecture.
+ * @brief The number of hardware threads assigned to this process (its affinity mask on Linux).
  */
 unsigned int getNHardwareThreads();
 

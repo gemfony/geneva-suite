@@ -117,6 +117,16 @@ gem_common_test(GTupleIOTests                  S  GTupleIOTests.cpp)
 gem_common_test(GTypeToStringTTests            S  GTypeToStringTTests.cpp)
 gem_common_test(GTypeTraitsTTests              S  GTypeTraitsTTests.cpp)
 
+# getNHardwareThreads() counts the hardware threads assigned to the process: run its test once
+# more on one processor. Registered only where taskset exists (a configure-time dependency).
+FIND_PROGRAM(GEM_TASKSET_PROGRAM taskset)
+IF(GEM_TASKSET_PROGRAM)
+	ADD_TEST(NAME GCommonHelperFunctionsTests_affinity
+		COMMAND ${GEM_TASKSET_PROGRAM} -c 0 $<TARGET_FILE:GCommonHelperFunctionsTests> "[affinity]")
+	SET_TESTS_PROPERTIES(GCommonHelperFunctionsTests_affinity PROPERTIES LABELS "common")
+	GEM_TEST_SIZE(GCommonHelperFunctionsTests_affinity S)
+ENDIF()
+
 # A real module for GModuleLoaderTests, built with the recipe of a genuine one (it links no
 # library of the collection). Its path reaches the test as a compile definition.
 GENEVA_ADD_INDIVIDUAL_MODULE(GTwoContributionsModule modules/GTwoContributionsModule.cpp)

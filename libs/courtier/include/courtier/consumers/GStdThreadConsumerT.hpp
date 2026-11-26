@@ -36,7 +36,6 @@
 #include <cstddef>
 #include <memory>
 #include <span>
-#include <thread>
 #include <vector>
 
 // Geneva headers (reused from the common library)
@@ -69,11 +68,11 @@ public:
     /***************************************************************************/
     /** @brief Initialization from the configuration of the thread-pool consumer.
      *  @param config Reads nThreads, the number of worker threads in the pool (0: as many as the
-     *         machine has hardware threads) */
+     *         process has hardware threads assigned, Gem::Common::getNHardwareThreads()) */
     explicit GStdThreadConsumerT(const config_type &config = {})
       : pool_(
             "consumer:stc",
-            config.nThreads == 0 ? default_threads() : config.nThreads,
+            config.nThreads,
             Gem::Common::Concurrency::ThreadElasticity::Elastic
         ) {
         instances_constructed().fetch_add(1, std::memory_order_relaxed);
@@ -119,13 +118,6 @@ protected:
     }
 
 private:
-    /** @brief Default number of worker threads when none was requested.
-     *  @return The hardware concurrency, or 1 if it cannot be determined. */
-    static unsigned int default_threads() {
-        const unsigned int hc = std::thread::hardware_concurrency();
-        return hc == 0 ? 1u : hc;
-    }
-
     Gem::Common::Concurrency::GThreadPool pool_;
 };
 

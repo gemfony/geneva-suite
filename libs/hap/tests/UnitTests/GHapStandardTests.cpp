@@ -32,13 +32,13 @@
  ********************************************************************************/
 
 #include <random>
-#include <thread>
 #include <tuple>
 #include <type_traits>
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "GHap_tests.hpp"
+#include "common/GCommonHelperFunctions.hpp"
 #include "hap/GRandomDefines.hpp"
 #include "hap/GRandomDistributionsT.hpp"
 #include "hap/GRandomFactory.hpp"
@@ -59,22 +59,17 @@ TEST_CASE("GHap autoProducerThreadCount is hardware-derived and clamped", "[hap]
     REQUIRE(n >= Gem::Hap::DEFAULT01PRODUCERTHREADS);
     REQUIRE(n <= Gem::Hap::MAXAUTOPRODUCERTHREADS);
 
-    const unsigned int hw = std::thread::hardware_concurrency();
-    if(hw == 0) {
-        // Core count undeterminable -> the fixed fallback.
-        REQUIRE(n == Gem::Hap::DEFAULT01PRODUCERTHREADS);
-    }
-    else {
-        // Exactly the clamp(hw / divisor, floor, cap) the helper documents.
-        const unsigned int scaled = std::max<unsigned int>(
-            Gem::Hap::DEFAULT01PRODUCERTHREADS,
-            hw / Gem::Hap::PRODUCERTHREADS_HW_DIVISOR
-        );
-        const std::uint16_t expected = static_cast<std::uint16_t>(
-            std::min<unsigned int>(scaled, Gem::Hap::MAXAUTOPRODUCERTHREADS)
-        );
-        REQUIRE(n == expected);
-    }
+    // Exactly the clamp(hw / divisor, floor, cap) the helper documents, of the hardware threads
+    // assigned to the process.
+    const unsigned int hw = Gem::Common::getNHardwareThreads();
+    const unsigned int scaled = std::max<unsigned int>(
+        Gem::Hap::DEFAULT01PRODUCERTHREADS,
+        hw / Gem::Hap::PRODUCERTHREADS_HW_DIVISOR
+    );
+    const std::uint16_t expected = static_cast<std::uint16_t>(
+        std::min<unsigned int>(scaled, Gem::Hap::MAXAUTOPRODUCERTHREADS)
+    );
+    REQUIRE(n == expected);
 }
 
 // PRE-1: the factory exposes supply-health counters so RNG production/starvation is observable.

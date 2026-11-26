@@ -53,6 +53,7 @@
 
 // Geneva headers go here
 #include "common/GCommonEnums.hpp"
+#include "common/GCommonHelperFunctions.hpp" // getNHardwareThreads
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
@@ -73,7 +74,7 @@ namespace Gem::Courtier {
  * ended in a registry, and ends the run: it tells every client that the run is over and waits for
  * them, bounded (GPeerI.hpp, rule 8).
  *
- * Threads. The shell's io context is the session pool: nThreads threads (the hardware concurrency
+ * Threads. The shell's io context is the session pool: nThreads threads (getNHardwareThreads()
  * if 0) that run the sessions' handlers and nothing else; they are accounted in the thread budget
  * as "<consumer name>:sessions". The listener is handed the executor of that pool; the threads that
  * move the bytes, if the transport has any, are the listener's own (rule 2), and a session is made
@@ -139,7 +140,8 @@ public:
      * @param consumer_name The concrete consumer's qualified class name, used in diagnostics and
      *        in the thread budget
      * @param listener The server side of the transport; the consumer owns it. Must not be null.
-     * @param n_threads Number of session threads; 0 means one per hardware thread
+     * @param n_threads Number of session threads; 0 means one per hardware thread assigned to the
+     *        process (Gem::Common::getNHardwareThreads())
      * @param serialization_mode Which serialization format the wire protocol uses
      * @throws gem_exception if @p listener is empty
      */
@@ -150,7 +152,7 @@ public:
         Gem::Common::serializationMode serialization_mode
     )
       : consumer_name_(consumer_name)
-      , n_threads_(n_threads == 0 ? defaultThreads_() : n_threads)
+      , n_threads_(n_threads == 0 ? Gem::Common::getNHardwareThreads() : n_threads)
       , serialization_mode_(serialization_mode)
       , keep_alive_(listener ? listener->keepAlive() : std::chrono::milliseconds::zero())
       , listener_(std::move(listener)) {
@@ -374,14 +376,6 @@ protected:
     }
 
 private:
-    /***************************************************************************/
-    /** @brief Default number of session threads when none was requested.
-     *  @return The hardware concurrency, or 1 if it cannot be determined. */
-    static std::size_t defaultThreads_() {
-        const unsigned int hc = std::thread::hardware_concurrency();
-        return hc == 0 ? 1U : hc;
-    }
-
     /***************************************************************************/
     /** @brief Starts one session for a peer the listener has made, with a CheckoutLease that puts
      *  back what the client holds when the session ends. On a thread of the listener's own, so it

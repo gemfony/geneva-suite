@@ -32,7 +32,6 @@
 // Standard library headers used directly in this translation unit
 #include <algorithm>
 #include <array>
-#include <atomic>
 #include <cctype>
 #include <cerrno>
 #include <charconv>
@@ -46,7 +45,6 @@
 #include <iomanip>
 #include <iterator>
 #include <memory>
-#include <mutex>
 #include <random>
 #include <sstream>
 #include <string>
@@ -56,6 +54,10 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+
+#if defined(__linux__)
+#include <sched.h> // sched_getaffinity
+#endif
 
 // Boost.Process v2, built with boost.process.fs=std (INSTALL): BOOST_PROCESS_USE_STD_FS is set for
 // this library in its CMakeLists.txt, so the process paths are std::filesystem paths
@@ -73,12 +75,28 @@
 #include "common/GLogger.hpp"
 
 namespace {
-// The number of hardware threads, read once per process (it does not change while the process runs)
-std::mutex g_hwt_read_mutex;         // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-std::atomic<bool> g_hwt_read{false}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-std::atomic<unsigned int> g_nHardwareThreads{
-    Gem::Common::DEFAULTNHARDWARETHREADS
-}; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+/******************************************************************************/
+/**
+ * Asks the system how many hardware threads this process may run on. On Linux that is the size
+ * of the affinity mask (a batch system or taskset may assign a job a few cores of a large node);
+ * when the mask cannot be read (more than CPU_SETSIZE processors), and on other systems, it is
+ * std::thread::hardware_concurrency().
+ *
+ * @return The number of assigned hardware threads, or 0 if the system does not say
+ */
+unsigned int askNHardwareThreads() {
+#if defined(__linux__)
+    cpu_set_t assigned;
+    CPU_ZERO(&assigned);
+    if(0 == sched_getaffinity(0, sizeof(assigned), &assigned)) {
+        const int n = CPU_COUNT(&assigned);
+        if(n > 0) {
+            return static_cast<unsigned int>(n);
+        }
+    }
+#endif
+    return std::thread::hardware_concurrency();
+}
 
 /******************************************************************************/
 /**
@@ -225,32 +243,28 @@ std::uint64_t randomBits64() {
 
 /******************************************************************************/
 /**
- * This function retrieves the number of CPU cores on the system (possibly including "virtual cores" such
- * as in the case of hyperthreading). The function is thread-safe. When called multiple times, it will read the number of
- * hardware threads from a local cache.
+ * The number of hardware threads assigned to this process (hyperthreads count as threads): on
+ * Linux the size of its affinity mask, elsewhere std::thread::hardware_concurrency(). It is read
+ * once, on the first call, from the mask of the calling thread (normally the one the process
+ * started with), and then stays the same. If the system says nothing, a warning is logged and
+ * DEFAULTNHARDWARETHREADS is used. A request for 0 threads throughout the collection means this
+ * number. Thread-safe.
  *
- * @return A guess at a suitable number of threads for this architecture
+ * @return The number of hardware threads assigned to this process, at least 1
  */
 unsigned int getNHardwareThreads() {
-    if(not g_hwt_read) {
-        std::scoped_lock const lock(g_hwt_read_mutex);
-        if(not g_hwt_read) {
-            g_nHardwareThreads.store(std::thread::hardware_concurrency());
-
-            if(g_nHardwareThreads.load() == 0) { // We could not load the number of hardware threads
-                glogger << "Could not get information regarding suitable number of threads." << '\n'
-                        << "from hardware. Using the default value  = " << DEFAULTNHARDWARETHREADS
-                        << " instead." << '\n'
-                        << GWARNING;
-
-                g_nHardwareThreads.store(DEFAULTNHARDWARETHREADS);
-            }
-
-            g_hwt_read = true;
+    static const unsigned int N_THREADS = [] {
+        const unsigned int n = askNHardwareThreads();
+        if(n == 0) {
+            glogger << "The system does not say how many hardware threads this process may use."
+                    << '\n'
+                    << "Using the default value " << DEFAULTNHARDWARETHREADS << " instead." << '\n'
+                    << GWARNING;
+            return DEFAULTNHARDWARETHREADS;
         }
-    } // exclusive access ends
-
-    return g_nHardwareThreads.load();
+        return n;
+    }();
+    return N_THREADS;
 }
 
 /******************************************************************************/

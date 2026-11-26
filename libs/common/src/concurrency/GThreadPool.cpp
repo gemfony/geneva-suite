@@ -28,7 +28,7 @@
  ********************************************************************************/
 
 #include "common/concurrency/GThreadPool.hpp"
-#include "common/GCommonEnums.hpp"
+#include "common/GCommonHelperFunctions.hpp" // getNHardwareThreads
 #include "common/GLogger.hpp"
 #include <mutex>
 #include <shared_mutex>
@@ -43,15 +43,10 @@ namespace Gem::Common::Concurrency {
  *
  * The worker threads are started eagerly (they then block on the empty task queue at ~0 CPU).
  *
- * @param n_threads The desired number of worker threads (0 -> hardware default)
+ * @param n_threads The desired number of worker threads (0: getNHardwareThreads())
  */
 GThreadPool::GThreadPool(unsigned int n_threads)
-  : n_threads_(n_threads > 0 ? n_threads : DEFAULTNHARDWARETHREADS) {
-    if(0 == n_threads) {
-        glogger << "User requested n_threads == 0. n_threads was reset to the default "
-                << DEFAULTNHARDWARETHREADS << '\n'
-                << GWARNING;
-    }
+  : n_threads_(n_threads > 0 ? n_threads : getNHardwareThreads()) {
     task_queue_.emplace(); // construct the (unbounded) task queue
     start_workers(n_threads_);
 }
@@ -63,7 +58,7 @@ GThreadPool::GThreadPool(unsigned int n_threads)
  * pure accounting: the grant always equals the request.
  *
  * @param source A short name identifying this pool in the budget (e.g. "oa:tp")
- * @param n_threads The number of worker threads the pool wants (0 picks a hardware-based default)
+ * @param n_threads The number of worker threads the pool wants (0: getNHardwareThreads())
  * @param elasticity Whether the pool could correctly run with fewer workers than requested
  */
 GThreadPool::GThreadPool(
@@ -73,7 +68,7 @@ GThreadPool::GThreadPool(
 )
   : budget_reservation_(
         threadBudget()
-            .reserve(source, n_threads > 0 ? n_threads : DEFAULTNHARDWARETHREADS, elasticity)
+            .reserve(source, n_threads > 0 ? n_threads : getNHardwareThreads(), elasticity)
     )
   , budget_source_(source)
   , budget_elasticity_(elasticity)
@@ -253,10 +248,10 @@ unsigned int GThreadPool::getNThreads() const {
  * the same queue; shrinking recreates the queue (its close() is terminal) and restarts the
  * worker set. Must NOT be called from a task running inside the pool (would deadlock).
  *
- * @param n_threads The desired number of worker threads (0 -> hardware default)
+ * @param n_threads The desired number of worker threads (0: getNHardwareThreads())
  */
 void GThreadPool::setNThreads(unsigned int n_threads) {
-    const unsigned int n = n_threads > 0 ? n_threads : DEFAULTNHARDWARETHREADS;
+    const unsigned int n = n_threads > 0 ? n_threads : getNHardwareThreads();
 
     std::unique_lock<std::shared_mutex> const sub_lck(submission_mutex_);
     if(n == n_threads_) {

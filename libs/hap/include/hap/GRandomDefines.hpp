@@ -38,10 +38,10 @@
 #include <cstdint>
 #include <cstdlib>
 #include <random>
-#include <thread>
 
 // Geneva headers go here
-#include "hap/GHapEnums.hpp" // the constants of the random factory
+#include "common/GCommonHelperFunctions.hpp" // getNHardwareThreads
+#include "hap/GHapEnums.hpp"                 // the constants of the random factory
 
 namespace Gem::Hap {
 
@@ -58,16 +58,13 @@ using seed_type = std::mt19937::result_type;
  * block on the bounded fresh-package buffer once it is full, so an idle surplus costs little; the
  * hardware count is nevertheless scaled by @c PRODUCERTHREADS_HW_DIVISOR and clamped to
  * <tt>[DEFAULT01PRODUCERTHREADS, MAXAUTOPRODUCERTHREADS]</tt> to bound contention on the single
- * fresh-package queue. If @c std::thread::hardware_concurrency() cannot determine the core count
- * (returns 0), the fixed @c DEFAULT01PRODUCERTHREADS is used.
+ * fresh-package queue. The hardware count is the number of hardware threads assigned to the
+ * process, @c Gem::Common::getNHardwareThreads().
  *
  * @return A hardware-derived producer-thread count, clamped to <tt>[DEFAULT01PRODUCERTHREADS, MAXAUTOPRODUCERTHREADS]</tt>
  */
 inline std::uint16_t autoProducerThreadCount() {
-    const unsigned int hw = std::thread::hardware_concurrency();
-    if(hw == 0) {
-        return DEFAULT01PRODUCERTHREADS;
-    }
+    const unsigned int hw = Gem::Common::getNHardwareThreads();
     const unsigned int scaled =
         std::max<unsigned int>(DEFAULT01PRODUCERTHREADS, hw / PRODUCERTHREADS_HW_DIVISOR);
     return static_cast<std::uint16_t>(std::min<unsigned int>(scaled, MAXAUTOPRODUCERTHREADS));
