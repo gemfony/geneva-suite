@@ -252,3 +252,51 @@ TEST_CASE("The head of a frame is read by itself", "[courtier][serialization]") 
         CHECK_THROWS(frameHeadFromString(std::string_view{message.substr(0, 6)}, got, mode));
     }
 }
+
+/******************************************************************************/
+/**
+ * The HELLO is what a client of one release reads from a server of another, so its binary layout
+ * is fixed: the length of the head (four bytes, least significant first), then in the head the kind
+ * (two bytes) and the fields as they are listed here, a text as its length (eight bytes) and its
+ * bytes, a number as eight bytes. A later release only appends fields to the head; the bytes below
+ * stay the beginning of every HELLO (GFrameHead).
+ */
+TEST_CASE("The binary layout of a HELLO is fixed", "[courtier][serialization]") {
+    constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
+    test_container_type sent{GFrameKind::NONE};
+    sent.setHello("B1", "P2", std::chrono::milliseconds(0x0102));
+    const std::string message = container_to_string(sent, BIN);
+
+    const std::string head_fields{
+        "\x0a\x00" // kind: HELLO (10)
+        "\x02\x00\x00\x00\x00\x00\x00\x00"
+        "B1" // build
+        "\x02\x00\x00\x00\x00\x00\x00\x00"
+        "P2"                                // program
+        "\x02\x01\x00\x00\x00\x00\x00\x00", // keepAlive (ms)
+        30
+    };
+    REQUIRE(message.size() >= 4 + head_fields.size());
+    CHECK(message.substr(4, head_fields.size()) == head_fields);
+
+    // A head to which a later release has appended a field is read by this one
+    const std::string appended{
+        "\x05\x00\x00\x00\x00\x00\x00\x00"
+        "later",
+        13
+    };
+    const std::size_t head_length =
+        static_cast<unsigned char>(message[0]) +
+        (static_cast<std::size_t>(static_cast<unsigned char>(message[1])) << 8);
+    std::string later = message;
+    later.insert(4 + head_length, appended);
+    const std::size_t later_length = head_length + appended.size();
+    later[0] = static_cast<char>(later_length & 0xFFU);
+    later[1] = static_cast<char>((later_length >> 8) & 0xFFU);
+    test_container_type got{GFrameKind::NONE};
+    REQUIRE_NOTHROW(container_from_string(later, got, BIN));
+    CHECK(got.kind() == GFrameKind::HELLO);
+    CHECK(got.build() == "B1");
+    CHECK(got.program() == "P2");
+    CHECK(got.keepAlive() == std::chrono::milliseconds(0x0102));
+}

@@ -69,6 +69,11 @@ namespace Gem::Courtier {
  *    correlation id and lineage id) and, on a RESULT, says how its processing ended;
  *  - HELLO: the server's build (the commit of its Geneva sources), the identity of its program and
  *    the keep-alive interval.
+ *
+ * A client reads the HELLO of a server of another release, so that it can say that the two do not
+ * match. The kind and the fields of a HELLO therefore keep their order and their binary layout
+ * from release to release; a field is only ever appended, after the last one, and a reader ignores
+ * what follows the fields it knows (the test "The binary layout of a HELLO is fixed").
  */
 struct GFrameHead {
     ///////////////////////////////////////////////////////////////////////
