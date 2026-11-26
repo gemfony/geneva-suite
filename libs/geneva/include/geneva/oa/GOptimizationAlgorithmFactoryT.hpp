@@ -44,7 +44,6 @@
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GOptimizationAlgorithmT.hpp" // algorithmMnemonicOf()
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -121,10 +120,10 @@ public:
     /**
      * @brief The command-line mnemonic describing this algorithm.
      *
-     * @return The algorithm's mnemonic (see algorithmMnemonicOf()), the key it is registered under.
+     * @return The algorithm's mnemonic (oa_type::oa_mnemonic), the key it is registered under.
      */
     std::string getMnemonic() const override {
-        return algorithmMnemonicOf<oa_type>();
+        return std::string(oa_type::oa_mnemonic);
     }
     /**
      * @brief The clear-text name of this algorithm.

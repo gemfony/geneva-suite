@@ -75,8 +75,9 @@ inline constexpr const char *OA_CONTRIBUTION_KIND = "geneva.oa";
  * shadow one.
  *
  * This function does NOT emit the OA's serialization registrations -- the OA's own translation unit carries
- * the @c GEM_REGISTER_ARCHIVABLE for the algorithm and its personality traits (the same registrations a
- * compiled-in OA needs), so a checkpoint written with the module loaded resumes with it loaded.
+ * the @c GEM_REGISTER_ARCHIVABLE for the algorithm and, if it has one, its own personality-traits class (the
+ * same registrations a compiled-in OA needs), so a checkpoint written with the module loaded resumes with
+ * it loaded.
  *
  * @tparam factory_type The concrete OA factory (a @c GOAFactoryT<GOptimizationAlgorithmBase> subclass, e.g.
  *         @c GOptimizationAlgorithmFactoryT<MyOA>); default-constructed here

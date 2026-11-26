@@ -50,10 +50,6 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 using Gem::Common::checkThat;
 
 /******************************************************************************/
-/** A short identifier suitable for storage in a std::map */
-const std::string GSwarmAlgorithm_PersonalityTraits::nickname = "swarm"; // NOLINT
-
-/******************************************************************************/
 /**
  * @brief The copy constructor
  *

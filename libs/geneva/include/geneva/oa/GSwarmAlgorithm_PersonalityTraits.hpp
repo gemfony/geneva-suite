@@ -80,9 +80,6 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GSwarmAlgorithm_PersonalityTraits";
 
-    /** @brief An easy identifier for the class */
-    static const std::string nickname; // Initialized in the .cpp definition file
-
     /** @brief The default constructor */
     GSwarmAlgorithm_PersonalityTraits() = default;
     /**

@@ -41,6 +41,7 @@
 #include <iterator>
 #include <string>
 #include <tuple>
+#include <type_traits>
 #include <vector>
 
 // All classes that will be tested in this file
@@ -147,12 +148,30 @@ using registered_algorithm_types = std::tuple<
     oa::GStandardPSO2011,
     oa::GSwarmAlgorithm>;
 
-/** @brief The personality traits each algorithm of a list names, as a list. */
+/** @brief A list of types with every type once, in the order of first appearance. */
+template <typename result_type, typename... types>
+struct unique_types {
+    using type = result_type;
+};
+template <typename... done_types, typename T, typename... rest_types>
+struct unique_types<std::tuple<done_types...>, T, rest_types...> {
+    using type = typename unique_types<
+        std::conditional_t<
+            (std::is_same_v<T, done_types> || ...),
+            std::tuple<done_types...>,
+            std::tuple<done_types..., T>>,
+        rest_types...>::type;
+};
+
+/** @brief The personality traits the algorithms of a list name, each once (several algorithms share
+ *  GPositionPersonalityTraits). */
 template <typename list_type>
 struct personality_traits_of;
 template <typename... algorithm_types>
 struct personality_traits_of<std::tuple<algorithm_types...>> {
-    using type = std::tuple<typename algorithm_types::personality_traits_type...>;
+    using type =
+        typename unique_types<std::tuple<>, typename algorithm_types::personality_traits_type...>::
+            type;
 };
 
 /** @brief All algorithm types under the standard tests. GMetaEvolutionaryAlgorithm is added by hand: it
@@ -200,7 +219,7 @@ using monitor_types = std::tuple<
  *  @return One mnemonic per algorithm of registered_algorithm_types */
 template <typename... algorithm_types>
 std::vector<std::string> mnemonicsOf(std::tuple<algorithm_types...> const * /* list */) {
-    std::vector<std::string> mnemonics{oa::algorithmMnemonicOf<algorithm_types>()...};
+    std::vector<std::string> mnemonics{std::string(algorithm_types::oa_mnemonic)...};
     std::ranges::sort(mnemonics);
     return mnemonics;
 }

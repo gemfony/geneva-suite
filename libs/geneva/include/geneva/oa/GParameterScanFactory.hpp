@@ -45,7 +45,7 @@
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GParameterScan.hpp"
-#include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 

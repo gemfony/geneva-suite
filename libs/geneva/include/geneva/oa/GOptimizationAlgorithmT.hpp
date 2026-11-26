@@ -44,29 +44,6 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
 /**
- * The command-line mnemonic of an algorithm type: its static oa_mnemonic. Read by the algorithm itself
- * (getAlgorithmMnemonic()) and by its factory (GOptimizationAlgorithmFactoryT::getMnemonic()), which
- * needs it before any algorithm exists.
- *
- * Transitional: an algorithm that does not state oa_mnemonic yet still names its mnemonic through the
- * static nickname of its personality traits. That second path leaves once every algorithm states
- * oa_mnemonic.
- *
- * @tparam oa_type The concrete algorithm
- * @return The algorithm's mnemonic
- */
-template <typename oa_type>
-std::string algorithmMnemonicOf() {
-    if constexpr(requires { oa_type::oa_mnemonic; }) {
-        return std::string(oa_type::oa_mnemonic);
-    }
-    else {
-        return oa_type::personality_traits_type::nickname;
-    }
-}
-
-/******************************************************************************/
-/**
  * A CRTP scaffold that generates the boilerplate every concrete optimization algorithm otherwise
  * repeats by hand. The generic quartet -- clone_(), name_(), load_(), compare_() plus the folded
  * serialize() -- comes from Gem::Common::GReflectiveInterfaceT (single-sourced from the class's
@@ -139,10 +116,10 @@ private:
     /**
      * @brief Returns the command-line mnemonic of this optimization algorithm
      *
-     * @return The algorithm's mnemonic, see algorithmMnemonicOf()
+     * @return The algorithm's mnemonic, taken from derived_type::oa_mnemonic.
      */
     [[nodiscard]] std::string getAlgorithmMnemonic_() const override {
-        return algorithmMnemonicOf<derived_type>();
+        return std::string(derived_type::oa_mnemonic);
     }
 
     /**

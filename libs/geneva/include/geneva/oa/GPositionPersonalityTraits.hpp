@@ -50,9 +50,9 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * load_()/compare_() machinery and the change for the standard tests -- stated ONCE.
  *
  * The class is concrete: an algorithm that needs nothing beyond the position installs it directly
- * (Nelder-Mead does). Several algorithms may therefore install the same personality type; nothing
- * relies on the type to tell them apart. A checkpoint names the algorithm that wrote it in its own
- * first field, and an individual's scratch is cleared whenever it passes to another algorithm
+ * (Nelder-Mead, CGD, ACO, GSA, the parameter scan and SPSO2011 do). Several algorithms therefore
+ * install the same personality type; nothing relies on the type to tell them apart. A checkpoint names
+ * the algorithm that wrote it in its own first field, and an individual's scratch is cleared whenever it passes to another algorithm
  * (Invariant 6), so a personality is only ever read by the algorithm that installed it.
  */
 class GPositionPersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)

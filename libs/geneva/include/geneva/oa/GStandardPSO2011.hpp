@@ -47,7 +47,7 @@
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
-#include "geneva/oa/GStandardPSO2011_PersonalityTraits.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -171,10 +171,11 @@ public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GStandardPSO2011";
     static constexpr std::string_view oa_algorithm_name = "Standard PSO 2011";
+    static constexpr std::string_view oa_mnemonic = "spso2011";
     static constexpr std::string_view oa_personality_type = "PERSONALITY_SPSO2011";
-    /** @brief This algorithm's own personality traits -- what getPersonalityTraits_() hands out,
-     *  and the default second template argument of the algorithm factory scaffold. */
-    using personality_traits_type = GStandardPSO2011_PersonalityTraits;
+    /** @brief The personality traits getPersonalityTraits_() hands out: an individual only needs to
+     *  know its position in the population. */
+    using personality_traits_type = GPositionPersonalityTraits;
 
 private:
     ///////////////////////////////////////////////////////////////////////

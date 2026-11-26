@@ -49,7 +49,7 @@
 #include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
-#include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "hap/GRandomT.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
@@ -684,10 +684,11 @@ public:
     // getAlgorithmName_() and getAlgorithmPersonalityType_().
     static constexpr std::string_view class_name = "GParameterScan";
     static constexpr std::string_view oa_algorithm_name = "Parameter Scan";
+    static constexpr std::string_view oa_mnemonic = "ps";
     static constexpr std::string_view oa_personality_type = "PERSONALITY_PS";
-    /** @brief This algorithm's own personality traits -- what getPersonalityTraits_() hands out,
-     *  and the default second template argument of the algorithm factory scaffold. */
-    using personality_traits_type = GParameterScan_PersonalityTraits;
+    /** @brief The personality traits getPersonalityTraits_() hands out: an individual only needs to
+     *  know its position in the population. */
+    using personality_traits_type = GPositionPersonalityTraits;
 
 private:
     /** @brief Single declaration of this class'es local data members.

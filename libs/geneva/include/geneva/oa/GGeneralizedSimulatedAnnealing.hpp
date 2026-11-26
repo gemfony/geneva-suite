@@ -46,9 +46,9 @@
 #include "common/GExceptions.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GGeneralizedSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -229,10 +229,11 @@ public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold.
     static constexpr std::string_view class_name = "GGeneralizedSimulatedAnnealing";
     static constexpr std::string_view oa_algorithm_name = "Generalized Simulated Annealing";
+    static constexpr std::string_view oa_mnemonic = "gsa";
     static constexpr std::string_view oa_personality_type = "PERSONALITY_GSA";
-    /** @brief This algorithm's own personality traits -- what getPersonalityTraits_() hands out,
-     *  and the default second template argument of the algorithm factory scaffold. */
-    using personality_traits_type = GGeneralizedSimulatedAnnealing_PersonalityTraits;
+    /** @brief The personality traits getPersonalityTraits_() hands out: an individual only needs to
+     *  know its position in the population. */
+    using personality_traits_type = GPositionPersonalityTraits;
 
 private:
     ///////////////////////////////////////////////////////////////////////

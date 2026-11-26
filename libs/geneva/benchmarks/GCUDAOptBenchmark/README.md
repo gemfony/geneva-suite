@@ -271,7 +271,7 @@ each try to release the process consumer on destruction.
 
 ## Adding a new algorithm
 
-1. Verify that Geneva ships the algorithm and its personality traits, so that
+1. Verify that Geneva ships the algorithm, so that
    `GOptimizationAlgorithmFactoryT<GTheAlgorithm>` builds it.
 2. Add a `case` to `GAlgorithmBenchmarkRunner::makeAlgorithm()` in
    `GAlgorithmBenchmarkRunner.cpp` with a new mnemonic string.

@@ -40,7 +40,7 @@
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GParameterPropertyParser.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
-#include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <cmath>
 #include <cstddef>
@@ -933,7 +933,7 @@ void GParameterScan::finalize() {
 /**
  * @brief Retrieve a GPersonalityTraits object belonging to this algorithm.
  *
- * @return A shared pointer to a new GParameterScan_PersonalityTraits object
+ * @return A shared pointer to a new GPositionPersonalityTraits object
  */
 std::shared_ptr<GPersonalityTraits> GParameterScan::getPersonalityTraits_() const {
     return std::make_shared<personality_traits_type>();

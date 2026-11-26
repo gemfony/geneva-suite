@@ -35,7 +35,7 @@
 #include "geneva/oa/GOAFactoryT.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GParameterScan.hpp"
-#include "geneva/oa/GParameterScan_PersonalityTraits.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include <cstddef>
 #include <memory>
 #include <string>

@@ -560,12 +560,28 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (`GEvolutionaryAlgorithmFactory`, `GSwarmAlgorithmFactory`, … and `geneva/oa/G*Factory.hpp`) are
   **gone**. For every algorithm but one the factory added nothing to the scaffold, so the factory
   *is* the scaffold: write `GOptimizationAlgorithmFactoryT<GTheAlgorithm>` where the old type name
-  stood (the algorithm's own personality traits are the default second argument), and include the
+  stood, and include the
   algorithm's header and `geneva/oa/GOptimizationAlgorithmFactoryT.hpp`. `GParameterScanFactory` is
   the exception and remains a class of its own — it adds the parameter-spec command-line option; a
   user-written factory that derived from one of the removed types derives from the instantiation
   instead. `GOAFactoryT` gains `provide()` and a `final` `getName()` (the provider-interface
   spelling of `getAlgorithmName()`).
+- **An algorithm states its identity once, on itself.** Next to `class_name` and
+  `oa_algorithm_name` an algorithm declares its command-line mnemonic,
+  `static constexpr std::string_view oa_mnemonic = "foo";`; the factory scaffold, the module
+  registration and `GOptimizationAlgorithmBase::getAlgorithmMnemonic()` (new) read it there. The
+  personality traits carry per-individual scratch only: their static `nickname` and the virtual
+  `GPersonalityTraits::getMnemonic()` are gone, and `GOptimizationAlgorithmFactoryT` has no second
+  template argument. `GPositionPersonalityTraits` is concrete, and the algorithms whose individuals
+  need nothing beyond their position install it directly, so the traits classes of Nelder-Mead,
+  CGD, ACO, GSA, the parameter scan and SPSO2011 (`G*_PersonalityTraits`), the scaffold
+  `GAlgorithmPersonalityTraitsT` and SPSO2011's `setParticle()` / `getParticle()` are gone; a
+  checkpoint names its algorithm in its own first field, so algorithms sharing a traits type are
+  told apart there. For a module author (example 20): add `oa_mnemonic` to the algorithm and, if
+  its individuals need no state of their own, name `GPositionPersonalityTraits` as its
+  `personality_traits_type`, drop the traits class and its `GEM_REGISTER_ARCHIVABLE`. Personality
+  traits are part of a checkpoint, so checkpoints of those six algorithms written before this
+  change do not load. `GMetaEvolutionaryAlgorithm` now reports its own name.
 
 ## 7. Renames and small API removals
 

@@ -42,8 +42,8 @@
 #include "common/GExceptions.hpp"
 #include "geneva/genome/GAuxiliaryStore.hpp"
 #include "geneva/oa/GAdaption.hpp"
-#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm_PersonalityTraits.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 #include "hap/GRandomLeasePool.hpp"
 
@@ -226,11 +226,9 @@ TEST_CASE("GTestIndividual1: the personality can be set read and reset", "[genev
     CHECK(ind.getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>());
     CHECK(ind.getPersonalityTraits());
 
-    CHECK_NOTHROW(
-        ind.setPersonality(std::make_shared<oa::GConjugateGradientDescent_PersonalityTraits>())
-    );
-    CHECK(ind.getPersonality() == "GConjugateGradientDescent_PersonalityTraits");
-    CHECK(ind.getPersonalityTraits<oa::GConjugateGradientDescent_PersonalityTraits>());
+    CHECK_NOTHROW(ind.setPersonality(std::make_shared<oa::GPositionPersonalityTraits>()));
+    CHECK(ind.getPersonality() == "GPositionPersonalityTraits");
+    CHECK(ind.getPersonalityTraits<oa::GPositionPersonalityTraits>());
     CHECK(ind.getPersonalityTraits());
 
     CHECK_NOTHROW(ind.setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>()));

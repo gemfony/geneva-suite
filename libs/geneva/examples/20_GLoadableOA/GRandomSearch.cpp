@@ -43,8 +43,7 @@
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/GenevaHelperFunctions.hpp" // isBetter
 #include "geneva/genome/GGenome.hpp"
-
-#include "GRandomSearch_PersonalityTraits.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -169,7 +168,7 @@ void GRandomSearch::adjustPopulation_() {
 /**
  * @brief Retrieves a fresh personality-traits object for this algorithm.
  *
- * @return A shared pointer to a new GRandomSearch_PersonalityTraits object
+ * @return A shared pointer to a new GPositionPersonalityTraits object
  */
 std::shared_ptr<GPersonalityTraits> GRandomSearch::getPersonalityTraits_() const {
     return std::make_shared<personality_traits_type>();

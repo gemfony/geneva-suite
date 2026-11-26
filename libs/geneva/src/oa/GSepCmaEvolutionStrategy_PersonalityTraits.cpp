@@ -39,10 +39,6 @@ GEM_REGISTER_ARCHIVABLE(
 namespace Gem::Geneva::OptimizationAlgorithms {
 
 /******************************************************************************/
-/** A short identifier suitable for storage in a std::map -- the command-line mnemonic. */
-const std::string GSepCmaEvolutionStrategy_PersonalityTraits::nickname = "sepcma"; // NOLINT
-
-/******************************************************************************/
 /**
  * @brief Sets the offspring's selection rank in the current generation (0 == best)
  *
