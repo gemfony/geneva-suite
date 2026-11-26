@@ -262,3 +262,15 @@ repository's HEAD, `-dirty` appended when one of its tracked files has changed);
 program is not checked. A program may also call `Gem::Common::setProgramIdentity()` itself, before it
 makes its consumer. Only executables are stamped; a loadable module is checked by the module loader.
 The quick start's template stamps its two programs.
+
+The commit does not see the options a program is built with. Where an option changes what the
+program sends over the network -- float or double parameters, say -- two builds of one commit greet
+each other as equal and then cannot read each other's items. Such a program puts the option into
+its identity, with a text of its own (`IDENTITY` replaces the commit, so the text names everything
+that is to be checked):
+
+```cmake
+GEM_STAMP_PROGRAM(MyOptimizer IDENTITY "release-7-float")
+```
+
+Example 14 (`GCUDAWorker`) stamps its float or double build in this way.

@@ -91,6 +91,15 @@ IF ( GIMAGE_USE_FLOAT )
 	TARGET_COMPILE_DEFINITIONS ( ${EXECUTABLENAME} PRIVATE GIMAGE_USE_FLOAT )
 ENDIF ()
 
+# The float or double build changes what the program sends, which the commit does not see: it is
+# part of the program's identity, so that a client of the other build ends instead of failing to
+# read every item (GEM_STAMP_PROGRAM, CMakeModules/GemProgramStamp.cmake).
+IF ( GIMAGE_USE_FLOAT )
+	GEM_STAMP_PROGRAM ( ${EXECUTABLENAME} IDENTITY "GCUDAWorker-float" )
+ELSE ()
+	GEM_STAMP_PROGRAM ( ${EXECUTABLENAME} IDENTITY "GCUDAWorker-double" )
+ENDIF ()
+
 # The Geneva libraries (the GPU consumer + its CUDA backend are folded into gemfony-courtier
 # when GEM_BUILD_WITH_GPU_CONSUMER is ON -- which is required for this example to be built at all,
 # see geneva/examples/CMakeLists.txt), Boost and libpng.

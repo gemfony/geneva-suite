@@ -833,7 +833,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   another one ends in the same way; where one side has none, the program is not checked and the
   client says so once in its log. `GEM_STAMP_PROGRAM(<target> [IDENTITY <text>])` of Geneva's
   CMake support stamps an executable with the commit of the project's own sources or a text of
-  one's own; the quick start's template stamps its programs. A client asks for one item with `PULL`, the
+  one's own; the quick start's template stamps its programs. An option of the program that
+  changes what it sends (float or double parameters, say) is not seen in the commit: such a
+  program names it in its `IDENTITY` (example 14 stamps its float or double build so). A client asks for one item with `PULL`, the
   server answers with one `WORK`, and a client returns an item with `RESULT`, which asks for
   nothing. The frame kinds `NO_WORK`, `RETURN` and `UNREADABLE` are gone, and so are the client's
   files of results it could not deliver (`--beast_undeliveredDir`, `--mpi_undeliveredDir`,

@@ -34,7 +34,11 @@
 # client whose program has another identity ends (Gem::Common::setProgramIdentity(),
 # common/GGemCommit.hpp). So a server and its clients are known to be built from the same sources.
 #
-#  - With IDENTITY, <text> is the identity.
+#  - With IDENTITY, <text> is the identity. The commit does not see the options a program is
+#    built with: an option that changes what the program sends over the network (float or double
+#    parameters, say) goes into <text>, so that two builds of one commit with different options do
+#    not take each other for the same build. <text> replaces the commit and names everything that
+#    is to be checked (example 14 stamps its float or double build so).
 #  - Without it, the identity is the commit of the project's sources (CMAKE_SOURCE_DIR), taken at
 #    every build by the rule of GemCommit.cmake: if the sources are inside a git work tree (at
 #    its top or in a subdirectory), the id of its HEAD, with "-dirty" appended when a tracked file of
