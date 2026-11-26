@@ -32,6 +32,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <thread>
@@ -559,7 +560,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// writeConfigFile() without options writes nothing and warns
+// writeConfigFile(): writes the registered options; without options it writes nothing and warns
 
 namespace {
 
@@ -584,6 +585,22 @@ std::filesystem::path fresh_output(std::string const &tag) {
 
 } // namespace
 
+TEST_CASE("GFactoryT::writeConfigFile writes the registered options", "[common][factory]") {
+    auto const out = fresh_output("write_options");
+    ValueReadingFactory writer(out);
+    writer.writeConfigFile("a header");
+    REQUIRE(std::filesystem::exists(out));
+    std::ifstream in(out);
+    std::string const text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    CHECK(text.find("observed") != std::string::npos);
+    CHECK(text.find("a header") != std::string::npos);
+
+    // The file written is one the factory reads: the default of the option is applied
+    ValueReadingFactory reader(out);
+    (void)reader.get();
+    CHECK(reader.last_value == -1);
+}
+
 TEST_CASE(
     "GFactoryT::writeConfigFile without options writes nothing and warns through the logger",
     "[common][factory]"
@@ -605,4 +622,36 @@ TEST_CASE(
         }
     }
     CHECK(warned);
+}
+
+// ---------------------------------------------------------------------------
+// get_as(): the conversion to the produced type itself, and an empty product
+
+namespace {
+
+/** @brief A factory whose get_() yields nothing, which only a derived get_() can do */
+class EmptyGetFactory : public DerivedFactory {
+public:
+    explicit EmptyGetFactory(std::filesystem::path const &p)
+      : DerivedFactory(p) {
+    }
+
+protected:
+    std::shared_ptr<PolyProduct> get_() override {
+        return {};
+    }
+};
+
+} // namespace
+
+TEST_CASE("GFactoryT::get_as: the produced type itself and an empty product", "[common][factory]") {
+    auto p = make_config("get_as_more");
+
+    DerivedFactory f(p);
+    auto const same = f.get_as<PolyProduct>();
+    REQUIRE(same);
+    CHECK(std::dynamic_pointer_cast<DerivedProduct>(same) != nullptr);
+
+    EmptyGetFactory e(p);
+    CHECK(e.get_as<DerivedProduct>() == nullptr);
 }
