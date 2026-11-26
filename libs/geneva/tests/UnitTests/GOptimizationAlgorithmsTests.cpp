@@ -2723,6 +2723,23 @@ TEST_CASE(
     // An empty field is refused, not skipped: read without it, "d(0,,-1.,1.)" would be a valid spec
     CHECK_THROWS_AS(gen::GParameterPropertyParser("d(0,,-1.,1.)"), gem_exception);
 
+    // A number is read as a whole and refused with the parser's message otherwise. Defects: std::stod
+    // read "1.x" as 1, std::stoi read "2.5" as 2, and text or a number out of range escaped as
+    // std::invalid_argument / std::out_of_range instead of a gem_exception.
+    for(const char *spec :
+        {"d(0, -1., 1.x)",
+         "f(0, abc, 1.)",
+         "i(0, 0, 2.5)",
+         "i(0, 0, 99999999999)",
+         "s(99999999999999999999999)",
+         "b(0, false, yes)"}) {
+        CAPTURE(spec);
+        CHECK_THROWS_WITH(
+            gen::GParameterPropertyParser(spec),
+            Catch::Matchers::ContainsSubstring("Could not parse parameter-property fragment")
+        );
+    }
+
     // The forms without a label are read as before
     gen::GParameterPropertyParser const ppp("d(3, -1., 1., 10), b(2), b(4, 7), i(1, 0, 5)");
     auto [d_it, d_end] = ppp.getIterators<double>();

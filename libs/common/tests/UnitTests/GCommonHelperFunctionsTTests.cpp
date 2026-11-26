@@ -29,6 +29,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <chrono>
 #include <cmath>
@@ -111,6 +112,37 @@ private:
 };
 
 constexpr const char *COMMALOCALE = "de_DE.UTF-8";
+
+// A minimal class with the common interface (clone, load, compare), for the helpers that take one
+struct TCommon : Gem::Common::gemfony_common_interface_indicator {
+    int val = 0;
+
+    TCommon() = default;
+    explicit TCommon(int v)
+      : val(v) {
+    }
+
+    template <typename target_type>
+    [[nodiscard]] std::unique_ptr<target_type> clone() const {
+        return std::make_unique<target_type>(*this);
+    }
+
+    void load(const TCommon &cp) {
+        val = cp.val;
+    }
+
+    void load(const std::shared_ptr<TCommon> &cp) {
+        val = cp->val;
+    }
+
+    void
+    compare(const TCommon &cp, Gem::Common::expectation e, [[maybe_unused]] double limit) const {
+        const bool equal = val == cp.val;
+        if(e == Gem::Common::expectation::INEQUALITY ? equal : not equal) {
+            throw g_expectation_violation("TCommon::compare: the expectation does not hold");
+        }
+    }
+};
 
 } // namespace
 
@@ -215,6 +247,139 @@ TEST_CASE(
     REQUIRE_THROWS_AS((Gem::Common::g_ptr_conversion<TBase, TDerived>(base_sp)), gem_exception);
 }
 #endif
+
+// --- g_convert_and_compare -----------------------------------------------
+
+TEST_CASE(
+    "g_convert_and_compare: converts and refuses an alias of the compared object",
+    "[common][helper][g_convert_and_compare]"
+) {
+    auto derived = std::make_shared<TDerived>();
+    auto other = std::make_shared<TDerived>();
+    const std::shared_ptr<TBase> base = derived;
+
+    // shared_ptr overload
+    CHECK(Gem::Common::g_convert_and_compare<TBase, TDerived>(base, other).get() == derived.get());
+    CHECK_THROWS_AS(
+        (Gem::Common::g_convert_and_compare<TBase, TDerived>(base, derived)),
+        gem_exception
+    );
+
+    // raw-pointer overload
+    const TBase *base_raw = derived.get();
+    CHECK(
+        Gem::Common::g_convert_and_compare<TBase, TDerived>(base_raw, other.get()) == derived.get()
+    );
+    CHECK_THROWS_AS(
+        (Gem::Common::g_convert_and_compare<TBase, TDerived>(base_raw, derived.get())),
+        gem_exception
+    );
+
+    // reference overload
+    const TBase &base_ref = *derived;
+    CHECK(
+        Gem::Common::g_convert_and_compare<TBase, TDerived>(base_ref, other.get()) == derived.get()
+    );
+    CHECK_THROWS_AS(
+        (Gem::Common::g_convert_and_compare<TBase, TDerived>(base_ref, derived.get())),
+        gem_exception
+    );
+}
+
+// --- generate_uuid_v4 ----------------------------------------------------
+
+TEST_CASE(
+    "generate_uuid_v4: the canonical form of a version-4 UUID",
+    "[common][helper][generate_uuid_v4]"
+) {
+    const std::string first = Gem::Common::generate_uuid_v4();
+    REQUIRE(first.size() == 36);
+    for(const std::size_t dash : {8UZ, 13UZ, 18UZ, 23UZ}) {
+        CHECK(first[dash] == '-');
+    }
+    for(std::size_t i = 0; i < first.size(); ++i) {
+        if(i != 8 && i != 13 && i != 18 && i != 23) {
+            CHECK(std::string_view("0123456789abcdef").find(first[i]) != std::string_view::npos);
+        }
+    }
+    CHECK(first[14] == '4');                                                   // the version
+    CHECK(std::string_view("89ab").find(first[19]) != std::string_view::npos); // the variant
+    CHECK(Gem::Common::generate_uuid_v4() != first);
+}
+
+// --- deep copies of objects with the common interface --------------------
+
+TEST_CASE(
+    "copyCloneableSmartPointer (shared_ptr): loads in place or clones or resets",
+    "[common][helper][copyCloneable]"
+) {
+    const auto from = std::make_shared<TCommon>(5);
+    auto to = std::make_shared<TCommon>(0);
+    const TCommon *to_raw = to.get();
+    Gem::Common::copyCloneableSmartPointer(from, to);
+    CHECK(to->val == 5);
+    CHECK(to.get() == to_raw);
+
+    std::shared_ptr<TCommon> empty_to;
+    Gem::Common::copyCloneableSmartPointer(from, empty_to);
+    REQUIRE(empty_to);
+    CHECK(empty_to->val == 5);
+    CHECK(empty_to.get() != from.get());
+
+    Gem::Common::copyCloneableSmartPointer(std::shared_ptr<TCommon>{}, to);
+    CHECK(not to);
+}
+
+TEST_CASE(
+    "copyCloneableObjectsContainer: loads the common part and grows or shrinks",
+    "[common][helper][copyCloneable]"
+) {
+    const std::vector<TCommon> from{TCommon(1), TCommon(2), TCommon(3)};
+
+    std::vector<TCommon> same{TCommon(0), TCommon(0), TCommon(0)};
+    Gem::Common::copyCloneableObjectsContainer(from, same);
+    REQUIRE(same.size() == 3);
+    CHECK(same[2].val == 3);
+
+    std::vector<TCommon> shorter{TCommon(0)};
+    Gem::Common::copyCloneableObjectsContainer(from, shorter);
+    REQUIRE(shorter.size() == 3);
+    CHECK(shorter[0].val == 1);
+    CHECK(shorter[2].val == 3);
+
+    std::vector<TCommon> longer(5, TCommon(9));
+    Gem::Common::copyCloneableObjectsContainer(from, longer);
+    REQUIRE(longer.size() == 3);
+    CHECK(longer[1].val == 2);
+}
+
+TEST_CASE(
+    "nonOwningShared: shares the object without owning it",
+    "[common][helper][nonOwningShared]"
+) {
+    auto owner = std::make_unique<int>(7);
+    {
+        const std::shared_ptr<int> view = Gem::Common::nonOwningShared(owner);
+        CHECK(view.get() == owner.get());
+        CHECK(*view == 7);
+    } // the view ends; the object must still be there
+    REQUIRE(owner);
+    CHECK(*owner == 7);
+    CHECK(Gem::Common::nonOwningShared(std::unique_ptr<int>{}) == nullptr);
+}
+
+TEST_CASE(
+    "operator== / operator!= for objects with the common interface use compare()",
+    "[common][helper][operators]"
+) {
+    const TCommon a(1);
+    const TCommon b(1);
+    const TCommon c(2);
+    CHECK(a == b);
+    CHECK_FALSE(a == c);
+    CHECK(a != c);
+    CHECK_FALSE(a != b);
+}
 
 // --- vecToString ---------------------------------------------------------
 
@@ -331,6 +496,37 @@ TEST_CASE("to_string: floating-point types", "[common][helper][to_string]") {
     REQUIRE(Gem::Common::to_string(1.5f) == "1.5");
 }
 
+// to_string() of a floating-point value wrote max_digits10 digits: 0.1 became "0.10000000000000001"
+// in help texts and configuration values. It writes the shortest text that reads back as the same
+// value, and parseWhole() reads every such text back, the special values included (the stream
+// wrote "inf" and "nan" but could not read them).
+TEST_CASE(
+    "to_string: the shortest text that reads back as the same value",
+    "[common][helper][to_string]"
+) {
+    CHECK(Gem::Common::to_string(0.1) == "0.1");
+    CHECK(Gem::Common::to_string(0.1F) == "0.1");
+    CHECK(Gem::Common::to_string(1.0e20) == "1e+20");
+    for(const double v :
+        {0.1,
+         -1.0 / 3.0,
+         1.0e-300,
+         std::numeric_limits<double>::max(),
+         std::numeric_limits<double>::denorm_min(),
+         std::numeric_limits<double>::infinity(),
+         -std::numeric_limits<double>::infinity()}) {
+        CAPTURE(v);
+        CHECK(Gem::Common::from_string<double>(Gem::Common::to_string(v)) == v);
+    }
+    CHECK(
+        std::isnan(
+            Gem::Common::from_string<double>(
+                Gem::Common::to_string(std::numeric_limits<double>::quiet_NaN())
+            )
+        )
+    );
+}
+
 // A program may make a decimal-comma locale its global C++ locale. The text forms of numbers that
 // go to files (CSV rows, configuration values) must not follow it (a defect: the string streams
 // took the global locale and wrote "1,5" or "1.234.567,5").
@@ -353,6 +549,81 @@ TEST_CASE("to_string: scoped enum yields its underlying integer", "[common][help
     REQUIRE(Gem::Common::to_string(ScopedColor::Red) == "0");
     REQUIRE(Gem::Common::to_string(ScopedColor::Green) == "1");
     REQUIRE(Gem::Common::to_string(ScopedColor::Blue) == "2");
+}
+
+// --- parseWhole / from_string --------------------------------------------
+
+// parseWhole() is the one strict reader of the collection: a text is one value of the type, or
+// nothing.
+TEST_CASE(
+    "parseWhole: a text is one value of the type or nothing",
+    "[common][helper][parseWhole]"
+) {
+    using Gem::Common::parseWhole;
+    CHECK(parseWhole<int>(" 12 ") == 12);
+    CHECK(parseWhole<int>("+12") == 12);
+    CHECK(parseWhole<int>("-12") == -12);
+    CHECK_FALSE(parseWhole<int>("12abc"));
+    CHECK_FALSE(parseWhole<int>("1 2"));
+    CHECK_FALSE(parseWhole<int>("+-12"));
+    CHECK_FALSE(parseWhole<int>(""));
+    CHECK_FALSE(parseWhole<int>("1.5"));
+    CHECK_FALSE(parseWhole<int>("99999999999"));
+    CHECK_FALSE(parseWhole<unsigned>("-1"));
+    CHECK_FALSE(parseWhole<std::size_t>("-0"));
+    CHECK(parseWhole<std::uint8_t>("255") == std::uint8_t{255});
+    CHECK_FALSE(parseWhole<std::uint8_t>("300"));
+    CHECK(parseWhole<std::int8_t>("-128") == std::int8_t{-128});
+    CHECK(parseWhole<double>("1.5e3") == 1500.);
+    CHECK(parseWhole<double>("-0.25") == -0.25);
+    CHECK_FALSE(parseWhole<double>("1e400"));
+    CHECK_FALSE(parseWhole<double>("1,5"));
+    CHECK(std::isnan(parseWhole<double>("nan").value()));
+    CHECK(std::isinf(parseWhole<double>("-inf").value()));
+    CHECK(parseWhole<float>("0.5") == 0.5F);
+    CHECK(parseWhole<bool>("true") == true);
+    CHECK(parseWhole<bool>("0") == false);
+    CHECK_FALSE(parseWhole<bool>("yes"));
+    CHECK(parseWhole<char>("x") == 'x');
+    CHECK_FALSE(parseWhole<char>("xy"));
+    CHECK(parseWhole<std::string>(" a b ") == " a b ");
+}
+
+// from_string() replaced boost::lexical_cast, which threw on text that is no value of the type; it
+// returned whatever the stream had read instead (a defect: "abc" read as 0, "12abc" as 12, "1.5" as
+// the integer 1, "-1" as an unsigned 4294967295, "a b" as the string "a", "200" as the
+// std::uint8_t 50, the character '2').
+TEST_CASE(
+    "from_string: a text that is not one value of the type throws",
+    "[common][helper][from_string]"
+) {
+    using Catch::Matchers::ContainsSubstring;
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("abc"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("12abc"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("1.5"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<unsigned>("-1"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<double>(""), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<std::uint8_t>("300"), gem_exception);
+    CHECK_THROWS_WITH(
+        Gem::Common::from_string<int>("12abc"),
+        ContainsSubstring("\"12abc\"") && ContainsSubstring("int")
+    );
+
+    CHECK(Gem::Common::from_string<int>(" 12 ") == 12);
+    CHECK(Gem::Common::from_string<int>("+12") == 12);
+    CHECK(Gem::Common::from_string<std::uint8_t>("200") == std::uint8_t{200});
+    CHECK(Gem::Common::from_string<std::string>("a b") == "a b");
+    CHECK(Gem::Common::from_string<bool>("true"));
+    CHECK_FALSE(Gem::Common::from_string<bool>("0"));
+}
+
+TEST_CASE(
+    "splitStringT: a fragment that is not a value of the type throws",
+    "[common][helper][splitStringT]"
+) {
+    CHECK_THROWS_AS(Gem::Common::splitStringT<std::size_t>("2-x-1", "-"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::splitStringT<std::size_t>("2-4.5-1", "-"), gem_exception);
+    CHECK_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1 2/y", " ", "/")), gem_exception);
 }
 
 // --- environmentVariableAs -----------------------------------------------
@@ -385,6 +656,19 @@ TEST_CASE(
     REQUIRE(result.has_value());
     REQUIRE(result.value() == "hello");
     ::unsetenv("GEM_TEST_STR");
+}
+
+TEST_CASE(
+    "environmentVariableAs: a value that is not one of the type throws and names the variable",
+    "[common][helper][environmentVariableAs]"
+) {
+    ::setenv("GEM_TEST_BAD_INT", "12abc", 1);
+    CHECK_THROWS_WITH(
+        Gem::Common::environmentVariableAs<int>("GEM_TEST_BAD_INT"),
+        Catch::Matchers::ContainsSubstring("GEM_TEST_BAD_INT") &&
+            Catch::Matchers::ContainsSubstring("\"12abc\"")
+    );
+    ::unsetenv("GEM_TEST_BAD_INT");
 }
 
 // --- narrow ---------------------------------------------------------
@@ -422,6 +706,51 @@ TEST_CASE(
 ) {
     REQUIRE_THROWS_AS(Gem::Common::narrow<std::uint8_t>(std::int32_t{-1}), std::overflow_error);
     REQUIRE_THROWS_AS(Gem::Common::narrow<std::uint16_t>(std::int32_t{-1}), std::overflow_error);
+}
+
+// A round trip between a signed and an unsigned type of the same width, or from a signed type to a
+// wider unsigned one, gives back the original value; the change of sign has to be checked by itself
+// (a defect: narrow<std::size_t>(-1) gave 18446744073709551615).
+TEST_CASE("narrow: a change of sign throws at equal or larger width", "[common][helper][narrow]") {
+    REQUIRE_THROWS_AS(Gem::Common::narrow<std::uint32_t>(std::int32_t{-1}), std::overflow_error);
+    REQUIRE_THROWS_AS(Gem::Common::narrow<std::size_t>(-1), std::overflow_error);
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<std::int32_t>(std::uint32_t{4294967295U}),
+        std::overflow_error
+    );
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<std::int64_t>(std::numeric_limits<std::uint64_t>::max()),
+        std::overflow_error
+    );
+    REQUIRE(Gem::Common::narrow<std::uint32_t>(std::int32_t{5}) == 5U);
+    REQUIRE(Gem::Common::narrow<std::int32_t>(std::uint32_t{7}) == 7);
+    REQUIRE(Gem::Common::narrow<std::size_t>(std::int64_t{0}) == 0U);
+}
+
+// Every comparison with NaN is false, so NaN passed both range checks and reached the float->integer
+// cast, which is undefined for it (a defect).
+TEST_CASE("narrow: NaN to an integer throws", "[common][helper][narrow]") {
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<int>(std::numeric_limits<double>::quiet_NaN()),
+        std::overflow_error
+    );
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<std::uint64_t>(std::numeric_limits<float>::quiet_NaN()),
+        std::overflow_error
+    );
+}
+
+// The message names the value and both types, so a reader knows what did not fit where.
+TEST_CASE("narrow: the message names the value and the two types", "[common][helper][narrow]") {
+    using Catch::Matchers::ContainsSubstring;
+    REQUIRE_THROWS_WITH(
+        Gem::Common::narrow<std::uint8_t>(300),
+        ContainsSubstring("300") && ContainsSubstring("int") && ContainsSubstring("unsigned char")
+    );
+    REQUIRE_THROWS_WITH(
+        Gem::Common::narrow<std::int32_t>(1.0e18),
+        ContainsSubstring("1e+18") && ContainsSubstring("double")
+    );
 }
 
 TEST_CASE("narrow: float->integer truncates toward zero", "[common][helper][narrow]") {

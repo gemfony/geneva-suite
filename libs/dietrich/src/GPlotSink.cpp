@@ -31,19 +31,18 @@
 
 // Standard header files go here
 #include <algorithm>
-#include <charconv>
 #include <chrono>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <string>
-#include <system_error>
 #include <type_traits>
 #include <utility>
 #include <variant>
 
 // Geneva header files go here
-#include "common/GCommonHelperFunctions.hpp" // backupExistingFile()
+#include "common/GCommonHelperFunctions.hpp"  // backupExistingFile()
+#include "common/GCommonHelperFunctionsT.hpp" // parseWhole()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/record/GCsvSink.hpp"
@@ -124,14 +123,8 @@ std::optional<double> numberOf(std::string const &text, columnType type) {
     }
     case columnType::TEXT:
         return std::nullopt;
-    default: {
-        double value = 0.;
-        const auto [end, ec] = std::from_chars(text.data(), text.data() + text.size(), value);
-        if(ec != std::errc{} || end != text.data() + text.size()) {
-            return std::nullopt;
-        }
-        return value;
-    }
+    default:
+        return Gem::Common::parseWhole<double>(text);
     }
 }
 

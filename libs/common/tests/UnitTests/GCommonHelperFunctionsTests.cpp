@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <chrono>
 #include <filesystem>
@@ -191,6 +192,30 @@ TEST_CASE(
     CHECK(std::get<1>(v[0]) == 2u);
     CHECK(std::get<0>(v[1]) == 3u);
     CHECK(std::get<1>(v[1]) == 4u);
+}
+
+// The messages said "Parsing failed." and where the reading stopped, but neither the text nor what
+// was expected (and carried a stray '": ').
+TEST_CASE(
+    "the list readers name the text and what was expected and where it stopped",
+    "[common][helper-nonT][split]"
+) {
+    using Catch::Matchers::ContainsSubstring;
+    CHECK_THROWS_WITH(
+        stringToUIntVec("1,x,3", ','),
+        ContainsSubstring("\"1,x,3\"") && ContainsSubstring("integers >= 0") &&
+            ContainsSubstring("at \"x,3\"")
+    );
+    CHECK_THROWS_WITH(
+        stringToDoubleVec("1.5;2"),
+        ContainsSubstring("\"1.5;2\"") && ContainsSubstring("numbers") &&
+            ContainsSubstring("at \";2\"")
+    );
+    CHECK_THROWS_WITH(
+        stringToUIntTupleVec("(1,2),(3,x)"),
+        ContainsSubstring("\"(1,2),(3,x)\"") && ContainsSubstring("pairs") &&
+            ContainsSubstring("at \"x)\"")
+    );
 }
 
 // ---------------------------------------------------------------------------

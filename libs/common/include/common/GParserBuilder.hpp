@@ -118,11 +118,19 @@ std::string cfgScalarToString(T const &v) {
 /******************************************************************************/
 /** @brief Names, for an error text, what a configuration value of type T must be.
  *  @tparam T The type of the value
- *  @return "an integer", "an integer >= 0", "a number", "one of the values 0, 1 or 2" (an enum, see
+ *  @return "a boolean (true, false, 1 or 0)", "an integer from 0 to 255" (an 8-bit integer), "an
+ *  integer", "an integer >= 0", "a number", "one of the values 0, 1 or 2" (an enum, see
  *  numeric_enum_values_v), or "a value of its type" */
 template <typename T>
 std::string cfgExpectedValue() {
-    if constexpr(std::is_integral_v<T> && std::is_unsigned_v<T>) {
+    if constexpr(std::is_same_v<T, bool>) {
+        return "a boolean (true, false, 1 or 0)";
+    }
+    else if constexpr(std::is_same_v<T, std::int8_t> || std::is_same_v<T, std::uint8_t>) {
+        return "an integer from " + std::to_string(+std::numeric_limits<T>::min()) + " to " +
+               std::to_string(+std::numeric_limits<T>::max());
+    }
+    else if constexpr(std::is_integral_v<T> && std::is_unsigned_v<T>) {
         return "an integer >= 0";
     }
     else if constexpr(std::is_integral_v<T>) {
@@ -140,41 +148,11 @@ std::string cfgExpectedValue() {
 }
 
 /******************************************************************************/
-/** @brief Reads a value of type T from the whole of @p s: anything that does not read as a value
- *  of T is refused rather than read as far as it goes, or as an indeterminate value. Refused are
- *  text where a number belongs, a trailing remainder (the ".5" of "2.5" for an integer), a value
- *  the type's reader fails on (a number that is none of an enum's values, see
- *  numeric_enum_values_v) and a negative number for an unsigned type, which the stream would wrap
- *  around ("-1" as 4294967295).
- *  @tparam T The type to read (arithmetic, or any type with a stream extraction operator)
- *  @param s The string to parse
- *  @param key The configuration key the value belongs to (named in the error text)
- *  @return The parsed value
- *  @throws gem_exception if @p s is not a value of type T */
-template <typename T>
-T cfgReadWhole(std::string const &s, std::string const &key) {
-    T val{};
-    std::istringstream iss(s);
-    iss.imbue(std::locale::classic()); // the file's text, not the program's global locale
-    bool negative_unsigned = false;
-    if constexpr(std::is_unsigned_v<T>) {
-        negative_unsigned = (iss >> std::ws).peek() == '-';
-    }
-    iss >> val;
-    if(negative_unsigned || iss.fail() || not(iss >> std::ws).eof()) {
-        throw gem_exception(
-            g_error_streamer() << "The configuration entry \"" << key << "\" has the value \"" << s
-                               << "\", which is not " << cfgExpectedValue<T>() << '\n'
-        );
-    }
-    return val;
-}
-
-/******************************************************************************/
 /** @brief Parses an on-disk scalar string back into its parameter type (inverse of
- *  cfgScalarToString). Booleans accept "true"/"false" and "1"/"0"; every other type is read through
- *  cfgReadWhole(), so a value that does not read as its type is refused (it used to read as false,
- *  as far as it went, or as an indeterminate value).
+ *  cfgScalarToString), with the collection's strict reader Gem::Common::parseWhole(): a value that
+ *  does not read as a whole as its type is refused, never read as far as it goes or wrapped around.
+ *  Besides parseWhole()'s cases, refused is a value the type's own reader fails on (a number that is
+ *  none of an enum's values, see numeric_enum_values_v).
  *  @tparam T The scalar parameter type
  *  @param s The string to parse
  *  @param key The configuration key the value belongs to (named in the error text)
@@ -182,40 +160,17 @@ T cfgReadWhole(std::string const &s, std::string const &key) {
  *  @throws gem_exception if @p s is not a value of type T */
 template <typename T>
 T cfgScalarFromString(std::string const &s, std::string const &key) {
-    if constexpr(std::is_same_v<T, std::string>) {
-        return s;
-    }
-    else if constexpr(std::is_same_v<T, bool>) {
-        if(s == "true" || s == "1") {
-            return true;
-        }
-        if(s == "false" || s == "0") {
-            return false;
-        }
-        throw gem_exception(
-            g_error_streamer() << "The configuration entry \"" << key << "\" has the value \"" << s
-                               << "\", which is not a boolean (true, false, 1 or 0)" << '\n'
-        );
-    }
-    else if constexpr(std::is_same_v<T, std::int8_t> || std::is_same_v<T, std::uint8_t>) {
-        // (u)int8_t is a character type: a stream extraction of "1" would read the character '1'
-        // (value 49), not the number 1. Parse through a wider integer so small enums/counts stored in
-        // an 8-bit field round-trip by value, and refuse what the 8-bit type cannot hold ("300").
-        using wider = std::conditional_t<std::is_signed_v<T>, int, unsigned int>;
-        auto const val = cfgReadWhole<wider>(s, key);
-        if(not std::in_range<T>(val)) {
-            throw gem_exception(
-                g_error_streamer() << "The configuration entry \"" << key << "\" has the value \""
-                                   << s << "\", which is not an integer from "
-                                   << static_cast<wider>(std::numeric_limits<T>::min()) << " to "
-                                   << static_cast<wider>(std::numeric_limits<T>::max()) << '\n'
-            );
-        }
-        return static_cast<T>(val);
-    }
-    else {
-        return cfgReadWhole<T>(s, key);
-    }
+    std::optional<T> value = Gem::Common::parseWhole<T>(s);
+    checkThat(
+        value.has_value(),
+        "The configuration entry \"",
+        key,
+        "\" has the value \"",
+        s,
+        "\", which is not ",
+        cfgExpectedValue<T>()
+    );
+    return *std::move(value);
 }
 
 /******************************************************************************/

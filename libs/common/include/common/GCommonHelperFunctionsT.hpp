@@ -33,13 +33,13 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <concepts>
 #include <cstdint>
 #include <cstdlib>
 #include <format>
-#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <locale>
@@ -51,6 +51,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <type_traits>
@@ -59,6 +60,7 @@
 #include <vector>
 
 // Boost headers go here
+#include <boost/core/demangle.hpp>
 
 // Geneva headers go here
 #include "common/GChecks.hpp"
@@ -108,8 +110,9 @@ using enum_or_self_t = typename enum_or_self<T>::type;
  * the previously used boost::numeric_cast.
  *
  * What is checked, by target type:
- *   - integer / enum target: rejected unless the value fits (round-trip for
- *     integer<->integer, an exact boundary check for float->integer). Enum
+ *   - integer / enum target: rejected unless the value fits (round-trip and
+ *     sign for integer<->integer, an exact boundary check for float->integer,
+ *     NaN always). Enum
  *     source/target types are handled via their underlying integer type.
  *     Float->integer truncates toward zero (no fractional-part check) but is
  *     rejected if outside the target integer range.
@@ -124,7 +127,8 @@ using enum_or_self_t = typename enum_or_self<T>::type;
  * @tparam from_type The source arithmetic or enum type of the value (deduced)
  * @param value The value to be converted
  * @return The value converted to to_type
- * @throws std::overflow_error if the narrowing conversion would change the value
+ * @throws std::overflow_error naming the value and both types if the narrowing conversion would
+ *         change the value
  */
 template <typename to_type, typename from_type>
 to_type narrow(from_type value) {
@@ -142,15 +146,36 @@ to_type narrow(from_type value) {
     using FromCheck = detail::enum_or_self_t<from_type>;
 
     const auto check_value = static_cast<FromCheck>(value);
+    [[maybe_unused]] auto refuse = [&check_value]() {
+        return std::overflow_error(
+            std::format(
+                "narrow: the value {} of type {} does not fit into {}",
+                +check_value,
+                boost::core::demangle(typeid(from_type).name()),
+                boost::core::demangle(typeid(to_type).name())
+            )
+        );
+    };
 
     if constexpr(std::is_integral_v<ToCheck> && std::is_integral_v<FromCheck>) {
         // Integer-to-integer (and enum-via-underlying): a round-trip on the
         // underlying integer types catches narrowing in both directions. It is
         // done purely on the integers (never forming a To-typed result first),
         // so no out-of-range enum value is ever materialised; integral
-        // conversions are well-defined, so this is never UB.
-        if(static_cast<FromCheck>(static_cast<ToCheck>(check_value)) != check_value) {
-            throw std::overflow_error("narrow: integer overflow or underflow");
+        // conversions are well-defined, so this is never UB. Between a signed
+        // and an unsigned type of the same width (or to a wider unsigned type)
+        // the round trip gives back the original value, so a change of sign is
+        // checked by itself.
+        const auto converted = static_cast<ToCheck>(check_value);
+        bool sign_changed = false;
+        if constexpr(std::is_signed_v<FromCheck> && not std::is_signed_v<ToCheck>) {
+            sign_changed = check_value < FromCheck{0};
+        }
+        else if constexpr(not std::is_signed_v<FromCheck> && std::is_signed_v<ToCheck>) {
+            sign_changed = converted < ToCheck{0};
+        }
+        if(sign_changed || static_cast<FromCheck>(converted) != check_value) {
+            throw refuse();
         }
         return static_cast<to_type>(value);
     }
@@ -174,20 +199,20 @@ to_type narrow(from_type value) {
         constexpr auto min_as_from = static_cast<FromCheck>(to_min);
         constexpr bool max_is_exact = (max_as_from - max_minus_one_as_from) == FromCheck{1};
 
-        if(check_value < min_as_from) {
-            throw std::overflow_error("narrow: float-to-integer overflow");
+        if(std::isnan(check_value) || check_value < min_as_from) { // NaN fails every comparison
+            throw refuse();
         }
         if constexpr(max_is_exact) {
             // ToCheck::max() round-trips exactly, so equality is legitimate.
             if(check_value > max_as_from) {
-                throw std::overflow_error("narrow: float-to-integer overflow");
+                throw refuse();
             }
         }
         else {
             // Rounding pushed max_as_from above ToCheck::max(): equality
             // would convert to UB territory, so reject it as well.
             if(check_value >= max_as_from) {
-                throw std::overflow_error("narrow: float-to-integer overflow");
+                throw refuse();
             }
         }
         return static_cast<to_type>(value); // provably in range now
@@ -205,7 +230,7 @@ to_type narrow(from_type value) {
                 // exact, so this comparison is well-defined.
                 constexpr auto to_max = static_cast<FromCheck>(std::numeric_limits<ToCheck>::max());
                 if(check_value > to_max || check_value < -to_max) {
-                    throw std::overflow_error("narrow: floating-point overflow");
+                    throw refuse();
                 }
             }
         }
@@ -249,35 +274,99 @@ inline std::string generate_uuid_v4() {
 
 /******************************************************************************/
 /**
- * @brief Converts a string to T via stream extraction (replaces boost::lexical_cast).
+ * @brief Reads one value of type T from the whole of a text; the one strict reader of the
+ * collection, for every text a user or a file supplies.
  *
- * The stream uses the classic "C" locale, whatever global locale the program has set, so text
- * written by to_string() reads back everywhere.
+ * Surrounding white space is ignored. Anything else that is not part of one value of T makes the
+ * result empty: text where a number belongs, a remainder ("12abc", the ".5" of "2.5" for an
+ * integer), a negative number for an unsigned type (a stream would wrap "-1" around), a number
+ * outside the range of T ("1e400", "300" for std::uint8_t) and an empty text. Numbers are read with
+ * std::from_chars, independent of any locale, so the text of to_string() reads back, "inf" and
+ * "nan" included; a leading '+' is accepted. An 8-bit integer (std::int8_t, std::uint8_t) is read
+ * as a number, a char as a character. A bool is "true", "false", "1" or "0". A std::string is the
+ * text unchanged. Every other type is read through its stream extraction operator, in the classic
+ * "C" locale.
  *
- * @tparam T The target type to extract from the string (must be stream-extractable)
- * @param s The input string to convert
- * @return The value extracted from s; default-constructed/partially-read on extraction failure
+ * @tparam T The type to read (arithmetic, std::string, or a type with a stream extraction operator)
+ * @param text The text to read
+ * @return The value, or nothing if @p text is not one value of T
+ */
+template <typename T>
+std::optional<T> parseWhole(std::string_view text) {
+    if constexpr(std::is_same_v<T, std::string>) {
+        return std::string(text);
+    }
+    else {
+        const std::string trimmed = trimWhitespace(text);
+        if constexpr(std::is_same_v<T, bool>) {
+            if(trimmed == "true" || trimmed == "1") {
+                return true;
+            }
+            if(trimmed == "false" || trimmed == "0") {
+                return false;
+            }
+            return std::nullopt;
+        }
+        else if constexpr(std::is_arithmetic_v<T> && not std::is_same_v<T, char>) {
+            std::string_view number{trimmed};
+            if(number.starts_with('+') && not number.substr(1).starts_with('-')) {
+                number.remove_prefix(1); // std::from_chars knows no '+'
+            }
+            T value{};
+            const char *const last = number.data() + number.size();
+            const auto [end, ec] = std::from_chars(number.data(), last, value);
+            if(ec != std::errc{} || end != last) {
+                return std::nullopt;
+            }
+            return value;
+        }
+        else {
+            T value{};
+            std::istringstream iss(trimmed);
+            iss.imbue(std::locale::classic());
+            iss >> value;
+            if(iss.fail() || not(iss >> std::ws).eof()) {
+                return std::nullopt;
+            }
+            return value;
+        }
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief Converts a text to T with parseWhole(); it replaced boost::lexical_cast and, like that,
+ * refuses a text that is not one value of T.
+ *
+ * @tparam T The type to read (see parseWhole())
+ * @param s The text to convert
+ * @return The value read from the whole of @p s
+ * @throws gem_exception naming the text and the type if @p s is not one value of T
  */
 template <typename T>
 T from_string(const std::string &s) {
-    T val;
-    std::istringstream iss(s);
-    iss.imbue(std::locale::classic());
-    iss >> val;
-    return val;
+    std::optional<T> value = parseWhole<T>(s);
+    checkThat(
+        value.has_value(),
+        "the text \"",
+        s,
+        "\" is not a value of type ",
+        boost::core::demangle(typeid(T).name())
+    );
+    return *std::move(value);
 }
 
 /******************************************************************************/
 /**
  * @brief Reads a given environment variable and converts it to a target type.
  *
- * The function requires that target_type is extractable from an istringstream.
- * The raw value is trimmed of surrounding whitespace before conversion. Access
- * to std::getenv is serialised with a local mutex.
+ * The value is trimmed of surrounding whitespace and read with parseWhole(). Access to std::getenv
+ * is serialised with a local mutex.
  *
- * @tparam target_type The type the environment variable's value is converted to
+ * @tparam target_type The type the environment variable's value is converted to (see parseWhole())
  * @param var The name of the environment variable to be read
  * @return The converted environment variable, or an empty optional if it is unset
+ * @throws gem_exception naming the variable if its value is not one value of target_type
  */
 template <typename target_type>
 std::optional<target_type> environmentVariableAs(std::string const &var) {
@@ -310,7 +399,17 @@ std::optional<target_type> environmentVariableAs(std::string const &var) {
 #endif
     } // releases the lock
 
-    return {Gem::Common::from_string<target_type>(trimWhitespace(result_str))};
+    std::optional<target_type> value = parseWhole<target_type>(trimWhitespace(result_str));
+    checkThat(
+        value.has_value(),
+        "the environment variable ",
+        var,
+        " has the value \"",
+        result_str,
+        "\", which is not a value of type ",
+        boost::core::demangle(typeid(target_type).name())
+    );
+    return value;
 }
 
 /******************************************************************************/
@@ -703,10 +802,11 @@ void copyCloneableObjectsContainer(
 /**
  * @brief Splits a string into a vector of split_type values using a single separator.
  *
- * @tparam split_type The type each fragment is converted to
+ * @tparam split_type The type each fragment is converted to (see parseWhole())
  * @param raw The input string to split
  * @param sep The separator string fragments are split on
  * @return A vector of the converted fragments
+ * @throws gem_exception if a fragment is not one value of split_type
  */
 template <typename split_type>
 std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
@@ -730,7 +830,8 @@ std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
  * @param sep1 The outer separator splitting raw into fragments (must differ from sep2)
  * @param sep2 The inner separator splitting each fragment into its two sub-fields
  * @return A vector of (split1_type, split2_type) tuples
- * @throws gem_exception if sep1 and sep2 are identical, or if a fragment lacks exactly two sub-fields
+ * @throws gem_exception if sep1 and sep2 are identical, if a fragment lacks exactly two sub-fields,
+ *         or if a sub-field is not one value of its type
  */
 template <typename split1_type, typename split2_type>
 std::vector<std::tuple<split1_type, split2_type>>
@@ -841,19 +942,18 @@ std::string to_string(integral_type val) {
 
 /******************************************************************************/
 /**
- * @brief Converts floating-point values to std::string with full precision, in the classic "C"
- * locale (a decimal point, no digit grouping) whatever global locale the program has set.
+ * @brief Converts floating-point values to the shortest std::string that reads back as the same
+ * value (std::format, so 0.1 is "0.1", not "0.10000000000000001"), with a decimal point and no
+ * digit grouping whatever global locale the program has set; parseWhole() reads it back, "inf" and
+ * "nan" included.
  *
  * @tparam fp_type The floating-point type
  * @param val The value to convert
- * @return The string representation of val at max_digits10 precision
+ * @return The shortest text that reads back as val
  */
 template <std::floating_point fp_type>
 std::string to_string(fp_type val) {
-    std::ostringstream oss;
-    oss.imbue(std::locale::classic());
-    oss << std::setprecision(std::numeric_limits<fp_type>::max_digits10) << val;
-    return oss.str();
+    return std::format("{}", val);
 }
 
 /******************************************************************************/
