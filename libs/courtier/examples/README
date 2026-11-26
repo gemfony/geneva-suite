@@ -8,6 +8,5 @@ Programs that show how courtier is used:
     by the Geneva manual and run as a test;
   * ../tests/UnitTests/ and ../tests/ManualTests/ -- the library's tests.
 
-Geneva's own examples use courtier's consumers through GOptimizer; examples
-15_GMPIConsumer and 16_GMPISubClients in libs/geneva/examples/ use them
-directly.
+A user such as Geneva shows more: its examples 15_GMPIConsumer and
+16_GMPISubClients in libs/geneva/examples/ use the consumers directly.

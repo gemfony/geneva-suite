@@ -92,7 +92,7 @@ namespace Gem::Weft {
  * @par Lifetime (important)
  * Registration happens during dynamic initialisation across many translation
  * units, and a program can additionally register types at runtime when a loadable
- * plugin is @c dlopen 'd (Geneva's algorithm and individual modules). The
+ * plugin is @c dlopen 'd (for example the modules of a user such as Geneva). The
  * singleton is therefore heap-allocated and @b never destroyed (leaked
  * deliberately): a function-local @c static of object type would be torn down at
  * process exit in an order unrelated to the registering TUs, and a late

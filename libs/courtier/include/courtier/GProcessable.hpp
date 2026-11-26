@@ -170,7 +170,7 @@ class GBaseConsumerT;
 /******************************************************************************/
 // An exception to be thrown if an exception was thrown during a work item's processing. It lives on the
 // non-generic lifecycle base so both the courtier transports (which catch it around a process() call) and
-// any processable (GProcessingContainerT or a self-contained work item such as the geneva individual)
+// any processable (GProcessingContainerT or a work item that derives GProcessable directly)
 // throw and catch the SAME type.
 class g_processing_exception : public gem_exception {
     using gem_exception::gem_exception;
@@ -189,13 +189,13 @@ class g_processing_exception : public gem_exception {
  * item's lifecycle without knowing what it evaluates to.
  *
  * The result store, the actual process() orchestration and the (typed) pre-/post-processors live one
- * layer down, on whichever class turns a GProcessable into an actual submittable work item. There are two
- * such implementations: the generic, geneva-free GProcessingContainerT<processable_type,
- * processing_result_type> (used by the work items of courtier's tests, libs/courtier/tests/support),
- * and geneva's specialized Gem::Geneva::Genome::GGenome (which derives this class DIRECTLY and supplies its
- * own result store + process() with optimization-specific orchestration). Either way the only coupling
- * between the status machine and the result store -- clearing stored results when the status is reset --
- * is bridged by the virtual clearStoredResults_() hook, which the result-bearing derived class overrides.
+ * layer down, on whichever class turns a GProcessable into an actual submittable work item:
+ * courtier's generic GProcessingContainerT<processable_type, processing_result_type> (used by the
+ * work items of courtier's tests, libs/courtier/tests/support), or a class that derives this one
+ * DIRECTLY and supplies its own result store + process() (a user such as Geneva's GGenome does).
+ * Either way the only coupling between the status machine and the result store -- clearing stored
+ * results when the status is reset -- is bridged by the virtual clearStoredResults_() hook, which
+ * the result-bearing derived class overrides.
  */
 class GProcessable {
     ///////////////////////////////////////////////////////////////////////
@@ -361,8 +361,9 @@ public:
      * whole batch at once (a device): the part of the processing before the evaluation. Only an
      * item with the DO_PROCESS status is accepted; the item's pre-processor runs, so the batch is
      * built from the pre-processed values. The result-bearing class's completeProcessing()
-     * finishes it with the results computed for the item (GProcessingContainerT, and geneva's
-     * GGenome; the completion lives there because it takes that class's typed results).
+     * finishes it with the results computed for the item (GProcessingContainerT, or a class that
+     * derives this one directly; the completion lives there because it takes that class's typed
+     * results).
      * @throws gem_exception if the item is not due for processing (the item is left untouched)
      * @throws g_processing_exception if the pre-processing fails; the failure is recorded on the
      *         item (EXCEPTION_CAUGHT), as a full processing records it
@@ -496,7 +497,8 @@ public:
      * consumer reconciles such a return against the originally-submitted item it still holds, it
      * calls this to take that state back from the original, so the submitter's item keeps it across
      * the round-trip. The base retains no such state, so this is a no-op unless a derived class
-     * overrides graftRetainedStateFrom_() (Geneva's GGenome does, for its algorithm scratch).
+     * overrides graftRetainedStateFrom_() (a user such as Geneva's GGenome does, for its algorithm
+     * scratch).
      * @param original The originally-submitted item supplying the retained state
      */
     void graftRetainedStateFrom(const GProcessable &original) {
@@ -562,8 +564,8 @@ public:
      * hold a snapshot of the batch's addresses across a submission. The lifecycle (status / errors /
      * timing / correlation id) is copied while THIS item keeps its own stable lineage id; a
      * result-bearing derived class additionally copies its result store, and deliberately keeps its
-     * own input data and the state that does not travel on the wire (Geneva's GGenome documents
-     * what it keeps).
+     * own input data and the state that does not travel on the wire (such a class documents what
+     * it keeps).
      *
      * @param src The returned, evaluated item whose results + lifecycle are absorbed into this one
      */
@@ -592,18 +594,18 @@ protected:
     /***************************************************************************/
     /**
      * @brief The shared processing lifecycle, stated ONCE for every processable item. This is the
-     * template method the typed process() entry points (GProcessingContainerT::process and geneva's
-     * GGenome::process) wrap: DO_PROCESS precondition, error/result reset, the timed
-     * pre -> core -> (guarded) post sequence, exception funneling into EXCEPTION_CAUGHT, and the
-     * error epilogue that zeroes the timings, clears the results and raises g_processing_exception.
-     * The pre-processing step is the preProcess_() hook (beginProcessing() on this class needs it);
-     * the other two class-specific steps arrive as callables: @p core the actual
-     * evaluation/processing, @p post the post-processing step. The item is marked PROCESSED BEFORE
-     * post-processing runs -- a post-processor refines an ALREADY-EVALUATED item (e.g. by a short
-     * sub-optimization) and rejects a dirty one -- and an item that flagged an error
-     * (ERROR_FLAGGED) keeps its error status: PROCESSED is never assigned and post-processing is
-     * skipped. (This orchestration used to exist as two hand-synced copies in courtier and geneva;
-     * the double-PROCESSED status bug lived in exactly that duplication.)
+     * template method the typed process() entry points (GProcessingContainerT::process, and the
+     * process() of a class that derives this one directly) wrap: DO_PROCESS precondition,
+     * error/result reset, the timed pre -> core -> (guarded) post sequence, exception funneling
+     * into EXCEPTION_CAUGHT, and the error epilogue that zeroes the timings, clears the results and
+     * raises g_processing_exception. The pre-processing step is the preProcess_() hook
+     * (beginProcessing() on this class needs it); the other two class-specific steps arrive as
+     * callables: @p core the actual evaluation/processing, @p post the post-processing step. The
+     * item is marked PROCESSED BEFORE post-processing runs -- a post-processor refines an
+     * ALREADY-EVALUATED item (e.g. by a short sub-optimization) and rejects a dirty one -- and an
+     * item that flagged an error (ERROR_FLAGGED) keeps its error status: PROCESSED is never
+     * assigned and post-processing is skipped. (Two hand-synced copies of this orchestration once
+     * let a double-PROCESSED status bug in.)
      *
      * The lifecycle is the two halves beginProcessingLifecycle_() and
      * completeProcessingLifecycle_() run back to back. An execution environment that evaluates a
@@ -614,7 +616,8 @@ protected:
      * refused here: they were computed from the values after its pre-processor, which this
      * lifecycle would run again before adopting them.
      *
-     * @param context The calling function's identity, used in the error texts (e.g. "GGenome::process()")
+     * @param context The calling function's identity, used in the error texts
+     *        (e.g. "GProcessingContainerT::process()")
      * @param results_given Whether the caller hands in results computed elsewhere (a non-empty
      *        result vector) rather than evaluating the item in @p core
      * @param core A callable running the class-specific evaluation/processing
@@ -847,16 +850,16 @@ protected:
     /**
      * @brief Hook: the pre-processing step of the processing lifecycle -- runs the item's
      * pre-processor, if it has one and pre-processing is allowed. The base has no pre-processor,
-     * so the default is a no-op; the result-bearing classes (GProcessingContainerT, geneva's
-     * GGenome) override it.
+     * so the default is a no-op; the result-bearing classes (GProcessingContainerT, and a class
+     * that derives this one directly) override it.
      */
     virtual void preProcess_() { /* no pre-processor in the base */
     }
 
     /**
      * @brief Hook: grafts the retained state of @p original back (see graftRetainedStateFrom()). The
-     * base retains no such state, so the default is a no-op; Geneva's GGenome overrides it to
-     * deep-copy its algorithm scratch back.
+     * base retains no such state, so the default is a no-op; a class that retains such state
+     * overrides it (a user such as Geneva's GGenome, for its algorithm scratch).
      * @param original The originally-submitted item supplying the retained state
      */
     virtual void graftRetainedStateFrom_([[maybe_unused]] const GProcessable &original) {

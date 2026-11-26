@@ -637,7 +637,7 @@ std::string getMSSince1970() {
  *
  * @param file_name The output file to back up if it exists
  * @param context The caller's identification, used verbatim as the first line of the warning
- *   (e.g. "GProcessingTimesLogger::informationFunction_(): Warning!")
+ *   (e.g. "GMyLogger::write(): Warning!")
  * @return true if a backup was made, false if there was no such file
  */
 bool backupExistingFile(const std::string &file_name, std::string_view context) {

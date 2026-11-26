@@ -39,15 +39,15 @@ namespace Gem::Common {
  * @brief Installs the handlers of a stop request, SIGHUP and SIGUSR1 (on Windows the closing of
  * the console window, CTRL_CLOSE_EVENT). They ask for a clean stop after the current iteration, as
  * a batch system warns a job before it ends it (Slurm: --signal=USR1@<s>). A handler only notes the
- * request; whoever can end the work cleanly asks stopRequested() -- in Geneva every optimization
- * algorithm, after each iteration. A process that does not ask, such as a client, goes on serving.
+ * request; whoever can end the work cleanly asks stopRequested() -- a user such as Geneva's
+ * optimization algorithms after each iteration. A process that does not ask goes on with its work.
  *
  * SIGTERM and SIGINT (Ctrl-C) are not caught: they end a process at once. Under a batch system the
  * hard end reaches every task together, and a clean stop could not finish a distributed iteration
  * whose clients end at the same moment.
  *
- * courtier's launcher calls it in every process; a program without the launcher calls it itself.
- * Calling it again changes nothing.
+ * A program calls it once in every process, before the work begins. Calling it again changes
+ * nothing.
  *
  * @throws gem_exception if a handler cannot be installed
  */

@@ -52,9 +52,8 @@ namespace Gem::Common {
  * @c GSingletonT wrapping a @c GGlobalOptionsT (the sanctioned keyed store over
  * @c GThreadSafeKeyedStoreT, Inv 2) of @c GProviderT<T> handles. Each provider self-registers under its
  * mnemonic at static init and hands out a usable @c T on @c provide() (see @c GProviderT for the two
- * flavours -- a config-driven factory, or a shared prototype). The optimization-algorithm registry
- * (@c GOAStore) is one instantiation; the consumer and marshaller registries are meant to be further
- * instantiations of THIS template rather than new bespoke stores.
+ * flavours -- a config-driven factory, or a shared prototype). A library that needs a registry of
+ * named providers instantiates THIS template rather than building a bespoke store.
  *
  * @par The two-store rule (binding)
  * There are exactly two store shapes in @c common/, and any new "registry" or "global constant" must be an

@@ -50,7 +50,9 @@ class GConsumerProviderT; // courtier/GConsumerProviderT.hpp
 /******************************************************************************/
 /**
  * @brief The kind of a module contribution that carries a consumer provider: a name with the
- * prefix of the library that handles it (common/GModuleManifest.hpp).
+ * prefix of the library that handles it (common/GModuleManifest.hpp). A change to the interface of
+ * the provider a @c GConsumerProviderPtrT points at, or to a type its functions take (such as
+ * @c ConsumerSpec), bumps GEM_MODULE_ABI_VERSION.
  */
 inline constexpr const char *CONSUMER_CONTRIBUTION_KIND = "courtier.consumer";
 

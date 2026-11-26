@@ -52,7 +52,7 @@ namespace Gem::Common::Concurrency {
 /**
  * A thread-safe key -> value store: a mutex-guarded ordered map with the usual lookup / insert / erase /
  * snapshot operations, each performed under a single lock. It is the shared building block for the many
- * "occasional access, must be thread-safe" maps across Geneva (e.g. global option stores), replacing
+ * "occasional access, must be thread-safe" maps (e.g. global option stores), replacing
  * hand-rolled @c std::map + @c std::mutex pairs at the call site.
  *
  * The backing container is an ORDERED @c std::map, so @c keys() / @c values() / @c snapshot() return in

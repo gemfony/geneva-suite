@@ -45,21 +45,20 @@ namespace Gem::Courtier {
 /******************************************************************************/
 /**
  * The process-global holder for the SINGLE consumer a server binary uses -- the one work endpoint
- * every submitter (in Geneva: every optimization algorithm) submits through. A submitter is
- * transport-agnostic: it never builds or selects a consumer, it just asks the registry for the one
- * consumer and calls processBatch(), with the guarantee of an intact, fully processed batch on
- * return -- never knowing whether the processing happened locally, on a GPU, or on a remote client.
- * The consumer is established once: by courtier's launcher (GLauncherT, from the consumer chosen on
- * the command line, in its configuration file or in main()), or manually by the user (setConsumer); a
- * producer that runs without a launcher and was given none gets the default local thread-pool consumer
- * from ensureProcessConsumer(), which builds it through ensureConsumer. There is never more
- * than one consumer per process (Geneva's meta-optimization runs its sub-optimizations on a
- * separate orchestration thread pool that is NOT a consumer -- see GMetaEvolutionaryAlgorithm).
+ * every submitter (in a user such as Geneva: every optimization algorithm) submits through. A
+ * submitter is transport-agnostic: it never builds or selects a consumer, it just asks the registry
+ * for the one consumer and calls processBatch(), with the guarantee of an intact, fully processed
+ * batch on return -- never knowing whether the processing happened locally, on a GPU, or on a
+ * remote client. The consumer is established once: by courtier's launcher (GLauncherT, from the
+ * consumer chosen on the command line, in its configuration file or in main()), or manually by the
+ * user (setConsumer); a producer that runs without a launcher and was given none gets the default
+ * local thread-pool consumer from ensureProcessConsumer(), which builds it through ensureConsumer.
+ * There is never more than one consumer per process; a submitter that runs work of its own in
+ * parallel does so on a thread pool that is NOT a consumer.
  *
  * The single instance is handed out via GSingletonT (it outlives ordinary statics and is reachable
- * concurrently). All access is mutex-guarded, so concurrent submitters (e.g. the sub-optimizations
- * of Geneva's meta-optimization, run in parallel) race-freely converge on the one consumer. It is
- * CLEARABLE (clear) so unit tests can start from a known-empty state.
+ * concurrently). All access is mutex-guarded, so concurrent submitters race-freely converge on the
+ * one consumer. It is CLEARABLE (clear) so unit tests can start from a known-empty state.
  *
  * @tparam processable_type The work-item type the consumer handles
  */

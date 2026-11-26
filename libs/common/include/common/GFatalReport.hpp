@@ -54,8 +54,8 @@ namespace Gem::Common {
  * no exception in flight is an internal fault (a joinable std::thread destroyed, a pure virtual
  * call): the handler prints its line and calls std::abort(), for the core dump.
  *
- * The constructor of Geneva's GOptimizationDescription installs it (a GOptimizer program builds one
- * first); a program without it calls installFatalReport() in the first line of main(). A terminate
+ * A program calls installFatalReport() once, in the first line of main() (a user such as Geneva's
+ * GOptimizationDescription does it in its constructor). A terminate
  * handler set before is replaced; a program that wants one of its own sets it afterwards.
  */
 

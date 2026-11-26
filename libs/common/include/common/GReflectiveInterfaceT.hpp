@@ -108,7 +108,7 @@ struct GReflectiveInterfaceAccess {
      * body to be instantiated, turning a class with NO viable localMembers_() into
      * a hard error rather than a substitution failure -- this checks only call
      * *resolvability*. A constrained localMembers_() whose constraint is
-     * unsatisfied (e.g. GGenomeT's marker-gated default without the opt-in marker)
+     * unsatisfied (e.g. a marker-gated default without the opt-in marker)
      * is discarded during overload resolution, and the =deleted GReflectiveInterfaceBaseT
      * fallback is non-viable, so no candidate is selected and this simply yields
      * false instead of failing to compile. It is routed through this friend shim
@@ -190,8 +190,7 @@ concept ReflectiveInterfaceManaged =
  *
  * All member bodies are instantiated lazily (when the vtable is emitted / the
  * archive is used), by which point derived_type is complete -- the same reason the
- * pre-existing name_/clone_ generators (GGenomeT, GOptimizationAlgorithmT, ...)
- * can name derived_type's constructor from a CRTP base.
+ * name_/clone_ generators of any CRTP base can name derived_type's constructor.
  *
  * @tparam derived_type The managed (CRTP self) class
  * @tparam parent_type  The class's real base (a GCommonInterfaceT derivative, or

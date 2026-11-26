@@ -94,9 +94,9 @@ struct GSubmissionPolicy {
     //! [courtier-submission-policy#2]
 
     /***************************************************************************/
-    /** @brief For a submitter that needs every value (Geneva's gradient descents and parameter
-     *  scan, for example): every slot must be processed successfully; resubmit MISSING, optionally
-     *  retry transient FAILED, and terminate if any slot stays unresolved.
+    /** @brief For a submitter that needs every value (a gradient descent, for example): every slot
+     *  must be processed successfully; resubmit MISSING, optionally retry transient FAILED, and
+     *  terminate if any slot stays unresolved.
      *
      *  @param max_resub Maximum number of times a MISSING item is resubmitted
      *  @param max_failed_retries Maximum number of times a FAILED item is re-evaluated (rides out transient crashes)
@@ -112,8 +112,8 @@ struct GSubmissionPolicy {
     }
 
     /***************************************************************************/
-    /** @brief For a submitter that accepts substitutes (Geneva's evolutionary and other
-     *  population-based algorithms, for example): refill missing/failed slots with clones of
+    /** @brief For a submitter that accepts substitutes (a population-based algorithm, for
+     *  example): refill missing/failed slots with clones of
      *  successful items (never fatal except the zero-usable floor).
      *
      *  Resubmission defaults to 0 here ON PURPOSE. An item's processing is unbounded in time, so

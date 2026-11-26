@@ -187,8 +187,8 @@ bool demo_spsc_staging_ring() {
 }
 
 /** @brief Demonstrates GAgingStoreT: an epoch-stamped store with a keyed face and a FIFO face, both
- *  aged by TTL + capacity (the courtier late-return facility: retain un-returned originals by id, park
- *  late arrivals for the algorithm to reap). @return true iff every demonstrated invariant held. */
+ *  aged by TTL + capacity (retain un-returned originals by id, park late arrivals for a reader to
+ *  reap). @return true iff every demonstrated invariant held. */
 bool demo_aging_store() {
     std::cout << "== GAgingStoreT ==\n";
     bool ok = true;

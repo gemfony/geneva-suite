@@ -497,7 +497,7 @@ void GParserBuilder::doParseConfigFile_(
     std::string const &rewrite_header
 ) {
     // Make sure only one entity is parsed at once. This allows us to
-    // concurrently create e.g. optimization algorithms, letting them
+    // concurrently create several objects that
     // parse the same config file. The update-in-place rewrite happens under
     // the same lock, so it is serialized against every other config access.
     std::scoped_lock const lk(GParserBuilder::configfile_parser_mutex_);
@@ -789,7 +789,7 @@ void GParserBuilder::writeConfigFile(
         // Make sure the target directory exists, creating it if necessary. We auto-create a
         // missing config FILE here (this is the "does not exist" path of parseConfigFile), so we
         // must also create a missing config DIRECTORY -- otherwise, on a fresh run directory with
-        // no config/ folder, writing the very first config (e.g. GOptimizer's own) would fail and
+        // no config/ folder, writing the very first config would fail and
         // abort the whole program via GTERMINATION before any config could be created.
         const std::filesystem::path target_dir =
             std::filesystem::path(config_file).remove_filename();

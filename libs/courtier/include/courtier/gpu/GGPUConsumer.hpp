@@ -59,8 +59,9 @@ namespace Gem::Courtier::GPU {
  * It is an ordinary courtier LOCAL consumer (it derives from the same Gem::Courtier::GBaseConsumerT
  * that every other consumer -- serial, multi-threaded, beast, mpi -- derives from), so it plugs
  * into the existing span+policy submission path unchanged. It is mnemonic-selectable like every other
- * consumer (`--consumer gpu`): a Geneva program contributes its device marshaller into the marshaller
- * store (Gem::Geneva::registerGPUMarshaller(...)) and courtier's launcher (GLauncherT) builds and
+ * consumer (`--consumer gpu`): a program contributes its device marshaller into the marshaller
+ * store (Gem::Courtier::GPU::marshallerProviderStore(); a user such as Geneva does so through its
+ * registerGPUMarshaller()) and courtier's launcher (GLauncherT) builds and
  * registers this consumer like any other; a program without a launcher can still construct it
  * directly and register it in GConsumerRegistry.
  * courtier hands dispatch_() the WHOLE round's batch at once, which this consumer evaluates in a single
@@ -79,11 +80,11 @@ namespace Gem::Courtier::GPU {
  * GSubmissionPolicy::full_success_or_fatal.
  *
  * Several submitters may submit to the one process consumer at the same time (the fan-in case, e.g.
- * Geneva's meta-optimization). Every submitter may call in; ONE thread owns the device. A batch is
- * queued to that device thread and its submitter waits for it, so batches reach the device one
- * after another, in the order they were submitted, and always from the same thread -- whatever a
- * backend's rules about threads and device contexts are. The host buffers and the backend are
- * touched by the device thread only and need no lock.
+ * a user such as Geneva's meta-optimization). Every submitter may call in; ONE thread owns the
+ * device. A batch is queued to that device thread and its submitter waits for it, so batches reach
+ * the device one after another, in the order they were submitted, and always from the same thread
+ * -- whatever a backend's rules about threads and device contexts are. The host buffers and the
+ * backend are touched by the device thread only and need no lock.
  *
  * @tparam processable_type The work-item type evaluated on the device
  * @tparam scalar_type The parameter/result flat-buffer element and device ABI type (default double)

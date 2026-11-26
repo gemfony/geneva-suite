@@ -106,7 +106,7 @@ constexpr auto GFSPQ_DEF_SORT_ORDER = Gem::Common::sortOrder::LOWERISBETTER;
  * @par Validity and duplicates
  * Every candidate passes isValid() first; an item that fails is skipped. The
  * default rejects an empty handle (and accepts every value for POD storage), and a
- * derived class narrows it further (e.g. "only already-evaluated individuals").
+ * derived class narrows it further (e.g. "only already-evaluated items").
  * The queue keeps one item of each set of items that are the same entry
  * (isSameEntry()): for the pointer policies by default the *same object* inserted
  * twice; value storage has no object identity, so two equal values are two legitimate

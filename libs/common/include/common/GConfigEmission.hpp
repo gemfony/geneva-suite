@@ -41,17 +41,16 @@ namespace Gem::Common {
 /**
  * @brief The uniform "emit my configuration files" entry point for every config-owning binary.
  *
- * A Geneva binary's registered parameters and their defaults are the single source of truth for its
+ * A binary's registered parameters and their defaults are the single source of truth for its
  * configuration; the shipped JSON files under `config/` are just a materialized cache of what the
  * code already knows. To materialize them at build/install time, a binary is run with the
  * @c --update-configs command-line switch: it puts GParserBuilder into update-in-place mode (so every
  * config it subsequently parses is created-if-absent and rewritten in canonical form), constructs
  * each of its config owners so their parse fires, and ends without optimizing.
  *
- * A driver that owns its program's configs may do this internally (Geneva's @c GOptimizer, for
- * example, consumes @c --update-configs and refreshes every config it owns). These helpers give
- * every other main() (in Geneva: the direct-OA examples, the parameter-object demo, the benchmarks,
- * the manual tests) the exact same behaviour behind the exact same switch, so a single build step
+ * A driver that owns its program's configs may do this internally (a user such as Geneva's
+ * @c GOptimizer, for example). These helpers give every other main() the exact same behaviour
+ * behind the exact same switch, so a single build step
  * can drive @c "<binary> --update-configs" over every config-owning target uniformly.
  *
  * Usage in a main(), once the libraries it uses are initialized and before the binary's own option
@@ -71,7 +70,7 @@ namespace Gem::Common {
 /**
  * @brief The command-line switch that requests configuration emission.
  *
- * The same token a driver such as Geneva's @c GOptimizer recognises, so a build/install
+ * The one token for every config-owning binary, so a build/install
  * materialization step drives every config-owning binary -- driver-based or not -- through one
  * uniform invocation.
  */
@@ -113,8 +112,7 @@ void beginConfigEmission();
  * @brief Concludes a configuration-emission run: logs completion.
  *
  * Call after every config owner has been constructed (and its parse exercised). It does not end the
- * process: the caller ends the run itself, a main() by returning. (Geneva's GOptimizer ends the
- * process on @c --update-configs, because its caller's code after optimize() expects a population.)
+ * process: the caller ends the run itself, a main() by returning.
  */
 void finishConfigEmission();
 

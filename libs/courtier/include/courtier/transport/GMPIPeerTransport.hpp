@@ -120,8 +120,8 @@
  *    decode, an evaluation) stops the poll, and with it the messages the submitter waits for.
  *  - A receive is a blocking MPI_Recv on the one poll thread. On the submitter a long message
  *    from one rank holds up the messages of every other rank for its length; measured, the
- *    submitter's receives took 0.01 to 0.1 % of a run (Geneva's results are small), so the receive
- *    was left blocking.
+ *    submitter's receives took 0.01 to 0.1 % of a run (the results of a user such as Geneva are
+ *    small), so the receive was left blocking.
  */
 
 namespace Gem::Courtier::Consumers {

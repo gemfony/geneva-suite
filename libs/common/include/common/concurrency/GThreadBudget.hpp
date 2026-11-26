@@ -63,9 +63,7 @@ enum class ThreadElasticity : std::uint8_t {
  * The process-wide thread budget: a registry that knows how many threads the
  * process has collectively reserved and compares that to the hardware ceiling.
  * A process creates threads from many independent, mutually-unaware sources
- * (Hap's RNG producers, courtier's consumer worker/io pools and client compute
- * pools, and in Geneva the algorithms' organizational pool and the meta-EA
- * orchestration pool); this is the one place that sums them.
+ * (the libraries it links and its own code); this is the one place that sums them.
  *
  * The budget does ACCOUNTING AND ADVICE, not scheduling: reserve() never blocks,
  * never throws and never refuses a request. Every reservation is granted in

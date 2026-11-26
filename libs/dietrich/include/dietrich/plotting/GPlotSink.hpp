@@ -69,6 +69,9 @@ namespace Gem::Dietrich {
  *
  * The DATA backend is refused: it writes the data rather than a plot, which the stream's
  * GCsvSink or GJsonLinesSink do, and its file would be theirs.
+ *
+ * A program adds the sink to a stream by name (Gem::Common::Record::GRecorder::addSink()), also to
+ * a stream that another library declares.
  */
 class GPlotSink : public Gem::Common::Record::GSink {
 public:

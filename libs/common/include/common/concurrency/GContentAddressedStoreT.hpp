@@ -51,8 +51,8 @@ namespace Gem::Common::Concurrency {
 /**
  * A thread-safe, content-addressed store of opaque blobs, keyed by a content id, with an optional
  * LRU capacity bound and optional per-peer "who already holds what" ack tracking. It is the generic
- * heart of the wire layout send-once machinery (a content-addressed dedup cache shared by a server and
- * its peers), but carries no transport or genome knowledge and is reusable for any content-addressed
+ * heart of a send-once machinery (a content-addressed dedup cache shared by a server and
+ * its peers), but carries no transport knowledge and is reusable for any content-addressed
  * intern-and-reference pattern.
  *
  * Two collaborating roles, one store:

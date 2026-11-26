@@ -66,7 +66,7 @@ namespace Gem::Common::Record {
  * @endcode
  *
  * **The output rule.** A file sink writes `<directory>/<stream name>.<extension>`; the directory
- * is `./records` unless setDirectory() changed it (courtier's launcher does so for --recordDir),
+ * is `./records` unless setDirectory() changed it,
  * and a stream keeps the directory it was declared in. Two open streams of one name are refused,
  * and the refusal names both declarers; once a stream is closed its name is free again. An
  * existing file is backed up at a stream's first write, and a resuming stream appends to it when
@@ -81,10 +81,9 @@ namespace Gem::Common::Record {
  *
  * **The end.** The recorder is never destroyed, so that a stream may be closed during the end of
  * the program; streams are therefore closed explicitly: by their handle (close(), or its
- * destructor), or all at once by closeAll() -- which courtier's launcher calls when its run()
- * ends, also after an exception or a stop request; a program without the launcher calls it
- * itself. A file sink flushes every write, so a crashed run leaves its files complete up to the
- * last row written; a plot sink writes at the close.
+ * destructor), or all at once by closeAll(), which a program calls when its run ends, also
+ * after an exception or a stop request. A file sink flushes every write, so a crashed run leaves
+ * its files complete up to the last row written; a plot sink writes at the close.
  */
 class GRecorder {
 public:
@@ -148,13 +147,10 @@ public:
      * @brief Adds a sink to a stream by its name, before the stream is declared -- also a stream
      * that another part of the program, or another library, declares. The sink joins the next
      * declaration of that name, beside the sinks the declarer gives (or the default CSV file),
-     * and only that one. A program, for example, draws courtier's end-of-run report:
+     * and only that one. A program, for example, also writes a library's stream "transfers" as
+     * JSON Lines:
      * @code
-     * Gem::Dietrich::GDataLog layout("End of run", 1, 1);
-     * Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_2d);
-     * spec.columns = {"requeued", "dropped_returns"};
-     * layout.declareSeries(spec);
-     * recorder().addSink("courtier", std::make_shared<Gem::Dietrich::GPlotSink>(layout));
+     * recorder().addSink("transfers", std::make_shared<GJsonLinesSink>());
      * @endcode
      * A stream of that name that is open already is refused: its earlier rows would be missing.
      */

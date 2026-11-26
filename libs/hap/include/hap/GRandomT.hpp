@@ -303,7 +303,7 @@ private:
 
 /******************************************************************************/
 /**
- * @brief The default random-number proxy used throughout Geneva.
+ * @brief The default random-number proxy of hap.
  *
  * The underlying source is selected at configure time via the HAP_RANDOM_SOURCE
  * CMake option (queue|local|staged|quarantine), which defines one of the macros below on

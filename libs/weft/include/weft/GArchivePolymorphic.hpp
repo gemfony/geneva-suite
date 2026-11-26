@@ -281,7 +281,7 @@ private:
  * tag then serializes its members (as a nested object). On load: reads the
  * flag; if present, reads the tag, constructs the dynamic type from the identity
  * registry, loads its members, and adopts it into @p p. A null pointer is a
- * single false flag. There is no object tracking -- Geneva serializes trees.
+ * single false flag. There is no object tracking -- Weft serializes trees.
  *
  * @tparam archive_type The concrete archive type (its @c is_saving fixes the direction).
  * @tparam smart_ptr_type A @c shared_ptr or @c unique_ptr whose element type exposes @c gemfony_common_root_t.

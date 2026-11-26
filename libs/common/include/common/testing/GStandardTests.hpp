@@ -289,8 +289,8 @@ bool modifyForTestIfAvailable(T &t) {
 /**
  * @brief The category root of a tested type T.
  *
- * There is no single common base to name: each category of the collection has its own root (in Geneva
- * the genomes bottom out at GGenome, the personality traits at GPersonalityTraits, and so on). The root
+ * There is no single common base to name: each category of types has its own root (in a user such
+ * as Geneva, the genomes bottom out at GGenome). The root
  * is the type parameter of the Gem::Common::GCommonInterfaceT<Root> base, which is exactly the
  * element_type of the std::shared_ptr returned by the public (inherited) clone() method.
  */
@@ -438,7 +438,7 @@ void testOwnRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMod
 }
 
 /**
- * @brief A changed object survives a round-trip through the Gem::Common helpers (which courtier uses).
+ * @brief A changed object survives a round-trip through the Gem::Common serialization helpers.
  * @param gep The comparator
  * @param mode The serialization mode
  */

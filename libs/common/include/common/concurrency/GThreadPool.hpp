@@ -65,7 +65,7 @@ namespace Gem::Common::Concurrency {
 
 /******************************************************************************/
 /**
- * A thread pool built entirely from Geneva's own primitives -- a GThreadGroup of
+ * A thread pool built entirely from common's own primitives -- a GThreadGroup of
  * worker threads (std::jthread) draining a shared, blocking, multi-producer/
  * multi-consumer task queue (GBlockingMPMCQueueT). It carries no third-party
  * dependency (in particular no Boost.ASIO io_context / work guard) and uses the
@@ -81,8 +81,7 @@ namespace Gem::Common::Concurrency {
  * constructor, so getNThreads() always reports the live worker count.
  *
  * Note: tasks are type-erased through std::move_only_function, so the submitted
- * callable plus its bound arguments only need to be movable, not copyable. Geneva's
- * usage (closures capturing std::shared_ptr) satisfies this. The single-owner task
+ * callable plus its bound arguments only need to be movable, not copyable. The single-owner task
  * type expresses that a queued task is never copied, only moved to the worker that
  * runs it.
  *

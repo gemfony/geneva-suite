@@ -30,10 +30,10 @@
 /*
  * The one MPI environment of a process, and the three functions that hand it out. They live in a
  * shared library of their own (libgemfony-courtier-mpi) for two reasons: the state must be defined
- * in exactly one shared object, so that a program, Geneva's MPI module and any other library of the
- * process find the same object whether or not the program exports its symbols; and that object
- * calls MPI, which libgemfony-courtier must not link, so that a program that does not use MPI
- * starts on a machine without it.
+ * in exactly one shared object, so that a program, a module it loads (such as Geneva's MPI module)
+ * and any other library of the process find the same object whether or not the program exports its
+ * symbols; and that object calls MPI, which libgemfony-courtier must not link, so that a program
+ * that does not use MPI starts on a machine without it.
  */
 
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"

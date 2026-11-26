@@ -24,7 +24,7 @@ source tree:
 ```
 <build>/libs/common/doc/
     Doxyfile          configured from CMakeModules/Doxyfile.in
-    common.tag        Doxygen tag file (consumed by hap/dietrich/courtier/geneva)
+    common.tag        Doxygen tag file (for cross-links from the libraries above)
     html/             browsable HTML reference
     xml/              XML for downstream tooling (Sphinx + Exhale, etc.)
 ```

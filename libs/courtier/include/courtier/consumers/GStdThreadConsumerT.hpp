@@ -101,8 +101,9 @@ protected:
      *
      * Delegates the fork/join to GThreadPool::blocking_for_each, which waits on a PER-BATCH latch rather
      * than GThreadPool::wait() (a global drain barrier): the pool is shared, so several submitters can
-     * submit concurrently (the fan-in case -- e.g. Geneva's meta-optimization over a population of
-     * inner algorithms), and each must wait for ONLY its own items, not the whole pool.
+     * submit concurrently (the fan-in case -- e.g. a user such as Geneva's meta-optimization over a
+     * population of inner algorithms), and each must wait for ONLY its own items, not the whole
+     * pool.
      *
      * @param items The work items of one round; each is evaluated on the shared pool and the call blocks until all have finished
      */

@@ -618,7 +618,7 @@ void compare(
 /******************************************************************************/
 /**
  * This function checks whether two complex types meet a given expectation. It is assumed that
- * these types have the standard Geneva interface with corresponding "compare" functions.
+ * these types have the Gemfony common interface with corresponding "compare" functions.
  *
  * @tparam gem_type A type satisfying the Gemfony common interface (provides a compare() member)
  * @param x The first parameter to be compared

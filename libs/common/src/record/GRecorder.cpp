@@ -199,7 +199,7 @@ std::filesystem::path GRecorder::directory() const {
 
 /******************************************************************************/
 /**
- * Closes every open stream. Called at the end of a run (courtier's launcher does so), also after
+ * Closes every open stream. Called at the end of a run, also after
  * an exception, so a failure to close one stream is reported through the log and does not keep
  * the others open.
  */

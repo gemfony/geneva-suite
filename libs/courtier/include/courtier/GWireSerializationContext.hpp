@@ -70,7 +70,7 @@ namespace Gem::Courtier {
  * because session lifetime is a courtier concern. Courtier therefore carries this payload without
  * interpreting it -- it never learns what the bytes mean.
  *
- * (Geneva is the current user: it interns a flat genome's shared, immutable structural layout, which is
+ * (A user such as Geneva interns a flat genome's shared, immutable structural layout, which is
  * identical across an entire population. That is one application of the mechanism, not its definition.)
  *
  * Checkpoint / file serialization does NOT use this machinery (a checkpoint must stay self-contained):
@@ -143,7 +143,7 @@ public:
 /******************************************************************************/
 /**
  * The per-(de)serialization context that engages the blob send-once machinery. A transport sets one
- * up (via a GWireSerializationScope) around the encoding/decoding of a work item; the upper-layer genome
+ * up (via a GWireSerializationScope) around the encoding/decoding of a work item; the work item's
  * serializer consults the thread-local current() and, when it is enabled, references shared blobs by id
  * against the registry instead of writing a full copy. When no scope is active (the default everywhere,
  * and always for checkpoint/file serialization) the item falls back to its self-contained full encoding.
@@ -209,8 +209,9 @@ private:
 /******************************************************************************/
 /**
  * @brief Serialize policy for a "server-side, wire-omitted" optional owned pointer -- an owned
- * aggregate (e.g. the algorithm state Geneva keeps per individual) that rides a checkpoint / file but
- * must NOT travel on the wire, so a remote worker neither receives nor can mutate it.
+ * aggregate (e.g. the algorithm state a user such as Geneva keeps per individual) that rides a
+ * checkpoint / file but must NOT travel on the wire, so a remote worker neither receives nor can
+ * mutate it.
  *
  * Presence is the archive's own smart-pointer null marker (a single NVP), so no separate has-flag
  * is needed: off the wire the pointer is saved as-is (null-or-object); ON the wire it is saved
@@ -219,10 +220,10 @@ private:
  *
  * On LOAD an omitted (null) member must leave the target's existing pointer UNTOUCHED -- a freshly
  * constructed target already holds a default owned object, and overwriting it with null would break
- * a non-null invariant the owner may rely on (Geneva's individuals, e.g., dereference theirs
- * unguarded). So the load reads into a temporary and adopts it only when non-null; a genuine value
- * from a checkpoint replaces the target, a wire-omitted null leaves it as-is. Compose it into a
- * localMembers_() entry via make_wire_omitted_ptr_member.
+ * a non-null invariant the owner may rely on (e.g. the individuals of a user such as Geneva
+ * dereference theirs unguarded). So the load reads into a temporary and adopts it only when
+ * non-null; a genuine value from a checkpoint replaces the target, a wire-omitted null leaves it
+ * as-is. Compose it into a localMembers_() entry via make_wire_omitted_ptr_member.
  */
 struct ser_wire_omitted_ptr {
     /**

@@ -78,14 +78,11 @@ namespace Gem::Courtier {
 	 * processable_type) to make your OWN type runnable on any courtier consumer; re-implement the pure
 	 * virtual process_() and make the derived class serializable so it travels on the networked transports.
 	 *
-	 * This base is deliberately free of any dependency on the geneva optimization library, which keeps the
-	 * courtier consumer/transport machinery testable on its own (courtier sits BELOW geneva in the library
-	 * order): the work items of courtier's test support (libs/courtier/tests/support:
-	 * GDemoProcessingContainers) derive this and are what courtier's tests submit. Geneva's own work
-	 * item, Gem::Geneva::Genome::GGenome, is a SPECIALIZED, standalone second implementation of the
-	 * same contract -- it derives GProcessable directly and provides its own result store + process()
-	 * (folding in optimization-specific orchestration: feasibility, the evaluation policy,
-	 * multi-criterion fitness), so it does NOT derive this class.
+	 * This base depends on nothing above courtier, which keeps the courtier consumer/transport
+	 * machinery testable on its own: the work items of courtier's test support
+	 * (libs/courtier/tests/support: GDemoProcessingContainers) derive this and are what courtier's
+	 * tests submit. A work item that needs a processing of its own may instead derive GProcessable
+	 * directly and provide its own result store + process() (a user such as Geneva's GGenome does).
 	 *
 	 * @tparam processable_type The concrete type deriving GProcessingContainerT (CRTP)
 	 * @tparam processing_result_type The result type of the process_ call; should be copyable
@@ -224,7 +221,7 @@ public:
     /***************************************************************************/
     /**
 	  * Perform the actual processing steps. Post-processing may refine the
-	  * processed item further (Geneva runs a short sub-optimization there). The amount of time
+	  * processed item further (e.g. by a short sub-optimization). The amount of time
 	  * needed for processing is measured for logging purposes. Where one of the
 	  * processing functions throws an exception, the function will store the
 	  * necessary exception information locally and rethrow the exception.
@@ -360,7 +357,7 @@ public:
     /**
 	  * @brief Allows to check whether any user-defined post-processing after the process()-
 	  * step may occur. This matters, e.g., when a post-processor submits work of its own to the
-	  * process consumer (Geneva's post-optimizers run a sub-optimization on the item). This may
+	  * process consumer (e.g. a sub-optimization of the item). This may
 	  * alter the item's data.
 	  *
 	  * @return true if post-processing is currently allowed, false if it has been vetoed
@@ -372,7 +369,7 @@ public:
     /***************************************************************************/
     /**
 	  * @brief Allow or prevent post-processing (used by a post-processor that processes the
-	  * item again itself, such as Geneva's post-optimizers, to prevent recursive
+	  * item again itself, to prevent recursive
 	  * post-processing). Once a veto
 	  * exists, no post-processing will occur until the veto is lifted.
 	  *
@@ -400,9 +397,8 @@ public:
     /***************************************************************************/
     /**
 	  * @brief Retrieves the registered post-processor (or an empty pointer). A submitter uses this to
-	  * decide whether to veto post-processing on this work item (Geneva's algorithms compare the
-	  * post-processor's allowed mnemonics with their own), so the work item needs no knowledge of the
-	  * submitter.
+	  * decide whether to veto post-processing on this work item, so the work item needs no
+	  * knowledge of the submitter.
 	  *
 	  * @return The registered post-processor, or an empty pointer if none is registered
 	  */
