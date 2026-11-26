@@ -40,7 +40,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <format>
-#include <iomanip>
 #include <iostream>
 #include <limits>
 #include <locale>
@@ -943,19 +942,18 @@ std::string to_string(integral_type val) {
 
 /******************************************************************************/
 /**
- * @brief Converts floating-point values to std::string with full precision, in the classic "C"
- * locale (a decimal point, no digit grouping) whatever global locale the program has set.
+ * @brief Converts floating-point values to the shortest std::string that reads back as the same
+ * value (std::format, so 0.1 is "0.1", not "0.10000000000000001"), with a decimal point and no
+ * digit grouping whatever global locale the program has set; parseWhole() reads it back, "inf" and
+ * "nan" included.
  *
  * @tparam fp_type The floating-point type
  * @param val The value to convert
- * @return The string representation of val at max_digits10 precision
+ * @return The shortest text that reads back as val
  */
 template <std::floating_point fp_type>
 std::string to_string(fp_type val) {
-    std::ostringstream oss;
-    oss.imbue(std::locale::classic());
-    oss << std::setprecision(std::numeric_limits<fp_type>::max_digits10) << val;
-    return oss.str();
+    return std::format("{}", val);
 }
 
 /******************************************************************************/

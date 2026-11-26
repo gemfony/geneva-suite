@@ -332,6 +332,35 @@ TEST_CASE("to_string: floating-point types", "[common][helper][to_string]") {
     REQUIRE(Gem::Common::to_string(1.5f) == "1.5");
 }
 
+// to_string() of a floating-point value wrote max_digits10 digits: 0.1 became "0.10000000000000001"
+// in help texts and configuration values. It writes the shortest text that reads back as the same
+// value, and parseWhole() reads every such text back, the special values included (the stream
+// wrote "inf" and "nan" but could not read them).
+TEST_CASE(
+    "to_string: the shortest text that reads back as the same value",
+    "[common][helper][to_string]"
+) {
+    CHECK(Gem::Common::to_string(0.1) == "0.1");
+    CHECK(Gem::Common::to_string(0.1F) == "0.1");
+    CHECK(Gem::Common::to_string(1.0e20) == "1e+20");
+    for(const double v :
+        {0.1,
+         -1.0 / 3.0,
+         1.0e-300,
+         std::numeric_limits<double>::max(),
+         std::numeric_limits<double>::denorm_min(),
+         std::numeric_limits<double>::infinity(),
+         -std::numeric_limits<double>::infinity()}) {
+        CAPTURE(v);
+        CHECK(Gem::Common::from_string<double>(Gem::Common::to_string(v)) == v);
+    }
+    CHECK(std::isnan(
+        Gem::Common::from_string<double>(
+            Gem::Common::to_string(std::numeric_limits<double>::quiet_NaN())
+        )
+    ));
+}
+
 // A program may make a decimal-comma locale its global C++ locale. The text forms of numbers that
 // go to files (CSV rows, configuration values) must not follow it (a defect: the string streams
 // took the global locale and wrote "1,5" or "1.234.567,5").

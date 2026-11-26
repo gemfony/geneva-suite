@@ -937,6 +937,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `std::uint8_t` are read as numbers (they were read as a character), a `bool` is `true`, `false`,
   `1` or `0`, and "inf" and "nan" are read as numbers. `narrow<>()` refuses a change of sign at
   equal or larger width (`narrow<std::size_t>(-1)`) and a NaN.
+  `to_string()` of a floating-point value writes the shortest text that reads back as the same
+  value ("0.1", was "0.10000000000000001"); help texts and string-typed configuration values
+  change accordingly.
 
 ## 8. Checkpointing
 
