@@ -32,6 +32,7 @@
 #include <atomic>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <thread>
@@ -39,6 +40,8 @@
 
 #include "common/GExceptions.hpp"
 #include "common/GFactoryT.hpp"
+#include "common/GLogger.hpp"
+#include "weft/GBinaryArchive.hpp"
 
 using namespace Gem::Common;
 
@@ -225,6 +228,18 @@ TEST_CASE("GFactoryT::clone() in the base throws (intentional trap)", "[common][
     auto p = make_config("clone_trap");
     TestFactory const f(p);
     CHECK_THROWS_AS(f.clone(), gem_exception);
+
+    // Regression: the message said only "Function was called when it shouldn't be". It must name
+    // the factory whose clone() was called and say what a derived factory has to do.
+    try {
+        (void)f.clone();
+        FAIL("clone() of a factory without its own clone() must throw");
+    }
+    catch(gem_exception const &e) {
+        std::string const what = e.what();
+        CHECK(what.find("TestFactory") != std::string::npos);
+        CHECK(what.find("override clone()") != std::string::npos);
+    }
 }
 
 TEST_CASE(
@@ -255,6 +270,13 @@ TEST_CASE("GFactoryT::load() copies path/initialized from a sibling factory", "[
     dst.get();
     // dst's init_calls counter is still zero — init_calls is counted in src.
     CHECK(dst.init_calls == 0);
+}
+
+TEST_CASE("GFactoryT::load() refuses an empty pointer", "[common][factory]") {
+    // Regression: load() dereferenced the pointer it was handed without looking at it.
+    TestFactory f(make_config("load_empty"));
+    CHECK_THROWS_AS(f.load(nullptr), gem_exception);
+    CHECK(f.getConfigFilePath() == make_config("load_empty")); // unchanged
 }
 
 // ---------------------------------------------------------------------------
@@ -348,10 +370,7 @@ TEST_CASE(
     CHECK(f.last_value == 11);
 }
 
-TEST_CASE(
-    "GFactoryT: assignment re-keys the factory and drops the parse cache",
-    "[common][factory]"
-) {
+TEST_CASE("GFactoryT: every re-keying of the factory drops the parse cache", "[common][factory]") {
     auto p_a = make_value_config("cache_key_a", 1);
     auto p_b = make_value_config("cache_key_b", 2);
 
@@ -388,6 +407,35 @@ TEST_CASE(
         f.setConfigFile(p_b.string());
         (void)f.get();
         CHECK(f.last_value == 2);
+    }
+
+    // Regression (R138-7): load() took the path of the other factory but kept the document parsed
+    // from its own, so the next product was configured from the old file while
+    // getConfigFileName() named the new one.
+    SECTION("load()") {
+        ValueReadingFactory target(p_a);
+        (void)target.get();
+        REQUIRE(target.last_value == 1);
+
+        target.load(std::make_shared<ValueReadingFactory>(p_b));
+        (void)target.get();
+        CHECK(target.last_value == 2);
+    }
+
+    SECTION("deserialization") {
+        ValueReadingFactory target(p_a);
+        (void)target.get();
+        REQUIRE(target.last_value == 1);
+
+        ValueReadingFactory const source(p_b);
+        Gem::Weft::GBinaryOArchive oa;
+        oa &static_cast<GFactoryT<Product> const &>(source);
+        std::string const bytes = oa.str();
+        Gem::Weft::GBinaryIArchive ia(bytes);
+        ia &static_cast<GFactoryT<Product> &>(target);
+        REQUIRE(target.getConfigFilePath() == p_b);
+        (void)target.get();
+        CHECK(target.last_value == 2);
     }
 }
 
@@ -509,4 +557,101 @@ TEST_CASE(
     f.setConfigFile(out.string());
     CHECK_THROWS_AS(f.writeConfigFile("header"), gem_exception);
     CHECK_FALSE(std::filesystem::exists(out));
+}
+
+// ---------------------------------------------------------------------------
+// writeConfigFile(): writes the registered options; without options it writes nothing and warns
+
+namespace {
+
+/** @brief A log target that records every message it is handed */
+struct CapturingLogTarget : GBaseLogTarget {
+    void log(std::string const &msg) const override {
+        messages.push_back(msg);
+    }
+    void logWithSource(std::string const &msg, std::string const &) const override {
+        messages.push_back(msg);
+    }
+    mutable std::vector<std::string> messages;
+};
+
+/** @brief The path of an output file in the test directory that does not exist yet */
+std::filesystem::path fresh_output(std::string const &tag) {
+    auto const out = std::filesystem::temp_directory_path() / "gem_factory_tests" / (tag + ".json");
+    std::filesystem::create_directories(out.parent_path());
+    std::filesystem::remove(out);
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("GFactoryT::writeConfigFile writes the registered options", "[common][factory]") {
+    auto const out = fresh_output("write_options");
+    ValueReadingFactory writer(out);
+    writer.writeConfigFile("a header");
+    REQUIRE(std::filesystem::exists(out));
+    std::ifstream in(out);
+    std::string const text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    CHECK(text.find("observed") != std::string::npos);
+    CHECK(text.find("a header") != std::string::npos);
+
+    // The file written is one the factory reads: the default of the option is applied
+    ValueReadingFactory reader(out);
+    (void)reader.get();
+    CHECK(reader.last_value == -1);
+}
+
+TEST_CASE(
+    "GFactoryT::writeConfigFile without options writes nothing and warns through the logger",
+    "[common][factory]"
+) {
+    // Regression (R138-62): the warning went to std::cout, past the program's log targets.
+    auto const out = fresh_output("write_no_options");
+    TestFactory f(out);
+
+    auto const capture = std::make_shared<CapturingLogTarget>();
+    glogger.addLogTarget(capture);
+    CHECK_NOTHROW(f.writeConfigFile("a header"));
+    glogger.resetLogTargets();
+
+    CHECK_FALSE(std::filesystem::exists(out));
+    bool warned = false;
+    for(auto const &m : capture->messages) {
+        if(m.find(out.string()) != std::string::npos) {
+            warned = true;
+        }
+    }
+    CHECK(warned);
+}
+
+// ---------------------------------------------------------------------------
+// get_as(): the conversion to the produced type itself, and an empty product
+
+namespace {
+
+/** @brief A factory whose get_() yields nothing, which only a derived get_() can do */
+class EmptyGetFactory : public DerivedFactory {
+public:
+    explicit EmptyGetFactory(std::filesystem::path const &p)
+      : DerivedFactory(p) {
+    }
+
+protected:
+    std::shared_ptr<PolyProduct> get_() override {
+        return {};
+    }
+};
+
+} // namespace
+
+TEST_CASE("GFactoryT::get_as: the produced type itself and an empty product", "[common][factory]") {
+    auto p = make_config("get_as_more");
+
+    DerivedFactory f(p);
+    auto const same = f.get_as<PolyProduct>();
+    REQUIRE(same);
+    CHECK(std::dynamic_pointer_cast<DerivedProduct>(same) != nullptr);
+
+    EmptyGetFactory e(p);
+    CHECK(e.get_as<DerivedProduct>() == nullptr);
 }

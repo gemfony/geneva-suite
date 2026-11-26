@@ -34,12 +34,13 @@
 
 // Standard header files go here
 #include <atomic>
-#include <iostream>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <typeinfo>
 
 // Boost header files go here
+#include <boost/core/demangle.hpp>
 #include <boost/json.hpp>
 
 // Geneva header files go here
@@ -47,6 +48,7 @@
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
 #include "common/GMemberReflectionT.hpp" // make_member / serialize_members / g_load_members
 #include "common/GParserBuilder.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp" // serialization of std::atomic<T>
@@ -71,7 +73,7 @@ class GFactoryT {
     /**
      * @brief The single declaration of the factory's persistent members, from which serialize(), the
      * copy operations and load() are derived. The mutex and the parse cache are not members of the
-     * list: a copy starts with fresh ones.
+     * list: a copy starts with fresh ones, and every place that loads the list calls membersLoaded_().
      * @return A tuple of named member references
      */
     template <typename self_type>
@@ -92,10 +94,17 @@ class GFactoryT {
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         Gem::Common::serialize_members(ar, this->localMembers_());
         if constexpr(not archive_type::is_saving) {
-            // The path was replaced wholesale: a cache filled from the previous one must not survive
-            // (loading into an already-used factory is the case a default member initialiser cannot cover).
-            config_document_cell_.reset();
+            this->membersLoaded_();
         }
+    }
+
+    /**
+     * @brief Drops the parse cache after the member list was loaded: it was filled from the
+     * previous configuration path. Called from every place that loads the list, so none can
+     * forget it.
+     */
+    void membersLoaded_() {
+        config_document_cell_.reset();
     }
 
     ///////////////////////////////////////////////////////////////////////
@@ -123,6 +132,7 @@ public:
      */
     GFactoryT(const GFactoryT<prod_type> &cp) {
         Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
+        this->membersLoaded_();
     }
 
     /** @brief The (virtual, defaulted) destructor */
@@ -138,7 +148,7 @@ public:
     GFactoryT<prod_type> &operator=(GFactoryT<prod_type> const &cp) {
         if(this != &cp) {
             Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
-            config_document_cell_.reset(); // config_path_ may have changed
+            this->membersLoaded_();
         }
         return *this;
     }
@@ -187,7 +197,7 @@ public:
 	  */
     void setConfigFile(const std::string &configFile) {
         config_path_ = std::filesystem::path(configFile);
-        config_document_cell_.reset();
+        this->membersLoaded_();
     }
 
     /***************************************************************************/
@@ -239,35 +249,42 @@ public:
             gpb.writeConfigFile(config_path_, header, true);
         }
         else {
-            std::cout << "Warning: An attempt was made to write out configuration file "
-                      << config_path_.string() << '\n'
-                      << "even though no configuration options were registered. Doing nothing."
-                      << '\n';
+            glogger << "Configuration file " << config_path_.string()
+                    << " was not written: no configuration options are registered" << '\n'
+                    << GWARNING;
         }
     }
 
     /***************************************************************************/
     /**
-	  * Loads the data of another GFactoryT<> object
+	  * Loads the data of another GFactoryT<> object. The factory is re-keyed to the other one's
+	  * configuration file, so the next produced object is configured from that file.
 	  *
-	  * @param cp A pointer to the factory whose data (config path and initialized flag) should be loaded
+	  * @param cp A pointer to the factory whose data (config path and initialized flag) should be loaded;
+	  *        an empty pointer is refused with gem_exception
 	  */
     virtual void load(std::shared_ptr<GFactoryT<prod_type>> cp) {
+        Gem::Common::checkThat(
+            cp != nullptr,
+            "GFactoryT::load(): the factory to load from is empty"
+        );
         Gem::Common::g_load_members(this->localMembers_(), cp->localMembers_());
+        this->membersLoaded_();
     }
 
     /***************************************************************************/
     /**
-	  * Creates a deep clone of this object. This function is a trap. Factories
-	  * wishing to use this functionality need to overload this function.
-	  * Others don't have to due to this "pseudo-implementation".
+	  * Creates a deep clone of this object. A factory that is to be cloned overrides this
+	  * function; the base throws gem_exception, naming the factory's class.
 	  *
-	  * @return A deep clone of this factory (overloaded in derived classes; throws here)
+	  * @return A deep clone of this factory (from an override; the base throws)
 	  */
     virtual std::shared_ptr<GFactoryT<prod_type>> clone() const {
         throw gem_exception(
-            g_error_streamer() << "Function was called when it shouldn't be." << '\n'
-                               << "This function is a trap." << '\n'
+            g_error_streamer() << "GFactoryT::clone(): the factory "
+                               << boost::core::demangle(typeid(*this).name())
+                               << " cannot be cloned; a factory that is to be cloned must "
+                               << "override clone()" << '\n'
         );
     }
 
@@ -409,9 +426,8 @@ private:
     /** @brief transient: a parse cache -- the configuration file is read and parsed on the first
      *  get_(), and every later call re-applies this document. It is the sanctioned load-once
      *  cell rather than a hand-rolled mutex+value+flag triple -- unlike the neighbouring initialized_
-     *  flag, which IS serialized and therefore genuinely cannot be one (see globalInit()). A copy or
-     *  move starts with a fresh, cold cell; assignment and deserialize-into re-key the factory and
-     *  therefore reset() it explicitly. */
+     *  flag, which IS serialized and therefore genuinely cannot be one (see globalInit()). Every
+     *  place that loads the member list or changes the path resets it through membersLoaded_(). */
     Concurrency::GLoadOnceCellT<boost::json::value> config_document_cell_;
 };
 
