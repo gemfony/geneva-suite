@@ -64,7 +64,8 @@ namespace Gem::Common {
 
 /******************************************************************************/
 /**
- * @brief Touches a file in a given path, optionally with content, and returns its last-write time.
+ * @brief Touches a file in a given path, optionally appending content, and returns its last-write
+ * time; an existing file keeps its content.
  */
 std::filesystem::file_time_type touch_time(
     std::filesystem::path const &path,

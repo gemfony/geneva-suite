@@ -194,9 +194,10 @@ namespace Gem::Common {
 /******************************************************************************/
 /**
  * This function is meant to determine the last-write-time of a file in a given path.
- * The file will be created, if it does not exist, filled with an optional text
- * and removed afterwards, if a) the file did not exist before and b) the user
- * wants the file to be removed. The time of the last write to the file will be
+ * The file will be created, if it does not exist, the optional text is appended (an
+ * existing file keeps its content), its last-write time is set to now, and it is
+ * removed afterwards, if a) the file did not exist before and b) the user wants the
+ * file to be removed. A file that cannot be written is a gem_exception. The time of the last write to the file will be
  * returned, so this function can be used to create a time marker from the file system.
  *
  * @param path The path (including file name) to the file to be touched
@@ -210,8 +211,15 @@ std::filesystem::file_time_type touch_time(
     bool remove_if_not_present
 ) {
     bool const file_already_existed = std::filesystem::exists(path);
-    std::ofstream ofs(path);
-    ofs << content;
+    {
+        // Append: an existing file keeps its content
+        std::ofstream ofs(path, std::ios::app);
+        ofs << content;
+        ofs.close(); // the content is on disk before the time is set and read
+        checkThat(not ofs.fail(), "touch_time(): could not write to ", path.string());
+    }
+    // Opening for appending, and appending nothing, moves no time: set it, as touch does
+    std::filesystem::last_write_time(path, std::filesystem::file_time_type::clock::now());
     auto last_write_time = std::filesystem::last_write_time(path);
     if(remove_if_not_present && not file_already_existed) {
         std::filesystem::remove(path);

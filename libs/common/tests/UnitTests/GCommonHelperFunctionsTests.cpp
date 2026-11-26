@@ -199,20 +199,45 @@ TEST_CASE("touch_time: creates a file with the given content", "[common][helper-
 }
 
 TEST_CASE(
-    "touch_time: re-touch truncates the file to the new content",
+    "touch_time: an existing file keeps its content and the new content is appended",
     "[common][helper-nonT][file]"
 ) {
-    // touch_time opens the path with std::ofstream (default trunc), so every
-    // call replaces the existing content. This pins that contract down.
-    auto p = scratch("touch_truncates.txt");
+    // Regression: the file was opened in the default mode, which truncates, so touching an
+    // existing file emptied it, also with the default empty content
+    auto p = scratch("touch_keeps.txt");
     std::filesystem::remove(p);
 
     touch_time(p, "before", false);
     REQUIRE(loadTextDataFromFile(p) == "before");
-    touch_time(p, "after", false);
-    CHECK(loadTextDataFromFile(p) == "after");
+    touch_time(p);
+    CHECK(loadTextDataFromFile(p) == "before");
+    touch_time(p, " after", false);
+    CHECK(loadTextDataFromFile(p) == "before after");
 
     std::filesystem::remove(p);
+}
+
+TEST_CASE(
+    "touch_time: touching an existing file moves its time forward",
+    "[common][helper-nonT][file]"
+) {
+    auto p = scratch("touch_time_moves.txt");
+    std::filesystem::remove(p);
+    touch_time(p, "x", false);
+    auto const old_time = std::filesystem::last_write_time(p) - std::chrono::hours(1);
+    std::filesystem::last_write_time(p, old_time);
+
+    CHECK(touch_time(p) > old_time);
+    CHECK(std::filesystem::last_write_time(p) > old_time);
+
+    std::filesystem::remove(p);
+}
+
+TEST_CASE(
+    "touch_time: a file that cannot be written is a gem_exception",
+    "[common][helper-nonT][file]"
+) {
+    CHECK_THROWS_AS(touch_time(scratch("absent-directory") / "file.txt"), gem_exception);
 }
 
 TEST_CASE(
