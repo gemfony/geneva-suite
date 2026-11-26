@@ -79,7 +79,7 @@ GOptimizer::GOptimizer(const GOptimizationDescription &description)
  * not be used. Note that any individuals registered with the default algorithm
  * will be copied into the GOptimizer object. This function takes the algorithm from a
  * global algorithm factory store. The algorithm needs to be specified using a
- * small nickname, such as "ea" for "Evolutionary Algorithms". See the available
+ * small mnemonic, such as "ea" for "Evolutionary Algorithms". See the available
  * algorithms in the Geneva distribution for further information.
  *
  * @param mn A small mnemonic for the optimization algorithm
@@ -508,7 +508,7 @@ void GOptimizer::validateCheckpointFitsFirstAlgorithm() const {
         throw gem_exception(
             g_error_streamer() << "Checkpoint file " << cp_file_ << " does not" << '\n'
                                << "fit requirements of first algorithm "
-                               << algorithms_cnt_[0]->getAlgorithmPersonalityType() << '\n'
+                               << algorithms_cnt_[0]->getAlgorithmMnemonic() << '\n'
         );
     }
 }
@@ -602,10 +602,10 @@ void GOptimizer::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
         // Remove our local copies
         this->clear();
 
-        // If an OA-owned adaption config was registered for this algorithm's type, hand
+        // If an OA-owned adaption config was registered for this algorithm's mnemonic, hand
         // it over now (before it runs). The algorithm adopts it -- validating it against the population's
         // genome -- in place of deriving a default from the genome layout.
-        if(const auto it = adaption_config_registry_.find(alg_ptr->getAlgorithmPersonalityType());
+        if(const auto it = adaption_config_registry_.find(alg_ptr->getAlgorithmMnemonic());
            it != adaption_config_registry_.end()) {
             alg_ptr->setAdaptionConfig(it->second);
         }
@@ -653,23 +653,23 @@ void GOptimizer::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
 
 /******************************************************************************/
 /**
- * @brief Registers an OA-owned adaption configuration for an algorithm type.
+ * @brief Registers an OA-owned adaption configuration for an algorithm.
  *
- * Stored keyed by the algorithm's personality type and handed to the matching algorithm in
+ * Stored keyed by the algorithm's mnemonic and handed to the matching algorithm in
  * runAlgorithmChain() before it runs. A null config removes any existing entry.
  *
- * @param oa_personality_type The algorithm personality type the configuration applies to (registry key)
+ * @param oa_mnemonic The mnemonic of the algorithm the configuration applies to (registry key, e.g. "ea")
  * @param config A smart pointer to the adaption configuration to register; a null pointer removes any existing entry
  */
 void GOptimizer::registerAdaptionConfig(
-    const std::string &oa_personality_type,
+    const std::string &oa_mnemonic,
     std::shared_ptr<oa::GAdaptionConfigBase> config
 ) {
     if(config) {
-        adaption_config_registry_[oa_personality_type] = std::move(config);
+        adaption_config_registry_[oa_mnemonic] = std::move(config);
     }
     else {
-        adaption_config_registry_.erase(oa_personality_type);
+        adaption_config_registry_.erase(oa_mnemonic);
     }
 }
 
@@ -797,16 +797,6 @@ uint32_t GOptimizer::getIteration_() const {
  */
 std::string GOptimizer::getAlgorithmName_() const {
     return {"Algorithm Combiner"};
-}
-
-/******************************************************************************/
-/**
- * @brief Returns one-word information about the type of optimization algorithm.
- *
- * @return A short string identifying the algorithm personality type
- */
-std::string GOptimizer::getAlgorithmPersonalityType_() const {
-    return {"PERSONALITY_NONE"};
 }
 
 /******************************************************************************/

@@ -51,7 +51,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /**
  * A CRTP-style scaffold for the per-algorithm factories. It generates the boilerplate every standard
  * optimization-algorithm factory repeats: the three constructors (the default one derives the config
- * path "./config/<class_name>.json"), getMnemonic() (= the personality nickname), getAlgorithmName()
+ * path "./config/<class_name>.json"), getMnemonic() (= the algorithm's oa_mnemonic), getAlgorithmName()
  * (= the algorithm's human-readable name) and getObject_() (construct the algorithm and register its
  * configuration options).
  *
@@ -70,16 +70,10 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * Gem::Common::GProviderT -- so registering it (GInitializerT for a built-in, oaManifest() for a module)
  * needs no wrapper of any kind.
  *
- * @tparam oa_type                 The concrete algorithm. Must expose the GOptimizationAlgorithmT
- *                                 identifiers class_name and oa_algorithm_name, and the member alias
- *                                 personality_traits_type naming its own personality traits.
- * @tparam personality_traits_type The personality traits whose static `nickname` is the command-line
- *                                 mnemonic. Defaults to the algorithm's own traits, which is what every
- *                                 factory wants; spell it only to give an algorithm a second mnemonic.
+ * @tparam oa_type The concrete algorithm. Must expose the GOptimizationAlgorithmT identifiers
+ *                 class_name, oa_algorithm_name and oa_mnemonic.
  */
-template <
-    typename oa_type,
-    typename personality_traits_type = typename oa_type::personality_traits_type>
+template <typename oa_type>
 class GOptimizationAlgorithmFactoryT : public GOAFactoryT<GOptimizationAlgorithmBase> {
 public:
     /** @brief The default constructor: derives the config-file path from the algorithm's class name. */
@@ -124,12 +118,12 @@ public:
     ~GOptimizationAlgorithmFactoryT() override = default;
 
     /**
-     * @brief The command-line mnemonic / nickname describing this algorithm.
+     * @brief The command-line mnemonic describing this algorithm.
      *
-     * @return The personality traits' nickname, used as the command-line mnemonic for this algorithm.
+     * @return The algorithm's mnemonic (oa_type::oa_mnemonic), the key it is registered under.
      */
     std::string getMnemonic() const override {
-        return personality_traits_type::nickname;
+        return std::string(oa_type::oa_mnemonic);
     }
     /**
      * @brief The clear-text name of this algorithm.

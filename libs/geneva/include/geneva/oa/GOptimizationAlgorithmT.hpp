@@ -48,26 +48,34 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * repeats by hand. The generic quartet -- clone_(), name_(), load_(), compare_() plus the folded
  * serialize() -- comes from Gem::Common::GReflectiveInterfaceT (single-sourced from the class's
  * localMembers_() and class_name, exactly as everywhere else in the tree); this layer only adds the
- * two algorithm-specific overriders getAlgorithmName_() and getAlgorithmPersonalityType_(). A concrete
- * algorithm derives as
+ * algorithm-specific overriders getAlgorithmName_() and getAlgorithmMnemonic_(). A concrete algorithm
+ * derives as
  *
  *     class GFoo : public GOptimizationAlgorithmT<GFoo>             // direct-from-base algorithms
  *     class GBar : public GOptimizationAlgorithmT<GBar, GParChild>  // mu/lambda algorithms
  *
- * and supplies its member list (localMembers_()) plus three static string identifiers and the alias
- * naming its personality traits (all public, so this layer, the mixin and the algorithm factory
- * scaffold can read them):
+ * and states its identity once, on itself: its member list (localMembers_()), its static string
+ * identifiers and the alias naming the personality traits its individuals carry (all public, so this
+ * layer, the mixin and the algorithm factory scaffold can read them):
  *
  *     static constexpr std::string_view class_name          = "GFoo";  // read by GReflectiveInterfaceT
  *     static constexpr std::string_view oa_algorithm_name   = "Foo Optimizer";
- *     static constexpr std::string_view oa_personality_type = "PERSONALITY_FOO";
- *     using personality_traits_type = GFoo_PersonalityTraits;  // what getPersonalityTraits_() hands out
+ *     static constexpr std::string_view oa_mnemonic         = "foo";   // the command-line mnemonic
+ *     using personality_traits_type = GPositionPersonalityTraits;  // what getPersonalityTraits_() hands out
+ *
+ * The personality traits carry per-individual scratch only, not the algorithm's identity: an algorithm
+ * whose individuals need nothing beyond their position in the population names
+ * GPositionPersonalityTraits, one with more state names a traits class of its own.
  *
  * The mixin holds NO data of its own; clone_() returns a GOptimizationAlgorithmBase pointer (the
  * hierarchy root, the default GReflectiveInterfaceT clone-return). An algorithm that adds settings
  * declares its own modifyForTest() for the standard tests (see GOptimizationAlgorithmBase). An
  * algorithm whose load_() is more than a member-wise copy (e.g. GSwarmAlgorithm's iteration-dependent
  * neighbourhood-best handling) overrides the generated load_() in the usual way.
+ *
+ * A class that derives from a concrete algorithm (GMetaEvolutionaryAlgorithm from
+ * GEvolutionaryAlgorithm) derives through this scaffold as well, GOptimizationAlgorithmT<GMeta, GFoo>, so
+ * that the identity it states is the one reported; what it does not restate it inherits.
  *
  * @tparam derived_type The concrete algorithm (CRTP).
  * @tparam parent_type  The class to derive from -- GOptimizationAlgorithmBase by default, or an
@@ -105,12 +113,12 @@ private:
     }
 
     /**
-     * @brief Returns the personality-type tag of this optimization algorithm
+     * @brief Returns the command-line mnemonic of this optimization algorithm
      *
-     * @return The algorithm's personality-type tag, taken from derived_type::oa_personality_type.
+     * @return The algorithm's mnemonic, taken from derived_type::oa_mnemonic.
      */
-    [[nodiscard]] std::string getAlgorithmPersonalityType_() const override {
-        return std::string(derived_type::oa_personality_type);
+    [[nodiscard]] std::string getAlgorithmMnemonic_() const override {
+        return std::string(derived_type::oa_mnemonic);
     }
 };
 

@@ -22,11 +22,13 @@ analogue of example 18 (a loadable problem) and has two artifacts:
 
 ## How to make your OWN loadable algorithm
 
-1. **Write the algorithm and its personality traits** (`GRandomSearch.hpp/.cpp`,
-   `GRandomSearch_PersonalityTraits.hpp/.cpp`). Nothing about either is module-specific — the same classes
-   could be compiled into Geneva. The traits' `nickname` is the mnemonic users will type, and the algorithm
-   names them with a `using personality_traits_type = GMyAlgorithm_PersonalityTraits;` alias, exactly as
-   Geneva's built-in algorithms do.
+1. **Write the algorithm** (`GRandomSearch.hpp/.cpp`). Nothing about it is module-specific — the same
+   class could be compiled into Geneva. It states its identity once, on itself, exactly as Geneva's
+   built-in algorithms do: `class_name`, the clear-text `oa_algorithm_name` and `oa_mnemonic`, the
+   mnemonic users will type. Its individuals need nothing beyond their position in the population, so it
+   names the library's traits with `using personality_traits_type = GPositionPersonalityTraits;`. An
+   algorithm whose individuals carry more per-individual state names a traits class of its own there,
+   and registers that class next to the algorithm.
 
    If the algorithm carries a state from one iteration to the next (velocities, an archive, a step
    size), that state goes into its member list, so a checkpoint holds it, and its starting value is built
@@ -45,10 +47,8 @@ analogue of example 18 (a loadable problem) and has two artifacts:
    #include "geneva/oa/GOAPlugin.hpp"
    #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
    #include "GMyAlgorithm.hpp"
-   #include "GMyAlgorithm_PersonalityTraits.hpp"
 
-   GEM_REGISTER_ARCHIVABLE(GMyAlgorithm)                    // checkpoint tags: the algorithm ...
-   GEM_REGISTER_ARCHIVABLE(GMyAlgorithm_PersonalityTraits)  // ... and its personality traits
+   GEM_REGISTER_ARCHIVABLE(GMyAlgorithm)  // the checkpoint tag of the algorithm
 
    extern "C" BOOST_SYMBOL_EXPORT const GemModuleManifest *gem_module_manifest() {
        return Gem::Geneva::oaManifest<

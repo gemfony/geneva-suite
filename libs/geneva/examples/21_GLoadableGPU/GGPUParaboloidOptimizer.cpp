@@ -85,8 +85,8 @@ int main(int argc, char **argv) {
                 const auto *flat = dynamic_cast<const Genome::GGenome *>(sample.get());
                 if(oef && (flat != nullptr)) {
                     if(auto cfg = oef->getAdaptionConfig(*flat)) {
-                        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-                        go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+                        go.registerAdaptionConfig("ea", cfg);
+                        go.registerAdaptionConfig("sa", cfg);
                     }
                 }
             }

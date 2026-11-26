@@ -74,8 +74,8 @@ int main(int argc, char **argv) {
         {
             auto sample = gsif_ptr->get_as<GStarterIndividual>();
             auto cfg = gsif_ptr->getAdaptionConfig(*sample);
-            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-            go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            go.registerAdaptionConfig("ea", cfg);
+            go.registerAdaptionConfig("sa", cfg);
         }
 
         // Perform the actual optimization

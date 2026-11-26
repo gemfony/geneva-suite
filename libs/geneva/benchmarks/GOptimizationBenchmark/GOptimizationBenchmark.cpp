@@ -131,11 +131,11 @@ int main(int argc, char **argv) {
                     // same parameters (rebuilt here from g, whose dimension varies per measurement). Register it
                     // for the adapting algorithms (EA / SA).
                     go_loop.registerAdaptionConfig(
-                        "PERSONALITY_EA",
+                        "ea",
                         gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
                     );
                     go_loop.registerAdaptionConfig(
-                        "PERSONALITY_SA",
+                        "sa",
                         gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
                     );
 

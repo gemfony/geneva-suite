@@ -80,8 +80,8 @@ int main(int argc, char **argv) {
         if(not Gem::Common::GParserBuilder::updateInPlace()) {
             auto sample = geei_ptr->get_as<gind::GExternalEvaluatorIndividual>();
             auto cfg = geei_ptr->getAdaptionConfig(*sample);
-            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-            go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            go.registerAdaptionConfig("ea", cfg);
+            go.registerAdaptionConfig("sa", cfg);
         }
 
         // Add a default optimization algorithm to the GOptimizer object

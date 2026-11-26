@@ -70,13 +70,14 @@ inline constexpr const char *OA_CONTRIBUTION_KIND = "geneva.oa";
  * the contribution's factory thunk hands back the algorithm's factory itself (as a @c GOAProviderPtr on the
  * heap, the plain-C @c void* boundary -- a @c GOAFactoryT IS the provider the store holds); the loader moves
  * it out and hands it to @c registerOptimizationAlgorithm(), the very function a built-in algorithm's
- * @c GInitializerT uses, under the factory's own mnemonic (the algorithm's personality nickname).
+ * @c GInitializerT uses, under the factory's own mnemonic (the algorithm's oa_mnemonic).
  * Registering a mnemonic a built-in (or another module) already holds is a hard error -- a module cannot
  * shadow one.
  *
  * This function does NOT emit the OA's serialization registrations -- the OA's own translation unit carries
- * the @c GEM_REGISTER_ARCHIVABLE for the algorithm and its personality traits (the same registrations a
- * compiled-in OA needs), so a checkpoint written with the module loaded resumes with it loaded.
+ * the @c GEM_REGISTER_ARCHIVABLE for the algorithm and, if it has one, its own personality-traits class (the
+ * same registrations a compiled-in OA needs), so a checkpoint written with the module loaded resumes with
+ * it loaded.
  *
  * @tparam factory_type The concrete OA factory (a @c GOAFactoryT<GOptimizationAlgorithmBase> subclass, e.g.
  *         @c GOptimizationAlgorithmFactoryT<MyOA>); default-constructed here

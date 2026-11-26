@@ -242,9 +242,9 @@ public:
 
     /***************************************************************************/
     /**
-	  * Gives access to the mnemonics / nickname describing an algorithm
+	  * Gives access to the mnemonic describing an algorithm
 	  *
-	  * @return The short mnemonic / nickname identifying the algorithm (e.g. "ea")
+	  * @return The short mnemonic identifying the algorithm (e.g. "ea")
 	  */
     [[nodiscard]] std::string getMnemonic() const override = 0;
 

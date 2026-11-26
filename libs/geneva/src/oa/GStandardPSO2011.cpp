@@ -202,7 +202,7 @@ void GStandardPSO2011::init() {
 
     // Particle index bookkeeping.
     for(std::size_t i = 0; i < swarm_size_; ++i) {
-        this->at(i)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(i);
+        this->at(i)->getPersonalityTraits<GPositionPersonalityTraits>()->setPopulationPosition(i);
     }
 
     auto const fits = [this](std::vector<std::vector<double>> const &rows) {
@@ -501,10 +501,10 @@ std::tuple<double, double> GStandardPSO2011::updateBests() {
             row[0] = row[best_idx];
             row[best_idx] = tmp;
         }
-        this->at(0)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(0);
-        this->at(best_idx)->getPersonalityTraits<GStandardPSO2011_PersonalityTraits>()->setParticle(
-            best_idx
-        );
+        this->at(0)->getPersonalityTraits<GPositionPersonalityTraits>()->setPopulationPosition(0);
+        this->at(best_idx)
+            ->getPersonalityTraits<GPositionPersonalityTraits>()
+            ->setPopulationPosition(best_idx);
     }
 
     return best_iteration_fitness;

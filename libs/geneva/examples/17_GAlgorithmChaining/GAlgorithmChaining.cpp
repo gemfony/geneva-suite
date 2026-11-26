@@ -63,7 +63,7 @@ int optimize(GOptimizer &go) {
     // factory authors. Register it for the evolutionary algorithm (gradient descent does not adapt).
     {
         auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
-        go.registerAdaptionConfig("PERSONALITY_EA", gfi_ptr->getAdaptionConfig(*sample));
+        go.registerAdaptionConfig("ea", gfi_ptr->getAdaptionConfig(*sample));
     }
 
     //---------------------------------------------------------------------------

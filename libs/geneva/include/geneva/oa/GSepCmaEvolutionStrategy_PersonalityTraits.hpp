@@ -77,9 +77,6 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GSepCmaEvolutionStrategy_PersonalityTraits";
 
-    /** @brief An easy identifier for the class */
-    static const std::string nickname; // Initialized in the .cpp definition file
-
     /** @brief The default constructor */
     GSepCmaEvolutionStrategy_PersonalityTraits() = default;
     /** @brief The copy constructor */
@@ -100,11 +97,6 @@ public:
     // The pareto-front tag (isOnParetoFront / resetParetoTag / setIsNotOnParetoFront)
     // is inherited from the GParetoTag mixin; the member is serialized below under
     // its historical NVP name.
-
-    /**
-     * @brief Retrieves the mnemonic of the optimization algorithm.
-     */
-    [[nodiscard]] std::string getMnemonic() const override;
 
     /** @brief Changes these traits for the standard tests: the selection rank.
      *  @return Whether the traits were changed (always true) */

@@ -82,12 +82,14 @@
 #include "geneva/oa/GBasePluggableOM.hpp"
 #include "geneva/oa/GConjugateGradientDescent.hpp"
 #include "geneva/oa/GEvolutionaryAlgorithm.hpp"
+#include "geneva/oa/GFactoryStore.hpp"
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
 #include "geneva/oa/GNelderMead.hpp"
 #include "geneva/oa/GOAFactoryT.hpp"
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GParameterScan.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
@@ -595,7 +597,7 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
 
     // Serialize through the checkpoint mechanism, then resume into a fresh algorithm.
     const std::filesystem::path cp =
-        std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-scratchtest.cp";
+        std::filesystem::temp_directory_path() / "checkpoint-ea-scratchtest.cp";
     pop->saveCheckpoint(cp);
 
     auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
@@ -656,7 +658,7 @@ TEST_CASE(
     }
 
     const std::filesystem::path cp =
-        std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-policytest.cp";
+        std::filesystem::temp_directory_path() / "checkpoint-ea-policytest.cp";
     pop->saveCheckpoint(cp);
 
     auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
@@ -843,7 +845,7 @@ TEST_CASE(
         const int code =
             launcher.run(geneva, {.produce = [&] {
                              Gem::Geneva::GOptimizer go(geneva);
-                             go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                             go.registerAdaptionConfig("ea", adaption_config);
                              job2->setPopulationSizes(4, 2);
                              job2->setMaxIteration(6);
                              job2->setReportIteration(0);
@@ -973,7 +975,7 @@ TEST_CASE(
         const int code =
             launcher.run(geneva, {.produce = [&] {
                              Gem::Geneva::GOptimizer go(geneva);
-                             go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                             go.registerAdaptionConfig("ea", adaption_config);
                              go.registerPluggableOM(std::make_shared<GResumeCountingMonitor>());
                              go.registerPluggableOM(
                                  std::make_shared<Gem::Geneva::GFitnessMonitor>()
@@ -1047,7 +1049,7 @@ TEST_CASE(
     recorder.closeAll();
     fs::path older_checkpoint; // the one of iteration 2
     for(const auto &entry : fs::directory_iterator(base)) {
-        if(entry.path().filename().string().starts_with("checkpoint-PERSONALITY_EA-2-")) {
+        if(entry.path().filename().string().starts_with("checkpoint-ea-2-")) {
             older_checkpoint = entry.path();
         }
     }
@@ -1070,7 +1072,7 @@ TEST_CASE(
         );
         REQUIRE(launcher.run(geneva, {.produce = [&] {
                                  Gem::Geneva::GOptimizer go(geneva);
-                                 go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                                 go.registerAdaptionConfig("ea", adaption_config);
                                  go.registerPluggableOM(
                                      std::make_shared<Gem::Geneva::GFitnessMonitor>()
                                  );
@@ -1138,8 +1140,8 @@ TEST_CASE("a monitor's stream holds every algorithm of a GOptimizer chain", "[oa
         const int code = launcher.run(geneva, {.produce = [&] {
                                           Gem::Geneva::GOptimizer go(geneva);
                                           go.push_back(proto.clone());
-                                          go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
-                                          go.registerAdaptionConfig("PERSONALITY_SA", adaption_config);
+                                          go.registerAdaptionConfig("ea", adaption_config);
+                                          go.registerAdaptionConfig("sa", adaption_config);
                                           auto plotter =
                                               std::make_shared<Gem::Geneva::GProgressPlotter>();
                                           plotter->setProfileSpec("d(0, -10, 10)");
@@ -1248,8 +1250,8 @@ TEST_CASE(
                                     if(cp_file.empty()) {
                                         go.push_back(proto.clone());
                                     }
-                                    go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
-                                    go.registerAdaptionConfig("PERSONALITY_SA", adaption_config);
+                                    go.registerAdaptionConfig("ea", adaption_config);
+                                    go.registerAdaptionConfig("sa", adaption_config);
                                     go.registerPluggableOM(
                                         std::make_shared<Gem::Geneva::GFitnessMonitor>()
                                     );
@@ -1275,7 +1277,7 @@ TEST_CASE(
     REQUIRE(run_job({algorithm(std::make_shared<oa::GEvolutionaryAlgorithm>(), 3), sa1}, "") == 0);
     fs::path sa_checkpoint; // the one of SA's iteration 1 = chain iteration 4
     for(const auto &entry : fs::directory_iterator(base)) {
-        if(entry.path().filename().string().starts_with("checkpoint-PERSONALITY_SA-1-")) {
+        if(entry.path().filename().string().starts_with("checkpoint-sa-1-")) {
             sa_checkpoint = entry.path();
         }
     }
@@ -1333,8 +1335,8 @@ TEST_CASE(
     const gind::GLineFitIndividual proto(data_points);
     Gem::Geneva::GOptimizer go;
     go.push_back(proto.clone());
-    go.registerAdaptionConfig("PERSONALITY_EA", proto.getAdaptionConfig());
-    go.registerAdaptionConfig("PERSONALITY_SA", proto.getAdaptionConfig());
+    go.registerAdaptionConfig("ea", proto.getAdaptionConfig());
+    go.registerAdaptionConfig("sa", proto.getAdaptionConfig());
     auto sa = std::make_shared<oa::GSimulatedAnnealing>();
     sa->setPopulationSizes(4, 2);
     sa->setMaxIteration(3);
@@ -1396,7 +1398,7 @@ TEST_CASE(
             Gem::Geneva::GOptimizer go;
             go.setCopyBestIndividualsOnly(copy_best_only);
             go.push_back(src.clone());
-            go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+            go.registerAdaptionConfig("ea", largeFixedStep(src));
             auto ea = makeCommaEA();
             go & ea;
             // optimize() returns the optimizer itself, so a result is read in the same expression
@@ -1450,14 +1452,14 @@ TEST_CASE(
     SECTION("GOptimizer") {
         Gem::Geneva::GOptimizer go;
         go.push_back(src.clone());
-        go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+        go.registerAdaptionConfig("ea", largeFixedStep(src));
         auto ea = makeCommaEA();
         go & ea;
         CHECK(&go.optimize() == &go);
 
         Gem::Geneva::GOptimizer chained;
         chained.push_back(src.clone());
-        chained.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+        chained.registerAdaptionConfig("ea", largeFixedStep(src));
         auto chained_ea = makeCommaEA();
         chained & chained_ea;
         auto const best = chained.optimize().getBestGlobalIndividual<SphereOA>();
@@ -1483,7 +1485,7 @@ TEST_CASE(
             Gem::Geneva::GOptimizer go;
             go.setCopyBestIndividualsOnly(copy_best_only);
             go.push_back(src.clone());
-            go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+            go.registerAdaptionConfig("ea", largeFixedStep(src));
             auto first = makeCommaEA();
             auto second = makeCommaEA();
             go & first & second;
@@ -1522,7 +1524,7 @@ TEST_CASE(
     SphereOA const src;
     Gem::Geneva::GOptimizer go;
     go.push_back(src.clone());
-    go.registerAdaptionConfig("PERSONALITY_EA", largeFixedStep(src));
+    go.registerAdaptionConfig("ea", largeFixedStep(src));
     auto first = makeCommaEA();
     auto second = makeCommaEA();
     second->setPopulationSizes(6, 2); // two parents: an iteration archive of two
@@ -1716,7 +1718,7 @@ TEST_CASE("a reset after a loaded checkpoint starts a run of its own", "[oa]") {
 TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
     // Regression: the algorithm of a checkpoint was read from the second hyphen-separated token of
     // its file name, so a renamed checkpoint could not be loaded, and a file named after another
-    // algorithm was taken for one of it. The personality type is now the file's first field.
+    // algorithm was taken for one of it. The algorithm's mnemonic is now the file's first field.
     namespace gind = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
     auto const dir = std::filesystem::temp_directory_path();
@@ -1737,16 +1739,83 @@ TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
     // A checkpoint of another algorithm is refused, whatever its name says
     oa::GSimulatedAnnealing sa;
     sa.push_back(gind::GLineFitIndividual(data_points).clone());
-    auto const misnamed = dir / "checkpoint-PERSONALITY_EA-0-0-misnamed.cp";
+    auto const misnamed = dir / "checkpoint-ea-0-0-misnamed.cp";
     sa.saveCheckpoint(misnamed);
     oa::GEvolutionaryAlgorithm into_ea;
     CHECK_FALSE(into_ea.cp_personality_fits(misnamed));
     CHECK_THROWS_WITH(
         into_ea.loadCheckpoint(misnamed),
-        Catch::Matchers::ContainsSubstring("was written by the algorithm PERSONALITY_SA") &&
-            Catch::Matchers::ContainsSubstring("not by this one (PERSONALITY_EA)")
+        Catch::Matchers::ContainsSubstring("was written by the algorithm sa") &&
+            Catch::Matchers::ContainsSubstring("not by this one (ea)")
     );
     std::filesystem::remove(misnamed);
+}
+
+/******************************************************************************/
+
+TEST_CASE("an algorithm states its identity once and on itself", "[oa]") {
+    // The mnemonic lives on the algorithm (oa_mnemonic); its factory, the store key and the
+    // algorithm object all report that one string.
+    oa::GNelderMead const nm;
+    CHECK(nm.getAlgorithmMnemonic() == "nm");
+    CHECK(nm.getAlgorithmName() == "Nelder-Mead Simplex");
+    CHECK(oa::GOptimizationAlgorithmFactoryT<oa::GNelderMead>{}.getMnemonic() == "nm");
+    std::shared_ptr<Gem::Common::GProviderT<oa::GOptimizationAlgorithmBase>> stored;
+    REQUIRE(oaFactoryStore()->get("nm", stored));
+    REQUIRE(stored);
+    CHECK(stored->getMnemonic() == "nm");
+
+    oa::GEvolutionaryAlgorithm const ea;
+    CHECK(ea.getAlgorithmMnemonic() == "ea");
+
+    // Regression: the meta-EA derived from the EA without the identity scaffold, so the name it
+    // states was never read and it reported itself as "Evolutionary Algorithm". It inherits the
+    // EA's mnemonic, which it does not restate.
+    oa::GMetaEvolutionaryAlgorithm const meta;
+    CHECK(meta.getAlgorithmName() == "Meta Evolutionary Algorithm");
+    CHECK(meta.getAlgorithmMnemonic() == "ea");
+}
+
+/******************************************************************************/
+
+TEST_CASE("a Nelder-Mead checkpoint keeps its individuals' position personalities", "[oa]") {
+    // Nelder-Mead installs the shared GPositionPersonalityTraits rather than a traits class of its own.
+    // A checkpoint restores that personality with its position, and the check that a checkpoint belongs
+    // to this algorithm reads the algorithm named in the file, not the personality type of its individuals.
+    namespace gind = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+
+    oa::GNelderMead nm;
+    for(std::size_t i = 0; i < 3; ++i) {
+        nm.push_back(gind::GLineFitIndividual(data_points).clone());
+        auto personality = std::make_shared<oa::GPositionPersonalityTraits>();
+        personality->setPopulationPosition(i + 7);
+        nm.at(i)->setPersonality(personality);
+    }
+
+    auto const cp = std::filesystem::temp_directory_path() / "nm-position-personality.cp";
+    nm.saveCheckpoint(cp);
+
+    oa::GNelderMead resumed;
+    CHECK(resumed.cp_personality_fits(cp));
+    REQUIRE_NOTHROW(resumed.loadCheckpoint(cp));
+    REQUIRE(resumed.size() == 3);
+    for(std::size_t i = 0; i < 3; ++i) {
+        auto const personality =
+            resumed.at(i)->getPersonalityTraits<oa::GPositionPersonalityTraits>();
+        REQUIRE(personality);
+        CHECK(personality->name() == "GPositionPersonalityTraits");
+        CHECK(personality->getPopulationPosition() == i + 7);
+    }
+
+    // Another algorithm refuses the file
+    oa::GConjugateGradientDescent cgd;
+    CHECK_FALSE(cgd.cp_personality_fits(cp));
+    CHECK_THROWS_WITH(
+        cgd.loadCheckpoint(cp),
+        Catch::Matchers::ContainsSubstring("was written by the algorithm nm")
+    );
+    std::filesystem::remove(cp);
 }
 
 /******************************************************************************/
@@ -1755,7 +1824,7 @@ TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
     // Regression (2026-11-20): an empty checkpoint file -- left by a job that was killed while it
     // wrote one in place -- was reported as "usually means the individual type ... is not available".
     const std::filesystem::path cp =
-        std::filesystem::temp_directory_path() / "checkpoint-PERSONALITY_EA-0-0-emptytest.cp";
+        std::filesystem::temp_directory_path() / "checkpoint-ea-0-0-emptytest.cp";
     {
         std::ofstream const create(cp, std::ofstream::trunc);
     }
@@ -1825,7 +1894,7 @@ TEST_CASE(
             launcher.run(geneva, {.produce = [&] {
                              Gem::Geneva::GOptimizer go(geneva);
                              go.push_back(proto.clone());
-                             go.registerAdaptionConfig("PERSONALITY_EA", adaption_config);
+                             go.registerAdaptionConfig("ea", adaption_config);
                              auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
                              job2->setPopulationSizes(4, 2);
                              job2->setMaxIteration(

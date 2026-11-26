@@ -49,7 +49,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
 /**
  * This class adds variables and functions to GPersonalityTraits that are specific to the dimension-aware
  * adaptive evolutionary algorithm ("ea"). It is a near-twin of GSepCmaEvolutionStrategy_PersonalityTraits
- * (same pareto-front tag) but carries its own nickname so it self-registers a distinct mnemonic.
+ * (same pareto-front tag), but derives from the parent/child traits.
  */
 class GEvolutionaryAlgorithm_PersonalityTraits // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::GReflectiveInterfaceT<
@@ -75,9 +75,6 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GEvolutionaryAlgorithm_PersonalityTraits";
 
-    /** @brief An easy identifier for the class */
-    static const std::string nickname; // Initialized in the .cpp definition file
-
     /** @brief The default constructor */
     GEvolutionaryAlgorithm_PersonalityTraits() = default;
     /** @brief The copy constructor */
@@ -89,11 +86,6 @@ public:
     // The pareto-front tag (isOnParetoFront / resetParetoTag / setIsNotOnParetoFront)
     // is inherited from the GParetoTag mixin; the member is serialized below under
     // its historical NVP name.
-
-    /**
-     * @brief Retrieves the mnemonic of the optimization algorithm.
-     */
-    [[nodiscard]] std::string getMnemonic() const override;
 
 protected:
     /***************************************************************************/

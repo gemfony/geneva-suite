@@ -80,9 +80,6 @@ public:
     /** @brief The class name, consumed by the GReflectiveInterfaceT-generated name_() / compare token. */
     static constexpr std::string_view class_name = "GSwarmAlgorithm_PersonalityTraits";
 
-    /** @brief An easy identifier for the class */
-    static const std::string nickname; // Initialized in the .cpp definition file
-
     /** @brief The default constructor */
     GSwarmAlgorithm_PersonalityTraits() = default;
     /**
@@ -136,11 +133,6 @@ public:
      * @brief Retrieve quality of personally best individual
      */
     [[nodiscard]] std::tuple<double, double> getPersonalBestQuality() const;
-
-    /**
-     * @brief Retrieves the mnemonic of the optimization algorithm
-     */
-    [[nodiscard]] std::string getMnemonic() const override;
 
     /** @brief Changes these traits for the standard tests: the neighborhood.
      *  @return Whether the traits were changed (always true) */

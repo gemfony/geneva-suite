@@ -47,8 +47,8 @@
 #include "geneva/GPersonalityTraits.hpp"
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/genome/GGenome.hpp"
-#include "geneva/oa/GConjugateGradientDescent_PersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
+#include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -427,7 +427,7 @@ void GConjugateGradientDescent::updateChildParameters() {
 
                 // Update the child's position in the population
                 this->at(child_pos)
-                    ->getPersonalityTraits<GConjugateGradientDescent_PersonalityTraits>()
+                    ->getPersonalityTraits<GPositionPersonalityTraits>()
                     ->setPopulationPosition(child_pos);
 
                 // probe 0 = forward (+h); probe 1 (central only) = backward (-h)
@@ -1249,7 +1249,7 @@ void GConjugateGradientDescent::finalize() {
 /**
  * @brief Retrieve a GPersonalityTraits object belonging to this algorithm
  *
- * @return A new GConjugateGradientDescent_PersonalityTraits object, camouflaged as a GPersonalityTraits
+ * @return A new GPositionPersonalityTraits object, camouflaged as a GPersonalityTraits
  */
 std::shared_ptr<GPersonalityTraits> GConjugateGradientDescent::getPersonalityTraits_() const {
     return std::make_shared<personality_traits_type>();

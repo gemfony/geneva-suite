@@ -513,7 +513,7 @@ void GGeneralizedSimulatedAnnealing::applyAcceptance() {
             // Loading also transfers the proposal's already known fitness.
             this->at(currentPos(c))->load((*this->at(proposalPos(c))));
             this->at(currentPos(c))
-                ->getPersonalityTraits<GGeneralizedSimulatedAnnealing_PersonalityTraits>()
+                ->getPersonalityTraits<GPositionPersonalityTraits>()
                 ->setPopulationPosition(currentPos(c));
         }
 

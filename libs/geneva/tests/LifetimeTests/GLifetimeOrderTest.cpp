@@ -115,7 +115,7 @@ int optimize(GOptimizer &go) {
         std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
     go.registerContentCreator(factory);
     const auto sample = factory->get_as<gind::GFunctionIndividual>();
-    go.registerAdaptionConfig("PERSONALITY_EA", factory->getAdaptionConfig(*sample));
+    go.registerAdaptionConfig("ea", factory->getAdaptionConfig(*sample));
 
     const auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
     ea->setPopulationSizes(8, 2);

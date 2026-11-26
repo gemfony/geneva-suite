@@ -120,11 +120,6 @@ public:
     /** @brief Marks the parent id as unset. */
     void unsetParentId();
 
-    /**
-     * @brief Retrieves the mnemonic of the optimization algorithm.
-     */
-    [[nodiscard]] std::string getMnemonic() const override;
-
     /** @brief Changes these traits for the standard tests: the base's change and the parent counter.
      *  @return Whether the traits were changed (always true) */
     // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's

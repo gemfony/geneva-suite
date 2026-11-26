@@ -104,26 +104,26 @@ GOptimizationAlgorithmBase::GOptimizationAlgorithmBase(const GOptimizationAlgori
 /******************************************************************************/
 namespace {
 /**
- * A checkpoint file: the personality type of the algorithm that wrote it as its first field, then
- * that algorithm with its population. The type is read from the file, not from its name; the name
- * ("checkpoint-<personality>-<iteration>-<fitness>-<base name>", checkpoint()) is a convention.
+ * A checkpoint file: the mnemonic of the algorithm that wrote it as its first field, then that
+ * algorithm with its population. The mnemonic is read from the file, not from its name; the name
+ * ("checkpoint-<mnemonic>-<iteration>-<fitness>-<base name>", checkpoint()) is a convention.
  *
  * @tparam algorithm_ptr_type A non-owning shared_ptr when saving, a unique_ptr when loading
  */
 template <typename algorithm_ptr_type>
 struct GCheckpointFile {
-    std::string personality;       ///< The type of the algorithm that wrote the file
+    std::string mnemonic;          ///< The mnemonic of the algorithm that wrote the file
     algorithm_ptr_type algorithm;  ///< The algorithm; empty when it is not read (serialize())
-    std::string read_algorithm_of; ///< Loading only: the algorithm is read only for this type
+    std::string read_algorithm_of; ///< Loading only: the algorithm is read only for this mnemonic
 
     /** @brief (De-)serializes the head and -- when saving, or when the head names
      *  read_algorithm_of -- the algorithm
      *  @param ar The archive @param version The archive version (unused) */
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
-        ar &Gem::Weft::make_nvp("personality", personality);
+        ar &Gem::Weft::make_nvp("mnemonic", mnemonic);
         if constexpr(not archive_type::is_saving) {
-            if(personality != read_algorithm_of) {
+            if(mnemonic != read_algorithm_of) {
                 return; // the head alone was asked for, or the caller reports the other algorithm
             }
         }
@@ -174,7 +174,7 @@ void readCheckpointFile(
             g_error_streamer()
             << "Failed to read the checkpoint file " << cp_file << '\n'
             << "Underlying error: " << e.what() << '\n'
-            << (cp.personality.empty()
+            << (cp.mnemonic.empty()
                     ? "The file does not begin with the algorithm that wrote it: it is no "
                       "checkpoint of this Geneva, or it is damaged.\n"
                     : "Either the file is incomplete or damaged, or the individual "
@@ -205,7 +205,7 @@ void GOptimizationAlgorithmBase::checkpoint(bool is_better) const {
     output_file =
         getCheckpointDirectoryPath() /
         std::filesystem::path(
-            "checkpoint-" + this->getAlgorithmPersonalityType() + "-" +
+            "checkpoint-" + this->getAlgorithmMnemonic() + "-" +
             (this->halted() ? "final" : Gem::Common::to_string(getIteration())) + "-" +
             Gem::Common::to_string(std::get<G_TRANSFORMED_FITNESS>(getBestKnownPrimaryFitness())) +
             "-" + getCheckpointBaseName()
@@ -263,12 +263,12 @@ void GOptimizationAlgorithmBase::checkpoint(bool is_better) const {
 void GOptimizationAlgorithmBase::loadCheckpoint(std::filesystem::path const &cp_file) {
     // The algorithm that wrote the file is its first field; the rest is read only if it is ours
     GCheckpointRead cp;
-    cp.read_algorithm_of = this->getAlgorithmPersonalityType();
+    cp.read_algorithm_of = this->getAlgorithmMnemonic();
     readCheckpointFile(cp_file, this->getCheckpointSerializationMode(), cp);
-    if(cp.personality != cp.read_algorithm_of) {
+    if(cp.mnemonic != cp.read_algorithm_of) {
         throw gem_exception(
             g_error_streamer() << "The checkpoint file " << cp_file << '\n'
-                               << "was written by the algorithm " << cp.personality
+                               << "was written by the algorithm " << cp.mnemonic
                                << ", not by this one (" << cp.read_algorithm_of << ")." << '\n'
                                << "Resume it with the algorithm that wrote it." << '\n'
         );
@@ -1535,16 +1535,16 @@ bool GOptimizationAlgorithmBase::afterFirstIteration() const {
 
 /******************************************************************************/
 /**
- * @brief Checks whether a checkpoint file was written by an algorithm of our own personality type.
- * The type is read from the file (its first field), not from the file name.
+ * @brief Checks whether a checkpoint file was written by an algorithm with our own mnemonic.
+ * The mnemonic is read from the file (its first field), not from the file name.
  *
- * @param p The path to the checkpoint file whose algorithm personality is to be checked
- * @return A boolean indicating whether the file's algorithm personality matches this algorithm's
+ * @param p The path to the checkpoint file whose algorithm is to be checked
+ * @return A boolean indicating whether the file's algorithm mnemonic matches this algorithm's
  */
 bool GOptimizationAlgorithmBase::cp_personality_fits(const std::filesystem::path &p) const {
     GCheckpointRead cp; // no read_algorithm_of: the head alone is read
     readCheckpointFile(p, this->getCheckpointSerializationMode(), cp);
-    return cp.personality == this->getAlgorithmPersonalityType();
+    return cp.mnemonic == this->getAlgorithmMnemonic();
 }
 
 /******************************************************************************/
@@ -1746,7 +1746,7 @@ void GOptimizationAlgorithmBase::retainIntegrableLateReturns(
 
 /******************************************************************************/
 /**
- * @brief Writes a checkpoint: the personality type of this algorithm as the first field, then the
+ * @brief Writes a checkpoint: the mnemonic of this algorithm as the first field, then the
  * algorithm with its population (see GCheckpointFile). An existing file is replaced as a whole
  * (Gem::Common::replaceFileAtomically()).
  *
@@ -1756,7 +1756,7 @@ void GOptimizationAlgorithmBase::saveCheckpoint(std::filesystem::path const &out
     // Non-owning, as in GCommonInterfaceT::toStream(): the archive must not delete *this; saving
     // never mutates, so the const_cast is safe
     GCheckpointFile<std::shared_ptr<GOptimizationAlgorithmBase>> cp{
-        .personality = this->getAlgorithmPersonalityType(),
+        .mnemonic = this->getAlgorithmMnemonic(),
         .algorithm = std::shared_ptr<GOptimizationAlgorithmBase>(
             const_cast<GOptimizationAlgorithmBase *>(this),
             [](GOptimizationAlgorithmBase *) { /* nothing: not owned */ }
@@ -1853,7 +1853,7 @@ GOptimizationAlgorithmBase::getBestIterationIndividuals_() const {
  * @brief Allows to set the personality type of the individuals
  */
 void GOptimizationAlgorithmBase::setIndividualPersonalities() {
-    const std::string oa_mnemonic = this->getPersonalityTraits_()->getMnemonic();
+    const std::string oa_mnemonic = this->getAlgorithmMnemonic();
     for(auto const &ind : *this) {
         // The rich personality OBJECT is OA scratch -- it rides on the individual itself. Each individual
         // gets its own (getPersonalityTraits_() returns a fresh instance per call). On a checkpoint resume,

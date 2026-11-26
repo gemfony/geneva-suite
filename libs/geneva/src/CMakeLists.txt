@@ -51,22 +51,15 @@ SET ( OPTIMIZATIONSOURCES
     oa/GSepCmaEvolutionStrategy.cpp
     oa/GSepCmaEvolutionStrategy_PersonalityTraits.cpp
     oa/GStandardPSO2011.cpp
-    oa/GStandardPSO2011_PersonalityTraits.cpp
     oa/GAntColonyOptimization.cpp
-    oa/GAntColonyOptimization_PersonalityTraits.cpp
     oa/GGeneralizedSimulatedAnnealing.cpp
-    oa/GGeneralizedSimulatedAnnealing_PersonalityTraits.cpp
     oa/GSimulatedAnnealing.cpp
-    oa/GSimulatedAnnealing_PersonalityTraits.cpp
     oa/GSwarmAlgorithm.cpp
     oa/GSwarmAlgorithm_PersonalityTraits.cpp
     oa/GConjugateGradientDescent.cpp
-    oa/GConjugateGradientDescent_PersonalityTraits.cpp
     oa/GNelderMead.cpp
-    oa/GNelderMead_PersonalityTraits.cpp
     oa/GParameterScan.cpp
     oa/GParameterScanFactory.cpp
-    oa/GParameterScan_PersonalityTraits.cpp
 	GModuleLoader.cpp
 	genome/GParameterPropertyParser.cpp
 	genome/GIndividualProcessingResult.cpp

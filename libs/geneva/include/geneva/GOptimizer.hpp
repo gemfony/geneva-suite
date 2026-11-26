@@ -199,15 +199,15 @@ public:
     std::vector<std::shared_ptr<GOABase>> getRegisteredAlgorithms();
 
     /**
-     * @brief Registers an OA-owned adaption configuration for an algorithm type. When an
-     * algorithm of the given personality type (e.g. "PERSONALITY_EA") runs in the chain, GOptimizer
+     * @brief Registers an OA-owned adaption configuration for an algorithm. When an
+     * algorithm with the given mnemonic (e.g. "ea") runs in the chain, GOptimizer
      * hands it this config, which it adopts (after validating it matches the population's genome)
      * instead of deriving a default from the genome layout. This separates adaption authoring
      * (OA-owned, optionally from a config file) from genome authoring (the individual's factory).
      * Passing a null config clears the entry.
      */
     void registerAdaptionConfig(
-        const std::string &oa_personality_type,
+        const std::string &oa_mnemonic,
         std::shared_ptr<oa::GAdaptionConfigBase> config
     );
 
@@ -250,10 +250,6 @@ private:
      */
     std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const final;
 
-    /**
-     * @brief Returns one-word information about the type of optimization algorithm.
-     */
-    std::string getAlgorithmPersonalityType_() const final;
     /**
      * @brief Returns the name of this optimization algorithm.
      */
@@ -329,7 +325,7 @@ private:
     //---------------------------------------------------------------------------
     // The list of "chained" optimization algorithms
     std::vector<std::shared_ptr<GOABase>> algorithms_cnt_;
-    // OA-owned adaption configs keyed by algorithm personality type ("PERSONALITY_EA", …). Installed on
+    // OA-owned adaption configs keyed by algorithm mnemonic ("ea", …). Installed on
     // the matching algorithm before it runs in the chain; an adapting algorithm that runs without a
     // registered config is a hard error (adaption intent is never inferred from the genome layout).
     std::map<std::string, std::shared_ptr<oa::GAdaptionConfigBase>> adaption_config_registry_;

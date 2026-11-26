@@ -64,8 +64,8 @@ namespace {
 //! [algo-overview-registration]
 // Every algorithm of Geneva. Each factory is the GOptimizationAlgorithmFactoryT
 // scaffold instantiated for one algorithm -- that instantiation is the whole factory,
-// so it needs no name and no derived class of its own (the algorithm's own
-// personality traits are the scaffold's default second argument).
+// so it needs no name and no derived class of its own (the scaffold reads the
+// mnemonic from the algorithm itself).
 
 const GInitializerT<GOptimizationAlgorithmFactoryT<GAntColonyOptimization>>
     g_aco_registrant;

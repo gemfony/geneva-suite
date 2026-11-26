@@ -35,7 +35,6 @@
 # Headers, listed for CLion indexing.
 SET(GLOADABLEOA_INCLUDES
 	GRandomSearch.hpp
-	GRandomSearch_PersonalityTraits.hpp
 )
 ADD_CUSTOM_TARGET(CLION_EXAMPLE21_HEADERS SOURCES ${GLOADABLEOA_INCLUDES})
 
@@ -48,14 +47,13 @@ SET(LIBRARIES_TO_LINK
 		${Boost_LIBRARIES})
 
 
-# (1) The loadable OA module -> libGRandomSearch.so. It carries the algorithm + its personality traits + the
-# archive tags + the manifest entry point. GENEVA_ADD_INDIVIDUAL_MODULE is kind-agnostic -- it builds
+# (1) The loadable OA module -> libGRandomSearch.so. It carries the algorithm + its archive tag + the
+# manifest entry point. GENEVA_ADD_INDIVIDUAL_MODULE is kind-agnostic -- it builds
 # a shared MODULE that links none of the Geneva libraries (it resolves their symbols from the HOST PROCESS at
 # load time via RTLD_GLOBAL, needing only their headers, with pinned ABI flags) -- so it serves an OA module
 # exactly as it serves an individual module.
 GENEVA_ADD_INDIVIDUAL_MODULE(GRandomSearch
 	GRandomSearch.cpp
-	GRandomSearch_PersonalityTraits.cpp
 	GRandomSearchPlugin.cpp)
 
 # (2) The generic optimizer -> loads an algorithm at runtime. ENABLE_EXPORTS so a module loaded RTLD_GLOBAL

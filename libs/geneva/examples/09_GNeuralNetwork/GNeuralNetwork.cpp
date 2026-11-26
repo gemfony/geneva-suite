@@ -163,8 +163,8 @@ int main(int argc, char **argv) {
         if(not Gem::Common::GParserBuilder::updateInPlace()) {
             auto sample = gnn_ptr->get_as<gind::GNeuralNetworkIndividual>();
             auto cfg = gnn_ptr->getAdaptionConfig(*sample);
-            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-            go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            go.registerAdaptionConfig("ea", cfg);
+            go.registerAdaptionConfig("sa", cfg);
         }
 
         // Perform the actual optimization and retrieve the best individual

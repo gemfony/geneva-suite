@@ -31,9 +31,9 @@
  * @file
  * The glue that turns GRandomSearch into a runtime-loadable Geneva module. It carries the two irreducible
  * pieces an OA plugin must provide:
- *   1. the GEM_REGISTER_ARCHIVABLE registrations for the algorithm and its personality traits (the same
- *      serialization registrations a compiled-in OA needs -- so a checkpoint written with this module loaded
- *      resumes with it loaded);
+ *   1. the GEM_REGISTER_ARCHIVABLE registration for the algorithm (the same serialization registration a
+ *      compiled-in OA needs -- so a checkpoint written with this module loaded resumes with it loaded; a
+ *      traits class of its own, if an algorithm has one, is registered the same way);
  *   2. the fixed, unmangled `gem_module_manifest` entry point the loader resolves via dlsym, which
  *      delegates to the typed helper Gem::Geneva::oaManifest<>() to describe the single OA contribution.
  * The module links NO Geneva or Boost libraries; its symbols resolve at dlopen against the host process.
@@ -50,15 +50,12 @@
 
 // The algorithm shipped by this module
 #include "GRandomSearch.hpp"
-#include "GRandomSearch_PersonalityTraits.hpp"
 
-// Serialization registrations for the algorithm and its personality traits (checkpoint payloads).
+// Serialization registration for the algorithm (checkpoint payload). Its individuals carry the
+// library's GPositionPersonalityTraits, which the library registers itself.
 // clang-format off
 //! [modules-oa-glue#1]
 GEM_REGISTER_ARCHIVABLE(Gem::Geneva::OptimizationAlgorithms::GRandomSearch) // NOLINT
-GEM_REGISTER_ARCHIVABLE(
-    Gem::Geneva::OptimizationAlgorithms::GRandomSearch_PersonalityTraits
-) // NOLINT
 //! [modules-oa-glue#1]
 // clang-format on
 
