@@ -3468,3 +3468,21 @@ TEST_CASE("an algorithm factory refuses an empty product on every path", "[oa][f
     CHECK_THROWS_AS(factory.get(), gem_exception);
     CHECK_THROWS_AS(factory.get<oa::GEvolutionaryAlgorithm>(), gem_exception);
 }
+
+TEST_CASE("isBetter under a maxMode follows the direction and orders NaN last", "[helpers]") {
+    using Gem::Geneva::isBetter;
+    using Gem::Geneva::isWorse;
+    using Gem::Geneva::maxMode;
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+
+    CHECK(isBetter(1., 2., maxMode::MINIMIZE));
+    CHECK(isBetter(2., 1., maxMode::MAXIMIZE));
+    for(auto const m : {maxMode::MINIMIZE, maxMode::MAXIMIZE}) {
+        CHECK_FALSE(isBetter(1., 1., m));
+        CHECK(isBetter(1., nan, m));
+        CHECK_FALSE(isBetter(nan, 1., m));
+        CHECK_FALSE(isBetter(nan, nan, m));
+        CHECK(isWorse(nan, 1., m));
+        CHECK_FALSE(isWorse(1., nan, m));
+    }
+}

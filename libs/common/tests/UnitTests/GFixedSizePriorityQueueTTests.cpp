@@ -32,6 +32,7 @@
 #include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
+#include <cmath>
 #include <limits>
 #include <memory>
 #include <ranges>
@@ -634,6 +635,50 @@ TEMPLATE_TEST_CASE(
     if constexpr(not TestType::holds_values) {
         CHECK(dst.best().get() != src.best().get());
     }
+}
+
+// ---------------------------------------------------------------------------
+// A NaN evaluation is worse than every number and keeps the order. Regression: the
+// sort's comparison was no strict weak order with NaN, so real items were cut, and a
+// NaN at the end of a full queue closed it to every further item.
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: a NaN evaluation sorts last and does not close a full queue",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+    auto const order = GENERATE(sortOrder::LOWERISBETTER, sortOrder::HIGHERISBETTER);
+    bool const lower = (order == sortOrder::LOWERISBETTER);
+
+    TestType pq(2, order);
+    pq.add(item<TestType>(nan));
+    pq.add(item<TestType>(1.0));
+    pq.add(item<TestType>(0.0));
+    REQUIRE(pq.size() == 2);
+    CHECK(valueOf(pq.best()) == (lower ? 0.0 : 1.0));
+    CHECK(valueOf(pq.worst()) == (lower ? 1.0 : 0.0));
+
+    // A full queue whose worst item is NaN admits a number
+    TestType full(2, order);
+    full.add(item<TestType>(1.0));
+    full.add(item<TestType>(nan));
+    REQUIRE(full.size() == 2);
+    CHECK(std::isnan(valueOf(full.worst())));
+    full.add(item<TestType>(5.0));
+    CHECK(full.size() == 2);
+    CHECK_FALSE(std::isnan(valueOf(full.worst())));
+
+    // In a bulk insertion as well
+    typename TestType::ContainerType items;
+    items.push_back(item<TestType>(nan));
+    items.push_back(item<TestType>(3.0));
+    items.push_back(item<TestType>(nan));
+    items.push_back(item<TestType>(2.0));
+    pq.addClone(items, /*replace=*/true);
+    REQUIRE(pq.size() == 2);
+    CHECK(valueOf(pq.best()) == (lower ? 2.0 : 3.0));
+    CHECK(valueOf(pq.worst()) == (lower ? 3.0 : 2.0));
 }
 
 // ===========================================================================
