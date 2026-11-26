@@ -237,6 +237,29 @@ fp_type getBestCase(Gem::Common::sortOrder sort_order) {
 
 /******************************************************************************/
 /**
+ * @brief Checks whether a value is strictly better than another under a sort order.
+ *
+ * NaN is worse than every number, and two NaN are equal (neither is better than the other), so
+ * the relation is a strict weak order for all doubles and can drive a sort.
+ *
+ * @param new_val The value tested for being the better one
+ * @param old_val The value it is compared against
+ * @param sort_order LOWERISBETTER: the smaller number is better; HIGHERISBETTER: the larger one
+ * @return true if new_val is strictly better than old_val under sort_order
+ */
+inline bool isBetter(double new_val, double old_val, Gem::Common::sortOrder sort_order) {
+    if(std::isnan(new_val)) {
+        return false;
+    }
+    if(std::isnan(old_val)) {
+        return true;
+    }
+    return sort_order == Gem::Common::sortOrder::HIGHERISBETTER ? new_val > old_val
+                                                                : new_val < old_val;
+}
+
+/******************************************************************************/
+/**
  * @brief Named convenience constants for the boundary-openness and warning flags of checkValueRange().
  */
 constexpr bool GFPLOWERCLOSED = false;

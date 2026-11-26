@@ -29,6 +29,8 @@
 
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "common/GChecks.hpp"
+#include "common/GCommonEnums.hpp"
+#include "common/GCommonMathHelperFunctionsT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "geneva/GOptimizationEnums.hpp"
@@ -98,7 +100,11 @@ bool isBetter(
     );
 
     // We assume that both items have the same maxMode and simply compare the "minOnly-Fitness"
-    return minOnly_transformed_fitness(*x_ptr) < minOnly_transformed_fitness(*y_ptr);
+    return Gem::Common::isBetter(
+        minOnly_transformed_fitness(*x_ptr),
+        minOnly_transformed_fitness(*y_ptr),
+        Gem::Common::sortOrder::LOWERISBETTER
+    );
 }
 
 /******************************************************************************/
@@ -125,17 +131,16 @@ bool isWorse(
  * @param x The value tested for being the better one
  * @param y The value it is compared against
  * @param m The optimization direction (MAXIMIZE: larger is better; MINIMIZE: smaller is better)
- * @return true if x is better than y under the given maxMode, false otherwise
+ * @return true if x is better than y under the given maxMode, false otherwise (NaN is worse than
+ *         every number; see Gem::Common::isBetter())
  */
 bool isBetter(const double x, const double y, const maxMode m) {
-    if(maxMode::MAXIMIZE == m) {
-        return x > y;
-    }
-    // maxMode::MINIMIZE
-    if(x < y) {
-        return true;
-    }
-    return false;
+    return Gem::Common::isBetter(
+        x,
+        y,
+        maxMode::MAXIMIZE == m ? Gem::Common::sortOrder::HIGHERISBETTER
+                               : Gem::Common::sortOrder::LOWERISBETTER
+    );
 }
 
 /******************************************************************************/

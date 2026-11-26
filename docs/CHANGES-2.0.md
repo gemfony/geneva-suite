@@ -689,6 +689,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `getBestGlobalIndividuals()` could return the same individual several times (and GOptimizer's merge of a
   chain's archives, too). `GFixedSizePriorityQueueT` has a hook `isSameEntry()` for this, by default
   the same object, as before.
+- **`GFixedSizePriorityQueueT` decides which items get a place before it copies them** (behaviour
+  change): the archives of best individuals clone only what they keep, not the whole population in
+  every iteration. The bulk forms of `add()` / `addClone()` therefore take a forward range (they read
+  it twice), and a take-over leaves the handles of the items not kept with the caller. A full queue
+  admits a better item at once also after a copy, move, assignment or load (the first item was
+  dropped), a bulk insertion fills free places with the best items offered, and a replacing bulk
+  insertion of which nothing is admissible throws with the queue left as it was (it was emptied).
+  `setSortOrder()` orders the items held at once. A NaN evaluation is worse than every number,
+  through `Gem::Common::isBetter(x, y, sortOrder)`, which geneva's `isBetter()` / `isWorse()` use too.
 - **Several public headers moved to sit with the layer they belong to** (source-breaking
   `#include`-path changes; update the paths). The flat-genome / entity headers moved from
   `geneva/ind/` to `geneva/genome/`; the entity multi-constraint headers (`GMultiConstraintT`,

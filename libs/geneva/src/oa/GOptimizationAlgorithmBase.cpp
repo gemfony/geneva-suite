@@ -1258,7 +1258,7 @@ void GOptimizationAlgorithmBase::addConfigurationOptions_(Gem::Common::GParserBu
         [this](std::uint16_t nt) { this->setNThreads(nt); }
     ) << "The number of threads used to simultaneously adapt and recombine individuals"
       << '\n'
-      << "0 means \"automatic\"";
+      << "0 means one per hardware thread assigned to the process";
 
     // Add local data
     gpb.registerFileParameter<std::uint32_t>(

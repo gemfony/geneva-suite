@@ -54,7 +54,7 @@ struct GStdThreadConsumerConfig {
     /// The mnemonic of the consumer family this struct configures, as chosen with --consumer
     static constexpr std::string_view MNEMONIC = "stc";
 
-    /// The number of worker threads; 0: as many as the machine has hardware threads
+    /// The number of worker threads; 0: as many as the hardware threads assigned to the process
     unsigned int nThreads = 0;
 };
 

@@ -31,6 +31,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <cmath>
+#include <limits>
 #include <tuple>
 #include <vector>
 
@@ -261,6 +262,27 @@ TEST_CASE("getWorstCase/getBestCase sortOrder overloads", "[common][math][worstB
     REQUIRE(Gem::Common::getBestCase<double>(so::HIGHERISBETTER) > 0.);
     REQUIRE(Gem::Common::getWorstCase<double>(so::LOWERISBETTER) > 0.);
     REQUIRE(Gem::Common::getBestCase<double>(so::LOWERISBETTER) < 0.);
+}
+
+TEST_CASE("isBetter: strict under both sort orders and NaN worse than every number", "[common][math][isBetter]") {
+    using so = Gem::Common::sortOrder;
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+    double const inf = std::numeric_limits<double>::infinity();
+
+    CHECK(Gem::Common::isBetter(1., 2., so::LOWERISBETTER));
+    CHECK_FALSE(Gem::Common::isBetter(2., 1., so::LOWERISBETTER));
+    CHECK(Gem::Common::isBetter(2., 1., so::HIGHERISBETTER));
+    CHECK_FALSE(Gem::Common::isBetter(1., 2., so::HIGHERISBETTER));
+
+    for(auto const order : {so::LOWERISBETTER, so::HIGHERISBETTER}) {
+        CHECK_FALSE(Gem::Common::isBetter(3., 3., order)); // equal is not better
+        CHECK(Gem::Common::isBetter(inf, nan, order));
+        CHECK(Gem::Common::isBetter(-inf, nan, order));
+        CHECK(Gem::Common::isBetter(0., nan, order));
+        CHECK_FALSE(Gem::Common::isBetter(nan, 0., order));
+        CHECK_FALSE(Gem::Common::isBetter(nan, inf, order));
+        CHECK_FALSE(Gem::Common::isBetter(nan, nan, order)); // two NaN are equal
+    }
 }
 
 // --- checkValueRange -----------------------------------------------------
