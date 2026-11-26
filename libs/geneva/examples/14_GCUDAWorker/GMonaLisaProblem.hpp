@@ -59,7 +59,7 @@
  * cross-check tight (parity to ~1e-9); float is the faster FP32 path. The matching device kernel is
  * selected through the default GPU-consumer config.
  *
- * Genome layout (flat, == GGenome::streamline order; alpha-sort disabled so order is canonical):
+ * Genome layout (flat, == the GGenome::parameterValues() order; alpha-sort disabled so order is canonical):
  *   per triangle (10 scalars): cx, cy, radius, angle1, angle2, angle3, r, g, b, alpha   (all in [0,1])
  *   then the background colour (3 scalars): bgR, bgG, bgB.   dim = 10*nTriangles + 3.
  */

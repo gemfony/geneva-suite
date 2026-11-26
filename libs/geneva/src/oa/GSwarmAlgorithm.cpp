@@ -796,14 +796,10 @@ void GSwarmAlgorithm::updateIndividualPositions(
 
     // Extract the vectors for the individual, the personal, neighborhood and global bests,
     // as well as the velocity
-    std::vector<double> ind_vec;
-    std::vector<double> personal_best_vec;
-    std::vector<double> nbh_best_vec;
-    std::vector<double> glb_best_vec;
-    ind->streamlineFPInternal(ind_vec, activityMode::ACTIVEONLY);
-    personal_best->streamlineFPInternal(personal_best_vec, activityMode::ACTIVEONLY);
-    neighborhood_best->streamlineFPInternal(nbh_best_vec, activityMode::ACTIVEONLY);
-    global_best->streamlineFPInternal(glb_best_vec, activityMode::ACTIVEONLY);
+    auto ind_vec = ind->internalFPValues(activityMode::ACTIVEONLY);
+    auto personal_best_vec = personal_best->internalFPValues(activityMode::ACTIVEONLY);
+    auto nbh_best_vec = neighborhood_best->internalFPValues(activityMode::ACTIVEONLY);
+    auto glb_best_vec = global_best->internalFPValues(activityMode::ACTIVEONLY);
     std::vector<double> vel_vec(velocity.begin(), velocity.end());
 
     // Subtract the individual vector from the personal, neighborhood and global bests

@@ -117,8 +117,7 @@ double GFMinIndividual::getAverageSigma() const {
  */
 std::vector<double> GFMinIndividual::evaluate() {
     // Retrieve the parameters
-    std::vector<double> parVec;
-    this->streamline(parVec);
+    auto const parVec = this->parameterValues<double>();
 
     // Perform the actual calculation
     switch(targetFunction_) {

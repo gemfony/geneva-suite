@@ -241,8 +241,7 @@ void GStandardPSO2011::initRunState_() {
     global_best_fitness_ = std::numeric_limits<double>::max();
 
     for(std::size_t i = 0; i < swarm_size_; ++i) {
-        std::vector<double> pos;
-        this->at(i)->streamlineFPInternal(pos, activityMode::ACTIVEONLY);
+        auto pos = this->at(i)->internalFPValues(activityMode::ACTIVEONLY);
 
         // Particle 0 keeps the registered start individual; all others are randomized uniformly within the
         // normalized unit interval [-0.5, 0.5) (an out-of-range value is folded back by the genome).
@@ -359,8 +358,7 @@ void GStandardPSO2011::updatePositions() {
     std::normal_distribution<double> gauss(0., 1.);
 
     for(std::size_t i = 0; i < swarm_size_; ++i) {
-        std::vector<double> x;
-        this->at(i)->streamlineFPInternal(x, activityMode::ACTIVEONLY);
+        auto x = this->at(i)->internalFPValues(activityMode::ACTIVEONLY);
 
         const std::vector<double> &p = personal_bests_[i];
         const std::vector<double> l = localBest(i);
@@ -467,13 +465,13 @@ std::tuple<double, double> GStandardPSO2011::updateBests() {
         // Update the personal best (lower minimization fitness is always better).
         if(fit < personal_best_fitness_[i]) {
             personal_best_fitness_[i] = fit;
-            ind.streamlineFPInternal(personal_bests_[i], activityMode::ACTIVEONLY);
+            personal_bests_[i] = ind.internalFPValues(activityMode::ACTIVEONLY);
         }
 
         // Update the global best.
         if(fit < global_best_fitness_) {
             global_best_fitness_ = fit;
-            ind.streamlineFPInternal(global_best_, activityMode::ACTIVEONLY);
+            global_best_ = ind.internalFPValues(activityMode::ACTIVEONLY);
             global_best_improved_ = true;
         }
 

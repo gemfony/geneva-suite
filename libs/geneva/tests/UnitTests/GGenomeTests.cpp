@@ -27,6 +27,7 @@
  *
  ********************************************************************************/
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
@@ -152,8 +153,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -191,8 +191,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -286,8 +285,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -565,29 +563,126 @@ TEST_CASE("GGenomeLayout::layoutId survives a serialization round-trip", "[flat]
 }
 
 /******************************************************************************/
-TEST_CASE("GGenome::streamlineInto matches streamline (bulk-flatten fast path)", "[flat]") {
-    // streamlineInto() is the GPU marshallers' bulk-flatten fast path: it must produce EXACTLY the same
-    // external (range-folded) values as streamline<T>(), just written straight into a caller buffer with
-    // no temporary vector. Sphere's group is Constrained, so the per-element fold is exercised.
-    Sphere ind(7);
-    ind.randomInit(
-        activityMode::ACTIVEONLY
-    ); // vary the stored values so the fold actually does work
+TEST_CASE(
+    "GGenome: the value readers map the internal values per channel and activity mode",
+    "[flat]"
+) {
+    // parameterValues<T>(), copyParameterValuesTo() and fpParameterValues() read the EXTERNAL values: the
+    // internal (normalized) values of the internal spans, mapped by the layout's affine image of each
+    // parameter (int32 and bool are stored as they are). internalFPValues() reads the internal values
+    // themselves. Each channel has an active and an inactive group, so every activity mode selects a
+    // different subset; bounded and unbounded doubles are both present.
+    GGenomeBuilder b;
+    b.addDoubleGroup(3, -10., 10.);
+    b.addDoublePlainGroup(2, -1., 3.);
+    b.addDoubleGroup(2, 5., 7.).adaptionMode(adaptionMode::NEVER);
+    b.addFloatGroup(2, -5.f, 5.f);
+    b.addFloatGroup(1, 0.f, 1.f).adaptionMode(adaptionMode::NEVER);
+    b.addInt32Group(3, 0, 9);
+    b.addInt32Group(2, -4, 4).adaptionMode(adaptionMode::NEVER);
+    b.addBoolGroup(2);
+    b.addBoolGroup(1).adaptionMode(adaptionMode::NEVER);
+    Sphere ind;
+    ind.setGenome(b.build());
+    ind.randomInit(activityMode::ALLPARAMETERS); // vary the stored values, so the map does work
 
-    std::vector<double> via_streamline;
-    ind.streamline<double>(via_streamline);
+    auto const &layout = *ind.getLayout();
+    auto const matches = [](std::uint8_t active, activityMode am) {
+        return am == activityMode::ALLPARAMETERS ||
+               (am == activityMode::ACTIVEONLY) == (active != 0);
+    };
+    // The external values, computed here from the internal spans and the layout
+    auto const expected_fp =
+        [&]<typename T>(ChannelLayout<T> const &ch, std::span<T const> internal, activityMode am) {
+            std::vector<T> out;
+            for(std::size_t k = 0; k < internal.size(); ++k) {
+                if(matches(ch.active[k], am)) {
+                    out.push_back(
+                        ngInternalToExternal<T>(internal[k], ngScale<T>(ch, k), ngAnchor<T>(ch, k))
+                    );
+                }
+            }
+            return out;
+        };
+    auto const expected_raw = [&]<typename T, typename U>(
+                                  ChannelLayout<T> const &ch,
+                                  std::span<U const> internal,
+                                  activityMode am
+                              ) {
+        std::vector<T> out;
+        for(std::size_t k = 0; k < internal.size(); ++k) {
+            if(matches(ch.active[k], am)) {
+                out.push_back(static_cast<T>(internal[k]));
+            }
+        }
+        return out;
+    };
+    // copyParameterValuesTo() writes exactly the values parameterValues() returns, and nothing past them
+    auto const check_copy = [&]<typename T>(std::vector<T> const &values, activityMode am) {
+        std::vector<T> buffer(values.size() + 1, T(-99)); // +1 sentinel to catch an overrun
+        CHECK(ind.copyParameterValuesTo(buffer.data(), am) == values.size());
+        CHECK(std::ranges::equal(buffer | std::views::take(values.size()), values));
+        CHECK(buffer.back() == T(-99));
+    };
+    auto const close = [](auto const &got, auto const &want) {
+        REQUIRE(got.size() == want.size());
+        for(std::size_t i = 0; i < got.size(); ++i) {
+            CHECK(got[i] == Catch::Approx(want[i]).margin(1e-6));
+        }
+    };
 
-    std::vector<double> via_into(
-        via_streamline.size() + 1,
-        -987.0
-    ); // +1 sentinel to catch any overrun
-    const std::size_t n = ind.streamlineInto(via_into.data());
+    for(activityMode const am :
+        {activityMode::ALLPARAMETERS, activityMode::ACTIVEONLY, activityMode::INACTIVEONLY}) {
+        INFO("activity mode " << static_cast<int>(am));
+        auto const d = ind.parameterValues<double>(am);
+        auto const f = ind.parameterValues<float>(am);
+        auto const i = ind.parameterValues<std::int32_t>(am);
+        auto const bl = ind.parameterValues<bool>(am);
 
-    REQUIRE(n == via_streamline.size());
-    for(std::size_t i = 0; i < n; ++i) {
-        CHECK(via_into[i] == via_streamline[i]); // identical folded values, identical order
+        close(d, expected_fp(layout.d, std::span<double const>{ind.internalDoubleValues()}, am));
+        close(f, expected_fp(layout.f, std::span<float const>{ind.internalFloatValues()}, am));
+        CHECK(
+            i == expected_raw.template operator()<std::int32_t>(
+                     layout.i,
+                     std::span<std::int32_t const>{ind.internalInt32Values()},
+                     am
+                 )
+        );
+        CHECK(
+            bl == expected_raw.template operator()<bool>(
+                      layout.b,
+                      std::span<std::uint8_t const>{ind.internalBoolValues()},
+                      am
+                  )
+        );
+        CHECK(d.size() == ind.countParameters<double>(am));
+        CHECK(f.size() == ind.countParameters<float>(am));
+        CHECK(i.size() == ind.countParameters<std::int32_t>(am));
+        CHECK(bl.size() == ind.countParameters<bool>(am));
+        CHECK_FALSE(d.empty());
+        CHECK_FALSE(f.empty());
+
+        check_copy(d, am);
+        check_copy(f, am);
+        check_copy(i, am);
+
+        // The FP views: the double-typed values first, then the float-typed widened to double
+        std::vector<double> fp = d;
+        fp.append_range(f);
+        CHECK(ind.fpParameterValues(am) == fp);
+        std::vector<double> internal_fp = expected_raw.template operator()<double>(
+            layout.d,
+            std::span<double const>{ind.internalDoubleValues()},
+            am
+        );
+        internal_fp.append_range(expected_raw.template operator()<float>(
+            layout.f,
+            std::span<float const>{ind.internalFloatValues()},
+            am
+        ));
+        CHECK(ind.internalFPValues(am) == internal_fp);
+        CHECK(fp.size() == ind.countFPParameters(am));
     }
-    CHECK(via_into[n] == -987.0); // wrote exactly n values, nothing past the end
 }
 
 /******************************************************************************/
@@ -729,18 +824,18 @@ TEST_CASE("GGenome: layout interning round-trips losslessly (compact + escape ro
 }
 
 /******************************************************************************/
-TEST_CASE("GGenome: value round-trip (streamline / assignValueVector)", "[flat]") {
+TEST_CASE("GGenome: value round-trip (parameterValues / assignValueVector)", "[flat]") {
     Sphere ind(4);
 
-    std::vector<double> v;
-    ind.streamline<double>(v);
+    auto const v = ind.parameterValues<double>();
     REQUIRE(v.size() == 4);
     CHECK(ind.countParameters<double>() == 4);
 
     const std::vector<double> assigned{2., 3., -4., 5.};
     ind.assignValueVector<double>(assigned);
-    ind.streamline<double>(v);
-    CHECK(v == assigned); // in-range constrained values round-trip identically
+    CHECK(
+        ind.parameterValues<double>() == assigned
+    ); // in-range constrained values round-trip identically
 }
 
 /******************************************************************************/
@@ -794,10 +889,8 @@ TEST_CASE("GGenome: clone is independent", "[flat]") {
     // Mutating the clone leaves the original untouched.
     twin->randomInit(activityMode::ALLPARAMETERS);
 
-    std::vector<double> orig;
-    std::vector<double> mutated;
-    ind.streamline<double>(orig);
-    twin->streamline<double>(mutated);
+    auto const orig = ind.parameterValues<double>();
+    auto const mutated = twin->parameterValues<double>();
     CHECK(orig != mutated);
 
     bool equal = true;
@@ -830,8 +923,7 @@ TEST_CASE("GGenome: serialization round-trip", "[flat]") {
         Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
     ));
 
-    std::vector<double> v;
-    restored.streamline<double>(v);
+    auto const v = restored.parameterValues<double>();
     CHECK(v == std::vector<double>{1., -2., 3., -4., 5.});
 }
 
@@ -893,8 +985,7 @@ TEST_CASE(
             Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
         ));
 
-        std::vector<double> v;
-        restored.streamline<double>(v);
+        auto const v = restored.parameterValues<double>();
         CHECK(v == vals);
     }
 }
@@ -975,8 +1066,7 @@ TEST_CASE(
             Gem::Common::expectation::EQUALITY,
             Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
         ));
-        std::vector<double> v;
-        restored.streamline<double>(v);
+        auto const v = restored.parameterValues<double>();
         CHECK(v == vals);
         CHECK(restored.getLayout()->layoutId() == ind.getLayout()->layoutId());
     }
@@ -997,8 +1087,7 @@ TEST_CASE(
             Gem::Common::expectation::EQUALITY,
             Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
         ));
-        std::vector<double> v;
-        restored.streamline<double>(v);
+        auto const v = restored.parameterValues<double>();
         CHECK(v == vals);
         CHECK(restored.getLayout()->layoutId() == ind.getLayout()->layoutId());
     }
@@ -1033,8 +1122,7 @@ TEST_CASE(
             Gem::Common::expectation::EQUALITY,
             Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
         ));
-        std::vector<double> v;
-        restored.streamline<double>(v);
+        auto const v = restored.parameterValues<double>();
         CHECK(v == vals);
         CHECK(restored.getLayout()->layoutId() == ind.getLayout()->layoutId());
     }
@@ -1074,8 +1162,7 @@ TEST_CASE(
         CHECK(
             restored.getPolicy()->hasConstraint()
         ); // the polymorphic constraint was reconstructed
-        std::vector<double> v;
-        restored.streamline<double>(v);
+        auto const v = restored.parameterValues<double>();
         CHECK(v == vals);
     }
 
@@ -1088,8 +1175,7 @@ TEST_CASE(
         GJsonIArchive ia(oa.str());
         REQUIRE_NOTHROW(ia & make_nvp("ind", restored));
         CHECK(restored.getPolicy()->hasConstraint());
-        std::vector<double> v;
-        restored.streamline<double>(v);
+        auto const v = restored.parameterValues<double>();
         CHECK(v == vals);
     }
 }
@@ -1103,11 +1189,10 @@ TEST_CASE("GGenome: adapt() mutates within bounds", "[flat]") {
     for(int round = 0; round < 20; ++round) {
         total += adapter.adapt(ind);
 
-        std::vector<double> v;
-        ind.streamline<double>(v);
+        auto const v = ind.parameterValues<double>();
         REQUIRE(v.size() == 8);
         for(double const x : v) {
-            CHECK(x >= -10.); // streamline always folds back into the external range
+            CHECK(x >= -10.); // parameterValues always folds back into the external range
             CHECK(x < 10.);
         }
     }
@@ -1118,13 +1203,11 @@ TEST_CASE("GGenome: adapt() mutates within bounds", "[flat]") {
 TEST_CASE("GGenome: randomInit stays within bounds and changes values", "[flat]") {
     Sphere ind(10);
 
-    std::vector<double> before;
-    ind.streamline<double>(before);
+    auto const before = ind.parameterValues<double>();
 
     CHECK(ind.randomInit(activityMode::ALLPARAMETERS));
 
-    std::vector<double> after;
-    ind.streamline<double>(after);
+    auto const after = ind.parameterValues<double>();
     CHECK(before != after);
     for(double const x : after) {
         CHECK(x >= -10.);
@@ -1256,8 +1339,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -1290,8 +1372,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -1324,10 +1405,8 @@ using Gem::Tests::Mixed;
 TEST_CASE("GGenome: flip adaptor mutates int32 and bool channels", "[flat][flip]") {
     Mixed ind;
 
-    std::vector<std::int32_t> i_before;
-    std::vector<bool> b_before;
-    ind.streamline<std::int32_t>(i_before);
-    ind.streamline<bool>(b_before);
+    auto const i_before = ind.parameterValues<std::int32_t>();
+    auto const b_before = ind.parameterValues<bool>();
     REQUIRE(i_before.size() == 4);
     REQUIRE(b_before.size() == 5);
 
@@ -1337,10 +1416,8 @@ TEST_CASE("GGenome: flip adaptor mutates int32 and bool channels", "[flat][flip]
     for(int round = 0; round < 20; ++round) {
         adapter.adapt(ind);
 
-        std::vector<std::int32_t> i_now;
-        std::vector<bool> b_now;
-        ind.streamline<std::int32_t>(i_now);
-        ind.streamline<bool>(b_now);
+        auto const i_now = ind.parameterValues<std::int32_t>();
+        auto const b_now = ind.parameterValues<bool>();
         for(std::int32_t const x : i_now) {
             CHECK(x >= -10);
             CHECK(x <= 10);
@@ -1360,16 +1437,14 @@ TEST_CASE("GGenome: flip adaptor mutates int32 and bool channels", "[flat][flip]
 TEST_CASE("GGenome: bi-gaussian adaptor mutates the FP channel within bounds", "[flat][bigauss]") {
     Mixed ind;
 
-    std::vector<double> before;
-    ind.streamline<double>(before);
+    auto const before = ind.parameterValues<double>();
     REQUIRE(before.size() == 3);
 
     std::size_t total = 0;
     oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     for(int round = 0; round < 20; ++round) {
         total += adapter.adapt(ind);
-        std::vector<double> v;
-        ind.streamline<double>(v);
+        auto const v = ind.parameterValues<double>();
         for(double const x : v) {
             CHECK(x >= -5.);
             CHECK(x < 5.);
@@ -1404,16 +1479,14 @@ using Gem::Tests::IntGauss;
 TEST_CASE("GGenome: integer Gauss adaptor mutates int32 within bounds", "[flat][intgauss]") {
     IntGauss ind;
 
-    std::vector<std::int32_t> before;
-    ind.streamline<std::int32_t>(before);
+    auto const before = ind.parameterValues<std::int32_t>();
     REQUIRE(before.size() == 5); // 3 Gauss + 2 flip
 
     bool changed = false;
     oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     for(int round = 0; round < 30; ++round) {
         adapter.adapt(ind);
-        std::vector<std::int32_t> now;
-        ind.streamline<std::int32_t>(now);
+        auto const now = ind.parameterValues<std::int32_t>();
         REQUIRE(now.size() == 5);
         for(std::size_t k = 0; k < 3; ++k) { // Gauss group bounds
             CHECK(now[k] >= -50);
@@ -1457,8 +1530,7 @@ TEST_CASE("GGridArchitecture reads any genome through the §2 seam (flat)", "[fl
     CHECK(grid.name() == "GGridArchitecture");
     CHECK(grid.expectedFPSize() == 12);
 
-    std::vector<double> flat;
-    ind.streamlineFP(flat);
+    auto const flat = ind.fpParameterValues();
     REQUIRE(flat.size() == 12);
 
     for(std::size_t r = 0; r < grid.rows(); ++r) {
@@ -1506,18 +1578,14 @@ TEST_CASE(
     CHECK(inds[0]->countParameters<double>() == 5);
 
     // The value arrays are per-individual (independent): mutating one leaves the others untouched.
-    std::vector<double> v0_before;
-    std::vector<double> v1_before;
-    inds[0]->streamline<double>(v0_before);
-    inds[1]->streamline<double>(v1_before);
+    auto const v0_before = inds[0]->parameterValues<double>();
+    auto const v1_before = inds[1]->parameterValues<double>();
     CHECK(v0_before == v1_before); // same start values out of the shared genome
 
     inds[0]->randomInit(activityMode::ALLPARAMETERS);
 
-    std::vector<double> v0_after;
-    std::vector<double> v1_after;
-    inds[0]->streamline<double>(v0_after);
-    inds[1]->streamline<double>(v1_after);
+    auto const v0_after = inds[0]->parameterValues<double>();
+    auto const v1_after = inds[1]->parameterValues<double>();
     CHECK(v0_after != v0_before); // inds[0] changed
     CHECK(v1_after == v1_before); // inds[1] untouched -> independent value storage
 
@@ -1595,8 +1663,7 @@ GWireBlobId widOf(const ManyGroups &ind) {
     return GWireBlobId{lid.hi, lid.lo};
 }
 std::vector<double> valuesOf(ManyGroups &ind) {
-    std::vector<double> v;
-    ind.streamline<double>(v);
+    auto const v = ind.parameterValues<double>();
     return v;
 }
 } // namespace
@@ -1915,8 +1982,7 @@ TEST_CASE(
         ind->randomInit(activityMode::ALLPARAMETERS);
         batch.push_back(std::move(ind));
     }
-    std::vector<double> victim_vals;
-    batch[VICTIM]->streamline<double>(victim_vals);
+    auto const victim_vals = batch[VICTIM]->parameterValues<double>();
 
     // Drive the batch, abandoning the victim slot forever: it retires MISSING, so its original is
     // retained under its correlation id.
@@ -1968,8 +2034,7 @@ TEST_CASE(
     CHECK(
         reaped_genome->getStoredResult(0).rawFitness() == late_fitness
     ); // the worker's result ...
-    std::vector<double> reaped_vals;
-    reaped_genome->streamline<double>(reaped_vals);
+    auto const reaped_vals = reaped_genome->parameterValues<double>();
     CHECK(reaped_vals == victim_vals); // ... on the retained genome
 }
 
@@ -2408,8 +2473,7 @@ TEST_CASE(
     c2::GConsumerRegistryT<GGenome>::instance().clear(); // don't leak into other test cases
 
     REQUIRE(best);
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     CHECK(v.size() == 8); // the best individual must keep its full genome
     CHECK_FALSE(any_threw.load());
 }
@@ -2988,7 +3052,7 @@ TEST_CASE(
 /******************************************************************************/
 // NOTE: the former "GGridArchitecture reads a TREE genome identically" case was removed when the
 // tree hierarchy was deleted. The "[flat][architecture]" case above already proves the
-// architecture is layout-agnostic by reading the genome purely through the §2 streamlineFP() seam.
+// architecture is layout-agnostic by reading the genome purely through the §2 fpParameterValues() seam.
 
 /******************************************************************************/
 

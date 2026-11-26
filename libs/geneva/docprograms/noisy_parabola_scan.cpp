@@ -189,9 +189,8 @@ private:
             return; // nothing to record before the first iteration or after the last
         }
 
-        std::vector<double> parameters;
         for(const auto &ind_ptr : *goa) {
-            ind_ptr->streamline<double>(parameters); // the genome's doubles, in order
+            auto const parameters = ind_ptr->parameterValues<double>(); // the genome's doubles, in order
             const double fitness = ind_ptr->raw_fitness(0);
 
             path_log_->append(path_, parameters[0], parameters[1], fitness);

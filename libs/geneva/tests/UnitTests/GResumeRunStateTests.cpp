@@ -374,8 +374,7 @@ template <typename oa_type>
 std::vector<std::vector<double>> positions(oa_type const &alg) {
     std::vector<std::vector<double>> result;
     for(auto const &ind : alg) {
-        result.emplace_back();
-        ind->streamlineFPInternal(result.back());
+        result.push_back(ind->internalFPValues());
     }
     return result;
 }

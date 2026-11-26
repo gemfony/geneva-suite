@@ -7,4 +7,4 @@ back individual parameter objects.
 
 The program builds several example genomes and prints their shape, dumps a complete
 GFunctionIndividual genome to a JSON document (result.json), and demonstrates inspecting
-and mutating a minimal flat individual (streamline / boundaries / adapt / toCSV).
+and mutating a minimal flat individual (parameterValues / boundaries / adapt / toCSV).

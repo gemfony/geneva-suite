@@ -81,8 +81,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,

@@ -502,8 +502,7 @@ void GAllSolutionFileLogger::declareStream_(oa::GOptimizationAlgorithmBase const
     std::size_t k = 0;
     // The values are read as recordPopulation_() reads them, so the columns are theirs
     auto const add = [&columns, &k, &first]<typename T>(std::type_identity<T>, columnType type) {
-        std::vector<T> values;
-        first->template streamline<T>(values);
+        auto const values = first->template parameterValues<T>();
         for(std::size_t i = 0; i < values.size(); ++i, ++k) {
             columns.push_back({.name = "var" + Gem::Common::to_string(k), .type = type});
         }
@@ -545,8 +544,7 @@ void GAllSolutionFileLogger::recordPopulation_(oa::GOptimizationAlgorithmBase co
         Gem::Common::Record::GRow row = stream_.row(goa);
         row.emplace_back(static_cast<std::uint64_t>(pos));
         auto const add = [&row, &ind]<typename T>(std::type_identity<T>) {
-            std::vector<T> values;
-            ind->template streamline<T>(values);
+            auto const values = ind->template parameterValues<T>();
             for(T const value : values) {
                 if constexpr(std::is_same_v<T, bool>) {
                     row.emplace_back(value);

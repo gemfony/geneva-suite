@@ -115,8 +115,7 @@ int runOnLauncher(int argc, char **argv, Gem::Courtier::GMPICascade &cascade) {
     Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
     launcher.registerItemProcessor([&cascade](gen::GGenome &item) {
         std::ignore = item.process([&cascade](const gen::GGenome &candidate) {
-            std::vector<double> parameters;
-            candidate.streamline(parameters);
+            auto const parameters = candidate.parameterValues<double>();
             return std::vector<double>{cascade.round([&parameters](MPI_Comm group) {
                 MPI_Barrier(group);
                 double sum = 0.;

@@ -202,8 +202,7 @@ void GLineFitIndividual::applyConfig(GLineFitIndividual &ind, const Config &c) {
  * @return A tuple holding the line's offset a (first parameter) and slope b (second parameter)
  */
 std::tuple<double, double> GLineFitIndividual::getLine() const {
-    std::vector<double> par_vec;
-    this->streamline(par_vec);
+    auto const par_vec = this->parameterValues<double>();
     return std::tuple<double, double>(par_vec.at(0), par_vec.at(1));
 }
 
@@ -218,8 +217,7 @@ std::vector<double> GLineFitIndividual::evaluate() {
     double result = 0.;
 
     // Compute the root of the summed squared deviations between the line (a + b*x) and the data points
-    std::vector<double> par_vec;
-    this->streamline(par_vec);
+    auto const par_vec = this->parameterValues<double>();
 
     double const a = par_vec.at(0);
     double const b = par_vec.at(1);

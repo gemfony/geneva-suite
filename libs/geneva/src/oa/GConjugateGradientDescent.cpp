@@ -414,8 +414,7 @@ void GConjugateGradientDescent::updateChildParameters() {
     const std::size_t n_probes = central_differences_ ? 2 : 1;
     const std::size_t children_per_sp = n_fp_parms_first_ * n_probes;
     for(std::size_t i = 0; i < n_starting_points_; i++) {
-        std::vector<double> parm_vec;
-        this->at(i)->streamlineFPInternal(parm_vec, activityMode::ACTIVEONLY);
+        auto parm_vec = this->at(i)->internalFPValues(activityMode::ACTIVEONLY);
 
         for(std::size_t j = 0; j < n_fp_parms_first_; j++) {
             const double orig_parm_val = parm_vec[j];
@@ -487,8 +486,7 @@ void GConjugateGradientDescent::updateParentIndividuals() {
     GLineSearch const line_search;
 
     for(std::size_t i = 0; i < n_starting_points_; i++) {
-        std::vector<double> parm_vec;
-        this->at(i)->streamlineFPInternal(parm_vec, activityMode::ACTIVEONLY);
+        auto const parm_vec = this->at(i)->internalFPValues(activityMode::ACTIVEONLY);
 
         checkThat(
             not this->at(i)->is_due_for_processing() && not this->at(i)->has_errors(),
@@ -1190,8 +1188,7 @@ void GConjugateGradientDescent::finalize() {
             }
         }
 
-        std::vector<double> x_min;
-        this->at(best)->streamlineFPInternal(x_min, activityMode::ACTIVEONLY);
+        auto const x_min = this->at(best)->internalFPValues(activityMode::ACTIVEONLY);
 
         GHesseErrorOptions opts;
         opts.up = error_up_;

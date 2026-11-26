@@ -132,7 +132,7 @@ private:
  * of triangles can be watched as it converges towards the target. No GPU read-back is needed: the
  * picture is reconstructed purely from the candidate's parameters.
  *
- * It reads the best candidate through the flat-genome base (Genome::GGenome): only streamline() and
+ * It reads the best candidate through the flat-genome base (Genome::GGenome): only parameterValues() and
  * raw_fitness() are needed, so the monitor is problem-type-agnostic and can be registered by a program
  * that loads the concrete image individual from a runtime module (it never names GImageIndividual).
  */
@@ -305,10 +305,9 @@ private:
 
             // Snapshot everything the output needs into by-value data (cheap), so the actual work --
             // the CPU rasterise (renderToRGB) and the PNG encode/write -- can run off the optimization
-            // thread. The genome scalar type is selected at compile time (gimage_fp_t), so streamline
-            // into a matching buffer -- streamline<float> on a double genome collects nothing.
-            std::vector<gimage_fp_t> parVec;
-            best_ptr->streamline(parVec);
+            // thread. The genome scalar type is selected at compile time (gimage_fp_t), so read
+            // the matching channel -- parameterValues<float>() on a double genome collects nothing.
+            auto parVec = best_ptr->parameterValues<gimage_fp_t>();
             const MonaLisa::Target &tgt = MonaLisa::target();
             const int width = tgt.width;
             const int height = tgt.height;

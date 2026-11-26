@@ -50,7 +50,7 @@ namespace Gem::Geneva::Genome {
 
 /******************************************************************************/
 // Forward declaration: the constraint inspects an entity's parameter values via the value API
-// (streamlineFP) declared on the algorithm-facing base GGenome.
+// (fpParameterValues) declared on the algorithm-facing base GGenome.
 class GGenome;
 
 /******************************************************************************/
@@ -72,7 +72,7 @@ class GGenome;
  * stays on GGenome. Only the population-uniform rules live here.
  *
  * The constraint is parameterised on GGenome (the algorithm-facing base) because a concrete
- * constraint reads parameter values via the genome value API (e.g. streamlineFP) declared there.
+ * constraint reads parameter values via the genome value API (e.g. fpParameterValues) declared there.
  * fulfillsConstraints() therefore takes a GGenome; it is defined in the .cpp, where
  * GGenome is a complete type.
  *

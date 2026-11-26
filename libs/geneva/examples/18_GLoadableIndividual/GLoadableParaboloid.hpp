@@ -146,8 +146,7 @@ protected:
     /** @brief The objective: an n-dimensional paraboloid f(x) = sum_i x_i^2, minimised at the origin
      *  (single criterion, returned as a one-element vector). */
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,

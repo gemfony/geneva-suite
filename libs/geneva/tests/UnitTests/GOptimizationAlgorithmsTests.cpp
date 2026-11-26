@@ -30,7 +30,7 @@
 /**
  * End-to-end checks that EVERY optimization algorithm can drive a
  * GGenome individual, not just the EA. Each algorithm only ever touches an individual through the
- * storage-agnostic channel interface (streamline / assignValueVector / boundaries / countParameters /
+ * storage-agnostic channel interface (parameterValues / assignValueVector / boundaries / countParameters /
  * adapt / randomInit) + population-level access + personality traits -- and the OA populations already
  * hold a GUniquePtrContainerT<GGenome>, so the flat genome drops in with ZERO OA changes.
  * These tests prove it by running each OA serially on a flat-genome sphere and asserting convergence.
@@ -131,8 +131,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -165,8 +164,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -206,8 +204,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -245,8 +242,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<std::int32_t> v;
-        this->streamline<std::int32_t>(v);
+        auto const v = this->parameterValues<std::int32_t>();
         double s = 0.;
         for(std::int32_t const x : v) {
             s += static_cast<double>(x) * static_cast<double>(x);
@@ -283,8 +279,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<bool> v;
-        this->streamline<bool>(v);
+        auto const v = this->parameterValues<bool>();
         double false_count = 0.;
         for(bool const x : v) {
             if(not x) {
@@ -316,8 +311,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -354,8 +348,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<std::int32_t> v;
-        this->streamline<std::int32_t>(v);
+        auto const v = this->parameterValues<std::int32_t>();
         {
             std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
             g_scan_int_samples.push_back(v[0]);
@@ -378,8 +371,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<bool> v;
-        this->streamline<bool>(v);
+        auto const v = this->parameterValues<bool>();
         {
             std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
             g_scan_bool_samples.push_back(v[0]);
@@ -403,10 +395,8 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<bool> b;
-        std::vector<double> x;
-        this->streamline<bool>(b);
-        this->streamline<double>(x);
+        auto const b = this->parameterValues<bool>();
+        auto const x = this->parameterValues<double>();
         {
             std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
             g_scan_bool_double_samples.emplace_back(b[0], x[0]);
@@ -430,8 +420,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         {
             std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
             g_scan_pair_samples.emplace_back(v[0], v[1]);
@@ -460,8 +449,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {v[0] * v[0]};
     }
 };
@@ -483,8 +471,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -511,10 +498,8 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
-        std::vector<std::int32_t> iv;
-        this->streamline<std::int32_t>(iv);
+        auto const v = this->parameterValues<double>();
+        auto const iv = this->parameterValues<std::int32_t>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -528,8 +513,7 @@ protected:
 
 /** @brief Sphere value of the best individual, also asserting the constraints held. */
 double bestSphere(const SphereOA &best) {
-    std::vector<double> v;
-    best.streamline<double>(v);
+    auto const v = best.parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
         s += x * x;
@@ -1520,8 +1504,7 @@ TEST_CASE(
             // returned once (regression: with the setting false the merge returned it twice)
             std::set<std::vector<double>> seen;
             for(auto const &ind : go_bests) {
-                std::vector<double> values;
-                ind->streamline<double>(values);
+                auto const values = ind->parameterValues<double>();
                 CHECK(seen.insert(values).second);
             }
         }
@@ -2073,8 +2056,7 @@ TEST_CASE(
 
     std::unique_ptr<SphereOA> first = pop->getBestNeighborhoodIndividual<SphereOA>(0);
     REQUIRE(first);
-    std::vector<double> original_values;
-    first->streamline<double>(original_values);
+    auto const original_values = first->parameterValues<double>();
     REQUIRE_FALSE(original_values.empty());
 
     // Mutate the handed-out copy (within the sphere's bounded range [-5,5), which
@@ -2085,8 +2067,7 @@ TEST_CASE(
 
     auto second = pop->getBestNeighborhoodIndividual<SphereOA>(0);
     REQUIRE(second);
-    std::vector<double> second_values;
-    second->streamline<double>(second_values);
+    auto const second_values = second->parameterValues<double>();
     CHECK(second_values[0] == original_values[0]);
     CHECK(second.get() != first.get()); // distinct objects, each solely owned
 }
@@ -2173,8 +2154,7 @@ TEST_CASE("Swarm tolerates a frozen (equal-bound) parameter", "[flat][oa]") {
 
     auto best = pop->getBestGlobalIndividual<FrozenOA>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     REQUIRE(v.size() == 3);
     CHECK(v[2] == 4.); // the frozen parameter stayed exactly at its fixed value
 }
@@ -2267,8 +2247,7 @@ TEST_CASE("Conjugate gradient descent optimizes a flat individual", "[flat][oa]"
 
     auto best = pop->getBestGlobalIndividual<SphereWideOA>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     double sphere = 0.;
     for(double const x : v) {
         sphere += x * x;
@@ -2294,8 +2273,7 @@ TEST_CASE("Conjugate gradient descent: every beta formula converges", "[flat][oa
 
         auto best = pop->getBestGlobalIndividual<SphereWideOA>();
         REQUIRE(best);
-        std::vector<double> v;
-        best->streamline<double>(v);
+        auto const v = best->parameterValues<double>();
         double sphere = 0.;
         for(double const x : v) {
             sphere += x * x;
@@ -2318,8 +2296,7 @@ TEST_CASE("Conjugate gradient descent: central-difference gradient converges", "
     CHECK(pop->getCentralDifferences());
     auto best = pop->getBestGlobalIndividual<SphereWideOA>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     double sphere = 0.;
     for(double const x : v) {
         sphere += x * x;
@@ -2344,8 +2321,7 @@ TEST_CASE("Conjugate gradient descent: L-BFGS converges", "[flat][oa]") {
         CHECK(pop->getLBFGSMemory() == m);
         auto best = pop->getBestGlobalIndividual<SphereWideOA>();
         REQUIRE(best);
-        std::vector<double> v;
-        best->streamline<double>(v);
+        auto const v = best->parameterValues<double>();
         double sphere = 0.;
         for(double const x : v) {
             sphere += x * x;
@@ -2401,8 +2377,7 @@ TEST_CASE("Nelder-Mead optimizes a 1-D individual", "[flat][oa][nm]") {
 
     auto best = pop->getBestGlobalIndividual<Sphere1D>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     REQUIRE(v.size() == 1);
     CHECK(v[0] * v[0] < 1.0e-3); // the 1-D simplex descends from f = 9 to the optimum at the origin
 }
@@ -2800,8 +2775,7 @@ TEST_CASE("EA optimizes a flat individual with a BI-GAUSSIAN adaptor", "[flat][o
 
     auto best = pop->getBestGlobalIndividual<BiGaussSphereOA>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     double sphere = 0.;
     for(double const x : v) {
         sphere += x * x;
@@ -2825,8 +2799,7 @@ TEST_CASE("EA optimizes a flat INTEGER individual with a FLIP adaptor", "[flat][
 
     auto best = pop->getBestGlobalIndividual<IntSphereOA>();
     REQUIRE(best);
-    std::vector<std::int32_t> v;
-    best->streamline<std::int32_t>(v);
+    auto const v = best->parameterValues<std::int32_t>();
     double sphere = 0.;
     for(std::int32_t const x : v) {
         sphere += static_cast<double>(x) * static_cast<double>(x);
@@ -2852,8 +2825,7 @@ TEST_CASE("EA optimizes a flat BOOLEAN OneMax with a FLIP adaptor", "[flat][oa][
 
         auto best = pop->getBestGlobalIndividual<OneMaxOA>();
         REQUIRE(best);
-        std::vector<bool> v;
-        best->streamline<bool>(v);
+        auto const v = best->parameterValues<bool>();
         return static_cast<std::size_t>(std::ranges::count(v, false));
     };
     // OneMax converges from the all-false start toward all-true; the last few bits are a heavy
@@ -2929,8 +2901,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->template streamline<double>(v);
+        auto const v = this->template parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -2941,8 +2912,7 @@ protected:
 
 /** @brief Sum of squares of a flat individual's double parameters (its sphere value). */
 double sphereValue(const gen::GGenome &best) {
-    std::vector<double> v;
-    best.streamline<double>(v);
+    auto const v = best.parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
         s += x * x;
@@ -2977,8 +2947,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double f1 = 0.;
         double f2 = 0.;
         for(double const x : v) {
@@ -3086,15 +3055,13 @@ TEST_CASE("Separable CMA-ES tolerates (and warns about) non-FP parameters", "[fl
 
     auto best = pop->getBestGlobalIndividual<MixedOA>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     double fp_sphere = 0.;
     for(double const x : v) {
         fp_sphere += x * x;
     }
     CHECK(fp_sphere < 1.0); // the FP parameters were driven down from the f=27 (doubles) start
-    std::vector<std::int32_t> iv;
-    best->streamline<std::int32_t>(iv);
+    auto const iv = best->parameterValues<std::int32_t>();
     REQUIRE(iv.size() == 2);
     CHECK(iv[0] == 7); // the integer parameters were left untouched at their start value
     CHECK(iv[1] == 7);
@@ -3119,8 +3086,7 @@ TEST_CASE(
     // selected by criterion 0 (f1), so it sits at the f1 end of the front (x near 0): f1 is tiny while f2
     // is correspondingly large -- the textbook trade-off. We assert the run stays inside the genome box
     // and that the criterion-0-best really reached the f1 corner of the front, far below its f1=45 start.
-    std::vector<double> v;
-    best->streamline<double>(v);
+    auto const v = best->parameterValues<double>();
     double f1 = 0.;
     for(double const x : v) {
         f1 += x * x;

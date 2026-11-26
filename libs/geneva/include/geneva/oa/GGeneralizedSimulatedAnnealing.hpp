@@ -203,7 +203,7 @@ constexpr std::size_t GSA_PROPOSAL = 1;
  *
  * \par Reuse of Geneva facilities
  * Candidate parameters are read and written through the standard flat genome FP
- * channels (streamlineFPInternal, assignFPValueVectorInternal) with
+ * channels (internalFPValues, assignFPValueVectorInternal) with
  * activityMode::ACTIVEONLY, and the whole population is evaluated through the one
  * process consumer via workOnPopulation(), mirroring the other from-scratch
  * flat-genome optimizers (e.g. GSepCmaEvolutionStrategy, GStandardPSO2011,

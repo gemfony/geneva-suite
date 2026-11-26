@@ -461,8 +461,7 @@ void GGeneralizedSimulatedAnnealing::proposeMoves() {
     for(std::size_t c = 0; c < n_chains_; ++c) {
         const double tqv = this->visitingTemperature(chain_step_[c]);
 
-        std::vector<double> x;
-        this->at(currentPos(c))->streamlineFPInternal(x, activityMode::ACTIVEONLY);
+        auto const x = this->at(currentPos(c))->internalFPValues(activityMode::ACTIVEONLY);
 
         const std::vector<double> dx = this->drawVisitingJump(tqv);
 

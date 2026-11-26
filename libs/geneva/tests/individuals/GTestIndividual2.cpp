@@ -160,8 +160,7 @@ GTestIndividual2::getAdaptionConfig() const {
  */
 std::vector<double> GTestIndividual2::evaluate() {
     // We just calculate the square of all double values
-    std::vector<double> par_vec;
-    this->streamline(par_vec);
+    auto const par_vec = this->parameterValues<double>();
 
     // Calculate the value of the parabola
     return {std::ranges::fold_left(

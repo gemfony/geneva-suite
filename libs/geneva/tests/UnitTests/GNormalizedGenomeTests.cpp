@@ -96,8 +96,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -136,8 +135,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -170,8 +168,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -254,8 +251,7 @@ TEST_CASE(
     for(const auto &bx : boxes) {
         NgBoxIndividual ind(bx.vals.size(), bx.lo, bx.hi);
         ind.assignValueVector<double>(bx.vals);
-        std::vector<double> out;
-        ind.streamline<double>(out);
+        auto const out = ind.parameterValues<double>();
         REQUIRE(out.size() == bx.vals.size());
         // The round-trip is correctly-rounded w.r.t. the NORMALIZED store, whose resolution is
         // ULP(u)*scale (§2.1) -- i.e. SCALE-relative, not value-relative. So a small-magnitude value in a
@@ -279,8 +275,7 @@ TEST_CASE("normalized-genome: bounded and unbounded coexist on one genome", "[no
     // init perimeter is legal (NN-weight reachability) and round-trips.
     const std::vector<double> vals{0.5, -0.5, 42.0, -100.0};
     ind.assignValueVector<double>(vals);
-    std::vector<double> out;
-    ind.streamline<double>(out);
+    auto const out = ind.parameterValues<double>();
     REQUIRE(out.size() == 4);
     for(std::size_t i = 0; i < 4; ++i) {
         CHECK(faithful(out[i], vals[i]));
@@ -294,8 +289,7 @@ TEST_CASE(
 ) {
     NgBoxIndividual ind(64, -3., 7.);
     ind.randomInit(activityMode::ALLPARAMETERS);
-    std::vector<double> out;
-    ind.streamline<double>(out);
+    auto const out = ind.parameterValues<double>();
     REQUIRE(out.size() == 64);
     for(double const x : out) {
         CHECK(x >= -3.);
@@ -440,22 +434,19 @@ TEST_CASE(
 
     // Read the current internal value, push it past the wall (+0.2 beyond 0.4999...), write it back
     // internally -- it must fold, and the external read must equal the affine image of the folded value.
-    std::vector<double> u;
-    ind.streamlineFPInternal(u);
+    auto const u = ind.internalFPValues();
     REQUIRE(u.size() == 1);
     const double overshoot = 0.45; // a deliberately out-of-[-0.5,0.5) internal coordinate
     CHECK_NOTHROW(ind.assignFPValueVectorInternal(std::vector<double>{0.5 + overshoot}));
 
-    std::vector<double> u_after;
-    ind.streamlineFPInternal(u_after);
+    auto const u_after = ind.internalFPValues();
     REQUIRE(u_after.size() == 1);
     CHECK(u_after[0] >= -0.5);
     CHECK(u_after[0] < 0.5);
     CHECK(faithful(u_after[0], ngFoldInternal<double>(0.5 + overshoot))); // matches the hand fold
 
     // And the external value is the affine image of the folded internal value, in range.
-    std::vector<double> x;
-    ind.streamline<double>(x);
+    auto const x = ind.parameterValues<double>();
     REQUIRE(x.size() == 1);
     CHECK(x[0] >= -2.);
     CHECK(x[0] < 6.);
@@ -477,8 +468,7 @@ TEST_CASE(
         2.
     ); // plain: starts beyond the perimeter
     NgErgoIndividual const ind(b.build());
-    std::vector<double> out;
-    ind.streamline<double>(out);
+    auto const out = ind.parameterValues<double>();
     REQUIRE(out.size() == 5);
     const std::vector<double>
         expect{0.1, 0.4, -0.2, 5.0, -7.0}; // plain starts (5, -7) legally exceed [-2,2)
@@ -507,8 +497,7 @@ TEST_CASE(
     b.addDoublePlainRandom(-2., 2.); // plain single with init perimeter [-2, 2)
     NgErgoIndividual ind(b.build());
     ind.randomInit(activityMode::ALLPARAMETERS);
-    std::vector<double> out;
-    ind.streamline<double>(out);
+    auto const out = ind.parameterValues<double>();
     REQUIRE(out.size() == 2);
     CHECK(out[0] >= -3.);
     CHECK(out[0] < 7.); // a bounded parameter stays within its range

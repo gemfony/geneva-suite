@@ -51,7 +51,7 @@ namespace Gem::Geneva::Genome {
  * The semantic architecture view of an individual (DM §4). An architecture is a problem-specific,
  * *layout-agnostic* mapping from the individual's flat parameter values to the external structure a
  * problem cares about -- a 2D field, the layers of a neural network, etc. It reads the individual
- * exclusively through the genome-agnostic DM §2 channel accessors (streamline / streamlineFP), so it
+ * exclusively through the genome-agnostic DM §2 channel accessors (parameterValues / fpParameterValues), so it
  * never needs to know the underlying genome's storage layout: the very point of the seam is that
  * executors / clients / problem code consume the architecture without learning the concrete genome
  * implementation.
@@ -83,7 +83,7 @@ public:
  * A worked example architecture: it views the floating-point genome as a rows x cols 2D field. The
  * same pattern extends to layered 1D arrays (a neural network: one row per layer) and plain 1D arrays
  * (rows == 1). It demonstrates the seam: every accessor takes a const GGenome& and reads
- * it via streamlineFP(), so it works unchanged over a tree genome and a flat genome alike.
+ * it via fpParameterValues(), so it works unchanged over a tree genome and a flat genome alike.
  */
 class GGridArchitecture : public GGenomeArchitecture {
 public:
@@ -119,8 +119,7 @@ public:
      *  @param r The (zero-based) index of the row to extract
      *  @return A vector holding the cols_ values of row r */
     [[nodiscard]] std::vector<double> row(GGenome const &ind, std::size_t r) const {
-        std::vector<double> all;
-        ind.streamlineFP(all);
+        auto const all = ind.fpParameterValues();
         checkSize(all.size());
         std::vector<double> out;
         out.reserve(cols_);
@@ -136,8 +135,7 @@ public:
      *  @param c The (zero-based) column index of the element
      *  @return The floating-point value at field position (r, c) */
     [[nodiscard]] double at(GGenome const &ind, std::size_t r, std::size_t c) const {
-        std::vector<double> all;
-        ind.streamlineFP(all);
+        auto const all = ind.fpParameterValues();
         checkSize(all.size());
         return all[(r * cols_) + c];
     }

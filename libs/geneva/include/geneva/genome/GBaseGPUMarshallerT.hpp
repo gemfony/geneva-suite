@@ -71,11 +71,10 @@ namespace Gem::Geneva {
  * The generic plumbing provided here implements the processing rule of the interface (stated on
  * @c GGPUEvaluableI: begin in flatten(), complete in scatter(), a failing item fails alone):
  *  - @c itemDimension() -- the flattened scalar count of one individual (its parameter count);
- *  - @c flatten() -- begins each individual's processing, then streamlines its EXTERNAL
- *    (range-folded) values row-major straight into the device buffer. Because the buffer element is
- *    @c scalar_type, the individual's @c long @c double / @c double genome is converted to
- *    @c scalar_type here (the FP conversion), so the author's @c evaluate() stays in full precision
- *    while the device runs at @c scalar_type;
+ *  - @c flatten() -- begins each individual's processing, then copies the EXTERNAL (range-folded)
+ *    values of its @c scalar_type channel row-major straight into the device buffer: a @c float
+ *    marshaller reads the genome's float parameters, a @c double marshaller its double parameters
+ *    (GGenome::copyParameterValuesTo()), with no conversion and no per-item temporary;
  *  - @c scatter() -- completes each individual's processing with its device-computed fitness
  *    (@c GGenome::completeProcessing(): feasibility gate, policy transform, PROCESSED,
  *    post-processor).
@@ -127,7 +126,7 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief Begins every item's processing (its pre-processor runs), then streamlines its external
+     * @brief Begins every item's processing (its pre-processor runs), then copies its external
      * values row-major into @p params_out (@c scalar_type each). An item whose processing fails
      * here keeps its failure (EXCEPTION_CAUGHT) and is still flattened; scatter() leaves it alone.
      *
@@ -165,7 +164,7 @@ public:
                         << GERROR;
             }
             // The consumer checked the uniform dimension before the pre-processors ran; a
-            // pre-processor that changed it would make streamlineInto() write past the item's row.
+            // pre-processor that changed it would make copyParameterValuesTo() write past the item's row.
             if(const std::size_t item_dim = this->itemDimension(items[i]); item_dim != dim) {
                 throw gem_exception(
                     g_error_streamer()
@@ -175,9 +174,9 @@ public:
                     << " evaluated on a device." << '\n'
                 );
             }
-            // streamlineInto() writes the external (range-folded) values as scalar_type -- no per-item
-            // temporary, and the double-to-scalar_type conversion happens here.
-            flat->streamlineInto(params_out.data() + i * dim);
+            // copyParameterValuesTo() writes the external (range-folded) values of the scalar_type
+            // channel straight into the item's row -- no per-item temporary.
+            flat->copyParameterValuesTo(params_out.data() + i * dim);
         }
     }
 

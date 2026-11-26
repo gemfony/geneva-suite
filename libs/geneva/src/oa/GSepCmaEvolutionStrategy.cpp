@@ -358,8 +358,7 @@ void GSepCmaEvolutionStrategy::init() {
         setUpStrategyParameters();
     }
 
-    std::vector<double> mean;
-    this->at(0)->streamlineFPInternal(mean, activityMode::ACTIVEONLY);
+    auto const mean = this->at(0)->internalFPValues(activityMode::ACTIVEONLY);
 
     if(not state_initialized_) {
         // Fresh start (not resumed from a checkpoint): seed the distribution.
@@ -506,7 +505,7 @@ void GSepCmaEvolutionStrategy::updateDistribution(const std::vector<std::size_t>
     std::vector<std::vector<double>> selected(mu);
     double w_used = 0.;
     for(std::size_t i = 0; i < mu; ++i) {
-        this->at(ranked[i])->streamlineFPInternal(selected[i], activityMode::ACTIVEONLY);
+        selected[i] = this->at(ranked[i])->internalFPValues(activityMode::ACTIVEONLY);
         w_used += weights_[i];
     }
     if(not(w_used > 0.)) {

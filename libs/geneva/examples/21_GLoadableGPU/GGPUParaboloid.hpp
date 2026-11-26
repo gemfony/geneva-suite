@@ -143,8 +143,7 @@ protected:
     /** @brief The CPU reference objective: f(x) = sum_i x_i^2, minimised at the origin (single criterion).
      *  The device kernel computes the same value; the GPU path uses the kernel, not this. */
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,

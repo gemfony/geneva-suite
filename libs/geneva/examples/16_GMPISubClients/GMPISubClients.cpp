@@ -139,8 +139,7 @@ int main(int argc, char **argv) {
     const auto pause_max = cascade.config().pauseMax;
     launcher.registerItemProcessor([&cascade, pause_min, pause_max](gen::GGenome &item) {
         std::ignore = item.process([&](const gen::GGenome &candidate) -> std::vector<double> {
-            std::vector<double> parameters;
-            candidate.streamline(parameters);
+            auto const parameters = candidate.parameterValues<double>();
             return {cascade.round([&](MPI_Comm group) {
                 return leadHalf(
                     group,

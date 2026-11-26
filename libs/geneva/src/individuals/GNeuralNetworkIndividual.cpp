@@ -688,8 +688,7 @@ Gem::Dietrich::GPlotDesigner GNeuralNetworkIndividual::outputPlot() const {
                       static_cast<double>(OUTPUT_PLOT_POINTS_PER_AXIS - 1));
     };
 
-    std::vector<double> w;
-    this->streamlineFP(w);
+    auto const w = this->fpParameterValues();
     auto surface = std::make_shared<Gem::Dietrich::GGraph3D>();
     for(std::size_t i = 0; i < OUTPUT_PLOT_POINTS_PER_AXIS; ++i) {
         for(std::size_t j = 0; j < OUTPUT_PLOT_POINTS_PER_AXIS; ++j) {
@@ -841,8 +840,7 @@ void GNeuralNetworkIndividual::writeTrainedNetwork(const std::string &header_fil
 
     // The flat genome already stores the weights in layer-concatenated order (the same order the
     // architecture decodes), so dump them straight from the genome-agnostic §2 view.
-    std::vector<double> all_weights;
-    this->streamlineFP(all_weights);
+    auto const all_weights = this->fpParameterValues();
     header << (all_weights |
                std::views::transform([](double w) { return std::format("        {:g}", w); }) |
                std::views::join_with(std::string_view{",\n"}) | std::ranges::to<std::string>())
@@ -977,8 +975,7 @@ std::vector<double> GNeuralNetworkIndividual::evaluate() {
 
     // Read all weights out of the flat genome once (genome-agnostic §2 access); networkOutput()
     // decodes their per-layer meaning through the semantic architecture.
-    std::vector<double> w;
-    this->streamlineFP(w);
+    auto const w = this->fpParameterValues();
 
     // Now loop over all data sets
     std::size_t current_pos = 0;
@@ -1001,7 +998,7 @@ std::vector<double> GNeuralNetworkIndividual::evaluate() {
 /******************************************************************************/
 /**
  * @brief The forward pass of the network: the values of the output nodes for one input pattern,
- * with the weights @p w. The caller reads the weights from the genome once (streamlineFP()) and
+ * with the weights @p w. The caller reads the weights from the genome once (fpParameterValues()) and
  * passes them for every pattern; their per-layer meaning comes from the semantic architecture.
  *
  * @param w All weights of the network, in the order of the genome

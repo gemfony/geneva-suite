@@ -71,7 +71,19 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GGenomeT<derived_type>`). Build a flat, fixed-structure array of double / float / int32 /
   bool values once in the constructor with `GGenomeBuilder` (`addDoubleGroup`,
   `addDouble`, `addInt32Group`, `addBoolArray`, …) and install it with `setGenome()`.
-  Read values by position via `streamline<T>()` / `streamlineFP()`.
+  Read values by position via `parameterValues<T>()` / `fpParameterValues()`.
+- **Parameter values are read under names that say what they do.** The `streamline` family
+  is renamed, and the readers return their values. *Migration:* `streamline<T>(vec, am)`
+  becomes `vec = parameterValues<T>(am)`; `streamlineInto(dst, am)` becomes
+  `copyParameterValuesTo(dst, am)` (the same count returned); `streamlineFP(vec, am)` becomes
+  `vec = fpParameterValues(am)`; `streamlineFPInternal(vec, am)` becomes
+  `vec = internalFPValues(am)`, or one of the spans `internalDoubleValues()` /
+  `internalFloatValues()` where neither activity filtering nor the float channel matters. The
+  writers (`assignValueVector`, `assignFPValueVector`, ...) keep their names. The private
+  virtual channel functions behind them (`streamline_`, `assignValueVector_`,
+  `countParameters*_`, `boundaries_`, `getVarVal_*_`, `streamlineInternal_`,
+  `assignValueVectorInternal_`) are gone: the public templates choose the channel at compile
+  time, so an individual cannot override how values are read or written.
 - **Fitness hook changed: override `std::vector<double> evaluate()`** — a virtual member
   returning the raw fitness values (size 1 for a single-criterion problem, one entry per
   criterion otherwise) — **in place of `double fitnessCalculation()`**, which has been

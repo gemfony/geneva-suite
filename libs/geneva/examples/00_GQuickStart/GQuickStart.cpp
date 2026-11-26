@@ -91,8 +91,7 @@ public:
 protected:
     /** @brief The evaluation: one number per criterion, here a single one */
     std::vector<double> evaluate() override {
-        std::vector<double> parameters;
-        this->streamline<double>(parameters); // the values, in the units declared above
+        auto const parameters = this->parameterValues<double>(); // in the units declared above
         const double dx = parameters[0] - 1.;
         const double dy = parameters[1] + 2.;
         return {dx * dx + dy * dy};
@@ -126,8 +125,7 @@ int solve(geneva::GOptimizer &go) {
 
     // Run, then read the best candidate found.
     auto best = go.optimize().getBestGlobalIndividual<first::GFirstProblem>();
-    std::vector<double> best_parameters;
-    best->streamline<double>(best_parameters);
+    auto const best_parameters = best->parameterValues<double>();
     std::cout << "best solution: x = " << best_parameters[0]
               << ", y = " << best_parameters[1]
               << ", f = " << best->raw_fitness(0) << '\n';

@@ -104,9 +104,8 @@ int main(int argc, char **argv) {
             gti_ptr->getAdaptionConfig()
         );
 
-        std::vector<double> par;
         for(std::size_t i = 0; i < NPOINTS; i++) {
-            gti_ptr->streamline(par);
+            auto const par = gti_ptr->parameterValues<double>();
 
             switch(o) {
             case 0:

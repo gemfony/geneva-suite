@@ -319,8 +319,7 @@ int runGroupProcess(
     launcher.registerItemProcessor([&cascade, &lead_log, pause_min, pause_max](gen::GGenome &item) {
         std::ignore = item.process([&](const gen::GGenome &candidate) -> std::vector<double> {
             const auto &individual = dynamic_cast<const GSleepGroupIndividual &>(candidate);
-            std::vector<double> parameters;
-            individual.streamline(parameters);
+            auto const parameters = individual.parameterValues<double>();
             const double fitness = cascade.round([&](MPI_Comm group) {
                 return SubClientOverhead::leadHalf(
                     group,

@@ -58,8 +58,7 @@ namespace Gem::Geneva::SubClientOverhead {
  * @return The sum of the squares of the parameter values
  */
 std::vector<double> GSleepGroupIndividual::evaluate() {
-    std::vector<double> parameters;
-    this->streamline(parameters);
+    auto const parameters = this->parameterValues<double>();
     std::this_thread::sleep_for(std::chrono::duration<double>(evaluation_time_));
     return {sumOfSquares(parameters)};
 }

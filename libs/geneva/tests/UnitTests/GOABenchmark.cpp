@@ -94,7 +94,7 @@ inline constexpr auto enum_names_v<BenchFn> = std::to_array<std::pair<BenchFn, s
 
 namespace {
 
-/** @brief The pure objective value for a streamlined parameter vector. Accumulated in long double so that
+/** @brief The pure objective value for a vector of parameter values. Accumulated in long double so that
  *  a strongly-converged run (e.g. sep-CMA on the sphere, |x_i| ~ 1e-162) does not underflow the
  *  sum-of-squares to a misleading exact 0 in double. */
 double objective(BenchFn fn, const std::vector<double> &x) {
@@ -158,8 +158,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->template streamline<double>(v);
+        auto const v = this->template parameterValues<double>();
         return {objective(FN, v)};
     }
 };
@@ -209,8 +208,7 @@ void runMatrix(double budget_s) {
         std::size_t iters = 0;
         const double secs = timedRun(pop, budget_s, iters);
         auto best = pop->template getBestGlobalIndividual<Ind>();
-        std::vector<double> v;
-        best->template streamline<double>(v);
+        auto const v = best->template parameterValues<double>();
         rows.push_back({name, objective(FN, v), iters, secs});
     };
 

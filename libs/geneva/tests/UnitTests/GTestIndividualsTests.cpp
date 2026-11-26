@@ -196,7 +196,7 @@ TEST_CASE(
     CHECK_NOTHROW(fitness1_old = p_test1->transformed_fitness(0));
 
     std::vector<double> values_old;
-    CHECK_NOTHROW(p_test1->streamline(values_old));
+    CHECK_NOTHROW(values_old = p_test1->parameterValues<double>());
 
     CHECK_NOTHROW(runKernelsOnly(*p_test1));
     CHECK_NOTHROW(p_test1->mark_as_due_for_processing());
@@ -208,7 +208,7 @@ TEST_CASE(
     CHECK(*p_test1 != *p_test2);
 
     std::vector<double> values_new;
-    CHECK_NOTHROW(p_test1->streamline(values_new));
+    CHECK_NOTHROW(values_new = p_test1->parameterValues<double>());
     CHECK(values_old != values_new);
 }
 

@@ -66,7 +66,7 @@ GTestIndividual3::GTestIndividual3() {
 
     // Build a flat genome of GTI_DEF_NITEMS records, each holding 10 constrained doubles in the order
     // a[2], b, c[3], d[3], e. A multi-value field becomes one shared-sigma group; a standalone field
-    // its own group. This streamline order is a positional contract, so getPlainData() reads it
+    // its own group. This parameter order is a positional contract, so getPlainData() reads it
     // positionally.
     // Structure only -- this individual is never adapted (it is a genome / slot-scratch test fixture), so
     // no adaptor is attached and no OA adaption config is authored for it.
@@ -113,8 +113,7 @@ GTestIndividual3::~GTestIndividual3() { /* nothing */
  */
 std::vector<double> GTestIndividual3::evaluate() {
     // We just calculate the square of all double values
-    std::vector<double> par_vec;
-    this->streamline(par_vec);
+    auto const par_vec = this->parameterValues<double>();
 
     // Calculate the value of the parabola
     return {std::ranges::fold_left(
@@ -139,8 +138,7 @@ std::shared_ptr<float[]> GTestIndividual3::getPlainData() const {
     // The flat genome stores the 10 doubles of each record contiguously, in the order
     // a[0], a[1], b, c[0..2], d[0..2], e. So record i's field k sits at flat position i*10 + k --
     // a straight positional copy, no per-field decoding.
-    std::vector<double> par_vec;
-    this->streamline<double>(par_vec);
+    auto const par_vec = this->parameterValues<double>();
 
     Gem::Common::checkThat(
         par_vec.size() == 10 * GTI_DEF_NITEMS,

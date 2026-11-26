@@ -69,8 +69,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->template streamline<double>(v);
+        auto const v = this->template parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -82,8 +81,7 @@ protected:
 /** @brief Sphere value of the best individual, also asserting the constraints held. */
 template <std::size_t N_DIM>
 double bestSphere(const SpherePSO<N_DIM> &best) {
-    std::vector<double> v;
-    best.template streamline<double>(v);
+    auto const v = best.template parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
         s += x * x;

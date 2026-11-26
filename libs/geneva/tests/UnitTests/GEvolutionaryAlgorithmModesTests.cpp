@@ -104,8 +104,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->template streamline<double>(v);
+        auto const v = this->template parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -131,8 +130,7 @@ double runStockEA(std::size_t pop, std::size_t parents, std::size_t iterations) 
     p->optimize();
     auto best = p->template getBestGlobalIndividual<HighDimSphere<N>>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->template streamline<double>(v);
+    auto const v = best->template parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
         s += x * x;
@@ -156,8 +154,7 @@ double runAdaptiveEA(std::size_t pop, std::size_t parents, std::size_t iteration
     p->optimize();
     auto best = p->template getBestGlobalIndividual<HighDimSphere<N>>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->template streamline<double>(v);
+    auto const v = best->template parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
         s += x * x;
@@ -190,8 +187,7 @@ double runEAmode(
     p->optimize();
     auto best = p->template getBestGlobalIndividual<HighDimSphere<N>>();
     REQUIRE(best);
-    std::vector<double> v;
-    best->template streamline<double>(v);
+    auto const v = best->template parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
         s += x * x;
@@ -603,8 +599,7 @@ TEST_CASE("ea's global archive holds no individual twice under plus selection", 
 
         std::set<std::vector<double>> seen;
         for(auto const &ind : p->getBestGlobalIndividuals<gen::GGenome>()) {
-            std::vector<double> values;
-            ind->streamline<double>(values);
+            auto const values = ind->parameterValues<double>();
             CHECK(seen.insert(values).second);
         }
     }

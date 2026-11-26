@@ -94,14 +94,14 @@ namespace Gem::Geneva::Genome {
  * supplies a constructor (building its genome with GGenomeBuilder + setGenome()) and evaluate();
  * the clone/load/compare/serialize machinery is provided here and reused unchanged via GGenomeT.
  *
- * Value access is genome-agnostic: the public per-type templates (streamline<T>() and its siblings)
- * dispatch to per-type channel functions declared and implemented in this class (streamline_ /
- * assignValueVector_ / countParametersX_ / boundaries_ and the FP internal views), so the algorithms read
- * and write parameter values without knowing the storage layout. A floating-point parameter is stored in the NORMALIZED INTERNAL coordinate (magnitude
+ * Value access is genome-agnostic: the public per-type templates (parameterValues<T>() and its
+ * siblings) choose the value channel of their type at compile time (if constexpr) and call the templated
+ * channel helpers of this class, so the algorithms read and write parameter values without knowing the
+ * storage layout. A floating-point parameter is stored in the NORMALIZED INTERNAL coordinate (magnitude
  * ~ 1, confined to [-0.5, 0.5) for a bounded parameter); the user-facing EXTERNAL value is its affine
  * image (normalized-genome architecture, §2). This realizes the two-reader split: the OAs read/write the
- * raw internal value (streamlineInternal_/assignValueVectorInternal_), while the objective function, GPU
- * marshaller and user inspection read the scaled external value. The fold lives at WRITE time, not read
+ * raw internal value (internalFPValues()/assignFPValueVectorInternal() or the internal spans), while the
+ * objective function, GPU marshaller and user inspection read the scaled external value. The fold lives at WRITE time, not read
  * time. Integer parameters are not normalized (§2.7): they keep the closed-range integer fold on read.
  *
  * Feasibility is a concrete operation on the base (GGenome::fulfillsConstraints), reading this
@@ -341,29 +341,24 @@ public:
     }
 
     /***************************************************************************/
-    // Bulk-flatten fast path (the GPU marshallers) -- see GGenome's historical notes.
+    // The copy into a caller's buffer without allocation (the GPU marshallers' hot path).
 
-    /** @brief Bulk-flatten the double channel directly into a caller buffer (external/scaled values).
-     *  @param dst The destination buffer (must be large enough)
+    /** @brief Writes the external values of the par_type channel into a caller buffer, without allocating.
+     *  @tparam par_type The parameter value type (double, float or std::int32_t)
+     *  @param dst The destination buffer (must hold countParameters<par_type>(am) values)
      *  @param am The activity mode selecting which parameters are written
      *  @return The number of values written into dst */
-    std::size_t
-    streamlineInto(double *dst, activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
-        return streamlineIntoImpl<double>(dst, layout_->d, dv_, am);
-    }
-    /** @brief Bulk-flatten the float channel (see the double overload).
-     *  @param dst The destination buffer. @param am The activity mode. @return The number written */
-    std::size_t
-    streamlineInto(float *dst, activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
-        return streamlineIntoImpl<float>(dst, layout_->f, fv_, am);
-    }
-    /** @brief Bulk-flatten the int32 channel (see the double overload).
-     *  @param dst The destination buffer. @param am The activity mode. @return The number written */
-    std::size_t streamlineInto(
-        std::int32_t *dst,
+    template <typename par_type>
+    std::size_t copyParameterValuesTo(
+        par_type *dst,
         activityMode const &am = activityMode::DEFAULTACTIVITYMODE
     ) const {
-        return streamlineIntoImpl<std::int32_t>(dst, layout_->i, iv_, am);
+        return copyParameterValuesToImpl<par_type>(
+            dst,
+            channelLayout<par_type>(),
+            channelStore<par_type>(),
+            am
+        );
     }
 
     /** @brief Adaption-time write-fold (§2.2): folds every bounded value back into range (FP + int32). */
@@ -480,15 +475,6 @@ private:
         return counts_cache_[type_idx][amIndex(am)];
     }
 
-    /** @brief Retrieve the active double parameter at the given positional index. */
-    virtual double getVarVal_d_(std::size_t idx);
-    /** @brief Retrieve the active float parameter at the given positional index. */
-    virtual float getVarVal_f_(std::size_t idx);
-    /** @brief Retrieve the active int32 parameter at the given positional index. */
-    virtual std::int32_t getVarVal_i_(std::size_t idx);
-    /** @brief Retrieve the active bool parameter at the given positional index. */
-    virtual bool getVarVal_b_(std::size_t idx);
-
     /** @brief Retrieval of a suitable position for cross over inside of a vector. */
     std::size_t getCrossOverPos(std::size_t lower, std::size_t upper);
 
@@ -584,22 +570,23 @@ private:
     /***************************************************************************/
     // Per-type channel helpers -- the templated bodies the public surface forwards to.
 
-    /** @brief Collects a channel's active, range-folded values into an output vector.
-     *  @tparam T The channel's value type. @param out The output vector (cleared then filled)
-     *  @param ch The channel layout. @param store The internal value storage. @param am The activity mode */
+    /** @brief Collects a channel's active, range-folded external values.
+     *  @tparam T The channel's value type. @param ch The channel layout
+     *  @param store The internal value storage. @param am The activity mode
+     *  @return The external values of the matching parameters */
     template <typename T>
-    void streamlineImpl(
-        std::vector<T> &out,
+    [[nodiscard]] std::vector<T> parameterValuesImpl(
         ChannelLayout<T> const &ch,
         std::vector<T> const &store,
         activityMode const &am
     ) const {
-        out.clear();
+        std::vector<T> out;
         for(std::size_t k = 0; k < store.size(); ++k) {
             if(amMatch(ch.active[k], am)) {
                 out.push_back(externalValue<T>(ch, store[k], k));
             }
         }
+        return out;
     }
 
     /** @brief Writes the active channel's external values directly into a caller buffer (count returned).
@@ -607,7 +594,7 @@ private:
      *  @param ch The channel layout. @param store The internal value storage. @param am The activity mode
      *  @return The number of values written into dst */
     template <typename T>
-    std::size_t streamlineIntoImpl(
+    std::size_t copyParameterValuesToImpl(
         T *dst,
         ChannelLayout<T> const &ch,
         std::vector<T> const &store,
@@ -663,17 +650,17 @@ private:
         }
     }
 
-    /** @brief Collects a channel's active values in their raw INTERNAL representation (§2.3).
-     *  @tparam T The channel's value type. @param out The output vector (cleared then filled)
-     *  @param ch The channel layout. @param store The internal value storage. @param am The activity mode */
+    /** @brief Appends a channel's active values in their raw INTERNAL representation (§2.3).
+     *  @tparam T The channel's value type. @param out The vector the values are appended to (each widened
+     *  to double). @param ch The channel layout. @param store The internal value storage. @param am The
+     *  activity mode */
     template <typename T>
-    void streamlineInternalImpl(
-        std::vector<T> &out,
+    static void appendInternalValues(
+        std::vector<double> &out,
         ChannelLayout<T> const &ch,
         std::vector<T> const &store,
         activityMode const &am
-    ) const {
-        out.clear();
+    ) {
         for(std::size_t k = 0; k < store.size(); ++k) {
             if(amMatch(ch.active[k], am)) {
                 out.push_back(store[k]);
@@ -745,15 +732,16 @@ private:
     /***************************************************************************/
     // The bool channel is stored as bytes; these adapt the byte storage to the bool-typed surface.
 
-    /** @brief Collects the active bool parameters from the byte storage into a bool vector.
-     *  @param out The output vector (cleared then filled). @param am The activity mode */
-    void streamlineBool(std::vector<bool> &out, activityMode const &am) const {
-        out.clear();
+    /** @brief Collects the active bool parameters from the byte storage.
+     *  @param am The activity mode. @return The values of the matching bool parameters */
+    [[nodiscard]] std::vector<bool> boolParameterValues(activityMode const &am) const {
+        std::vector<bool> out;
         for(std::size_t k = 0; k < bv_.size(); ++k) {
             if(amMatch(layout_->b.active[k], am)) {
                 out.push_back(bv_[k] != 0);
             }
         }
+        return out;
     }
     /** @brief Writes a bool vector back into the active slots of the byte storage.
      *  @param in The incoming bool values. @param am The activity mode */
@@ -795,101 +783,52 @@ private:
     bool randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr);
 
     /***************************************************************************/
-    // The per-type value channels (normalized-genome architecture, §2): the dispatch targets of the public
-    // streamline<T>() etc., forwarding to the templated helpers above. They are declared virtual, but no
-    // class overrides them.
+    // The channel of a value type, chosen at compile time (normalized-genome architecture, §2). The bool
+    // channel is stored as bytes, so the public templates treat it in a branch of its own.
 
-    /** @brief Streamlines the double channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<double> &v, activityMode const &am) const {
-        streamlineImpl<double>(v, layout_->d, dv_, am);
-    }
-    /** @brief Streamlines the float channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<float> &v, activityMode const &am) const {
-        streamlineImpl<float>(v, layout_->f, fv_, am);
-    }
-    /** @brief Streamlines the int32 channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<std::int32_t> &v, activityMode const &am) const {
-        streamlineImpl<std::int32_t>(v, layout_->i, iv_, am);
-    }
-    /** @brief Streamlines the bool channel into v. @param v Output value vector. @param am Activity mode. */
-    virtual void streamline_(std::vector<bool> &v, activityMode const &am) const {
-        streamlineBool(v, am);
-    }
+    /** @brief The cache column of a channel (0 double, 1 float, 2 int32, 3 bool; 4 for no channel). */
+    template <typename T>
+    static constexpr std::size_t CHANNEL_INDEX = std::is_same_v<T, double>       ? 0
+                                               : std::is_same_v<T, float>        ? 1
+                                               : std::is_same_v<T, std::int32_t> ? 2
+                                               : std::is_same_v<T, bool>         ? 3
+                                                                                 : 4;
 
-    /** @brief Assigns v into the double channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<double> const &v, activityMode const &am) {
-        assignImpl<double>(v, layout_->d, dv_, am);
-    }
-    /** @brief Assigns v into the float channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<float> const &v, activityMode const &am) {
-        assignImpl<float>(v, layout_->f, fv_, am);
-    }
-    /** @brief Assigns v into the int32 channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<std::int32_t> const &v, activityMode const &am) {
-        assignImpl<std::int32_t>(v, layout_->i, iv_, am);
-    }
-    /** @brief Assigns v into the bool channel's active slots. @param v Incoming values. @param am Activity mode. */
-    virtual void assignValueVector_(std::vector<bool> const &v, activityMode const &am) {
-        assignBool(v, am);
+    /** @brief @tparam T double, float or std::int32_t. @return The layout of the channel of type T */
+    template <typename T>
+    [[nodiscard]] ChannelLayout<T> const &channelLayout() const {
+        static_assert(
+            CHANNEL_INDEX<T> < 3,
+            "GGenome: unsupported parameter type (double, float, std::int32_t)"
+        );
+        if constexpr(std::is_same_v<T, double>) {
+            return layout_->d;
+        }
+        else if constexpr(std::is_same_v<T, float>) {
+            return layout_->f;
+        }
+        else {
+            return layout_->i;
+        }
     }
 
-    /** @brief @param am Activity mode. @return The number of matching double parameters (cached). */
-    virtual std::size_t countParametersDouble_(activityMode const &am) const {
-        return cachedCount(0, am);
-    }
-    /** @brief @param am Activity mode. @return The number of matching float parameters (cached). */
-    virtual std::size_t countParametersFloat_(activityMode const &am) const {
-        return cachedCount(1, am);
-    }
-    /** @brief @param am Activity mode. @return The number of matching int32 parameters (cached). */
-    virtual std::size_t countParametersInt32_(activityMode const &am) const {
-        return cachedCount(2, am);
-    }
-    /** @brief @param am Activity mode. @return The number of matching bool parameters (cached). */
-    virtual std::size_t countParametersBool_(activityMode const &am) const {
-        return cachedCount(3, am);
-    }
-
-    /** @brief Collects double-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void
-    boundaries_(std::vector<double> &l, std::vector<double> &u, activityMode const &am) const {
-        boundariesImpl<double>(l, u, layout_->d, am);
-    }
-    /** @brief Collects float-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void
-    boundaries_(std::vector<float> &l, std::vector<float> &u, activityMode const &am) const {
-        boundariesImpl<float>(l, u, layout_->f, am);
-    }
-    /** @brief Collects int32-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void boundaries_(
-        std::vector<std::int32_t> &l,
-        std::vector<std::int32_t> &u,
-        activityMode const &am
-    ) const {
-        boundariesImpl<std::int32_t>(l, u, layout_->i, am);
-    }
-    /** @brief Collects bool-channel bounds. @param l Lower bounds out. @param u Upper bounds out. @param am Activity mode. */
-    virtual void
-    boundaries_(std::vector<bool> &l, std::vector<bool> &u, activityMode const &am) const {
-        boundariesBool(l, u, am);
-    }
-
-    /** @brief Reads the raw internal double channel into v. @param v Output vector. @param am Activity mode. */
-    virtual void streamlineInternal_(std::vector<double> &v, activityMode const &am) const {
-        streamlineInternalImpl<double>(v, layout_->d, dv_, am);
-    }
-    /** @brief Reads the raw internal float channel into v. @param v Output vector. @param am Activity mode. */
-    virtual void streamlineInternal_(std::vector<float> &v, activityMode const &am) const {
-        streamlineInternalImpl<float>(v, layout_->f, fv_, am);
-    }
-
-    /** @brief Internal-writes (folds) v into the double channel's active slots. @param v Internal values. @param am Activity mode. */
-    virtual void assignValueVectorInternal_(std::vector<double> const &v, activityMode const &am) {
-        assignInternalImpl<double>(v, layout_->d, dv_, am);
-    }
-    /** @brief Internal-writes (folds) v into the float channel's active slots. @param v Internal values. @param am Activity mode. */
-    virtual void assignValueVectorInternal_(std::vector<float> const &v, activityMode const &am) {
-        assignInternalImpl<float>(v, layout_->f, fv_, am);
+    /** @brief @tparam T double, float or std::int32_t. @return The internal storage of the channel of
+     *  type T (const iff *this is const) */
+    template <typename T, typename self_type>
+    auto &channelStore(this self_type &&self) {
+        static_assert(
+            CHANNEL_INDEX<T> < 3,
+            "GGenome: unsupported parameter type (double, float, std::int32_t)"
+        );
+        if constexpr(std::is_same_v<T, double>) {
+            return self.dv_;
+        }
+        else if constexpr(std::is_same_v<T, float>) {
+            return self.fv_;
+        }
+        else {
+            return self.iv_;
+        }
     }
 
     /***************************************************************************/
@@ -1153,7 +1092,7 @@ public:
 
     /**
      * @brief Public constraint check used by the OA-owned adaption retry loop. Feasibility is a concrete
-     * base operation: it reads this entity's parameter values (streamlineFP, below) through the shared
+     * base operation: it reads this entity's parameter values (fpParameterValues, below) through the shared
      * policy's constraint. Returns true if the entity satisfies its constraints and writes the validity
      * level to the out-parameter.
      * @param validity_level Out-parameter receiving the computed validity level
@@ -1241,23 +1180,29 @@ public:
     }
 
     /***************************************************************************/
-    // Genome value channels (genome-agnostic). The public per-type templates are the ergonomic surface the
-    // optimization algorithms use; each dispatches to a non-template per-type channel function of this
-    // class. The algorithms therefore read and write parameter values without knowing the storage
-    // layout.
+    // Genome value channels (genome-agnostic). The public per-type templates are the ergonomic surface
+    // users and the optimization algorithms use; each chooses the channel of its type at compile time.
+    // The algorithms therefore read and write parameter values without knowing the storage layout.
 
     /**
-     * @brief Streamlines all parameters of type par_type into a vector (cleared first).
+     * @brief The external values (in their declared units) of all parameters of type par_type.
      * @tparam par_type The parameter value type (double, float, std::int32_t or bool)
-     * @param par_vec The vector the parameter values are written into (cleared first)
      * @param am The activity mode controlling which parameters are included
+     * @return The values, in the order of the parameters in the genome
      */
     template <typename par_type>
-    void streamline(
-        std::vector<par_type> &par_vec,
-        activityMode const &am = activityMode::DEFAULTACTIVITYMODE
-    ) const {
-        this->streamline_(par_vec, am);
+    [[nodiscard]] std::vector<par_type>
+    parameterValues(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+        if constexpr(std::is_same_v<par_type, bool>) {
+            return boolParameterValues(am);
+        }
+        else {
+            return parameterValuesImpl<par_type>(
+                channelLayout<par_type>(),
+                channelStore<par_type>(),
+                am
+            );
+        }
     }
 
     /**
@@ -1279,7 +1224,12 @@ public:
             " / ",
             par_vec.size()
         );
-        this->assignValueVector_(par_vec, am);
+        if constexpr(std::is_same_v<par_type, bool>) {
+            assignBool(par_vec, am);
+        }
+        else {
+            assignImpl<par_type>(par_vec, channelLayout<par_type>(), channelStore<par_type>(), am);
+        }
         // As we have modified our internal data sets, make sure the item is reprocessed
         this->mark_as_due_for_processing();
     }
@@ -1293,22 +1243,8 @@ public:
     template <typename par_type>
     [[nodiscard]] std::size_t
     countParameters(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
-        if constexpr(std::is_same_v<par_type, double>) {
-            return countParametersDouble_(am);
-        }
-        else if constexpr(std::is_same_v<par_type, float>) {
-            return countParametersFloat_(am);
-        }
-        else if constexpr(std::is_same_v<par_type, std::int32_t>) {
-            return countParametersInt32_(am);
-        }
-        else if constexpr(std::is_same_v<par_type, bool>) {
-            return countParametersBool_(am);
-        }
-        else {
-            static_assert(sizeof(par_type) == 0, "countParameters: unsupported parameter type");
-            return 0;
-        }
+        static_assert(CHANNEL_INDEX<par_type> < 4, "countParameters: unsupported parameter type");
+        return cachedCount(CHANNEL_INDEX<par_type>, am);
     }
 
     /**
@@ -1324,7 +1260,12 @@ public:
         std::vector<par_type> &u_bnd_vec,
         activityMode const &am = activityMode::DEFAULTACTIVITYMODE
     ) const {
-        this->boundaries_(l_bnd_vec, u_bnd_vec, am);
+        if constexpr(std::is_same_v<par_type, bool>) {
+            boundariesBool(l_bnd_vec, u_bnd_vec, am);
+        }
+        else {
+            boundariesImpl<par_type>(l_bnd_vec, u_bnd_vec, channelLayout<par_type>(), am);
+        }
     }
 
     /***************************************************************************/
@@ -1337,21 +1278,17 @@ public:
         return countParameters<double>(am) + countParameters<float>(am);
     }
 
-    /** @brief Streamlines all FP parameters into a single double vector (double-typed first, then widened
-     *  float-typed). @param par_vec The output vector (cleared first). @param am The activity mode */
-    void streamlineFP(
-        std::vector<double> &par_vec,
-        activityMode const &am = activityMode::DEFAULTACTIVITYMODE
-    ) const {
-        par_vec.clear();
-        this->streamline<double>(par_vec, am);
-
-        std::vector<float> float_vec;
-        this->streamline<float>(float_vec, am);
-        par_vec.append_range(float_vec); // each float implicitly widened to double
+    /** @brief The external values of all FP parameters in one double vector: the double-typed first, then
+     *  the float-typed widened to double. @param am The activity mode. @return The values */
+    [[nodiscard]] std::vector<double>
+    fpParameterValues(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+        std::vector<double> par_vec = this->parameterValues<double>(am);
+        // each float implicitly widened to double
+        par_vec.append_range(this->parameterValues<float>(am));
+        return par_vec;
     }
 
-    /** @brief Scatters a double vector produced by streamlineFP() back onto the FP parameters.
+    /** @brief Scatters a double vector ordered as fpParameterValues() back onto the FP parameters.
      *  @param par_vec The combined double vector. @param am The activity mode */
     void assignFPValueVector(
         std::vector<double> const &par_vec,
@@ -1384,7 +1321,7 @@ public:
         }
     }
 
-    /** @brief Lower/upper boundaries of all FP parameters (matching streamlineFP() ordering).
+    /** @brief Lower/upper boundaries of all FP parameters (matching fpParameterValues() ordering).
      *  @param l_bnd_vec Lower bounds out (cleared). @param u_bnd_vec Upper bounds out (cleared). @param am The activity mode */
     void boundariesFP(
         std::vector<double> &l_bnd_vec,
@@ -1410,20 +1347,18 @@ public:
     /***************************************************************************/
     // The INTERNAL (normalized) floating-point view (normalized-genome architecture §2.3): the OAs read
     // and write the raw normalized internal coordinate (the two-reader split). Ordering matches
-    // streamlineFP: double-typed first, then float-typed widened to double.
+    // fpParameterValues: double-typed first, then float-typed widened to double. Where neither activity
+    // filtering nor the float channel matters, the spans internalDoubleValues() / internalFloatValues()
+    // read the same storage without a copy.
 
-    /** @brief Streamlines all FP parameters in their raw INTERNAL representation into a double vector.
-     *  @param par_vec The output vector (cleared first). @param am The activity mode */
-    void streamlineFPInternal(
-        std::vector<double> &par_vec,
-        activityMode const &am = activityMode::DEFAULTACTIVITYMODE
-    ) const {
-        par_vec.clear();
-        this->streamlineInternal_(par_vec, am);
-
-        std::vector<float> float_vec;
-        this->streamlineInternal_(float_vec, am);
-        par_vec.append_range(float_vec); // each float implicitly widened to double
+    /** @brief The raw INTERNAL values of all FP parameters in one double vector (double-typed first, then
+     *  float-typed widened to double). @param am The activity mode. @return The values */
+    [[nodiscard]] std::vector<double>
+    internalFPValues(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+        std::vector<double> par_vec;
+        appendInternalValues<double>(par_vec, layout_->d, dv_, am);
+        appendInternalValues<float>(par_vec, layout_->f, fv_, am);
+        return par_vec;
     }
 
     /** @brief Scatters a vector of raw INTERNAL values back onto the FP parameters (folds bounded values,
@@ -1448,14 +1383,14 @@ public:
                 par_vec.begin(),
                 par_vec.begin() + static_cast<std::ptrdiff_t>(n_double)
             );
-            this->assignValueVectorInternal_(double_vec, am);
+            assignInternalImpl<double>(double_vec, layout_->d, dv_, am);
         }
         if(n_float > 0) {
             std::vector<float> float_vec;
             float_vec.append_range(
                 par_vec | std::views::drop(n_double)
             ); // each double implicitly narrowed to float
-            this->assignValueVectorInternal_(float_vec, am);
+            assignInternalImpl<float>(float_vec, layout_->f, fv_, am);
         }
         // As with the external assign, modifying the parameters marks the item for reprocessing.
         this->mark_as_due_for_processing();
@@ -1477,18 +1412,7 @@ public:
             "bool)"
         );
 
-        if constexpr(std::is_same_v<val_type, double>) {
-            return this->getVarVal_d_(idx);
-        }
-        else if constexpr(std::is_same_v<val_type, float>) {
-            return this->getVarVal_f_(idx);
-        }
-        else if constexpr(std::is_same_v<val_type, std::int32_t>) {
-            return this->getVarVal_i_(idx);
-        }
-        else { // bool, by the static_assert above
-            return this->getVarVal_b_(idx);
-        }
+        return this->parameterValues<val_type>().at(idx);
     }
 
     /***************************************************************************/
@@ -1591,7 +1515,7 @@ protected:
 
     /** @brief The evaluation hook a concrete individual implements: computes and RETURNS this individual's
      *  raw result vector (size 1 for a single-criterion problem, one entry per criterion otherwise -- main
-     *  at index 0). It reads the individual through @c this (genome via streamline(), any per-run context via
+     *  at index 0). It reads the individual through @c this (genome via parameterValues(), any per-run context via
      *  the individual's own accessors) and RETURNS the results; the caller (@c runEvaluation_) writes them and
      *  applies feasibility + policy + PROCESSED, so the hook itself sets no fitness. The single evaluation
      *  call site dispatches here for a locally-evaluated individual; process(evaluation) calls the

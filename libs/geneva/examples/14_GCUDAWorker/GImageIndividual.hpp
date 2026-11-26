@@ -248,8 +248,7 @@ public:
         // Background colors are the last three values of the flat genome (10 per triangle + 3 bg).
         const std::size_t offset = 10 * nTriangles_;
 
-        std::vector<gimage_fp_t> parVec;
-        this->streamline(parVec);
+        auto const parVec = this->parameterValues<gimage_fp_t>();
 
         const fp_type r =
             std::clamp(static_cast<fp_type>(parVec.at(offset + 0)), fp_type(0), fp_type(1));

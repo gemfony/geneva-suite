@@ -109,8 +109,7 @@ void GDoubleSumConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder 
  */
 //! [constraints:sum-check]
 double GDoubleSumConstraint::check_(const gen::GGenome *p) const {
-    std::vector<double> par_vec;
-    p->streamlineFP(par_vec);
+    auto const par_vec = p->fpParameterValues();
 
     const double sum = std::ranges::fold_left(par_vec, 0., std::plus{});
 
@@ -158,8 +157,7 @@ void GDoubleSumGapConstraint::addConfigurationOptions_(Gem::Common::GParserBuild
  * @return 0 if the parameter sum is within [c_ - gap_, c_ + gap_]; otherwise 1 + |sum - c_| / c_ as a penalty measure
  */
 double GDoubleSumGapConstraint::check_(const gen::GGenome *p) const {
-    std::vector<double> par_vec;
-    p->streamlineFP(par_vec);
+    auto const par_vec = p->fpParameterValues();
 
     const double sum = std::ranges::fold_left(par_vec, 0., std::plus{});
 
@@ -205,8 +203,7 @@ void GSphereConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder &gp
  * @return 0 if the Euclidean norm of the parameters is at most diameter_; otherwise (norm / diameter_) squared as a penalty measure
  */
 double GSphereConstraint::check_(const gen::GGenome *p) const {
-    std::vector<double> par_vec;
-    p->streamlineFP(par_vec);
+    auto const par_vec = p->fpParameterValues();
 
     const double sum = sqrt(
         std::ranges::fold_left(
@@ -278,8 +275,7 @@ solverFunction GFunctionIndividual::getDemoFunction() const {
  */
 std::size_t GFunctionIndividual::getParameterSize() const {
     // Retrieve the parameters
-    std::vector<double> par_vec;
-    this->streamline(par_vec);
+    auto const par_vec = this->parameterValues<double>();
     return par_vec.size();
 }
 
@@ -288,7 +284,7 @@ std::size_t GFunctionIndividual::getParameterSize() const {
  * @brief The evaluation hook: evaluates the selected benchmark function on the individual's parameters.
  *
  * Reads the demo function the factory set on the individual (via getDemoFunction()) and the external
- * parameter values (via streamline()) -- only through public accessors -- and returns the raw fitness.
+ * parameter values (via parameterValues()) -- only through public accessors -- and returns the raw fitness.
  * Delegates the maths to Gem::Geneva::Benchmarks::eval() (shared CPU/CUDA implementations, all 15
  * solverFunction IDs 0-14). The (function, dimension) validity is a configuration invariant checked once in
  * applyConfig(), so this hot path carries no validation.
@@ -296,8 +292,7 @@ std::size_t GFunctionIndividual::getParameterSize() const {
  * @return The raw fitness as a one-element vector (a single-criterion problem)
  */
 std::vector<double> GFunctionIndividual::evaluate() {
-    std::vector<double> par_vec;
-    this->streamline(par_vec);
+    auto const par_vec = this->parameterValues<double>();
 
     return {gbm::eval(
         static_cast<int>(this->getDemoFunction()),
@@ -758,8 +753,7 @@ GFunctionIndividual::buildConfigured(const Config &c, std::filesystem::path cons
  * @return The std::ostream object passed in as @p s
  */
 std::ostream &operator<<(std::ostream &s, const Gem::Geneva::Individuals::GFunctionIndividual &f) {
-    std::vector<double> par_vec;
-    f.streamline(par_vec);
+    auto const par_vec = f.parameterValues<double>();
 
     s << '\n' << "Raw fitness: " << f.raw_fitness(0) << '\n' << '\n';
     std::size_t pos = 0;

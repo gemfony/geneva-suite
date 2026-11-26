@@ -289,7 +289,7 @@ ACOSolution GAntColonyOptimization::solutionFromSlot(std::size_t pos) {
     auto &ind = (*this->at(pos));
 
     ACOSolution sol;
-    ind.streamlineFPInternal(sol.parms, activityMode::ACTIVEONLY);
+    sol.parms = ind.internalFPValues(activityMode::ACTIVEONLY);
     sol.fitness = minOnly_transformed_fitness(ind);
     return sol;
 }

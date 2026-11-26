@@ -103,8 +103,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -156,8 +155,7 @@ public:
 protected:
     /** @brief The evaluation hook: the sum of squares of the genome's external parameters (size-1 vector). */
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -190,8 +188,7 @@ protected:
     /** @brief The evaluation hook: one distinguishable criterion per parameter (main result first), returned
      *  as the full raw result vector. */
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return std::vector<double>{
             v.at(0) * v.at(0),
             2. * v.at(1) * v.at(1),
@@ -263,18 +260,16 @@ TEST_CASE(
 }
 
 /******************************************************************************/
-TEST_CASE("GGenome: streamline / assignValueVector round-trip", "[candidate]") {
+TEST_CASE("GGenome: parameterValues / assignValueVector round-trip", "[candidate]") {
     NewSphere ind(4, 0, 0);
 
-    std::vector<double> before;
-    ind.streamline<double>(before);
+    auto const before = ind.parameterValues<double>();
     REQUIRE(before.size() == 4);
 
     std::vector<double> written{-3.5, 0.0, 2.25, 9.99};
     ind.assignValueVector<double>(written);
 
-    std::vector<double> after;
-    ind.streamline<double>(after);
+    auto const after = ind.parameterValues<double>();
     REQUIRE(after.size() == written.size());
     for(std::size_t i = 0; i < written.size(); ++i) {
         CHECK(after[i] == Approx(written[i]));
@@ -321,10 +316,8 @@ TEST_CASE(
         REQUIRE(restored.is_processed());
         CHECK(restored.raw_fitness(0) == Approx(ind.raw_fitness(0)));
         // Values preserved
-        std::vector<double> a;
-        std::vector<double> b;
-        ind.streamline<double>(a);
-        restored.streamline<double>(b);
+        auto const a = ind.parameterValues<double>();
+        auto const b = restored.parameterValues<double>();
         REQUIRE(a.size() == b.size());
         for(std::size_t i = 0; i < a.size(); ++i) {
             CHECK(a[i] == Approx(b[i]));
@@ -346,10 +339,8 @@ TEST_CASE("GGenome: clone is independent of the original", "[candidate]") {
     // Mutating the clone must not touch the original.
     clone->randomInit(activityMode::ALLPARAMETERS);
 
-    std::vector<double> orig_v;
-    std::vector<double> clone_v;
-    ind.streamline<double>(orig_v);
-    clone->streamline<double>(clone_v);
+    auto const orig_v = ind.parameterValues<double>();
+    auto const clone_v = clone->parameterValues<double>();
 
     // The original still holds its evaluated state; the clone has been re-randomized and is dirty.
     CHECK(ind.is_processed());
@@ -612,8 +603,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {(v.at(0) * v.at(0)) + (v.at(1) * v.at(1)) + (v.at(2) * v.at(2))};
     }
 };
@@ -632,13 +622,11 @@ TEST_CASE("GGenome: cross-over with a single value of one type", "[candidate]") 
 
     // The doubles are a head of a and a tail of b; the single boolean has no position to cross at
     // and stays that of a
-    std::vector<double> d;
-    child->streamline<double>(d);
+    auto const d = child->parameterValues<double>();
     REQUIRE(d.size() == 3);
     CHECK(d.at(0) == 1.);
     CHECK(d.at(2) == 2.);
-    std::vector<bool> flags;
-    child->streamline<bool>(flags);
+    auto const flags = child->parameterValues<bool>();
     REQUIRE(flags.size() == 1);
     CHECK(flags.at(0) == true);
 }
@@ -678,8 +666,7 @@ protected:
     /** @brief Counts the call; the sum of squares of the double channel. */
     std::vector<double> evaluate() override {
         ++suppliedEvaluationLog.evaluateCalls;
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -745,7 +732,7 @@ TEST_CASE(
         std::vector<double> seen;
         ind.process([&seen](const GGenome &candidate) {
             suppliedEvaluationLog.order.emplace_back("evaluation");
-            candidate.streamline<double>(seen);
+            seen = candidate.parameterValues<double>();
             return std::vector<double>{1.};
         });
         CHECK(seen == std::vector<double>(3, 2.0));
