@@ -7,7 +7,7 @@
     "n_adaption_threads": {
         "comment": [
             "The number of threads used to simultaneously adapt and recombine individuals",
-            "0 means \"automatic\""
+            "0 means one per hardware thread assigned to the process"
         ],
         "default": 2,
         "value": 2

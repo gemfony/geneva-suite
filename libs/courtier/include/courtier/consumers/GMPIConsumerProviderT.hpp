@@ -111,8 +111,8 @@ protected:
             "mpi_nHandlerThreads",
             &config_type::nHandlerThreads,
             defaults.nHandlerThreads,
-            "[mpi] The number of threads the submitter's sessions run on (0 == as many "
-            "as the machine has hardware threads); one more thread polls for every client"
+            "[mpi] The number of threads the submitter's sessions run on (0 == as many as the "
+            "hardware threads assigned to the process); one more thread polls for every client"
         );
         this->option(
             gpb,

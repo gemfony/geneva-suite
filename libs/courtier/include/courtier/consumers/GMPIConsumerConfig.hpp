@@ -61,8 +61,8 @@ struct MPIConsumerConfig {
     /// Both: the serialization of the messages between the submitter and its clients
     Gem::Common::serializationMode serializationMode{Gem::Common::serializationMode::GEM_BINARY};
     /// Server: the number of threads the sessions run on (they encode and decode the messages);
-    /// 0: as many as the machine has hardware threads. The poll that receives for every session
-    /// runs on a thread of its own besides them.
+    /// 0: as many as the hardware threads assigned to the process. The poll that receives for every
+    /// session runs on a thread of its own besides them.
     std::uint32_t nHandlerThreads{GMPICONSUMERSESSIONTHREADS};
     /// Server: the keep-alive interval in seconds (0: off). Every rank is sent a sign of life that
     /// often; a rank not heard from for more than twice that long is lost, and the job is ended

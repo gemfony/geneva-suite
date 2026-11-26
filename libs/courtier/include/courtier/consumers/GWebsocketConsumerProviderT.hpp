@@ -126,7 +126,7 @@ protected:
                 &config_type::nThreads,
                 defaults.nThreads,
                 "[beast] The number of io threads of the server, and of the threads its "
-                "sessions run on (0 == as many as the machine has hardware threads)"
+                "sessions run on (0 == as many as the hardware threads assigned to the process)"
         )
             .setHidden();
         this->option(

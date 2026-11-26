@@ -72,7 +72,7 @@ struct GWebsocketConsumerConfig {
     /// Both: the serialization of work items on the wire
     Gem::Common::serializationMode serializationMode = GCONSUMERSERIALIZATIONMODE;
     /// Server: the number of io threads, and of the threads the sessions run on (they encode and
-    /// decode the messages); 0: as many as the machine has hardware threads
+    /// decode the messages); 0: as many as the hardware threads assigned to the process
     std::size_t nThreads = GCONSUMERLISTENERTHREADS;
     /// Both: seconds of silence after which a ping is sent; the connection is closed after
     /// twice that time without inbound data (0: off). The server names its value to its clients;

@@ -69,8 +69,8 @@ struct GMqttConsumerConfig {
     /// Both: the serialization of work items on the wire
     Gem::Common::serializationMode serializationMode = GCONSUMERSERIALIZATIONMODE;
     /// Server: the number of threads the sessions run on (they encode and decode the messages); 0:
-    /// as many as the machine has hardware threads. The transport moves the bytes on one thread of
-    /// its own.
+    /// as many as the hardware threads assigned to the process. The transport moves the bytes on one
+    /// thread of its own.
     std::size_t nThreads = GCONSUMERLISTENERTHREADS;
     /// Both: the MQTT keep-alive in seconds (0: off). The broker publishes the will of an end it
     /// has not heard from within one and a half intervals, which ends the other end. The server
