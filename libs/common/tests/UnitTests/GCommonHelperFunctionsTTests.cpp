@@ -29,6 +29,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <chrono>
 #include <cmath>
@@ -422,6 +423,51 @@ TEST_CASE(
 ) {
     REQUIRE_THROWS_AS(Gem::Common::narrow<std::uint8_t>(std::int32_t{-1}), std::overflow_error);
     REQUIRE_THROWS_AS(Gem::Common::narrow<std::uint16_t>(std::int32_t{-1}), std::overflow_error);
+}
+
+// A round trip between a signed and an unsigned type of the same width, or from a signed type to a
+// wider unsigned one, gives back the original value; the change of sign has to be checked by itself
+// (a defect: narrow<std::size_t>(-1) gave 18446744073709551615).
+TEST_CASE("narrow: a change of sign throws at equal or larger width", "[common][helper][narrow]") {
+    REQUIRE_THROWS_AS(Gem::Common::narrow<std::uint32_t>(std::int32_t{-1}), std::overflow_error);
+    REQUIRE_THROWS_AS(Gem::Common::narrow<std::size_t>(-1), std::overflow_error);
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<std::int32_t>(std::uint32_t{4294967295U}),
+        std::overflow_error
+    );
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<std::int64_t>(std::numeric_limits<std::uint64_t>::max()),
+        std::overflow_error
+    );
+    REQUIRE(Gem::Common::narrow<std::uint32_t>(std::int32_t{5}) == 5U);
+    REQUIRE(Gem::Common::narrow<std::int32_t>(std::uint32_t{7}) == 7);
+    REQUIRE(Gem::Common::narrow<std::size_t>(std::int64_t{0}) == 0U);
+}
+
+// Every comparison with NaN is false, so NaN passed both range checks and reached the float->integer
+// cast, which is undefined for it (a defect).
+TEST_CASE("narrow: NaN to an integer throws", "[common][helper][narrow]") {
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<int>(std::numeric_limits<double>::quiet_NaN()),
+        std::overflow_error
+    );
+    REQUIRE_THROWS_AS(
+        Gem::Common::narrow<std::uint64_t>(std::numeric_limits<float>::quiet_NaN()),
+        std::overflow_error
+    );
+}
+
+// The message names the value and both types, so a reader knows what did not fit where.
+TEST_CASE("narrow: the message names the value and the two types", "[common][helper][narrow]") {
+    using Catch::Matchers::ContainsSubstring;
+    REQUIRE_THROWS_WITH(
+        Gem::Common::narrow<std::uint8_t>(300),
+        ContainsSubstring("300") && ContainsSubstring("int") && ContainsSubstring("unsigned char")
+    );
+    REQUIRE_THROWS_WITH(
+        Gem::Common::narrow<std::int32_t>(1.0e18),
+        ContainsSubstring("1e+18") && ContainsSubstring("double")
+    );
 }
 
 TEST_CASE("narrow: float->integer truncates toward zero", "[common][helper][narrow]") {

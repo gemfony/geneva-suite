@@ -59,6 +59,7 @@
 #include <vector>
 
 // Boost headers go here
+#include <boost/core/demangle.hpp>
 
 // Geneva headers go here
 #include "common/GChecks.hpp"
@@ -108,8 +109,9 @@ using enum_or_self_t = typename enum_or_self<T>::type;
  * the previously used boost::numeric_cast.
  *
  * What is checked, by target type:
- *   - integer / enum target: rejected unless the value fits (round-trip for
- *     integer<->integer, an exact boundary check for float->integer). Enum
+ *   - integer / enum target: rejected unless the value fits (round-trip and
+ *     sign for integer<->integer, an exact boundary check for float->integer,
+ *     NaN always). Enum
  *     source/target types are handled via their underlying integer type.
  *     Float->integer truncates toward zero (no fractional-part check) but is
  *     rejected if outside the target integer range.
@@ -124,7 +126,8 @@ using enum_or_self_t = typename enum_or_self<T>::type;
  * @tparam from_type The source arithmetic or enum type of the value (deduced)
  * @param value The value to be converted
  * @return The value converted to to_type
- * @throws std::overflow_error if the narrowing conversion would change the value
+ * @throws std::overflow_error naming the value and both types if the narrowing conversion would
+ *         change the value
  */
 template <typename to_type, typename from_type>
 to_type narrow(from_type value) {
@@ -142,15 +145,36 @@ to_type narrow(from_type value) {
     using FromCheck = detail::enum_or_self_t<from_type>;
 
     const auto check_value = static_cast<FromCheck>(value);
+    [[maybe_unused]] auto refuse = [&check_value]() {
+        return std::overflow_error(
+            std::format(
+                "narrow: the value {} of type {} does not fit into {}",
+                +check_value,
+                boost::core::demangle(typeid(from_type).name()),
+                boost::core::demangle(typeid(to_type).name())
+            )
+        );
+    };
 
     if constexpr(std::is_integral_v<ToCheck> && std::is_integral_v<FromCheck>) {
         // Integer-to-integer (and enum-via-underlying): a round-trip on the
         // underlying integer types catches narrowing in both directions. It is
         // done purely on the integers (never forming a To-typed result first),
         // so no out-of-range enum value is ever materialised; integral
-        // conversions are well-defined, so this is never UB.
-        if(static_cast<FromCheck>(static_cast<ToCheck>(check_value)) != check_value) {
-            throw std::overflow_error("narrow: integer overflow or underflow");
+        // conversions are well-defined, so this is never UB. Between a signed
+        // and an unsigned type of the same width (or to a wider unsigned type)
+        // the round trip gives back the original value, so a change of sign is
+        // checked by itself.
+        const auto converted = static_cast<ToCheck>(check_value);
+        bool sign_changed = false;
+        if constexpr(std::is_signed_v<FromCheck> && not std::is_signed_v<ToCheck>) {
+            sign_changed = check_value < FromCheck{0};
+        }
+        else if constexpr(not std::is_signed_v<FromCheck> && std::is_signed_v<ToCheck>) {
+            sign_changed = converted < ToCheck{0};
+        }
+        if(sign_changed || static_cast<FromCheck>(converted) != check_value) {
+            throw refuse();
         }
         return static_cast<to_type>(value);
     }
@@ -174,20 +198,20 @@ to_type narrow(from_type value) {
         constexpr auto min_as_from = static_cast<FromCheck>(to_min);
         constexpr bool max_is_exact = (max_as_from - max_minus_one_as_from) == FromCheck{1};
 
-        if(check_value < min_as_from) {
-            throw std::overflow_error("narrow: float-to-integer overflow");
+        if(std::isnan(check_value) || check_value < min_as_from) { // NaN fails every comparison
+            throw refuse();
         }
         if constexpr(max_is_exact) {
             // ToCheck::max() round-trips exactly, so equality is legitimate.
             if(check_value > max_as_from) {
-                throw std::overflow_error("narrow: float-to-integer overflow");
+                throw refuse();
             }
         }
         else {
             // Rounding pushed max_as_from above ToCheck::max(): equality
             // would convert to UB territory, so reject it as well.
             if(check_value >= max_as_from) {
-                throw std::overflow_error("narrow: float-to-integer overflow");
+                throw refuse();
             }
         }
         return static_cast<to_type>(value); // provably in range now
@@ -205,7 +229,7 @@ to_type narrow(from_type value) {
                 // exact, so this comparison is well-defined.
                 constexpr auto to_max = static_cast<FromCheck>(std::numeric_limits<ToCheck>::max());
                 if(check_value > to_max || check_value < -to_max) {
-                    throw std::overflow_error("narrow: floating-point overflow");
+                    throw refuse();
                 }
             }
         }
