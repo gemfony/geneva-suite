@@ -99,9 +99,9 @@ std::string prettyPrintJson(boost::json::value const &jv);
 /**
  * @brief Writes @p jv to @p path as indented JSON, terminated by a single newline.
  *
- * This is a plain (non-atomic) write. Callers that must not truncate a live file on failure
- * (e.g. the configuration update-in-place path) perform their own temp-file-plus-rename around
- * prettyPrintJson() instead.
+ * The file is replaced as a whole (replaceFileAtomically()): a reader sees the old file or the
+ * new one, and a failed write (a full disk) leaves the old file and throws a gem_exception. The
+ * directory must exist; @p path is replaced, so a symbolic link there is replaced by a file.
  */
 void writeJsonFile(std::filesystem::path const &path, boost::json::value const &jv);
 

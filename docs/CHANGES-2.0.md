@@ -167,6 +167,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   way, so under MPI no process finalizes MPI while others wait for it, and `mpirun` ends the whole
   job. A program that wants its own terminate handler sets it after constructing the description. A `std::terminate()` with no exception in
   flight, an internal fault, still aborts, for the core dump.
+- **Processes that start together in one directory without configuration files no longer
+  race on creating them** (the ranks of an MPI job, clients started by one script): a missing
+  file is written to a temporary name and renamed into place, so no process reads a part of it,
+  and a process that finds the file created in the meantime goes on instead of failing with
+  "You have specified an existing file". `Gem::Common::writeJsonFile()` and
+  `GParserBuilder::writeConfigFile()` write the same way: a failed write (a full disk) is a
+  `gem_exception` and leaves the old file, and a symbolic link at the target is replaced by a file.
 
 ## 5. Parallelization and consumers
 
@@ -957,6 +964,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `to_string()` of a floating-point value writes the shortest text that reads back as the same
   value ("0.1", was "0.10000000000000001"); help texts and string-typed configuration values
   change accordingly.
+  `touch_time()` appends its content to an existing file and sets its last-write time; it used to
+  empty the file.
 
 ## 8. Checkpointing
 

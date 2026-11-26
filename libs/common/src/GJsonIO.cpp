@@ -36,6 +36,7 @@
 #include <system_error>
 
 // Other Geneva headers whose symbols are used directly
+#include "common/GCommonHelperFunctions.hpp" // replaceFileAtomically()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 
@@ -192,21 +193,21 @@ std::string prettyPrintJson(boost::json::value const &jv) {
 
 /******************************************************************************/
 /**
- * @brief Writes @p jv to @p path as indented JSON, terminated by a single newline.
+ * @brief Writes @p jv to @p path as indented JSON, terminated by a single newline, through
+ * replaceFileAtomically(): the file holds the whole document or is left as it was.
  *
  * @param path The file to write
  * @param jv The JSON value to serialize
  */
 void writeJsonFile(std::filesystem::path const &path, boost::json::value const &jv) {
-    std::ofstream ofs(path);
-    if(not ofs) {
-        throw gem_exception(
-            g_error_streamer() << "Could not open JSON file " << path.string() << " for writing"
-                               << '\n'
-        );
-    }
-    prettyPrintImpl(ofs, jv, 0);
-    ofs << '\n';
+    replaceFileAtomically(
+        path,
+        [&jv](std::ostream &os) {
+            prettyPrintImpl(os, jv, 0);
+            os << '\n';
+        },
+        "writeJsonFile(" + path.string() + ")"
+    );
 }
 
 /******************************************************************************/

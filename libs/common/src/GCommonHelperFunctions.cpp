@@ -40,6 +40,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iomanip>
@@ -193,9 +194,10 @@ namespace Gem::Common {
 /******************************************************************************/
 /**
  * This function is meant to determine the last-write-time of a file in a given path.
- * The file will be created, if it does not exist, filled with an optional text
- * and removed afterwards, if a) the file did not exist before and b) the user
- * wants the file to be removed. The time of the last write to the file will be
+ * The file will be created, if it does not exist, the optional text is appended (an
+ * existing file keeps its content), its last-write time is set to now, and it is
+ * removed afterwards, if a) the file did not exist before and b) the user wants the
+ * file to be removed. A file that cannot be written is a gem_exception. The time of the last write to the file will be
  * returned, so this function can be used to create a time marker from the file system.
  *
  * @param path The path (including file name) to the file to be touched
@@ -209,8 +211,15 @@ std::filesystem::file_time_type touch_time(
     bool remove_if_not_present
 ) {
     bool const file_already_existed = std::filesystem::exists(path);
-    std::ofstream ofs(path);
-    ofs << content;
+    {
+        // Append: an existing file keeps its content
+        std::ofstream ofs(path, std::ios::app);
+        ofs << content;
+        ofs.close(); // the content is on disk before the time is set and read
+        checkThat(not ofs.fail(), "touch_time(): could not write to ", path.string());
+    }
+    // Opening for appending, and appending nothing, moves no time: set it, as touch does
+    std::filesystem::last_write_time(path, std::filesystem::file_time_type::clock::now());
     auto last_write_time = std::filesystem::last_write_time(path);
     if(remove_if_not_present && not file_already_existed) {
         std::filesystem::remove(path);
@@ -693,15 +702,29 @@ bool backupExistingFile(const std::string &file_name, std::string_view context) 
         return false;
     }
 
-    std::string const new_file_name = file_name + ".bak_" + getMSSince1970();
+    // Two backups within one millisecond would have one name, and a rename over an existing file
+    // succeeds silently: a counter keeps the name free
+    std::string const stem = file_name + ".bak_" + getMSSince1970();
+    std::string new_file_name = stem;
+    for(std::size_t n = 1; std::filesystem::exists(new_file_name); ++n) {
+        new_file_name = stem + "_" + std::to_string(n);
+    }
+
+    std::error_code ec;
+    std::filesystem::rename(file_name, new_file_name, ec);
+    if(ec) {
+        throw gem_exception(
+            g_error_streamer() << "In " << context << '\n'
+                               << "Could not rename the existing file " << file_name << " to "
+                               << new_file_name << ": " << ec.message() << '\n'
+        );
+    }
 
     glogger << "In " << context << '\n'
             << "Attempt to output information to file " << file_name << '\n'
-            << "which already exists. We will rename the old file to" << '\n'
+            << "which already exists. The old file was renamed to" << '\n'
             << new_file_name << '\n'
             << GWARNING;
-
-    std::filesystem::rename(file_name, new_file_name);
 
     return true;
 }
@@ -715,9 +738,12 @@ void replaceFileAtomically(
     std::function<void(std::ostream &)> const &write,
     std::string_view context
 ) {
-    // The same directory, so the same filesystem: the rename below is atomic there
+    // The same directory, so the same filesystem: the rename below is atomic there. A name of
+    // its own per call, so that writers of one target never share a temporary file; noreplace
+    // refuses a name that exists already instead of filling another writer's file.
     std::filesystem::path const tmp_path =
-        target.parent_path() / ("." + target.filename().string() + ".tmp");
+        target.parent_path() /
+        std::format(".{}.{:016x}.tmp", target.filename().string(), randomBits64());
     auto const fail = [&](std::string const &what) {
         std::error_code ignore;
         std::filesystem::remove(tmp_path, ignore);
@@ -728,9 +754,14 @@ void replaceFileAtomically(
     };
 
     {
-        std::ofstream ofs(tmp_path, std::ofstream::trunc);
+        std::ofstream ofs(tmp_path, std::ofstream::out | std::ofstream::noreplace);
         if(not ofs) {
-            fail("Could not open the temporary file " + tmp_path.string());
+            // Not fail(): removing the name could remove a file that is not ours
+            throw gem_exception(
+                g_error_streamer()
+                << "In " << context << ": Error!" << '\n'
+                << "Could not create the temporary file " << tmp_path.string() << '\n'
+            );
         }
         try {
             write(ofs);

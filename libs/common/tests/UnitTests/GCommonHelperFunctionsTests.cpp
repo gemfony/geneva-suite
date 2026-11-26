@@ -30,6 +30,8 @@
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -37,6 +39,7 @@
 #include <memory>
 #include <set>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <vector>
@@ -44,6 +47,7 @@
 #if defined(__linux__)
 #include <sched.h> // sched_getaffinity
 #endif
+#include <unistd.h> // geteuid
 
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
@@ -61,6 +65,40 @@ std::filesystem::path scratch(std::string const &tag) {
     return base / tag;
 }
 } // namespace
+
+namespace {
+
+/** @brief A fresh, empty directory for one test case */
+std::filesystem::path freshDir(std::string const &tag) {
+    auto const dir = scratch(tag);
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    return dir;
+}
+
+/** @brief The number of entries in @p dir (target and temporary files alike) */
+std::size_t entriesIn(std::filesystem::path const &dir) {
+    std::size_t n = 0;
+    for([[maybe_unused]] auto const &entry : std::filesystem::directory_iterator(dir)) {
+        ++n;
+    }
+    return n;
+}
+
+/** @brief The whole content of @p p */
+std::string wholeFile(std::filesystem::path const &p) {
+    std::ifstream in(p, std::ios::binary);
+    std::ostringstream content;
+    content << in.rdbuf();
+    return content.str();
+}
+
+/** @brief Writes @p text through replaceFileAtomically() */
+void replaceWith(std::filesystem::path const &target, std::string const &text) {
+    replaceFileAtomically(target, [&text](std::ostream &os) { os << text; }, "GUnitTest");
+}
+
+} // anonymous namespace
 
 // ---------------------------------------------------------------------------
 // serializationModeToString — pure constexpr lookup.
@@ -161,20 +199,45 @@ TEST_CASE("touch_time: creates a file with the given content", "[common][helper-
 }
 
 TEST_CASE(
-    "touch_time: re-touch truncates the file to the new content",
+    "touch_time: an existing file keeps its content and the new content is appended",
     "[common][helper-nonT][file]"
 ) {
-    // touch_time opens the path with std::ofstream (default trunc), so every
-    // call replaces the existing content. This pins that contract down.
-    auto p = scratch("touch_truncates.txt");
+    // Regression: the file was opened in the default mode, which truncates, so touching an
+    // existing file emptied it, also with the default empty content
+    auto p = scratch("touch_keeps.txt");
     std::filesystem::remove(p);
 
     touch_time(p, "before", false);
     REQUIRE(loadTextDataFromFile(p) == "before");
-    touch_time(p, "after", false);
-    CHECK(loadTextDataFromFile(p) == "after");
+    touch_time(p);
+    CHECK(loadTextDataFromFile(p) == "before");
+    touch_time(p, " after", false);
+    CHECK(loadTextDataFromFile(p) == "before after");
 
     std::filesystem::remove(p);
+}
+
+TEST_CASE(
+    "touch_time: touching an existing file moves its time forward",
+    "[common][helper-nonT][file]"
+) {
+    auto p = scratch("touch_time_moves.txt");
+    std::filesystem::remove(p);
+    touch_time(p, "x", false);
+    auto const old_time = std::filesystem::last_write_time(p) - std::chrono::hours(1);
+    std::filesystem::last_write_time(p, old_time);
+
+    CHECK(touch_time(p) > old_time);
+    CHECK(std::filesystem::last_write_time(p) > old_time);
+
+    std::filesystem::remove(p);
+}
+
+TEST_CASE(
+    "touch_time: a file that cannot be written is a gem_exception",
+    "[common][helper-nonT][file]"
+) {
+    CHECK_THROWS_AS(touch_time(scratch("absent-directory") / "file.txt"), gem_exception);
 }
 
 TEST_CASE(
@@ -449,6 +512,217 @@ TEST_CASE(
 
     // No stray backup was invented for a file that was never there.
     CHECK(std::filesystem::is_empty(dir));
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "backupExistingFile: backups within one millisecond keep their own names",
+    "[common][helper-nonT][backup]"
+) {
+    // Regression: the backup's name carried only the millisecond, and a rename over an existing
+    // file succeeds silently, so a second backup within one millisecond replaced the first.
+    constexpr std::size_t N_BACKUPS = 20;
+    auto const dir = freshDir("backup-same-millisecond");
+    auto const target = dir / "results.txt";
+
+    for(std::size_t i = 0; i < N_BACKUPS; ++i) {
+        std::ofstream(target) << "content " << i;
+        REQUIRE(backupExistingFile(target.string(), "GUnitTest: Warning!"));
+    }
+
+    std::set<std::string> contents;
+    for(auto const &entry : std::filesystem::directory_iterator(dir)) {
+        contents.insert(wholeFile(entry.path()));
+    }
+    CHECK(contents.size() == N_BACKUPS);
+    CHECK(entriesIn(dir) == N_BACKUPS);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "backupExistingFile: a failed rename is a gem_exception and no backup is reported",
+    "[common][helper-nonT][backup]"
+) {
+    // Regression: the warning that names the backup came before the rename, and a failed rename
+    // escaped as a std::filesystem::filesystem_error.
+    if(::geteuid() == 0) {
+        SKIP("run as root: a directory without write permission does not stop the rename");
+    }
+    auto const dir = freshDir("backup-rename-fails");
+    auto const target = dir / "results.txt";
+    std::ofstream(target) << "original";
+    std::filesystem::permissions(
+        dir,
+        std::filesystem::perms::owner_write,
+        std::filesystem::perm_options::remove
+    );
+
+    auto capture = std::make_shared<BackupCapturingTarget>();
+    glogger.addLogTarget(capture);
+    CHECK_THROWS_AS(backupExistingFile(target.string(), "GUnitTest: Warning!"), gem_exception);
+    glogger.resetLogTargets();
+    for(auto const &m : capture->messages) {
+        CHECK(m.find(".bak_") == std::string::npos);
+    }
+
+    std::filesystem::permissions(dir, std::filesystem::perms::owner_all);
+    CHECK(wholeFile(target) == "original");
+    std::filesystem::remove_all(dir);
+}
+
+// ---------------------------------------------------------------------------
+// replaceFileAtomically -- what the declaration promises: the new content as a whole, or nothing
+// changes, and no temporary file is left behind; also with several writers of one file at once.
+
+TEST_CASE(
+    "replaceFileAtomically: creates and replaces a file and leaves no temporary file",
+    "[common][helper-nonT][replace-file]"
+) {
+    auto const dir = freshDir("replace-creates");
+    auto const target = dir / "data.txt";
+
+    replaceWith(target, "first");
+    CHECK(wholeFile(target) == "first");
+    replaceWith(target, "second, longer content");
+    CHECK(wholeFile(target) == "second, longer content");
+    CHECK(entriesIn(dir) == 1);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "replaceFileAtomically: a throwing writer leaves the target as it was",
+    "[common][helper-nonT][replace-file]"
+) {
+    auto const dir = freshDir("replace-throws");
+    auto const target = dir / "data.txt";
+    replaceWith(target, "old");
+
+    CHECK_THROWS_AS(
+        replaceFileAtomically(
+            target,
+            [](std::ostream &os) {
+                os << "half of the new";
+                throw std::runtime_error("the writer fails");
+            },
+            "GUnitTest"
+        ),
+        std::runtime_error // passed on as it is
+    );
+    CHECK(wholeFile(target) == "old");
+    CHECK(entriesIn(dir) == 1);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "replaceFileAtomically: a failed stream is a gem_exception and leaves the target as it was",
+    "[common][helper-nonT][replace-file]"
+) {
+    auto const dir = freshDir("replace-stream-fails");
+    auto const target = dir / "data.txt";
+    replaceWith(target, "old");
+
+    // A full disk shows as a failed stream; the writer sets the state that a failed write sets
+    CHECK_THROWS_AS(
+        replaceFileAtomically(
+            target,
+            [](std::ostream &os) {
+                os << "new";
+                os.setstate(std::ios::badbit);
+            },
+            "GUnitTest"
+        ),
+        gem_exception
+    );
+    CHECK(wholeFile(target) == "old");
+    CHECK(entriesIn(dir) == 1);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "replaceFileAtomically: a missing directory is a gem_exception",
+    "[common][helper-nonT][replace-file]"
+) {
+    auto const dir = freshDir("replace-no-dir");
+    CHECK_THROWS_AS(replaceWith(dir / "absent" / "data.txt", "x"), gem_exception);
+    CHECK(entriesIn(dir) == 0);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "replaceFileAtomically: a target that cannot be replaced is a gem_exception",
+    "[common][helper-nonT][replace-file]"
+) {
+    auto const dir = freshDir("replace-target-is-dir");
+    auto const target = dir / "data.txt";
+    std::filesystem::create_directories(target / "inside"); // a non-empty directory
+    CHECK_THROWS_AS(replaceWith(target, "x"), gem_exception);
+    CHECK(std::filesystem::is_directory(target / "inside"));
+    CHECK(entriesIn(dir) == 1); // the temporary file is gone
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "replaceFileAtomically: several writers of one file at once",
+    "[common][helper-nonT][replace-file]"
+) {
+    // Regression: the temporary name depended on the target only, so writers that replaced one
+    // file at the same time filled one temporary file; a rename published a mixture, and the
+    // writer whose temporary file had already been renamed away failed with "No such file".
+    constexpr std::size_t N_WRITERS = 8;
+    constexpr std::size_t N_ROUNDS = 200;
+    constexpr std::size_t LENGTH = 8192;
+
+    auto const dir = freshDir("replace-several-writers");
+    auto const target = dir / "data.txt";
+    replaceWith(target, std::string(LENGTH, 'a'));
+
+    // A content is whole if it is LENGTH times the letter of one writer
+    auto const whole = [](std::string const &content) {
+        return content.size() == LENGTH &&
+               std::ranges::all_of(content, [&](char c) { return c == content.front(); });
+    };
+
+    std::atomic<std::size_t> failed_writes{0};
+    std::atomic<std::size_t> partial_reads{0};
+    std::atomic<bool> writing{true};
+    std::vector<std::thread> writers;
+    for(std::size_t w = 0; w < N_WRITERS; ++w) {
+        writers.emplace_back([&, w] {
+            std::string const mine(LENGTH, static_cast<char>('a' + w));
+            for(std::size_t r = 0; r < N_ROUNDS; ++r) {
+                try {
+                    replaceWith(target, mine);
+                }
+                catch(...) {
+                    ++failed_writes;
+                }
+            }
+        });
+    }
+    std::thread reader([&] {
+        while(writing) {
+            if(not whole(wholeFile(target))) {
+                ++partial_reads;
+            }
+        }
+    });
+    for(auto &t : writers) {
+        t.join();
+    }
+    writing = false;
+    reader.join();
+
+    CHECK(failed_writes == 0);
+    CHECK(partial_reads == 0);
+    CHECK(whole(wholeFile(target)));
+    CHECK(entriesIn(dir) == 1);
 
     std::filesystem::remove_all(dir);
 }

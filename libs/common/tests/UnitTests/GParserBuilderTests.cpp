@@ -31,7 +31,9 @@
 #include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <array>
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -40,15 +42,24 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
+
+#include <fcntl.h>    // O_WRONLY, O_CREAT, O_TRUNC
+#include <spawn.h>    // posix_spawn
+#include <sys/wait.h> // waitpid
+#include <unistd.h>   // STDOUT_FILENO
 
 #include <boost/json.hpp>
 
 #include "common/GCommonEnums.hpp"
+#include "common/GCommonHelperFunctions.hpp" // loadTextDataFromFile()
 #include "common/GExceptions.hpp"
 #include "common/GJsonIO.hpp"
 #include "common/GParserBuilder.hpp"
+
+extern char **environ; // posix_spawn wants it
 
 using namespace Gem::Common;
 using Catch::Matchers::ContainsSubstring;
@@ -1747,4 +1758,124 @@ TEST_CASE(
     // A known option without its value is malformed for the early parse too
     Argv no_value({"--consumer", "mpi", "--individual"});
     CHECK_THROWS_AS(gpb.parseKnownOptions(no_value.argc(), no_value.argv()), GCommandLineError);
+}
+
+// ---------------------------------------------------------------------------
+// Several processes that start together in one directory without the configuration file: each
+// finds it missing and creates it from the defaults. Regression: the creating path refused a
+// file that another process had created in the meantime ("You have specified an existing file")
+// and wrote through a plain stream, so a process that parsed while another one wrote read a
+// part of the file. The parent case starts N_PROCESSES copies of this test program, each
+// running the child case below, releases them at once and requires that all succeed.
+
+namespace {
+
+constexpr char const *RACE_DIR_VARIABLE = "GEM_TEST_CONFIG_RACE_DIR";
+constexpr std::size_t RACE_OPTIONS = 200; // a file of some size, so that a write takes a while
+
+/** @brief Registers the options of the race on @p gpb; their values land in @p values */
+void registerRaceOptions(GParserBuilder &gpb, std::vector<int> &values) {
+    values.assign(RACE_OPTIONS, -1);
+    for(std::size_t i = 0; i < RACE_OPTIONS; ++i) {
+        gpb.registerFileParameter<int>(
+            "option" + std::to_string(i),
+            values[i],
+            static_cast<int>(i),
+            VAR_IS_ESSENTIAL,
+            "an option of the race of several processes"
+        );
+    }
+}
+
+} // anonymous namespace
+
+TEST_CASE(
+    "GParserBuilder: the child of the race of several processes",
+    "[.parser-builder-race-child]"
+) {
+    // Run only by the case below, which names the directory of the race
+    char const *dir_text = std::getenv(RACE_DIR_VARIABLE); // NOLINT(concurrency-mt-unsafe)
+    if(dir_text == nullptr) {
+        SKIP("started without the directory of the race");
+    }
+    std::filesystem::path const dir{dir_text};
+
+    // Wait for the start signal, so that all children reach the file at the same moment
+    auto const give_up = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    while(not std::filesystem::exists(dir / "go")) {
+        REQUIRE(std::chrono::steady_clock::now() < give_up);
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+    }
+
+    GParserBuilder gpb;
+    std::vector<int> values;
+    registerRaceOptions(gpb, values);
+    REQUIRE_NOTHROW(gpb.parseConfigFile(dir / "race.json"));
+    for(std::size_t i = 0; i < RACE_OPTIONS; ++i) {
+        REQUIRE(values[i] == static_cast<int>(i));
+    }
+}
+
+TEST_CASE(
+    "GParserBuilder: processes that start together create the configuration file without a race",
+    "[common][parser-builder][processes]"
+) {
+    constexpr std::size_t N_PROCESSES = 8;
+    constexpr std::size_t N_ROUNDS = 10;
+
+    std::filesystem::path const self = std::filesystem::read_symlink("/proc/self/exe");
+    auto const dir = std::filesystem::temp_directory_path() / "gem_parserbuilder_tests" / "race";
+
+    for(std::size_t round = 0; round < N_ROUNDS; ++round) {
+        std::filesystem::remove_all(dir);
+        std::filesystem::create_directories(dir);
+
+        // The environment of the children: ours, and the directory of the race
+        std::string const dir_entry = std::string(RACE_DIR_VARIABLE) + "=" + dir.string();
+        std::vector<char *> env;
+        for(char **e = environ; *e != nullptr; ++e) {
+            env.push_back(*e);
+        }
+        env.push_back(const_cast<char *>(dir_entry.c_str()));
+        env.push_back(nullptr);
+
+        std::vector<pid_t> children;
+        for(std::size_t c = 0; c < N_PROCESSES; ++c) {
+            std::string const log = (dir / ("child" + std::to_string(c) + ".log")).string();
+            std::array<std::string, 2> args{self.string(), "[parser-builder-race-child]"};
+            std::array<char *, 3> argv{args[0].data(), args[1].data(), nullptr};
+
+            posix_spawn_file_actions_t actions;
+            ::posix_spawn_file_actions_init(&actions);
+            ::posix_spawn_file_actions_addopen(
+                &actions,
+                STDOUT_FILENO,
+                log.c_str(),
+                O_WRONLY | O_CREAT | O_TRUNC,
+                0644
+            );
+            ::posix_spawn_file_actions_adddup2(&actions, STDOUT_FILENO, STDERR_FILENO);
+            pid_t pid = 0;
+            int const spawned =
+                ::posix_spawn(&pid, self.c_str(), &actions, nullptr, argv.data(), env.data());
+            ::posix_spawn_file_actions_destroy(&actions);
+            REQUIRE(spawned == 0);
+            children.push_back(pid);
+        }
+
+        std::ofstream(dir / "go").close(); // the start signal
+
+        for(std::size_t c = 0; c < children.size(); ++c) {
+            int status = 0;
+            REQUIRE(::waitpid(children[c], &status, 0) == children[c]);
+            INFO(
+                "round " << round << ", child " << c << ":\n"
+                         << loadTextDataFromFile(dir / ("child" + std::to_string(c) + ".log"))
+            );
+            CHECK((WIFEXITED(status) && WEXITSTATUS(status) == 0));
+        }
+        CHECK_NOTHROW(parseJsonFile(dir / "race.json"));
+    }
+
+    std::filesystem::remove_all(dir);
 }

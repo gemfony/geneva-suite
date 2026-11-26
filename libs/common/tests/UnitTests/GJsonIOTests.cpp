@@ -31,7 +31,10 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <string>
+
+#include <unistd.h> // geteuid
 
 #include <boost/json.hpp>
 
@@ -167,6 +170,36 @@ TEST_CASE("writeJsonFile / parseJsonFile round-trip", "[common][json-io][file]")
     CHECK(content.back() == '\n');
 
     std::filesystem::remove(path);
+}
+
+TEST_CASE(
+    "writeJsonFile: replaces an existing file as a whole and leaves nothing beside it",
+    "[common][json-io][file]"
+) {
+    auto const dir = std::filesystem::temp_directory_path() / "gem_json_io_tests" / "replace";
+    std::filesystem::remove_all(dir);
+    std::filesystem::create_directories(dir);
+    auto const path = dir / "data.json";
+
+    writeJsonFile(path, json::object{{"long", std::string(1000, 'x')}});
+    json::value const v = json::object{{"k", 1}};
+    writeJsonFile(path, v);
+    CHECK(parseJsonFile(path) == v);
+    CHECK(std::distance(std::filesystem::directory_iterator(dir), {}) == 1);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("writeJsonFile: a failed write is a gem_exception", "[common][json-io][error]") {
+    // Regression: the stream was checked after it was opened, not after it was written, so a
+    // full disk left a cut file and no error. /dev/full reports every write as a full disk.
+    if(not std::filesystem::exists("/dev/full")) {
+        SKIP("no /dev/full on this system");
+    }
+    if(::geteuid() == 0) {
+        SKIP("run as root: /dev is writable, and the file beside /dev/full would be created there");
+    }
+    CHECK_THROWS_AS(writeJsonFile("/dev/full", json::object{{"k", "v"}}), gem_exception);
 }
 
 TEST_CASE("parseJsonFile: throws a gem_exception for a missing file", "[common][json-io][error]") {
