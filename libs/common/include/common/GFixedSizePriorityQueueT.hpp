@@ -39,6 +39,7 @@
 #include <cstddef>
 #include <iterator>
 #include <memory>
+#include <ranges>
 #include <span>
 #include <vector>
 
@@ -206,8 +207,7 @@ public:
      *
      * The members are copied through localMembers_(): the stored items are deep-copied, so the copy
      * shares nothing with @p cp -- also for the shared_ptr policy, whose entries are cloned rather
-     * than co-owned. worst_admitted_, a cache outside the list, starts at its lenient default and is
-     * refreshed by the next insertion.
+     * than co-owned.
      *
      * @param cp A constant reference to another object of the same type that is copied
      */
@@ -278,69 +278,51 @@ public:
     /***************************************************************************/
     // Insertion. Two semantics -- take the handle over, or store an independent
     // copy -- available in a single-item and a bulk form, identical for all three
-    // storage policies.
+    // storage policies. Every form decides first which items get a place, and takes
+    // over or copies only those.
 
     /**
      * @brief Adds an item to the queue, taking the handle over.
      *
      * For unique storage this transfers sole ownership; for shared storage the queue
      * becomes a co-owner of the pointee; for value storage the value is moved in. The
-     * item is dropped when isValid() rejects it, or when the queue is full and it is
-     * not strictly better than the current worst entry.
+     * item is dropped -- and the handle left with the caller -- when isValid() rejects it,
+     * or when the queue is full and it is not strictly better than the current worst entry.
      *
      * @param item The item whose handle the queue takes over
      */
     void add(StoredType &&item) {
-        if(isValid(item)) {
-            insert_(std::move(item));
-        }
-        finalize_();
+        merge_(candidates_(std::span<StoredType>(&item, 1)), false, take_);
     }
 
     /**
      * @brief Adds an independent copy of an item to the queue.
      *
      * The caller keeps its own handle. Pointer policies deep-clone the pointee via
-     * clone(); value storage copies the value.
+     * clone(); value storage copies the value. An item that is not kept is not copied.
      *
      * @param item The item to be copied into the queue
      */
     void addClone(StoredType const &item) {
-        if(isValid(item)) {
-            insert_(cloneStored_(item));
-        }
-        finalize_();
+        merge_(candidates_(std::span<StoredType const>(&item, 1)), false, cloneStored_);
     }
 
     /**
-     * @brief Adds the items of a range to the queue, taking every handle over.
+     * @brief Adds the items of a range to the queue, taking over the handles of those it keeps.
+     *
+     * The range is read twice (a forward range): once to decide which items get a place, once
+     * to take them. The handles of the items not kept stay with the caller.
      *
      * @param begin An iterator to the first item of the range to be moved in
      * @param end An iterator one past the last item of the range to be moved in
      * @param replace If true, the queue is emptied before the new items are added
      * @throw gem_exception if not one item of a non-empty range is admissible (typically a
-     * population handed over before it was evaluated)
+     * population handed over before it was evaluated); the queue is then left as it was
      */
-    template <std::input_iterator it_type>
+    template <std::forward_iterator it_type>
         requires std::same_as<std::iter_value_t<it_type>, StoredType>
     void add(it_type begin, it_type end, bool replace) {
-        prepareBulk_(replace);
-        std::size_t accepted = 0;
-        std::size_t offered = 0;
-        for(auto it = begin; it != end; ++it) {
-            ++offered;
-            if(isValid(*it)) {
-                insert_(std::move(*it));
-                ++accepted;
-            }
-        }
-        checkThat(
-            0 == offered || 0 != accepted,
-            "none of the ",
-            offered,
-            " supplied items was admissible"
-        );
-        finalize_();
+        merge_(bulkCandidates_(begin, end), replace, take_);
     }
 
     /**
@@ -356,32 +338,19 @@ public:
     /**
      * @brief Adds independent copies of the items of a range to the queue.
      *
+     * Only the items that get a place are copied (see the take-over form for the two
+     * readings of the range).
+     *
      * @param begin An iterator to the first item of the range to be copied in
      * @param end An iterator one past the last item of the range to be copied in
      * @param replace If true, the queue is emptied before the new items are added
      * @throw gem_exception if not one item of a non-empty range is admissible (typically a
-     * population handed over before it was evaluated)
+     * population handed over before it was evaluated); the queue is then left as it was
      */
-    template <std::input_iterator it_type>
+    template <std::forward_iterator it_type>
         requires std::same_as<std::iter_value_t<it_type>, StoredType>
     void addClone(it_type begin, it_type end, bool replace) {
-        prepareBulk_(replace);
-        std::size_t accepted = 0;
-        std::size_t offered = 0;
-        for(auto it = begin; it != end; ++it) {
-            ++offered;
-            if(isValid(*it)) {
-                insert_(cloneStored_(*it));
-                ++accepted;
-            }
-        }
-        checkThat(
-            0 == offered || 0 != accepted,
-            "none of the ",
-            offered,
-            " supplied items was admissible"
-        );
-        finalize_();
+        merge_(bulkCandidates_(begin, end), replace, cloneStored_);
     }
 
     /**
@@ -459,10 +428,15 @@ public:
      * values are considered better, "LOWERISBETTER" means that lower values are
      * considered to be better.
      *
+     * The items held are ordered anew at once; items of equal evaluation keep their order.
+     *
      * @param sort_order The new sort order to be used for prioritizing items
      */
     void setSortOrder(const sortOrder &sort_order) {
         sort_order_ = sort_order;
+        std::ranges::stable_sort(data_cnt_, [this](StoredType const &x, StoredType const &y) {
+            return this->precedes_(x, y);
+        });
     }
 
     /***************************************************************************/
@@ -743,112 +717,167 @@ private:
 
     /***************************************************************************/
     /**
-     * @brief Appends an already-admitted item if it can still improve the queue
+     * @brief Takes a handle over: moves it out of the caller's range
      *
-     * The candidate is kept when the queue is unlimited, not yet full, or the item is
-     * strictly better than the current worst entry. Ordering and trimming happen once
-     * per add() call in finalize_(), not per item.
-     *
-     * @param item The handle to be stored (moved in)
+     * @param item The handle to be moved
+     * @return The moved handle
      */
-    void insert_(StoredType &&item) {
-        if(0 == max_size_ || data_cnt_.size() < max_size_ ||
-           isBetter(this->evaluation(item), worst_admitted_)) {
-            data_cnt_.push_back(std::move(item));
-        }
+    static StoredType take_(StoredType &item) {
+        return std::move(item);
     }
 
     /***************************************************************************/
     /**
-     * @brief Sets up a bulk insertion: optionally clears the queue and records the
-     * evaluation every candidate of this batch has to beat.
+     * @brief The order of the queue: true if x stands before y (x is strictly better)
      *
-     * @param replace If true, the queue's existing content is dropped first
+     * @param x The stored handle of the first item
+     * @param y The stored handle of the second item
+     * @return A boolean indicating whether x is strictly better than y
      */
-    void prepareBulk_(bool replace) {
+    [[nodiscard]] bool precedes_(StoredType const &x, StoredType const &y) const {
+        return this->isBetter(this->evaluation(x), this->evaluation(y));
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief An admissible item of a range offered to the queue, with its evaluation
+     *
+     * @tparam it_type The iterator type of the range
+     */
+    template <typename it_type>
+    struct Candidate {
+        double evaluation; ///< The evaluation of the item
+        it_type it;        ///< The position of the item in the range
+    };
+
+    /***************************************************************************/
+    /**
+     * @brief Collects the admissible items (isValid()) of a range, in the order offered
+     *
+     * @param range The range of handles offered to the queue
+     * @return The admissible items with their evaluations
+     */
+    template <std::ranges::forward_range range_type>
+    [[nodiscard]] auto candidates_(range_type &&range) const {
+        std::vector<Candidate<std::ranges::iterator_t<range_type>>> result;
+        for(auto it = std::ranges::begin(range); it != std::ranges::end(range); ++it) {
+            if(isValid(*it)) {
+                result.push_back({this->evaluation(*it), it});
+            }
+        }
+        return result;
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Collects the admissible items of a range offered in bulk; refuses a range of
+     * which nothing is admissible, before anything is changed
+     *
+     * @param begin An iterator to the first item of the range
+     * @param end An iterator one past the last item of the range
+     * @return The admissible items with their evaluations
+     * @throw gem_exception if not one item of a non-empty range is admissible
+     */
+    template <std::forward_iterator it_type>
+    [[nodiscard]] auto bulkCandidates_(it_type begin, it_type end) const {
+        auto result = candidates_(std::ranges::subrange(begin, end));
+        checkThat(
+            begin == end || not result.empty(),
+            "none of the ",
+            std::ranges::distance(begin, end),
+            " supplied items was admissible"
+        );
+        return result;
+    }
+
+    /***************************************************************************/
+    /**
+     * @brief Merges admissible items into the queue and takes over only those that get a place
+     *
+     * The queue holds the best max_size_ items of all it was offered, best first. Among items of
+     * equal evaluation the one offered first stands first, so the items held stand before every
+     * new one; of a set of same entries (isSameEntry()) only the first is kept. A candidate is
+     * taken -- moved or copied by @p take -- only when it gets a place: an archive copies only
+     * what it keeps. The place is decided from the evaluations of the items held, read at this
+     * moment, so it is right after any copy, assignment or load of the queue.
+     *
+     * @param candidates The admissible items, in the order offered
+     * @param replace If true, the queue is emptied first
+     * @param take Produces the handle to be stored from the caller's handle
+     */
+    template <typename it_type, typename take_type>
+    void merge_(std::vector<Candidate<it_type>> candidates, bool replace, take_type take) {
         if(replace) {
             data_cnt_.clear();
         }
-        refreshWorstAdmitted_();
-    }
 
-    /***************************************************************************/
-    /**
-     * @brief Recomputes the bar a candidate has to clear to displace the incumbents
-     *
-     * An empty queue admits everything (the worst case of the sort order); otherwise
-     * the current worst entry sets the bar. Held as a member so a bulk insertion
-     * compares against one stable value rather than against a queue that is changing
-     * underneath it.
-     */
-    void refreshWorstAdmitted_() {
-        worst_admitted_ = data_cnt_.empty() ? Gem::Common::getWorstCase<double>(sort_order_)
-                                            : this->evaluation(data_cnt_.back());
-    }
+        // The candidates best first; the sort is stable, so equal ones stay in the order offered
+        std::ranges::stable_sort(candidates, [this](auto const &x, auto const &y) {
+            return this->isBetter(x.evaluation, y.evaluation);
+        });
 
-    /***************************************************************************/
-    /**
-     * @brief Restores the queue's invariants after an insertion: no duplicates,
-     * sorted best-first, and no more than max_size_ entries.
-     */
-    void finalize_() {
-        // Sort the data according to the evaluation, so the worst items end up at the back. The
-        // sort is stable, so among equal items those that were in the queue before come first.
-        std::ranges::stable_sort(
-            data_cnt_,
-            [this](StoredType const &x, StoredType const &y) -> bool {
-                return this->isBetter(this->evaluation(x), this->evaluation(y));
+        // The evaluations of the items held (best first), followed by those of the items taken
+        std::size_t const n_held = data_cnt_.size();
+        std::vector<double> evaluations;
+        evaluations.reserve(n_held + candidates.size());
+        for(auto const &held_item : data_cnt_) {
+            evaluations.push_back(this->evaluation(held_item));
+        }
+
+        for(auto const &[value, it] : candidates) {
+            auto const held = std::span(evaluations).first(n_held);
+            auto const taken = std::span(evaluations).subspan(n_held);
+            auto const better = [this, value](double x) { return this->isBetter(x, value); };
+            auto const not_worse = [this, value](double x) { return not this->isBetter(value, x); };
+
+            // The items held that are not worse stand before the candidate, as do all taken ones
+            auto const held_before =
+                static_cast<std::size_t>(std::ranges::partition_point(held, not_worse) - held.begin());
+            if(0 != max_size_ && held_before + taken.size() >= max_size_) {
+                break; // no place for it, nor for any later (not better) candidate
             }
+
+            StoredType item = take(*it);
+            auto const held_equal =
+                static_cast<std::size_t>(std::ranges::partition_point(held, better) - held.begin());
+            auto const taken_equal =
+                static_cast<std::size_t>(std::ranges::partition_point(taken, better) - taken.begin());
+            if(holdsSameEntry_(item, held_equal, held_before) ||
+               holdsSameEntry_(item, n_held + taken_equal, data_cnt_.size())) {
+                continue;
+            }
+            data_cnt_.push_back(std::move(item));
+            evaluations.push_back(value);
+        }
+
+        // Both runs are sorted: the taken items go behind the held ones of equal evaluation
+        std::ranges::inplace_merge(
+            data_cnt_,
+            data_cnt_.begin() + static_cast<std::ptrdiff_t>(n_held),
+            [this](StoredType const &x, StoredType const &y) { return this->precedes_(x, y); }
         );
-
-        removeDuplicates_();
-
-        // Remove surplus work items. As the worst items are at the end of the queue, they
-        // are the ones dropped. Only has an effect if max_size_ is != 0.
-        if(max_size_ && data_cnt_.size() > max_size_) {
+        if(0 != max_size_ && data_cnt_.size() > max_size_) {
             data_cnt_.resize(max_size_);
         }
-
-        refreshWorstAdmitted_();
     }
 
     /***************************************************************************/
     /**
-     * @brief Drops every entry that is the same entry (isSameEntry()) as an earlier one
+     * @brief Checks whether an item is the same entry (isSameEntry()) as one of a span of
+     * the items held, all of the item's evaluation
      *
-     * Runs on the sorted queue: items of equal evaluation stand together, and each is
-     * compared with the items kept before it in its run only. Two NaN evaluations count as
-     * equal, so the same object is one entry whatever its evaluation.
+     * @param item The stored handle of the item to be checked
+     * @param begin The position of the first item held to compare with
+     * @param end One past the position of the last item held to compare with
+     * @return A boolean indicating whether item is the same entry as one of them
      */
-    void removeDuplicates_() {
-        auto const equal_evaluations = [](double x, double y) {
-            return x == y || (std::isnan(x) && std::isnan(y));
-        };
-        std::size_t run_begin = 0; // the first item of the current run of equal evaluations
-        for(std::size_t pos = 0; pos < data_cnt_.size();) {
-            if(not equal_evaluations(
-                   this->evaluation(data_cnt_[run_begin]),
-                   this->evaluation(data_cnt_[pos])
-               )) {
-                run_begin = pos;
-            }
-            auto const run = std::span(data_cnt_).subspan(run_begin, pos - run_begin);
-            if(std::ranges::any_of(run, [this, pos](StoredType const &kept) {
-                   return this->isSameEntry(kept, data_cnt_[pos]);
-               })) {
-                data_cnt_.erase(data_cnt_.begin() + static_cast<std::ptrdiff_t>(pos));
-            }
-            else {
-                ++pos;
-            }
-        }
+    [[nodiscard]] bool holdsSameEntry_(StoredType const &item, std::size_t begin, std::size_t end)
+        const {
+        return std::ranges::any_of(
+            std::span(data_cnt_).subspan(begin, end - begin),
+            [this, &item](StoredType const &kept) { return this->isSameEntry(kept, item); }
+        );
     }
-
-    /***************************************************************************/
-
-    /** @brief transient: the evaluation a candidate must beat once the queue is full, a scratch
-     *  value derived from data_cnt_, so it is neither serialized nor compared. */
-    double worst_admitted_{Gem::Common::getWorstCase<double>(GFSPQ_DEF_SORT_ORDER)};
 };
 
 /******************************************************************************/

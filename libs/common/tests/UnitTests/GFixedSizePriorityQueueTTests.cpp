@@ -94,8 +94,13 @@ protected:
         token.evaluate();
     }
 
+public:
+    /** @brief The number of clones made of any TestItem, so a test can count what an insertion cloned */
+    inline static std::size_t n_clones = 0; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 private:
     [[nodiscard]] TestItem *clone_() const override {
+        ++n_clones;
         return new TestItem(*this);
     }
 
@@ -135,6 +140,8 @@ private:
         }                                                                                          \
         NAME(NAME const &cp) = default;                                                            \
         NAME(NAME &&cp) noexcept = default;                                                        \
+        NAME &operator=(NAME const &cp) = default;                                                 \
+        NAME &operator=(NAME &&cp) noexcept = default;                                             \
         ~NAME() override = default;                                                                \
                                                                                                    \
     protected:                                                                                     \
@@ -638,6 +645,106 @@ TEMPLATE_TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// The bar an item must beat in a full queue follows the queue's content, however that
+// content arrived. Regression: the bar was a cached member outside the member list, so
+// a copy, a move, an assignment or a load left it stale, and the first single insertion
+// compared with it.
+
+namespace {
+
+/** @brief Fills a queue of capacity 3 with the evaluations 1, 2 and 3 */
+template <typename queue_type>
+queue_type filledQueue(sortOrder sort_order) {
+    queue_type pq(3, sort_order);
+    pq.add(item<queue_type>(1.0));
+    pq.add(item<queue_type>(2.0));
+    pq.add(item<queue_type>(3.0));
+    return pq;
+}
+
+} // namespace
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: a full queue that was copied or moved admits a better item",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    TestType const src = filledQueue<TestType>(sortOrder::HIGHERISBETTER);
+
+    TestType cp(src);
+    cp.add(item<TestType>(10.0));
+    CHECK(valueOf(cp.best()) == 10.0);
+    CHECK(cp.size() == 3);
+
+    TestType mv(std::move(cp));
+    mv.add(item<TestType>(20.0));
+    CHECK(valueOf(mv.best()) == 20.0);
+
+    auto const cl = src.template clone<TestType>();
+    cl->add(item<TestType>(30.0));
+    CHECK(valueOf(cl->best()) == 30.0);
+}
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: a full queue that was assigned or loaded admits a better item",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    // The target held better items than the source: the bar must be the source's worst (7)
+    TestType const worse_items = [] {
+        TestType pq(3);
+        pq.add(item<TestType>(5.0));
+        pq.add(item<TestType>(6.0));
+        pq.add(item<TestType>(7.0));
+        return pq;
+    }();
+
+    TestType assigned = filledQueue<TestType>(sortOrder::LOWERISBETTER);
+    assigned = worse_items;
+    assigned.add(item<TestType>(4.0));
+    CHECK(valueOf(assigned.best()) == 4.0);
+    CHECK(valueOf(assigned.worst()) == 6.0);
+
+    TestType move_assigned = filledQueue<TestType>(sortOrder::LOWERISBETTER);
+    move_assigned = TestType(worse_items);
+    move_assigned.add(item<TestType>(4.0));
+    CHECK(valueOf(move_assigned.best()) == 4.0);
+
+    TestType loaded = filledQueue<TestType>(sortOrder::LOWERISBETTER);
+    loaded.load(worse_items);
+    loaded.add(item<TestType>(4.0));
+    CHECK(valueOf(loaded.best()) == 4.0);
+}
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: a full queue read from an archive admits a better item",
+    "[common][priority-queue][serialize]",
+    GFSPQ_ALL_HOLDERS
+) {
+    auto const mode = GENERATE(serializationMode::GEM_BINARY, serializationMode::GEM_JSON);
+
+    TestType const src = filledQueue<TestType>(sortOrder::HIGHERISBETTER);
+    TestType dst(1);
+    dst.fromString(src.toString(mode), mode);
+    dst.add(item<TestType>(10.0));
+    CHECK(valueOf(dst.best()) == 10.0);
+    CHECK(valueOf(dst.worst()) == 2.0);
+}
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: setSortOrder orders the items held at once",
+    "[common][priority-queue]",
+    GFSPQ_ALL_HOLDERS
+) {
+    TestType pq = filledQueue<TestType>(sortOrder::LOWERISBETTER);
+    pq.setSortOrder(sortOrder::HIGHERISBETTER);
+    CHECK(valueOf(pq.best()) == 3.0);
+    CHECK(valueOf(pq.worst()) == 1.0);
+    pq.add(item<TestType>(2.5)); // better than the worst (1) under the new order
+    CHECK(valueOf(pq.worst()) == 2.0);
+}
+
+// ---------------------------------------------------------------------------
 // A NaN evaluation is worse than every number and keeps the order. Regression: the
 // sort's comparison was no strict weak order with NaN, so real items were cut, and a
 // NaN at the end of a full queue closed it to every further item.
@@ -1001,4 +1108,101 @@ TEST_CASE(
     std::vector<std::unique_ptr<TestItem>> none;
     CHECK_NOTHROW(pq.addClone(none, /*replace=*/false));
     CHECK(pq.empty());
+}
+
+TEST_CASE(
+    "GFixedSizePriorityQueueT: a replacing bulk insertion that admits nothing keeps the queue",
+    "[common][priority-queue]"
+) {
+    // Regression: the queue was emptied before the insertion found that nothing was admissible,
+    // so a caller that caught the exception had lost its archive.
+    GatedPQ pq(10);
+    pq.add(std::make_unique<TestItem>(1.0));
+    pq.add(std::make_unique<TestItem>(2.0));
+
+    std::vector<std::unique_ptr<TestItem>> rejected;
+    rejected.push_back(std::make_unique<TestItem>(-3.0));
+    rejected.push_back(std::make_unique<TestItem>(-4.0));
+    CHECK_THROWS_AS(pq.addClone(rejected, /*replace=*/true), gem_exception);
+    CHECK(pq.size() == 2);
+    CHECK_THROWS_AS(pq.add(std::move(rejected), /*replace=*/true), gem_exception);
+    REQUIRE(pq.size() == 2);
+    CHECK(pq.best()->value() == 1.0);
+    CHECK(pq.worst()->value() == 2.0);
+}
+
+// ---------------------------------------------------------------------------
+// Admission is decided before an item is cloned: an archive clones only what it keeps
+
+TEMPLATE_TEST_CASE(
+    "GFixedSizePriorityQueueT: a bulk insertion clones only the items it keeps",
+    "[common][priority-queue]",
+    SharedPQ,
+    UniquePQ
+) {
+    // 100 items, worst first, so that every item would beat the bar of the moment
+    typename TestType::ContainerType items;
+    for(int i = 100; i > 0; --i) {
+        items.push_back(item<TestType>(static_cast<double>(i)));
+    }
+
+    TestType pq(10);
+    TestItem::n_clones = 0;
+    pq.addClone(items, /*replace=*/false);
+    CHECK(TestItem::n_clones == 10);
+    REQUIRE(pq.size() == 10);
+    CHECK(pq.best()->value() == 1.0);
+    CHECK(pq.worst()->value() == 10.0);
+
+    // Merging into a full queue clones only what displaces an incumbent
+    typename TestType::ContainerType worse;
+    for(int i = 100; i > 10; --i) {
+        worse.push_back(item<TestType>(static_cast<double>(i)));
+    }
+    TestItem::n_clones = 0;
+    pq.addClone(worse, /*replace=*/false);
+    CHECK(TestItem::n_clones == 0);
+    typename TestType::ContainerType better;
+    better.push_back(item<TestType>(0.5));
+    better.push_back(item<TestType>(50.0));
+    better.push_back(item<TestType>(0.25));
+    TestItem::n_clones = 0;
+    pq.addClone(better, /*replace=*/false);
+    CHECK(TestItem::n_clones == 2);
+    CHECK(pq.best()->value() == 0.25);
+    CHECK(pq.worst()->value() == 8.0);
+
+    // A replacing insertion clones at most the capacity
+    TestItem::n_clones = 0;
+    pq.addClone(items, /*replace=*/true);
+    CHECK(TestItem::n_clones == 10);
+    CHECK(pq.best()->value() == 1.0);
+
+    // A single item that does not beat the worst of a full queue is not cloned
+    TestItem::n_clones = 0;
+    pq.addClone(item<TestType>(11.0));
+    CHECK(TestItem::n_clones == 0);
+    pq.addClone(item<TestType>(0.0));
+    CHECK(TestItem::n_clones == 1);
+    CHECK(pq.best()->value() == 0.0);
+}
+
+TEST_CASE(
+    "GFixedSizePriorityQueueT: same entries do not take the places of the best others",
+    "[common][priority-queue][unique]"
+) {
+    // The queue keeps the best items of everything offered, one of each set of same entries:
+    // repeated entries among the best must not push a distinct item out of a bounded queue.
+    ValueUniquePQ pq(3);
+    pq.add(std::make_unique<TestItem>(1.0));
+    std::vector<std::unique_ptr<TestItem>> batch;
+    for(double const v : {1.0, 0.0, 0.0, 1.0, 0.0, 2.0, 3.0}) {
+        batch.push_back(std::make_unique<TestItem>(v));
+    }
+    TestItem::n_clones = 0;
+    pq.addClone(batch, /*replace=*/false);
+    REQUIRE(pq.size() == 3);
+    CHECK(pq.at(0)->value() == 0.0);
+    CHECK(pq.at(1)->value() == 1.0);
+    CHECK(pq.at(2)->value() == 2.0);
 }
