@@ -1731,7 +1731,7 @@ TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
     auto const renamed = dir / "my-run-of-today.cp";
     ea.saveCheckpoint(renamed);
     oa::GEvolutionaryAlgorithm from_renamed;
-    CHECK(from_renamed.cp_personality_fits(renamed));
+    CHECK(from_renamed.cp_mnemonic_fits(renamed));
     REQUIRE_NOTHROW(from_renamed.loadCheckpoint(renamed));
     CHECK(from_renamed.size() == ea.size());
     std::filesystem::remove(renamed);
@@ -1742,7 +1742,7 @@ TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
     auto const misnamed = dir / "checkpoint-ea-0-0-misnamed.cp";
     sa.saveCheckpoint(misnamed);
     oa::GEvolutionaryAlgorithm into_ea;
-    CHECK_FALSE(into_ea.cp_personality_fits(misnamed));
+    CHECK_FALSE(into_ea.cp_mnemonic_fits(misnamed));
     CHECK_THROWS_WITH(
         into_ea.loadCheckpoint(misnamed),
         Catch::Matchers::ContainsSubstring("was written by the algorithm sa") &&
@@ -1797,7 +1797,7 @@ TEST_CASE("a Nelder-Mead checkpoint keeps its individuals' position personalitie
     nm.saveCheckpoint(cp);
 
     oa::GNelderMead resumed;
-    CHECK(resumed.cp_personality_fits(cp));
+    CHECK(resumed.cp_mnemonic_fits(cp));
     REQUIRE_NOTHROW(resumed.loadCheckpoint(cp));
     REQUIRE(resumed.size() == 3);
     for(std::size_t i = 0; i < 3; ++i) {
@@ -1810,7 +1810,7 @@ TEST_CASE("a Nelder-Mead checkpoint keeps its individuals' position personalitie
 
     // Another algorithm refuses the file
     oa::GConjugateGradientDescent cgd;
-    CHECK_FALSE(cgd.cp_personality_fits(cp));
+    CHECK_FALSE(cgd.cp_mnemonic_fits(cp));
     CHECK_THROWS_WITH(
         cgd.loadCheckpoint(cp),
         Catch::Matchers::ContainsSubstring("was written by the algorithm nm")

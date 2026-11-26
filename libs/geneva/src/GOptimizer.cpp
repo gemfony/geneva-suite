@@ -504,7 +504,7 @@ std::uint32_t GOptimizer::prepareInitialPopulation(std::uint32_t offset) {
  */
 void GOptimizer::validateCheckpointFitsFirstAlgorithm() const {
     if(cp_file_ != "empty" &&
-       not algorithms_cnt_[0]->cp_personality_fits(std::filesystem::path(cp_file_))) {
+       not algorithms_cnt_[0]->cp_mnemonic_fits(std::filesystem::path(cp_file_))) {
         throw gem_exception(
             g_error_streamer() << "Checkpoint file " << cp_file_ << " does not" << '\n'
                                << "fit requirements of first algorithm "

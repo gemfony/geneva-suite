@@ -1541,7 +1541,7 @@ bool GOptimizationAlgorithmBase::afterFirstIteration() const {
  * @param p The path to the checkpoint file whose algorithm is to be checked
  * @return A boolean indicating whether the file's algorithm mnemonic matches this algorithm's
  */
-bool GOptimizationAlgorithmBase::cp_personality_fits(const std::filesystem::path &p) const {
+bool GOptimizationAlgorithmBase::cp_mnemonic_fits(const std::filesystem::path &p) const {
     GCheckpointRead cp; // no read_algorithm_of: the head alone is read
     readCheckpointFile(p, this->getCheckpointSerializationMode(), cp);
     return cp.mnemonic == this->getAlgorithmMnemonic();
