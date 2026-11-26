@@ -30,6 +30,8 @@
 #include "common/GCommonHelperFunctions.hpp"
 
 // Standard library headers used directly in this translation unit
+#include <algorithm>
+#include <array>
 #include <atomic>
 #include <cctype>
 #include <cerrno>
@@ -40,10 +42,12 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -194,6 +198,29 @@ std::filesystem::file_time_type touch_time(
         std::filesystem::remove(path);
     }
     return last_write_time;
+}
+
+/******************************************************************************/
+/**
+ * Draws 64 random bits for an identifier (a file name, a connection id, the salt of a process).
+ * Each thread has an engine of its own, seeded on first use with eight 32-bit words of
+ * std::random_device through std::seed_seq. A single word of std::random_device (2^32 seeds)
+ * is not enough: with n engines two share a seed with a probability of about n^2 / 2^33, which
+ * reaches tens of percent for the threads of a thousand nodes, and two engines with one seed
+ * draw the same identifiers. That probability cannot be shown by a unit test; the tests pin
+ * that the identifiers of many threads differ.
+ *
+ * @return 64 random bits
+ */
+std::uint64_t randomBits64() {
+    thread_local std::mt19937_64 engine = [] {
+        std::random_device device;
+        std::array<std::random_device::result_type, 8> entropy{};
+        std::ranges::generate(entropy, std::ref(device));
+        std::seed_seq seed(entropy.begin(), entropy.end());
+        return std::mt19937_64(seed);
+    }();
+    return engine();
 }
 
 /******************************************************************************/

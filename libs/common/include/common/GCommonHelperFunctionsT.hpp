@@ -47,7 +47,6 @@
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <random>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -247,15 +246,13 @@ to_type narrow(from_type value) {
 /**
  * @brief Generates a UUID v4 string (e.g. "550e8400-e29b-41d4-a716-446655440000").
  *
- * Uses a thread-local Mersenne-Twister seeded from std::random_device.
+ * The 122 random bits come from randomBits64(), whose engines are seeded with full entropy.
  *
  * @return A newly generated, hyphen-formatted version-4 UUID string
  */
 inline std::string generate_uuid_v4() {
-    static thread_local std::mt19937_64 rng{std::random_device{}()};
-    std::uniform_int_distribution<std::uint64_t> dist;
-    std::uint64_t hi = dist(rng);
-    std::uint64_t lo = dist(rng);
+    std::uint64_t hi = randomBits64();
+    std::uint64_t lo = randomBits64();
     // Set version 4 (nibble at bits 15-12 of `hi`, i.e. the 3rd group nibble)
     hi = (hi & 0xFFFFFFFFFFFF0FFFULL) | 0x0000000000004000ULL;
     // Set variant 10xx (top 2 bits of lo's most-significant byte)

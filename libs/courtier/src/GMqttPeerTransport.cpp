@@ -33,7 +33,6 @@
 #include <algorithm>
 #include <format>
 #include <limits>
-#include <random>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -50,6 +49,7 @@
 #include <boost/mqtt5/types.hpp>
 
 // Geneva headers go here
+#include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
@@ -236,12 +236,7 @@ bool isId(std::string_view id) {
 
 /** @brief @return A new id for a connection: 64 random bits, in hex */
 std::string newId() {
-    thread_local std::mt19937_64 engine = [] {
-        std::random_device device;
-        std::seed_seq seed{device(), device(), device(), device()};
-        return std::mt19937_64(seed);
-    }();
-    return std::format("{:016x}", engine());
+    return std::format("{:016x}", Gem::Common::randomBits64());
 }
 
 /** @brief @param byte The second byte of a CLOSE @return What the close says */
