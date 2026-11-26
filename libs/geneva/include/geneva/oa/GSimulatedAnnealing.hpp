@@ -42,9 +42,9 @@
 #include "common/GExceptions.hpp"
 #include "geneva/GOptimizationEnums.hpp"
 #include "geneva/genome/GGenome.hpp"
+#include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmT.hpp"
 #include "geneva/oa/GParChild.hpp"
-#include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 
 namespace Gem::Geneva::OptimizationAlgorithms {
 
@@ -88,9 +88,9 @@ public:
     static constexpr std::string_view oa_algorithm_name = "Simulated Annealing";
     static constexpr std::string_view oa_mnemonic = "sa";
     static constexpr std::string_view oa_personality_type = "PERSONALITY_SA";
-    /** @brief The personality traits getPersonalityTraits_() hands out, the per-individual scratch
-     *  of this algorithm. */
-    using personality_traits_type = GSimulatedAnnealing_PersonalityTraits;
+    /** @brief The personality traits getPersonalityTraits_() hands out: simulated annealing runs on
+     *  the parent/child framework and needs nothing beyond the parent/child traits. */
+    using personality_traits_type = GBaseParChildPersonalityTraits;
 
 private:
     ///////////////////////////////////////////////////////////////////////

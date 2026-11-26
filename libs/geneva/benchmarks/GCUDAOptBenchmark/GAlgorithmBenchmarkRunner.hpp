@@ -53,7 +53,6 @@
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "geneva/oa/GSimulatedAnnealing.hpp"
-#include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 

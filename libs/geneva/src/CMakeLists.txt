@@ -54,7 +54,6 @@ SET ( OPTIMIZATIONSOURCES
     oa/GAntColonyOptimization.cpp
     oa/GGeneralizedSimulatedAnnealing.cpp
     oa/GSimulatedAnnealing.cpp
-    oa/GSimulatedAnnealing_PersonalityTraits.cpp
     oa/GSwarmAlgorithm.cpp
     oa/GSwarmAlgorithm_PersonalityTraits.cpp
     oa/GConjugateGradientDescent.cpp

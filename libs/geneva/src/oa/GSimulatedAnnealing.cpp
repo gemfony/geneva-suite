@@ -41,9 +41,9 @@
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
+#include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
 #include "geneva/oa/GOptimizationAlgorithmBase.hpp"
 #include "geneva/oa/GParChild.hpp"
-#include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
 #include <algorithm>
 #include <cmath>
@@ -291,7 +291,7 @@ void GSimulatedAnnealing::selectBest_() {
 /**
   * @brief Retrieve a GPersonalityTraits object belonging to this algorithm
   *
-  * @return A shared pointer to a freshly created GSimulatedAnnealing_PersonalityTraits object
+  * @return A shared pointer to a freshly created GBaseParChildPersonalityTraits object
   */
 std::shared_ptr<GPersonalityTraits> GSimulatedAnnealing::getPersonalityTraits_() const {
     return std::make_shared<personality_traits_type>();

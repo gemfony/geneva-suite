@@ -78,7 +78,6 @@
 #include "geneva/oa/GFactoryStore.hpp" // oaFactoryStore / registerOptimizationAlgorithm -- the one OA seam
 #include "geneva/oa/GOAPlugin.hpp" // oaManifest -- the module half of that seam
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
-#include "geneva/oa/GSimulatedAnnealing_PersonalityTraits.hpp"
 #include "hap/GRandomFactory.hpp"
 #include "hap/GRandomT.hpp"
 #include "weft/GArchivePolymorphic.hpp" // gem_serialize_pointer (owned-pointer members of the individual)
