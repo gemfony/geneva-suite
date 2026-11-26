@@ -2366,27 +2366,40 @@ namespace {
 
 /// The commit a server of another build names in its HELLO (no build has it)
 constexpr std::string_view OTHER_COMMIT = "0123456789abcdef0123456789abcdef01234567-dirty";
+/// The Geneva release the test servers name in their HELLO
+constexpr std::string_view OTHER_VERSION = "0.0.1-other";
 
 /** @brief A listener whose server ends greet with a HELLO of a given build and program, and count
- *  what their clients send; and its threads */
+ *  what their clients send, and the HELLOs of this build among it; and its threads */
 class GreetingServer {
 public:
     /**
      * @param build The Geneva commit the HELLO names @param program The program it names
      * @param end_after 0: no connection is closed by the server; n: each connection is closed at the
      * client's first message, with ERROR on the first n - 1 connections and RUN_ENDED on the n-th
+     * @param later_build The Geneva commit the HELLO names from the second connection on (empty:
+     * @p build)
      */
-    GreetingServer(std::string build, std::string program, std::size_t end_after = 0) {
+    GreetingServer(
+        std::string build,
+        std::string program,
+        std::size_t end_after = 0,
+        std::string later_build = {}
+    ) {
         listener_->start(
             io_.executor(),
-            [build = std::move(build),
+            [first_build = std::move(build),
+             later_build = std::move(later_build),
              program = std::move(program),
              end_after,
              received = received_,
+             hellos = hellos_,
              connections = connections_](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
                 const std::size_t connection = connections->fetch_add(1) + 1;
                 const GPeerClose how =
                     connection < end_after ? GPeerClose::ERROR : GPeerClose::RUN_ENDED;
+                const std::string build =
+                    connection > 1 && not later_build.empty() ? later_build : first_build;
                 const std::weak_ptr<GPeerI> weak = peer;
                 peer->start(
                     GPeerHandlers{
@@ -2394,7 +2407,7 @@ public:
                             [weak, build, program] {
                                 if(auto end = weak.lock()) {
                                     GCommandContainerT<GFaultyContainer> hello{GFrameKind::NONE};
-                                    hello.setHello(build, program, 0ms);
+                                    hello.setHello(build, program, 0ms, std::string(OTHER_VERSION));
                                     end->send(
                                         Gem::Courtier::Consumers::makeMessage(
                                             Gem::Courtier::container_to_string(hello, BIN)
@@ -2402,10 +2415,20 @@ public:
                                     );
                                 }
                             },
-                        // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
                         .onMessage =
-                            [weak, received, end_after, how](std::string &&) {
+                            [weak, received, hellos, end_after, how](std::string &&message) {
                                 received->fetch_add(1);
+                                GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
+                                try {
+                                    Gem::Courtier::frameHeadFromString(message, frame, BIN);
+                                }
+                                catch(...) { // NOLINT(bugprone-empty-catch) -- counted above
+                                }
+                                if(frame.kind() == GFrameKind::HELLO &&
+                                   frame.build() == Gem::Common::gemCommit() &&
+                                   frame.release() == GEM_VERSION_STRING) {
+                                    hellos->fetch_add(1);
+                                }
                                 if(auto end = weak.lock(); end && end_after > 0) {
                                     end->close(how);
                                 }
@@ -2438,12 +2461,18 @@ public:
     [[nodiscard]] std::size_t received() const {
         return received_->load();
     }
+    /** @brief @return How many of them were a HELLO of this build (a client that does not match) */
+    [[nodiscard]] std::size_t hellos() const {
+        return hellos_->load();
+    }
 
 private:
     IoThreads io_{2};
     std::shared_ptr<GInProcessListener> listener_ =
         std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     std::shared_ptr<std::atomic<std::size_t>> received_ =
+        std::make_shared<std::atomic<std::size_t>>(0);
+    std::shared_ptr<std::atomic<std::size_t>> hellos_ =
         std::make_shared<std::atomic<std::size_t>>(0);
     std::shared_ptr<std::atomic<std::size_t>> connections_ =
         std::make_shared<std::atomic<std::size_t>>(0);
@@ -2499,6 +2528,7 @@ TEST_CASE(
     REQUIRE_NOTHROW(Gem::Courtier::container_from_string(hello, got, BIN));
     CHECK(got.kind() == GFrameKind::HELLO);
     CHECK(got.build() == Gem::Common::gemCommit());
+    CHECK(got.release() == GEM_VERSION_STRING);
     CHECK(Gem::Courtier::helloMismatch(got).empty());
 }
 
@@ -2521,14 +2551,37 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     CHECK(client->terminalErrorFlagged());
     CHECK(client->losses() == 0);
     CHECK(client->connections() == 1); // it did not come back
-    CHECK(other.received() == 0);      // and asked for nothing
+    CHECK(other.received() == 1);      // it asked for nothing,
+    CHECK(other.hellos() == 1);        // but said who it is
     // The log names both commits, and this build's version for the reader.
     CHECK(log->hasLineWith(
         {"The server was built from another commit",
          OTHER_COMMIT,
+         OTHER_VERSION,
          Gem::Common::gemCommit(),
          GEM_VERSION_STRING}
     ));
+    glogger.resetLogTargets();
+}
+
+// The HELLO is checked on every connection, not only on the first: a server that comes back as
+// another build (an upgrade behind the same address) ends the client as well.
+TEST_CASE(
+    "GPeerClientT: a server that comes back as another build ends the client",
+    "[courtier][peer][client]"
+) {
+    auto log = std::make_shared<CapturedLog>();
+    glogger.addLogTarget(log);
+    // The first connection names this build and ends with ERROR at the client's PULL; the second
+    // names another build.
+    const GreetingServer
+        server{std::string(Gem::Common::gemCommit()), "", 2, std::string(OTHER_COMMIT)};
+    const auto client = runClientAgainst(server);
+    CHECK(client->terminalErrorFlagged());
+    CHECK(client->connections() == 2); // it did not come back a third time
+    CHECK(server.received() == 2);     // a PULL on the first, on the second
+    CHECK(server.hellos() == 1);       // only its HELLO
+    CHECK(log->hasLineWith({"The server was built from another commit", OTHER_COMMIT}));
     glogger.resetLogTargets();
 }
 
@@ -2573,7 +2626,8 @@ TEST_CASE(
         const auto client = runClientAgainst(server);
         CHECK(client->terminalErrorFlagged());
         CHECK(client->connections() == 1); // it did not come back
-        CHECK(server.received() == 0);     // and asked for nothing
+        CHECK(server.received() == 1);     // it asked for nothing,
+        CHECK(server.hellos() == 1);       // but said who it is
         CHECK(
             log->hasLineWith({"The server runs another program", "another program", "this program"})
         );

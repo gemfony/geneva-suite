@@ -820,8 +820,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   / `...UPPERBOUNDARYMSEC` are **removed**. The pauses, time limits and defaults of the networked
   consumers are named constants in `courtier/GCourtierEnums.hpp`.
 - **courtier: the frame protocol.** A connection begins with the server's greeting (`HELLO`: the
-  commit of the server's Geneva sources, `Gem::Common::gemCommit()`, and the keep-alive
-  interval); a client built from another commit ends with a message that names both commits.
+  commit of the server's Geneva sources, `Gem::Common::gemCommit()`, the keep-alive interval
+  and the Geneva release, `GEM_VERSION_STRING`); a client built from another commit ends with a
+  message that names both releases and both commits; before it closes it sends its own `HELLO`,
+  and the server logs once which client has left, naming both builds. The fields of the `HELLO` keep their binary
+  layout from release to release, and new ones are only appended, so that a client can read the
+  greeting of a server of another release.
   Every Geneva build knows its commit: from git (`-dirty` appended when a tracked file has
   changed), else from the file `GEM_COMMIT`, which `git archive` fills in and a build that
   copies the sources without `.git` writes (the container build: the build argument
@@ -830,7 +834,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   another one ends in the same way; where one side has none, the program is not checked and the
   client says so once in its log. `GEM_STAMP_PROGRAM(<target> [IDENTITY <text>])` of Geneva's
   CMake support stamps an executable with the commit of the project's own sources or a text of
-  one's own; the quick start's template stamps its programs. A client asks for one item with `PULL`, the
+  one's own; the quick start's template stamps its programs. An option of the program that
+  changes what it sends (float or double parameters, say) is not seen in the commit: such a
+  program names it in its `IDENTITY` (example 14 stamps its float or double build so). A client asks for one item with `PULL`, the
   server answers with one `WORK`, and a client returns an item with `RESULT`, which asks for
   nothing. The frame kinds `NO_WORK`, `RETURN` and `UNREADABLE` are gone, and so are the client's
   files of results it could not deliver (`--beast_undeliveredDir`, `--mpi_undeliveredDir`,

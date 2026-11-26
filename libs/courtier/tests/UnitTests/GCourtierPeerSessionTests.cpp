@@ -51,6 +51,7 @@
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/post.hpp>
 
+#include "GCapturedLog.hpp"
 #include "GDemoProcessingContainers.hpp"
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
@@ -74,6 +75,7 @@ using Gem::Courtier::Consumers::GPeerClose;
 using Gem::Courtier::Consumers::GPeerEnd;
 using Gem::Courtier::Consumers::GPeerHandlers;
 using Gem::Courtier::Consumers::GPeerI;
+using Gem::Courtier::Tests::CapturedLog;
 using Gem::Courtier::Tests::GInProcessPeer;
 using Gem::Courtier::Tests::IoThreads;
 using namespace std::chrono_literals;
@@ -814,4 +816,42 @@ TEST_CASE(
         connection.client->close(GPeerClose::NORMAL);
         REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
     }
+}
+
+/******************************************************************************/
+/**
+ * A client of another build answers the HELLO with its own and ends: the session logs once that
+ * the client has ended, naming both builds, and answers nothing.
+ */
+TEST_CASE(
+    "GPeerSessionT: the HELLO of a client of another build is logged with both builds",
+    "[courtier][peer][session]"
+) {
+    auto log = std::make_shared<CapturedLog>();
+    glogger.addLogTarget(log);
+    FakeConsumer consumer;
+    IoThreads server;
+    IoThreads client;
+    {
+        auto connection = connect(consumer, server.executor(), client.executor());
+        GCommandContainerT<GFaultyContainer> hello{GFrameKind::NONE};
+        hello.setHello("0123456789abcdef-other", "", 0ms, "0.0.1-other");
+        connection.client->sendBytes(Gem::Courtier::wireEncode(hello, nullptr, BIN));
+        REQUIRE(eventually([&] { return log->hasLineWith({"client 1 has ended"}); }));
+        connection.client->close(GPeerClose::ERROR);
+        REQUIRE(eventually([&] { return consumer.nSessions() == 0; }));
+        CHECK(connection.client->nFrames() == 0);
+    }
+    CHECK(
+        log->countLinesWith(
+            {"client 1 has ended",
+             "The client was built from another commit",
+             "0.0.1-other",
+             "0123456789abcdef-other",
+             GEM_VERSION_STRING,
+             Gem::Common::gemCommit()}
+        ) == 1
+    );
+    CHECK_FALSE(log->hasLineWith({"cannot"}));
+    glogger.resetLogTargets();
 }

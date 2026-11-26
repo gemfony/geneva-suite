@@ -58,6 +58,11 @@ namespace Gem::Common {
  * @brief Sets the identity of the user's program: a text that names its build, by default the
  * commit of the program's own sources.
  *
+ * The commit does not see the options a program is built with. An option that changes what the
+ * program sends over the network (float or double parameters, say) belongs in the identity, so
+ * that two builds of one commit with different options do not take each other for the same build
+ * (GEM_STAMP_PROGRAM(<target> IDENTITY <text>), CMakeModules/GemProgramStamp.cmake).
+ *
  * A program can compare it with the identity of a peer, beside gemCommit(); where one side has
  * none, there is nothing to compare. A program is stamped by the collection's CMake support
  * (GEM_STAMP_PROGRAM, CMakeModules/GemProgramStamp.cmake), which calls this function from a static

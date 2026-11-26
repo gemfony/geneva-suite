@@ -126,13 +126,15 @@ void wireDecodePayload(
 
 /******************************************************************************/
 /**
- * @brief Server side: the HELLO a session sends first on every connection: this build (the commit
- * of the Geneva sources, Gem::Common::gemCommit()), the identity of this program
- * (Gem::Common::programIdentity(), empty if it has none) and the keep-alive interval of the
- * connection, which the client takes.
+ * @brief The HELLO a session sends first on every connection, and the one a client sends before it
+ * ends because it does not match: this build (the commit of the Geneva sources,
+ * Gem::Common::gemCommit()), the identity of this program (Gem::Common::programIdentity(), empty
+ * if it has none), the keep-alive interval of the connection, which the client takes, and the
+ * Geneva release (GEM_VERSION_STRING).
  * @tparam processable_type The payload type of the command container
  * @param ser_mode The serialization format to use
- * @param keep_alive The keep-alive interval of the server's ends (GListenerI::keepAlive(); 0: none)
+ * @param keep_alive The keep-alive interval of the server's ends (GListenerI::keepAlive(); 0: none;
+ * a client names none)
  * @return The serialized HELLO
  */
 template <typename processable_type>
@@ -142,33 +144,47 @@ buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds ke
     hello.setHello(
         std::string(Gem::Common::gemCommit()),
         std::string(Gem::Common::programIdentity()),
-        keep_alive
+        keep_alive,
+        std::string(GEM_VERSION_STRING)
     );
     return container_to_string(hello, ser_mode);
 }
 
 /******************************************************************************/
 /**
- * @brief Client side: whether a HELLO names the same build as this process -- first the commit of
- * the Geneva sources, then the identity of the program, where both sides have one.
+ * @brief Whether a HELLO names the same build as this process -- first the commit of the Geneva
+ * sources, then the identity of the program, where both sides have one. Another commit is told
+ * with the releases and the commits of both sides.
  * @tparam processable_type The payload type of the command container
  * @param hello A HELLO frame
+ * @param other Who sent it: "server" (on a client), or "client" (on the server, the HELLO of a
+ * client that does not match)
+ * @param own Who this process is
  * @return Empty if they match; otherwise what differs, for the log
  */
 template <typename processable_type>
-std::string helloMismatch(const GCommandContainerT<processable_type> &hello) {
-    const std::string_view own = Gem::Common::gemCommit();
-    if(hello.build() != own) {
-        return "The server was built from another commit: the server's Geneva commit is " +
-               hello.build() + ", this client's (Geneva " + GEM_VERSION_STRING + ") is " +
-               std::string(own) + ". Server and client must be built from the same commit.";
+std::string helloMismatch(
+    const GCommandContainerT<processable_type> &hello,
+    std::string_view other = "server",
+    std::string_view own = "client"
+) {
+    const std::string them{other};
+    const std::string us{own};
+    const std::string_view own_commit = Gem::Common::gemCommit();
+    if(hello.build() != own_commit) {
+        const std::string other_release =
+            hello.release().empty() ? std::string("(release not named)") : hello.release();
+        return "The " + them + " was built from another commit: the " + them + " is Geneva " +
+               other_release + " of commit " + hello.build() + ", this " + us + " is Geneva " +
+               GEM_VERSION_STRING + " of commit " + std::string(own_commit) +
+               ". Server and client must be built from the same commit.";
     }
     const std::string_view own_program = Gem::Common::programIdentity();
     if(own_program.empty() || hello.program().empty() || hello.program() == own_program) {
         return {};
     }
-    return "The server runs another program: the server's program is " + hello.program() +
-           ", this client's is " + std::string(own_program) +
+    return "The " + them + " runs another program: the " + them + "'s program is " +
+           hello.program() + ", this " + us + "'s is " + std::string(own_program) +
            ". Server and client must run the same build of the same program.";
 }
 
