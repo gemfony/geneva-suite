@@ -1929,7 +1929,8 @@ public:
         std::filesystem::path const &config_path = {},
         bool run_unknown_key_check = true
     );
-    /** @brief Writes out a configuration file */
+    /** @brief Writes out a configuration file; an existing file is refused. The file is written as a
+     *  whole through a temporary file, so a reader never sees a part of it. */
     void writeConfigFile(
         std::filesystem::path const &config_file,
         std::string const &header = "",
@@ -2611,9 +2612,17 @@ private:
      *  writeConfigFile() and the update-in-place rewrite. */
     [[nodiscard]] boost::json::value
     buildConfigDocument_(std::string const &header, bool write_all) const;
+    /** @brief Writes the configuration file from the registered options (creating its directory),
+     *  replacing it as a whole; without the no-overwrite guard of writeConfigFile(), so that processes
+     *  that create one missing file at the same time all succeed. */
+    void createConfigFile_(
+        std::filesystem::path const &config_file,
+        std::string const &header,
+        bool write_all
+    ) const;
     /** @brief Atomically replaces @p config_file with the pretty-printed serialization of @p document
-     *  (Gem::Common::replaceFileAtomically()), bypassing the deliberate no-overwrite
-     *  guard of writeConfigFile() -- the update path is the one caller that legitimately overwrites a file. */
+     *  (Gem::Common::replaceFileAtomically()); used by the creation of a missing file and by the
+     *  update path, which are the callers that may overwrite a file. */
     void atomicReplaceConfigFile_(
         std::filesystem::path const &config_file,
         boost::json::value const &document

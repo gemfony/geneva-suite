@@ -35,7 +35,6 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <fstream>
 #include <ios>
 #include <iostream>
 #include <mutex>
@@ -600,9 +599,12 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
                 << "We will try to create a file with default values for you." << '\n'
                 << GLOGGING;
 
+        // Not writeConfigFile(), which refuses an existing file: another process that starts in
+        // the same directory may create the file in the meantime. Both write the same defaults, each
+        // replaces the file as a whole, and the last one to rename wins harmlessly.
         std::string const header =
             "This configuration file was automatically created by GParserBuilder;";
-        this->writeConfigFile(
+        this->createConfigFile_(
             config_path,
             header,
             true // write_all == true
@@ -758,7 +760,8 @@ bool GParserBuilder::emitTimestamp() {
 
 /******************************************************************************/
 /**
- * Writes out a configuration file.
+ * Writes out a configuration file. An existing file is refused: this function creates a file, it does
+ * not replace one (the update of an existing file is updateConfigFile()).
  *
  * @param config_file The name of the configuration file to be written
  * @param header A descriptive comment to be output at the top of the configuration file
@@ -769,23 +772,40 @@ void GParserBuilder::writeConfigFile(
     std::string const &header,
     bool write_all
 ) const {
-    // Do some error checking
+    // Is config_file a directory ?
+    if(std::filesystem::is_directory(config_file)) {
+        throw gem_exception(
+            g_error_streamer() << config_file.string() << " is a directory." << '\n'
+        );
+    }
+
+    // We do not allow to overwrite existing files
+    if(std::filesystem::exists(config_file) && std::filesystem::is_regular_file(config_file)) {
+        throw gem_exception(
+            g_error_streamer() << "You have specified an existing file (" << config_file.string()
+                               << ")." << '\n'
+        );
+    }
+
+    this->createConfigFile_(config_file, header, write_all);
+}
+
+/******************************************************************************/
+/**
+ * Writes the configuration file from the registered options, creating its directory if needed. The file
+ * is replaced as a whole (atomicReplaceConfigFile_()), so a reader never sees a part of it, and a file
+ * that another process has created in the meantime is replaced by the same defaults.
+ *
+ * @param config_file The name of the configuration file to be written
+ * @param header A descriptive comment to be output at the top of the configuration file
+ * @param write_all A boolean parameter that indicates whether all or only essential parameters should be written
+ */
+void GParserBuilder::createConfigFile_(
+    std::filesystem::path const &config_file,
+    std::string const &header,
+    bool write_all
+) const {
     {
-        // Is config_file a directory ?
-        if(std::filesystem::is_directory(config_file)) {
-            throw gem_exception(
-                g_error_streamer() << config_file.string() << " is a directory." << '\n'
-            );
-        }
-
-        // We do not allow to overwrite existing files
-        if(std::filesystem::exists(config_file) && std::filesystem::is_regular_file(config_file)) {
-            throw gem_exception(
-                g_error_streamer()
-                << "You have specified an existing file (" << config_file.string() << ")." << '\n'
-            );
-        }
-
         // Make sure the target directory exists, creating it if necessary. We auto-create a
         // missing config FILE here (this is the "does not exist" path of parseConfigFile), so we
         // must also create a missing config DIRECTORY -- otherwise, on a fresh run directory with
@@ -828,23 +848,8 @@ void GParserBuilder::writeConfigFile(
     }
 
     // Assemble the canonical document (shared with the update-in-place rewrite) before the file is
-    // opened, so that a refusal (no options registered) leaves no empty file behind.
-    boost::json::value const document = this->buildConfigDocument_(header, write_all);
-
-    // Open the required configuration file
-    std::ofstream ofs(config_file);
-    if(not ofs) {
-        throw gem_exception(
-            g_error_streamer() << "Error writing configuration file " << config_file.string()
-                               << '\n'
-        );
-    }
-
-    Gem::Common::prettyPrintJson(ofs, document);
-    ofs << '\n';
-
-    // Close the file handle
-    ofs.close();
+    // written, so that a refusal (no options registered) leaves no empty file behind.
+    this->atomicReplaceConfigFile_(config_file, this->buildConfigDocument_(header, write_all));
 }
 
 /******************************************************************************/
@@ -900,9 +905,10 @@ GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) 
 /******************************************************************************/
 /**
  * Atomically replaces @p config_file with the serialization of @p document
- * (Gem::Common::replaceFileAtomically()). This is the one caller that legitimately overwrites an
- * existing configuration file (writeConfigFile() deliberately refuses to), so an interrupted update can
- * never truncate a live config, and the .json extension is enforced here too.
+ * (Gem::Common::replaceFileAtomically()). It serves the creation of a missing file and the update of an
+ * existing one (writeConfigFile() deliberately refuses an existing file), so an interrupted write can
+ * never truncate a live config and a reader never sees a part of one; the .json extension is enforced
+ * here too.
  *
  * @param config_file The target configuration file (.json) to replace
  * @param document The JSON document to serialize
