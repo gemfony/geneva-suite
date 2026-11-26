@@ -75,7 +75,7 @@ public:
      * Acts as the call operator required by the C++11 UniformRandomBitGenerator
      * interface, forwarding to the derived class' int_random() implementation.
      * Defined inline: this is the hot draw path of every distribution built on
-     * a Geneva random proxy, so the former out-of-line forwarder hop is spared
+     * a hap random proxy, so the former out-of-line forwarder hop is spared
      * (the virtual int_random() dispatch remains, by design).
      *
      * @return One raw random value drawn from the underlying generator

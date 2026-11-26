@@ -9,6 +9,6 @@ will create configuration files with default values. These may then
 be modified.
 
 Configuration files use the JSON ("Java Script Object Notation") format.
-There is a complete framework in Geneva for creating parsers for configuration
+There is a complete framework in common (GParserBuilder) for creating parsers for configuration
 files and coupling them to your classes. Have a look at the source code 
 of GConfigFileCreation.cpp and also check out the chapter in our manual.

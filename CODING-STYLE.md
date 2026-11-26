@@ -175,6 +175,18 @@ member's absence from it, it does not replace it.
 std::unique_ptr<GThreadPool> pool_; ///< transient: a run-time resource, built on first use
 ```
 
+A library's comments say what it offers. Who uses it, and how, is said in the comments of the using library,
+so a comment does not go stale when a library above changes (the maintainer's decision of 2026-11-26). The
+layers are: weft at the bottom, common on weft; hap, dietrich and courtier on common; geneva on all of them.
+An example that names a library above is written in the form "a user such as Geneva's ...":
+
+```cpp
+// Not this, in courtier:  "Geneva's algorithms reap them after each submission"
+// but this:               "(a user such as Geneva's meta-optimization over a population of inner algorithms)"
+```
+
+A statement about the collection as a whole (its build, its version, its commit) is not such an example.
+
 An empty body — common for an intentionally empty constructor — is marked as such rather than left blank, so
 the emptiness reads as deliberate:
 

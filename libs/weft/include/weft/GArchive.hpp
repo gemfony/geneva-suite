@@ -93,7 +93,7 @@ namespace Gem::Weft {
  * @c GArchive is a change of the archive @e type only, not of the call sites.
  *
  * @par Trees, not graphs
- * Geneva serializes trees without shared-object tracking (see the
+ * Weft serializes trees without shared-object tracking (see the
  * Boost-replacement design doc): a cloneable member is deep-cloned on load, not
  * reconstructed as a shared node. This family therefore carries @b no
  * object-identity / de-duplication machinery. Polymorphic-pointer dispatch
@@ -241,7 +241,7 @@ inline binary_wrapper_t make_binary(void *data, std::size_t bytes) {
  *
  *  Intentionally unsupported (incompatible with the design, not an omission):
  *    - @c std::weak_ptr and Boost's shared-pointer @e tracking -- these express a
- *      shared object graph. Geneva serializes @b trees (deep-clone on load, zero
+ *      shared object graph. Weft serializes @b trees (deep-clone on load, zero
  *      object tracking); a weak_ptr has no owning tree edge to reconstruct.
  *    - @c boost::scoped_ptr and other Boost-only wrappers -- deprecated / use std.
  */
@@ -415,7 +415,7 @@ struct is_chrono_duration : std::false_type {};
 template <typename rep_type, typename period_type>
 struct is_chrono_duration<std::chrono::duration<rep_type, period_type>> : std::true_type {};
 
-// Owning smart pointers. Only the shapes Geneva serializes are matched.
+// Owning smart pointers. Only the shapes Weft serializes are matched.
 template <typename T>
 struct is_smart_ptr : std::false_type {};
 template <typename T, typename D>

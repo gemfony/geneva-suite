@@ -41,8 +41,8 @@ namespace Gem::Courtier::GPU {
 /**
  * The problem-specific marshalling interface, generic in the processable type. Logically a
  * Gem::Courtier consumer helper (the GPU consumer derives from GBaseConsumerT), so it lives in
- * Gem::Courtier::GPU with NO dependency on the Gem::Geneva layer (which sits above courtier). The
- * concrete marshallers live with the item types they serve, not here.
+ * Gem::Courtier::GPU with NO dependency on a library above courtier. The concrete marshallers live
+ * with the item types they serve, not here.
  *
  * The GPU consumer owns the device plumbing; the problem owns how a batch of items becomes flat device
  * buffers and how device results are written back. The GPU consumer is DEVICE-ONLY: it never evaluates
@@ -68,8 +68,8 @@ namespace Gem::Courtier::GPU {
  *  - An item whose processing fails (beginProcessing() or completeProcessing() throws
  *    g_processing_exception) keeps the failure recorded on it and fails alone; the others of the
  *    batch are completed, and the consumer's reconciliation applies the submission policy.
- * Gem::Geneva::GBaseGPUMarshallerT implements this for geneva's individuals; a marshaller that
- * overrides its flatten() or scatter() delegates to them.
+ * A base class for a family of item types may implement both for its derived marshallers to
+ * delegate to (a user such as Geneva's GBaseGPUMarshallerT does).
  *
  * @tparam processable_type The work-item type a batch is composed of
  * @tparam scalar_type The flat-buffer element type for parameters and results (double for parity, float for FP32); defaults to double

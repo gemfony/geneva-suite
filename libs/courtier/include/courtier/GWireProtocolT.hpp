@@ -79,9 +79,9 @@ struct GNoLibraryPayload {
  * library specializes this template right next to its work-item class, so no instantiation of the
  * transports can pick up the primary template by accident.
  *
- * The primary template is the degenerate protocol every geneva-free user of courtier (its own demo
- * containers and networked test suites included) gets for free: one tag, no library payload, whole work
- * items in both directions.
+ * The primary template is the degenerate protocol every user of courtier that does not specialize
+ * it (courtier's own demo containers and networked test suites included) gets for free: one tag, no
+ * library payload, whole work items in both directions.
  *
  * @tparam processable_type The work-item type exchanged over the transport
  */

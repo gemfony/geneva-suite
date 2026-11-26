@@ -23,7 +23,7 @@ Generated HTML / XML / tag files land in the **build tree**:
 ```
 <build>/libs/courtier/doc/
     Doxyfile           configured from CMakeModules/Doxyfile.in
-    courtier.tag       Doxygen tag file (consumed by geneva)
+    courtier.tag       Doxygen tag file (for cross-links from the libraries above)
     html/              browsable HTML reference
     xml/               XML for downstream tooling
 ```

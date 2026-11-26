@@ -35,7 +35,7 @@ plot_rng_distributions  Draws 6000 numbers from each of eight distributions
                         renderer prints it. The legends are formatted from the
                         distribution objects the program draws with, and the
                         program fails if a draw contradicts the range it states
-                        (half-open for doubles, closed for integers). Geneva's
+                        (half-open for doubles, closed for integers). Hap's
                         random numbers are not reproducible from a seed
                         (DEVELOPMENT-INVARIANTS.md, Invariant 18), so a rerun
                         draws different but equivalent histograms.

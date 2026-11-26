@@ -170,5 +170,5 @@ ENDIF ()
 
 ################################################################################
 # Install the library and register it in the GenevaTargets export set, so that
-# the exported package config resolves gemfony-hap (geneva depends on it).
+# the exported package config resolves gemfony-hap for whatever links it.
 INSTALL ( TARGETS ${HAP_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_PREFIX_LIBS} )

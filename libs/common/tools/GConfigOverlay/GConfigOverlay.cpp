@@ -40,15 +40,15 @@
  *
  * The override document maps a configuration file name to an object of that file's non-default
  * key/value pairs, e.g.
- *   { "GOptimizer.json": { "consumer": "gpu" }, "GGPUConsumer.json": { "kernel_path": "./k.cu" } }
+ *   { "MyProgram.json": { "nThreads": 4 }, "MySolver.json": { "maxIterations": 500 } }
  * For each entry the named file in <config-dir> is loaded, the overrides are overlaid onto it (each named
  * parameter's value replaced, its code-owned default/comment left intact), and it is written back.
  *
  * A target file that is not present in this build is skipped with a note: a directory's fragment may list
- * a build-variant configuration (e.g. the float and double GPU-consumer configs) of which only one is
- * materialized for a given build. Genuine staleness within a file that IS present -- an override that
- * names a parameter the configuration does not contain, or any other structural mismatch -- remains a hard
- * error (non-zero exit), so a stale override still fails the build.
+ * a build-variant configuration (e.g. a float and a double variant of one configuration) of which
+ * only one is materialized for a given build. Genuine staleness within a file that IS present -- an
+ * override that names a parameter the configuration does not contain, or any other structural
+ * mismatch -- remains a hard error (non-zero exit), so a stale override still fails the build.
  */
 
 #include <filesystem>

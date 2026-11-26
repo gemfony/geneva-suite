@@ -164,7 +164,7 @@ struct PodStorage {
 
 /******************************************************************************/
 /**
- * @brief Storage policy for polymorphic Geneva objects held via shared_ptr.
+ * @brief Storage policy for polymorphic objects of the common interface held via shared_ptr.
  *
  * Wraps a sequence container of std::shared_ptr<T>. Deep copies are performed
  * via the clone()/load() protocol required by the Gemfony common interface.
@@ -241,14 +241,14 @@ struct UniquePtrStorage {
  *
  * GContainerT is an abstract base class (pure-virtual destructor) that wraps
  * a configurable sequence container and provides the full STL sequence-container
- * API together with Geneva-specific extensions such as crossOver(), compare_base(),
+ * API together with extensions such as crossOver(), compare_base(),
  * clone-aware push/insert/resize operations (for SharedPtrStorage), and a
  * type-filtered range view.
  *
  * The underlying storage strategy is chosen at compile time via the
  * @p storage_policy_type parameter:
  *  - PodStorage<T>         — for POD element types (equivalent to GPODVectorT)
- *  - SharedPtrStorage<T>   — for polymorphic Geneva objects (equivalent to
+ *  - SharedPtrStorage<T>   — for polymorphic objects (equivalent to
  *                             GPtrVectorT)
  *
  * Container-capability concepts (HasContiguousStorage, HasCapacity,
@@ -806,10 +806,10 @@ public:
 
     /**
      * @brief Transitional overload for unique_ptr storage: appends an INDEPENDENT deep clone of a
-     * shared_ptr-held object. This lets code that still builds elements as shared_ptr (e.g. a genome
-     * built with push_back(std::make_shared<...>())) keep working while the container owns its elements
-     * by unique_ptr. The shared_ptr is only read; the container stores a clone. New code can instead
-     * push a std::unique_ptr (moved in) to avoid the clone.
+     * shared_ptr-held object. This lets code that still builds elements as shared_ptr (e.g. a
+     * container filled with push_back(std::make_shared<...>())) keep working while the container
+     * owns its elements by unique_ptr. The shared_ptr is only read; the container stores a clone.
+     * New code can instead push a std::unique_ptr (moved in) to avoid the clone.
      *
      * @tparam U The (derived-of-ValueType) pointee type of the supplied shared_ptr.
      * @param item A shared_ptr to a (derived-of-ValueType) object to clone into the container.
@@ -1270,7 +1270,7 @@ public:
         // Pre-build the inserted range: the original item_ptr first, followed by
         // (count-1) independent clones. The single range insert that follows
         // preserves the existing test contract that the original item_ptr ends up
-        // at exactly `pos` (see GTestIndividual1 "Test insert_clone, insert_noclone").
+        // at exactly `pos`.
         std::vector<StoredType> to_insert;
         to_insert.reserve(count);
         to_insert.push_back(std::move(item_ptr));
@@ -1525,7 +1525,7 @@ public:
     }
 
     // ------------------------------------------------------------------
-    // Geneva-specific operations
+    // Operations beyond the standard container
     // ------------------------------------------------------------------
 
     /**
@@ -1574,7 +1574,7 @@ public:
     /**
      * @brief Compares this container against @p cp according to expectation @p e.
      *
-     * Uses the Geneva GToken / compare_t infrastructure so that results
+     * Uses the GToken / compare_t infrastructure so that results
      * participate in the standard reporting chain.
      *
      * @param cp    The container to compare against.
@@ -1659,7 +1659,7 @@ template <typename T, typename container_type = std::vector<T>>
 using GPodContainerT = GContainerT<T, PodStorage<T, container_type>>;
 
 /**
- * @brief Convenience alias: a GContainerT for polymorphic Geneva objects
+ * @brief Convenience alias: a GContainerT for polymorphic objects
  *        held via shared_ptr, backed by @p container_type.
  *
  * Equivalent to the old GPtrVectorT but with an exchangeable backend.

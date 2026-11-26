@@ -31,13 +31,13 @@
 
 /**
  * @file
- * @brief The one manifest a runtime-loadable Geneva module exports.
+ * @brief The one manifest a runtime-loadable module exports.
  *
- * A module (an individual, an optimization algorithm, a consumer, ...) exports a single C entry
+ * A module exports a single C entry
  * point, @c gem_module_manifest(), returning a @c GemModuleManifest. The manifest carries the
  * toolchain-compatibility fingerprint (`GemCompat`, validated FIRST -- see GBuildFingerprint.hpp), the
  * module-ABI stamp (validated SECOND, see below) and a list of contributions. It is the ONLY module
- * convention the loader accepts (the earlier two-symbol individual convention has been retired).
+ * convention the loader accepts.
  *
  * Everything crossing the module boundary here is **plain C** (fixed-width integers, `const char*`, and a
  * `void*(*)()` factory thunk): the loader must read @c compat before it can trust any C++ type, so the
@@ -45,8 +45,8 @@
  * the handler of its @c kind reinterprets.
  *
  * @par Contribution kinds are names
- * A kind is a string with the prefix of the library that defines it and handles it:
- * "courtier.consumer", "geneva.individual", "geneva.oa", "geneva.marshaller". This header lists no
+ * A kind is a string with the prefix of the library that defines it and handles it, such as
+ * "mylib.solver". This header lists no
  * kind: each library states its own next to the helper that writes such a contribution, and a program
  * states at each load which kinds it accepts (Gem::Common::loadModule()); a kind it does not accept is
  * refused with the kinds it does.
@@ -64,9 +64,8 @@
  * @par When to bump GEM_MODULE_ABI_VERSION
  * Whenever an already-built module could misunderstand a manifest this header produces, i.e. on any
  * change to the layout of the two structs; to the name or meaning of a contribution kind;
- * or to the C++ type a kind's @c void* payload denotes or any class reachable from it (e.g.
- * redefining @c GOAProviderPtr, or changing the interface of the consumer provider a
- * @c GConsumerProviderPtr points at, or a type its functions take, such as @c ConsumerSpec). Also when
+ * or to the C++ type a kind's @c void* payload denotes or any class reachable from it (e.g. the
+ * interface of the provider the payload points at, or a type its functions take). Also when
  * state that a module and its host must share moves from the module into a library of the
  * collection: an older module would keep its own copy next to the library's (version 5: the MPI
  * module's environment moved into libgemfony-courtier-mpi; version 6: kinds became names). Adding a
@@ -120,7 +119,7 @@ extern "C" {
  * another item type before it calls the factory. Every other kind leaves @c subject null.
  */
 typedef struct GemContribution {
-    const char *kind;             /* NUL-terminated; "<library>.<kind>", e.g. "geneva.oa"       */
+    const char *kind;             /* NUL-terminated; "<library>.<kind>", e.g. "mylib.solver"    */
     const char *name_or_mnemonic; /* NUL-terminated; the mnemonic/name the host resolves by     */
     void *(*make_factory)(void);  /* returns the base factory ptr for `kind` (loader casts it)  */
     const char *subject;          /* consumer: typeid(item type).name(); NULL for other kinds   */
@@ -175,8 +174,8 @@ using gem_module_manifest_fn = const GemModuleManifest *();
 /**
  * @brief A structural, compile-time fixed string usable as a non-type template parameter (C++20/23).
  *
- * Lets the manifest author helpers (Geneva's individualManifest() / oaManifest(), for example) take
- * the config path and module/contribution name as template arguments (string literals), so a
+ * Lets the manifest author helpers of a library (a user such as Geneva's oaManifest(), for example)
+ * take the config path and module/contribution name as template arguments (string literals), so a
  * loadable module's manifest is an ordinary typed C++ construct rather than a preprocessor macro.
  * Shared by every kind's helper.
  */
@@ -205,9 +204,8 @@ struct GFixedString {
  *   }
  *
  * The extern "C" wrapper is irreducible (the loader resolves the fixed, unmangled symbol via dlsym); the
- * manifest itself is built by a typed helper of the library that defines the contribution kind (Geneva's
- * individualManifest<Factory, "config path", "Name">() for an individual, for example). A pointer return
- * keeps the extern "C" free of the class-return warning.
+ * manifest itself is built by a typed helper of the library that defines the contribution kind. A
+ * pointer return keeps the extern "C" free of the class-return warning.
  */
 
 /******************************************************************************/

@@ -73,7 +73,8 @@ namespace Gem::Courtier {
  * that turns the synchronous reconcile-the-span contract of GBaseConsumerT into the asynchronous,
  * checkout/return world of remote clients -- and it does so for MANY concurrent submitters at once
  * (the fan-in design), so several submitters can each submit to the SAME shared client pool
- * simultaneously (e.g. Geneva's meta-optimization over a population of inner algorithms).
+ * simultaneously (e.g. a user such as Geneva's meta-optimization over a population of inner
+ * algorithms).
  *
  *  - dispatch_(items) registers the round's items as a new BATCH (the scheduling state lives ON each
  *    item -- its dispatchState -- so there are no per-item side queues; each call BORROWS the caller's
@@ -156,15 +157,13 @@ public:
      * A result that arrives after its batch already finished/timed out is normally dropped (its
      * batch_id is no longer active). With this buffer enabled, such a late arrival -- a genuinely
      * distinct evaluation that simply came back too late to be used this round -- is parked instead
-     * of discarded, so the submitter can reap it via getLateReturns() (Geneva's
-     * GOptimizationAlgorithmBase enables it via enableLateReturns() and drains it through
-     * getLateReturns() in its getOldWorkItems()). The buffer is bounded two ways: @p cap (max items
-     * held; 0 DISABLES buffering, the default) and @p ttl_rounds (a held item is evicted after this
-     * many dispatch rounds). Each entry carries the dispatch-round "epoch" at which it was
-     * buffered, used only for TTL eviction; the batch id is a 40-bit, process-wide, non-wrapping
-     * counter, so a retired batch id is never re-minted and a buffered late return can never be
-     * confused with a fresh batch. Evictions (cap or TTL) are counted (lateReturnDroppedCount())
-     * and warned once -- never silently lost.
+     * of discarded, so the submitter can reap it via getLateReturns(). The buffer is bounded two
+     * ways: @p cap (max items held; 0 DISABLES buffering, the default) and @p ttl_rounds (a held
+     * item is evicted after this many dispatch rounds). Each entry carries the dispatch-round
+     * "epoch" at which it was buffered, used only for TTL eviction; the batch id is a 40-bit,
+     * process-wide, non-wrapping counter, so a retired batch id is never re-minted and a buffered
+     * late return can never be confused with a fresh batch. Evictions (cap or TTL) are counted
+     * (lateReturnDroppedCount()) and warned once -- never silently lost.
      *
      * Enabling this buffer ALSO makes dispatch_ retain a clone of every un-returned original
      * (keyed by correlation id, bounded by the same cap + ttl_rounds). A late return is parked only
@@ -219,7 +218,7 @@ public:
     }
 
     /** @brief GBaseConsumerT hook: drain the late-return buffer, transferring the held items to the
-     *  caller (the submitter; Geneva's algorithms reap them after each submission). FIFO / arrival
+     *  caller (the submitter, e.g. after each submission). FIFO / arrival
      *  order. Every parked item is a complete work item: a full late return with the retained state
      *  of its retained original grafted back, or a payload-only late return applied to the retained
      *  original it named on arrival (see setLateReturnBuffer()).
@@ -1128,10 +1127,9 @@ private:
     //     original is RETAINED (keyed by correlation id) so a late payload-only return can still be
     //     applied. Both live in one shared aging store (FIFO + keyed faces, one epoch + cap + TTL);
     //     the epoch advances once per retired batch. Disabled by default (cap == 0); when enabled,
-    //     the submitter's reaper (Geneva's GOptimizationAlgorithmBase, via enableLateReturns() /
-    //     getLateReturns()) drains the FIFO. The apply-or-drop policy and the drop accounting below
-    //     are the consumer's; the store is invoked under mtx_, so its operations stay consistent
-    //     with the batch bookkeeping. ---
+    //     the submitter's reaper (via enableLateReturns() / getLateReturns()) drains the FIFO. The
+    //     apply-or-drop policy and the drop accounting below are the consumer's; the store is
+    //     invoked under mtx_, so its operations stay consistent with the batch bookkeeping. ---
     Gem::Common::Concurrency::GAgingStoreT<Gem::Courtier::CORRELATION_ID_TYPE, item_ptr>
         late_store_;
     std::uint64_t late_dropped_count_ =

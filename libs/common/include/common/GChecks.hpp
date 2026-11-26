@@ -49,7 +49,7 @@
  * that a line is a check and not program logic:
  *
  *     Gem::Common::checkThat(pos < size(), "position ", pos, " is outside of [0, ", size(), "[");
- *     GEM_DEBUG_CHECK(std::ranges::all_of(...), "an individual is not processed");
+ *     GEM_DEBUG_CHECK(std::ranges::all_of(...), "an item is not processed");
  *
  * checkThat() is always on. It is for checks that cost little next to the work they guard: a
  * comparison, a size, a null test. GEM_DEBUG_CHECK() is on only in builds without NDEBUG (an

@@ -38,8 +38,8 @@ SET(COMMUNICATIONSOURCES
         )
 
 # The MPI consumer is header-only here (consumers/GMPIConsumerT.hpp, transport/GMPITransportT.hpp):
-# this library links no MPI. It is instantiated in Geneva's MPI module
-# (libgemfony-geneva-mpi), which is loaded at run time, so no program needs libmpi to start. What
+# this library links no MPI. Its user instantiates it, e.g. in a module loaded at run time (a user
+# such as Geneva's MPI module), so that no program needs libmpi to start. What
 # must exist once per process and calls MPI lives in courtier's MPI library (below). The MPI poll
 # and the transport's peers (GMPIPollCore.cpp, GMPIPeerTransport.cpp) are compiled here all the
 # same: they make their MPI calls through transport/GMPICallsI.hpp, whose binding to MPI is part of
@@ -128,10 +128,10 @@ INSTALL(TARGETS ${COURTIER_LIBNAME} EXPORT GenevaTargets DESTINATION ${INSTALL_P
 # the GMPICallsI of the poll in libgemfony-courtier), the MPI cascade (mpi/GMPICascade.cpp: a client
 # shares each evaluation with a group of MPI processes) with its polled waits
 # (mpi/GMPIPolledCalls.cpp), and the process's one MPI environment (mpi/GMPIEnvironmentAccess.cpp):
-# that state must be defined in exactly one shared object, so that a program, Geneva's MPI module
+# that state must be defined in exactly one shared object, so that a program, a module it loads
 # and any other library of the process share it, and it calls MPI, which libgemfony-courtier must
-# not link (tests/CheckNoDriverLink.cmake). Nothing links it unless it uses MPI: Geneva's MPI module
-# does, and so does a program that names the functions of courtier/mpi/. Its headers include mpi.h,
+# not link (tests/CheckNoDriverLink.cmake). Nothing links it unless it uses MPI: a module or a
+# program that names the functions of courtier/mpi/. Its headers include mpi.h,
 # so MPI is part of its interface.
 IF (GEM_BUILD_WITH_MPI_CONSUMER)
     ADD_LIBRARY(${COURTIER_MPI_LIBNAME} SHARED

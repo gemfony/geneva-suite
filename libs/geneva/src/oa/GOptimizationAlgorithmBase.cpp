@@ -1866,7 +1866,7 @@ void GOptimizationAlgorithmBase::setIndividualPersonalities() {
         // Decide post-processing eligibility HERE (the algorithm knows its own mnemonic) and veto it on
         // the work items this algorithm is not allowed to post-process -- so the individual carries no
         // knowledge of which algorithm owns it. The veto rides on the work item's processing metadata
-        // (where the post-processor already lives) and is consulted by GProcessingContainerT::postProcess_().
+        // (where the post-processor already lives) and is consulted by GGenome::postProcess_().
         auto pp = ind->postProcessor();
         if(pp) {
             auto post_processor = std::dynamic_pointer_cast<GPostProcessorBaseT<gen::GGenome>>(pp);

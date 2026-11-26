@@ -59,7 +59,7 @@ TARGET_COMPILE_DEFINITIONS(
 
 # Publish the include directory through the target so that both the in-tree build
 # and downstream consumers (via the exported Geneva::weft target) pick up the Weft
-# headers. PUBLIC so the requirement propagates to dependents (common links weft).
+# headers. PUBLIC so the requirement propagates to every library that links weft.
 TARGET_INCLUDE_DIRECTORIES(
     ${WEFT_LIBNAME}
     PUBLIC
@@ -67,10 +67,9 @@ TARGET_INCLUDE_DIRECTORIES(
     $<INSTALL_INTERFACE:include>
 )
 
-# Weft is the dependency-free foundation layer: it links NOTHING from Geneva
-# (common depends on weft, not the other way round). Its only external dependency
-# is Boost.JSON, used by the JSON codec. The C++ standard is selected centrally in
-# CMakeModules/CommonGemBuild.cmake.
+# Weft is the dependency-free foundation layer: it links NOTHING from Geneva.
+# Its only external dependency is Boost.JSON, used by the JSON codec. The C++ standard is selected
+# centrally in CMakeModules/CommonGemBuild.cmake.
 TARGET_LINK_LIBRARIES(
     ${WEFT_LIBNAME}
     PUBLIC

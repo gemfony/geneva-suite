@@ -45,20 +45,20 @@ namespace Gem::Common {
 
 /******************************************************************************/
 /**
- * @brief The JSON I/O facilities shared by every Geneva subsystem that reads or writes JSON.
+ * @brief The JSON I/O facilities for every part of a program that reads or writes JSON.
  *
  * This is the single seam over Boost.JSON. It provides the two things Boost.JSON does not offer
- * out of the box but which Geneva relies on:
+ * out of the box:
  *
- *  - a filesystem-path-aware parser that accepts the lenient dialect Geneva emits (comments and
+ *  - a filesystem-path-aware parser that accepts a lenient dialect (comments and
  *    trailing commas tolerated) and parses numbers with full round-trip precision, and
  *  - a pretty-printer that lays out every object member and every array element on its own line,
  *    so generated configuration files stay human-readable and hand-editable (in particular a
  *    `"comment"` array prints one comment line per line).
  *
  * Boost.JSON's own @c serialize() produces compact, single-line output with no pretty-printing,
- * which is why these helpers exist. All of Geneva's JSON producers (the configuration writer, the
- * individual-to-JSON dump, the external-evaluator protocol) route through prettyPrintJson().
+ * which is why these helpers exist. A JSON producer that routes through prettyPrintJson() gets the
+ * layout above; GParserBuilder's configuration writer does.
  */
 
 /******************************************************************************/
@@ -83,8 +83,9 @@ boost::json::value parseJsonFile(std::filesystem::path const &path);
 /**
  * @brief Writes @p jv to @p os as indented JSON, one object member / array element per line.
  *
- * Uses a four-space indent (matching Geneva's historical configuration layout). Empty objects and
- * arrays are emitted compactly (`{}` / `[]`). No trailing newline is appended (see writeJsonFile()).
+ * Uses a four-space indent (the layout of the configuration files GParserBuilder writes). Empty
+ * objects and arrays are emitted compactly (`{}` / `[]`). No trailing newline is appended (see
+ * writeJsonFile()).
  */
 void prettyPrintJson(std::ostream &os, boost::json::value const &jv);
 

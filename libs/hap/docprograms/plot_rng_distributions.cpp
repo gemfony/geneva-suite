@@ -42,7 +42,7 @@
  * program draws with, so the legend and the draws cannot disagree. The program also checks what the
  * manual's captions say of the draws, and fails if they do not hold: a real-valued range is
  * half-open, an integer range closed (with this many draws both of its bounds occur), a boolean
- * draw is 0 or 1. Geneva's random numbers are not reproducible (DEVELOPMENT-INVARIANTS.md,
+ * draw is 0 or 1. Hap's random numbers are not reproducible (DEVELOPMENT-INVARIANTS.md,
  * Invariant 18): every run draws other numbers.
  */
 

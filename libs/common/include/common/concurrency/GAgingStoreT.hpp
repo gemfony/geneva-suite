@@ -60,14 +60,14 @@ namespace Gem::Common::Concurrency {
  * to @c cap entries (the oldest by epoch evicted first -- FIFO front for the queue, min-epoch for the
  * map). @c cap @c == @c 0 disables retention (the parked face holds nothing).
  *
- * This was lifted from the courtier networked-consumer late-return facility, where a result that arrives
- * after its batch retired is @e parked for the algorithm to reap, and a clone of each un-returned
- * original is @e retained (keyed by correlation id) so a late payload-only return can still be applied.
- * That domain policy (graft-or-drop, drop accounting) stays in the consumer; this primitive owns only
- * the two aging containers and their eviction. All operations are individually atomic; callers that need
- * a compound action atomic with @e their own state (e.g. retiring a batch while retaining its originals)
- * simply invoke these methods while holding that outer lock -- the consistent lock order (outer then this
- * store's lock, never the reverse) keeps that safe.
+ * A typical use: a result that arrives after its batch retired is @e parked for a reader to reap,
+ * and a clone of each un-returned original is @e retained (keyed by correlation id) so a late
+ * return that carries only a payload can still be applied. The domain policy stays with the user;
+ * this primitive owns only the two aging containers and their eviction. All operations are
+ * individually atomic; callers that need a compound action atomic with @e their own state (e.g.
+ * retiring a batch while retaining its originals) simply invoke these methods while holding that
+ * outer lock -- the consistent lock order (outer then this store's lock, never the reverse) keeps
+ * that safe.
  *
  * @tparam key_type   The key type of the keyed face
  * @tparam value_type The stored value type (may be move-only, e.g. a unique_ptr)

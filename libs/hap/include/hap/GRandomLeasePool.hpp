@@ -47,9 +47,9 @@ namespace Gem::Hap {
 /**
  * @brief A process-wide pool of reusable RNG proxies, leased for one unit of work at a time.
  *
- * This replaces a random engine per data object (Geneva's individuals each carried one). A data
- * object owns no RNG state; whenever an @e external operation needs randomness on it (in Geneva:
- * adaption, random initialization, cross-over position) it leases a proxy from this pool for the
+ * This replaces a random engine per data object. A data object owns no RNG state; whenever an
+ * @e external operation needs randomness on it (in a user such as Geneva: the adaption of an
+ * individual) it leases a proxy from this pool for the
  * duration of the operation and returns it automatically (RAII). Consequently the number of live
  * proxies is bounded by the @b peak concurrency (O(worker threads)), not by the number of objects
  * (which was the bound when every object carried its own proxy). Under the @c QUEUE source a proxy

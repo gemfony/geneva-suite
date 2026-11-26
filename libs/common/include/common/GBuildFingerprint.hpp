@@ -33,7 +33,7 @@
  * @file
  * @brief The Geneva toolchain-compatibility fingerprint (`GemCompat`).
  *
- * A runtime-loadable module (in Geneva: an individual, an optimization algorithm, a consumer) is an
+ * A runtime-loadable module (one that GModuleLoader loads) is an
  * in-process C++ shared object that shares vtables, inline code and the GArchive type registry with
  * the host. Two such `.so`s are only ABI-compatible if they were built with a compatible toolchain:
  * same compiler family/version, same standard library, same `_GLIBCXX_USE_CXX11_ABI`, same Boost,

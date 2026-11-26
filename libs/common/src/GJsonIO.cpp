@@ -43,9 +43,9 @@ namespace {
 
 /******************************************************************************/
 /**
- * The parse options Geneva uses for every JSON document it reads. Comments and trailing commas are
- * tolerated so that hand-edited configuration files remain forgiving, and numbers are parsed with
- * full precision so a floating-point value round-trips exactly.
+ * The parse options used for every JSON document read through these helpers. Comments and trailing
+ * commas are tolerated so that hand-edited configuration files remain forgiving, and numbers are
+ * parsed with full precision so a floating-point value round-trips exactly.
  *
  * @return The shared parse options
  */

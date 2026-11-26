@@ -52,12 +52,11 @@ namespace Gem::Common::Concurrency {
  * @brief A fill/compute-once-then-immutable cell: one payload written exactly once, thereafter read
  * lock-free by any number of concurrent readers.
  *
- * This is the single home for the "single writer, many lock-free readers" idiom that recurred three times
- * across the tree (the load-once problem store, the lazily-cached genome-layout content id, and the
- * build-once shared genome in the flat-individual factory) -- each of which hand-rolled its own
- * @c std::once_flag / @c std::atomic / @c mutex combination. Concentrating the mechanism here keeps those
- * sites Inv-2 compliant (concurrency primitives come only from @c common/concurrency/) and gives every
- * "immutable-after-load constant" one properly-homed facility.
+ * This is the single home for the "single writer, many lock-free readers" idiom (a value loaded or
+ * computed once, such as a content id cached on first use), which would otherwise be hand-rolled
+ * from @c std::once_flag / @c std::atomic / @c mutex at each site. Concentrating the mechanism here
+ * keeps those sites Inv-2 compliant (concurrency primitives come only from @c common/concurrency/)
+ * and gives every "immutable-after-load constant" one properly-homed facility.
  *
  * Two access flavours share the same one-time fill (guarded by a single mutex, so concurrent first calls
  * are serialised and only one producer wins):

@@ -31,7 +31,7 @@
 
 /**
  * @file
- * @brief Umbrella header re-exporting the full Geneva plotting stack.
+ * @brief Umbrella header re-exporting the full dietrich plotting stack.
  *
  * The plotting code is split into focused headers under dietrich/plotting/. This umbrella keeps
  * a single \#include "dietrich/GPlotDesigner.hpp" working; it pulls in the full plotting stack (each

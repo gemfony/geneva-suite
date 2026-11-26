@@ -43,8 +43,8 @@ namespace Gem::Common {
  * @brief The commit of the Geneva sources this library was built from: the 40 hexadecimal digits
  * of the git commit id, followed by "-dirty" when tracked files differed from that commit.
  *
- * A server of the networked consumers names it in the HELLO it greets each client with, and a
- * client built from another commit ends (courtier/GWireCodec.hpp). The build takes it at configure
+ * A program can compare it with the commit of a peer, so that parts of a distributed run built from
+ * different commits do not work together. The build takes it at configure
  * time and again at every build, from git or from the file GEM_COMMIT at the top of the sources
  * (CMakeModules/GemCommit.cmake says how; a tree without either does not configure). The
  * definition is a source the build writes into the build directory.
@@ -58,11 +58,10 @@ namespace Gem::Common {
  * @brief Sets the identity of the user's program: a text that names its build, by default the
  * commit of the program's own sources.
  *
- * A server of the networked consumers names it in its HELLO beside gemCommit(), and a client
- * whose program has another identity ends; where one side has none, the program is not checked
- * (courtier/GWireCodec.hpp). A program is stamped by Geneva's CMake support (GEM_STAMP_PROGRAM,
- * CMakeModules/GemProgramStamp.cmake), which calls this function from a static object before
- * main(); a program may also call it itself.
+ * A program can compare it with the identity of a peer, beside gemCommit(); where one side has
+ * none, there is nothing to compare. A program is stamped by the collection's CMake support
+ * (GEM_STAMP_PROGRAM, CMakeModules/GemProgramStamp.cmake), which calls this function from a static
+ * object before main(); a program may also call it itself.
  *
  * The identity is one string per process and holds no lock: it is set before a consumer is made,
  * and read only afterwards (by the consumer's threads). Setting it while a consumer runs is outside

@@ -32,8 +32,8 @@ result through any backend:
 
 - **`GDataLog`** (the modern, plotter-object-free API): declare each plot as a
   `GPlotSpec` value (`declareSeries` / `overlaySeries`), append data rows
-  (`append`), then `writeToFile`. Geneva's monitors describe their plots this way and
-  hand the log, without data, to a **`GPlotSink`**: the sink of common's recorder
+  (`append`), then `writeToFile`. A log without data can also be handed to a
+  **`GPlotSink`**: the sink of common's recorder
   (`Gem::Common::Record`) that fills the series from the columns of a stream and writes
   the plot when the stream ends.
 - **The plotter objects** (`GGraph2D`, `GHistogram2D`, `GPlotDesigner`, …): the
@@ -52,7 +52,7 @@ Everything lives in the **`Gem::Dietrich`** namespace. The umbrella header
 - The **tests and demos may additionally use `hap`** to generate data to plot; `hap`
   is never a dependency of the library itself.
 - Resulting layer order: `common <- dietrich`, with `dietrich` a leaf peer of `hap`
-  on top of `common`, consumed by `geneva`.
+  on top of `common`.
 
 ## Layout
 

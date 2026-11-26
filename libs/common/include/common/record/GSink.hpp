@@ -67,8 +67,7 @@ struct GStreamInfo {
  * called, and then also when open() threw (a sink must tolerate that). A sink therefore needs no lock of its own. It reports a failure by throwing; the stream
  * passes the exception on to the caller of append() or close().
  *
- * The framework ships GCsvSink and GJsonLinesSink; dietrich adds a plot sink (GPlotSink). A
- * program may add its own.
+ * The framework ships GCsvSink and GJsonLinesSink. Another library or a program may add its own.
  */
 class GSink {
 public:

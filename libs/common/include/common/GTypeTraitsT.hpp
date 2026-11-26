@@ -51,11 +51,10 @@ namespace Gem::Common {
 
 /******************************************************************************/
 /**
- * A concept for arithmetic types (integral or floating-point). The checked
- * numeric parameter classes in geneva/par constrain their template parameter
- * with it (alongside the standard std::floating_point / std::signed_integral
- * concepts), replacing the former in-body std::is_arithmetic_v static_assert
- * guards.
+ * A concept for arithmetic types (integral or floating-point), for constraining a
+ * template parameter (alongside the standard std::floating_point /
+ * std::signed_integral concepts) instead of an in-body std::is_arithmetic_v
+ * static_assert.
  *
  * @tparam T The type checked for being integral or floating-point
  */

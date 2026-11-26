@@ -27,10 +27,10 @@
 # collection for a list of contributors and copyright information.
 #
 # ******************************************************************************
-"""Render a Geneva data export (the DATA backend / GDataEmitter output) to an image.
+"""Render a dietrich data export (the DATA backend / GDataEmitter output) to an image.
 
 This is the EXTERNAL renderer of the data / plot-choice / plot-generation separation:
-Geneva's DATA backend writes the raw series data plus a self-describing manifest, and
+dietrich's DATA backend writes the raw series data plus a self-describing manifest, and
 this tool recombines them into a matplotlib figure. Rendering therefore lives entirely
 outside the C++ library -- format churn and new backends never touch libgemfony-common.
 
@@ -312,7 +312,7 @@ def render(canvas, series, output):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description="Render a Geneva data export to an image.")
+    parser = argparse.ArgumentParser(description="Render a dietrich data export to an image.")
     parser.add_argument("input", help="the .npz or .csv data export to render")
     parser.add_argument("-o", "--output", help="output image path (default: INPUT with .png)")
     args = parser.parse_args(argv)

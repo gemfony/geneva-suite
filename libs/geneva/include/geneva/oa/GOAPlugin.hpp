@@ -49,7 +49,8 @@ namespace Gem::Geneva {
 
 /******************************************************************************/
 /** @brief The kind of a module contribution that carries an optimization algorithm: a name with
- *  the prefix of the library that handles it (common/GModuleManifest.hpp). */
+ *  the prefix of the library that handles it (common/GModuleManifest.hpp). Redefining its payload,
+ *  @c GOAProviderPtr, bumps GEM_MODULE_ABI_VERSION. */
 inline constexpr const char *OA_CONTRIBUTION_KIND = "geneva.oa";
 
 /******************************************************************************/

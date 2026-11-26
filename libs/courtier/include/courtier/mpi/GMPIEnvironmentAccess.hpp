@@ -48,8 +48,8 @@
 /*
  * The one MPI environment of a process. Its state is defined in libgemfony-courtier-mpi (out of
  * tree: the target Geneva::courtier-mpi), a shared library, and so exists once in a process: the
- * program, Geneva's MPI module and any other library that call these functions share it, whatever
- * links what. A program that names them links that library.
+ * program, a module it loads (such as Geneva's MPI module) and any other library that call these
+ * functions share it, whatever links what. A program that names them links that library.
  */
 namespace Gem::Courtier {
 

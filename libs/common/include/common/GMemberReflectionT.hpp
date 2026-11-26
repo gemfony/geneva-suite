@@ -386,10 +386,10 @@ atomic_member_t<T> make_atomic_member(const char *name, T &ref) {
  *
  *  - a shared, immutable piece of metadata that several objects reference (identity lives in the
  *    per-object values, not in the shared handle), and whose wire representation, if any, the owning
- *    class emits through its OWN hand-written serialize() (e.g. GGenome's structural layout, which
- *    travels via a bespoke send-once-by-content-id protocol);
+ *    class emits through its OWN hand-written serialize() (e.g. a structural layout shared by many
+ *    objects that travels via a send-once-by-content-id protocol);
  *  - a transient marker set during (de)serialization that a load_()-based copy must propagate but
- *    that must not affect equality (e.g. GGenome's shared structural layout).
+ *    that must not affect equality (e.g. such a shared structural layout).
  *
  * @tparam T The (deduced) type of the referenced member
  * @param name The member's name (kept for symmetry / diagnostics; not emitted, as the member is not serialized here)
@@ -407,9 +407,9 @@ load_only_member_t<T> make_load_only_member(const char *name, T &ref) {
  * A transient member is copied when one object is loaded from another and IS part of the object's
  * comparable identity, yet is deliberately NOT serialized -- it is per-run / per-iteration state that
  * must never be persisted to a checkpoint or sent over the wire, but that two live objects are only
- * equal if they agree on (e.g. an optimization algorithm's transient best-of-this-iteration priority
- * queue). It differs from a load-only member only on the compare axis: load-only skips comparison,
- * transient participates in it.
+ * equal if they agree on (e.g. a transient priority queue of the best items of the current
+ * iteration). It differs from a load-only member only on the compare axis: load-only skips
+ * comparison, transient participates in it.
  *
  * The member is plain-assigned on load, relying on its own type's operator= (which, for a value-type
  * holding cloneable pointers, performs the appropriate deep copy).

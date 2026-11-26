@@ -132,7 +132,15 @@ public:
      *  consumer, to the stream "courtier" of the recorder (Gem::Common::Record), and closes the
      *  stream, so the file is complete at once. A consumer without figures records nothing (and so
      *  creates no file). courtier's launcher calls it when it releases its consumer, also after an
-     *  exception or a stop request.
+     *  exception or a stop request. A program may draw the report as well, with a plot sink of
+     *  dietrich added to the stream before it is declared:
+     *  @code
+     *  Gem::Dietrich::GDataLog layout("End of run", 1, 1);
+     *  Gem::Dietrich::GPlotSpec spec(Gem::Dietrich::plotKind::graph_2d);
+     *  spec.columns = {"requeued", "dropped_returns"};
+     *  layout.declareSeries(spec);
+     *  recorder().addSink("courtier", std::make_shared<Gem::Dietrich::GPlotSink>(layout));
+     *  @endcode
      *  @param consumer The name of the consumer (its mnemonic) */
     void recordEndOfRun(std::string const &consumer) const {
         figures_type figures = this->endOfRunFigures();

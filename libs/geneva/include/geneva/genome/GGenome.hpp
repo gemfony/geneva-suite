@@ -106,6 +106,10 @@ namespace Gem::Geneva::Genome {
  *
  * Feasibility is a concrete operation on the base (GGenome::fulfillsConstraints), reading this
  * genome's values through the shared GProblemPolicy's constraint -- the genome adds no feasibility hook.
+ *
+ * As courtier's work item, GGenome derives Gem::Courtier::GProcessable directly, not courtier's
+ * GProcessingContainerT: it supplies its own result store and process(), which add the steps of an
+ * optimization (feasibility, the evaluation policy, multi-criterion fitness).
  */
 class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Courtier::GProcessable

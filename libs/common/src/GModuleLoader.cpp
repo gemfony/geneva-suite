@@ -323,8 +323,7 @@ const GemModuleManifest *openModuleLocked(const std::string &path_str, std::stri
 /** @brief The kinds a caller accepts, as the messages list them: "\"<kind>\" (<noun>)", joined
  *  with ", ", in the order the handlers were given.
  *  @param handlers The caller's handlers
- *  @return The list, e.g. "\"geneva.individual\" (individual), \"geneva.oa\" (optimization
- *  algorithm)" */
+ *  @return The list, e.g. "\"mylib.solver\" (solver), \"mylib.reader\" (reader)" */
 std::string describeKinds(std::span<const GContributionHandler> handlers) {
     std::ostringstream os;
     bool first = true;

@@ -219,7 +219,7 @@ ensureProcessConsumer(const std::optional<GConsumerModules> &location);
 
 /******************************************************************************/
 /**
- * @brief What a library that produces work (Geneva, for example) says about itself to the
+ * @brief What a library that produces work (a user such as Geneva) says about itself to the
  * launcher. Every function is called in every process, in the order of the launcher's steps
  * (GLauncherT::run()); all do nothing by default.
  */
@@ -273,9 +273,9 @@ public:
  * line say where and how it is processed.
  *
  * run() first installs the handlers of a stop request (Gem::Common::installStopHandlers()), in
- * every process: a producer that asks for it ends its work cleanly (in Geneva, after the current
- * iteration); a client or MPI worker goes on serving. Then it goes through these steps, in every
- * process:
+ * every process: a producer that asks for it ends its work cleanly (a user such as Geneva's
+ * algorithms after the current iteration); a client or MPI worker goes on serving. Then it goes
+ * through these steps, in every process:
  *  1. --update-configs: configuration emission is begun, the consumer is the default one, the
  *     process is the submitter (no role is asked for);
  *  2. the configuration file (keys "consumer", "module_paths", the description's);

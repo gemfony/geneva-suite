@@ -50,11 +50,9 @@ class GParserBuilder;
  * in how provide() is implemented:
  *
  *  - a provider that wraps a config-file-driven factory produces a freshly
- *    configured object on every call (many instances per run; Geneva's
- *    optimization algorithms, for example);
+ *    configured object on every call (many instances per run);
  *  - a provider that wraps a single prototype instance returns that same instance
- *    on every call (one instance per run, used in place; courtier's consumers,
- *    for example).
+ *    on every call (one instance per run, used in place).
  *
  * The remaining methods (getMnemonic / getName / addCLOptions) expose metadata
  * and command-line options without producing an object, which is what the help

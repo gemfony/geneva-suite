@@ -158,7 +158,7 @@ bool GThreadPool::enqueue(std::move_only_function<void()> task) {
  */
 namespace {
 // True while THIS thread is executing a task inside a GThreadPool worker loop. Thread-local, so it
-// reflects only the current thread. Set around each task so nested work (e.g. a sub-optimizer started
+// reflects only the current thread. Set around each task so nested work (e.g. a computation started
 // from within a task) can detect that it is already running on a pool worker.
 thread_local bool t_in_worker_thread = false;
 } // namespace
@@ -166,7 +166,7 @@ thread_local bool t_in_worker_thread = false;
 /**
  * @brief Reports whether the calling thread is currently executing inside a pool worker loop.
  *
- * Lets nested work (e.g. a sub-optimizer launched from within a task) detect that it is
+ * Lets nested work (e.g. a computation launched from within a task) detect that it is
  * already running on a pool worker, so it can avoid re-submitting to the same pool.
  *
  * @return true if the current thread is a GThreadPool worker running a task, false otherwise
