@@ -67,8 +67,8 @@ namespace Gem::Courtier {
  *  - every frame: its kind;
  *  - WORK and RESULT: the library's tag and the GProcessingOutcome, which names the item (its
  *    correlation id and lineage id) and, on a RESULT, says how its processing ended;
- *  - HELLO: the server's build (the commit of its Geneva sources), the identity of its program and
- *    the keep-alive interval.
+ *  - HELLO: the server's build (the commit of its Geneva sources), the identity of its program,
+ *    the keep-alive interval and the release of Geneva (GEM_VERSION_STRING).
  *
  * A client reads the HELLO of a server of another release, so that it can say that the two do not
  * match. The kind and the fields of a HELLO therefore keep their order and their binary layout
@@ -106,6 +106,7 @@ struct GFrameHead {
             archive_named(ar, "build", build);
             archive_named(ar, "program", program);
             archive_named(ar, "keepAlive", keepAlive);
+            archive_named(ar, "release", release);
         }
     }
     ///////////////////////////////////////////////////////////////////////
@@ -116,6 +117,7 @@ struct GFrameHead {
     std::string build;                 ///< HELLO: the server's build (its Geneva commit)
     std::string program;               ///< HELLO: the identity of the server's program ("": none)
     std::uint64_t keepAlive{0};        ///< HELLO: the keep-alive interval in ms (0: none)
+    std::string release;               ///< HELLO: the server's Geneva release ("": not named)
 };
 
 /******************************************************************************************/
@@ -235,14 +237,22 @@ public:
         return head_.outcome;
     }
 
-    /** @brief Makes the frame a HELLO with a build, a program identity and a keep-alive interval
+    /** @brief Makes the frame a HELLO with a build, a program identity, a keep-alive interval and
+     *  a release
      *  @param build The server's build (the commit of its Geneva sources)
      *  @param program The identity of the server's program (empty: none)
-     *  @param keep_alive The keep-alive interval of the connection (0: none) */
-    void setHello(std::string build, std::string program, std::chrono::milliseconds keep_alive) {
+     *  @param keep_alive The keep-alive interval of the connection (0: none)
+     *  @param release The server's Geneva release (GEM_VERSION_STRING) */
+    void setHello(
+        std::string build,
+        std::string program,
+        std::chrono::milliseconds keep_alive,
+        std::string release
+    ) {
         reset(GFrameKind::HELLO);
         head_.build = std::move(build);
         head_.program = std::move(program);
+        head_.release = std::move(release);
         head_.keepAlive =
             keep_alive.count() > 0 ? static_cast<std::uint64_t>(keep_alive.count()) : 0;
     }
@@ -253,6 +263,10 @@ public:
     /** @brief @return The identity of the program a HELLO announces (empty: none) */
     [[nodiscard]] const std::string &program() const noexcept {
         return head_.program;
+    }
+    /** @brief @return The Geneva release a HELLO names (empty: none) */
+    [[nodiscard]] const std::string &release() const noexcept {
+        return head_.release;
     }
     /** @brief @return The keep-alive interval a HELLO names (0: none) */
     [[nodiscard]] std::chrono::milliseconds keepAlive() const noexcept {

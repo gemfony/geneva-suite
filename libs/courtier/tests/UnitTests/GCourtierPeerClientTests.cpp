@@ -2366,6 +2366,8 @@ namespace {
 
 /// The commit a server of another build names in its HELLO (no build has it)
 constexpr std::string_view OTHER_COMMIT = "0123456789abcdef0123456789abcdef01234567-dirty";
+/// The Geneva release the test servers name in their HELLO
+constexpr std::string_view OTHER_VERSION = "0.0.1-other";
 
 /** @brief A listener whose server ends greet with a HELLO of a given build and program, and count
  *  what their clients send; and its threads */
@@ -2404,7 +2406,7 @@ public:
                             [weak, build, program] {
                                 if(auto end = weak.lock()) {
                                     GCommandContainerT<GFaultyContainer> hello{GFrameKind::NONE};
-                                    hello.setHello(build, program, 0ms);
+                                    hello.setHello(build, program, 0ms, std::string(OTHER_VERSION));
                                     end->send(
                                         Gem::Courtier::Consumers::makeMessage(
                                             Gem::Courtier::container_to_string(hello, BIN)
@@ -2509,6 +2511,7 @@ TEST_CASE(
     REQUIRE_NOTHROW(Gem::Courtier::container_from_string(hello, got, BIN));
     CHECK(got.kind() == GFrameKind::HELLO);
     CHECK(got.build() == Gem::Common::gemCommit());
+    CHECK(got.release() == GEM_VERSION_STRING);
     CHECK(Gem::Courtier::helloMismatch(got).empty());
 }
 
@@ -2536,6 +2539,7 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     CHECK(log->hasLineWith(
         {"The server was built from another commit",
          OTHER_COMMIT,
+         OTHER_VERSION,
          Gem::Common::gemCommit(),
          GEM_VERSION_STRING}
     ));

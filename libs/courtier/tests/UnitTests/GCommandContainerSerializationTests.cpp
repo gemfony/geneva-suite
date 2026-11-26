@@ -130,11 +130,12 @@ TEST_CASE(
         // --- the HELLO: a build, a program and the keep-alive interval in the head -----------
         {
             test_container_type sent{GFrameKind::NONE};
-            sent.setHello("1.2.3-test", "a program", std::chrono::milliseconds(2500));
+            sent.setHello("abc-test", "a program", std::chrono::milliseconds(2500), "1.2.3-test");
             test_container_type got{GFrameKind::NONE};
             REQUIRE_NOTHROW(container_from_string(container_to_string(sent, mode), got, mode));
             CHECK(got.kind() == GFrameKind::HELLO);
-            CHECK(got.build() == "1.2.3-test");
+            CHECK(got.build() == "abc-test");
+            CHECK(got.release() == "1.2.3-test");
             CHECK(got.program() == "a program");
             CHECK(got.keepAlive() == std::chrono::milliseconds(2500));
             CHECK(got.payloadEmpty());
@@ -213,7 +214,7 @@ TEST_CASE("A message whose kind is not a GFrameKind does not decode", "[courtier
 
         // The highest kind there is still decodes.
         test_container_type last{GFrameKind::NONE};
-        last.setHello("build", "", std::chrono::milliseconds::zero());
+        last.setHello("build", "", std::chrono::milliseconds::zero(), "0.0.0");
         REQUIRE_NOTHROW(container_from_string(container_to_string(last, mode), got, mode));
         CHECK(got.kind() == GFrameKind::HELLO);
     }
@@ -264,7 +265,7 @@ TEST_CASE("The head of a frame is read by itself", "[courtier][serialization]") 
 TEST_CASE("The binary layout of a HELLO is fixed", "[courtier][serialization]") {
     constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
     test_container_type sent{GFrameKind::NONE};
-    sent.setHello("B1", "P2", std::chrono::milliseconds(0x0102));
+    sent.setHello("B1", "P2", std::chrono::milliseconds(0x0102), "V3");
     const std::string message = container_to_string(sent, BIN);
 
     const std::string head_fields{
@@ -272,9 +273,11 @@ TEST_CASE("The binary layout of a HELLO is fixed", "[courtier][serialization]") 
         "\x02\x00\x00\x00\x00\x00\x00\x00"
         "B1" // build
         "\x02\x00\x00\x00\x00\x00\x00\x00"
-        "P2"                                // program
-        "\x02\x01\x00\x00\x00\x00\x00\x00", // keepAlive (ms)
-        30
+        "P2"                               // program
+        "\x02\x01\x00\x00\x00\x00\x00\x00" // keepAlive (ms)
+        "\x02\x00\x00\x00\x00\x00\x00\x00"
+        "V3", // release
+        40
     };
     REQUIRE(message.size() >= 4 + head_fields.size());
     CHECK(message.substr(4, head_fields.size()) == head_fields);
@@ -299,4 +302,5 @@ TEST_CASE("The binary layout of a HELLO is fixed", "[courtier][serialization]") 
     CHECK(got.build() == "B1");
     CHECK(got.program() == "P2");
     CHECK(got.keepAlive() == std::chrono::milliseconds(0x0102));
+    CHECK(got.release() == "V3");
 }

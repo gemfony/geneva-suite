@@ -69,10 +69,11 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  * Every message has a head, which is read first and by itself, and may have a payload:
  *  - HELLO is the first message of every connection, from the server: its build (the commit of the
  *    Geneva sources, Gem::Common::gemCommit()), the identity of its program
- *    (Gem::Common::programIdentity(), empty if it has none) and the keep-alive interval of the
- *    connection in milliseconds (0: none), which the server alone sets. A client built from another
- *    commit, or whose program has another identity, ends; one that matches takes the interval
- *    (GPeerI::setKeepAlive()).
+ *    (Gem::Common::programIdentity(), empty if it has none), the keep-alive interval of the
+ *    connection in milliseconds (0: none), which the server alone sets, and the Geneva release
+ *    (GEM_VERSION_STRING). A client built from another commit, or whose program has another
+ *    identity, ends; one that matches takes the interval (GPeerI::setKeepAlive()). The HELLO's
+ *    fields are only ever appended to (GFrameHead).
  *  - PULL asks for one item. The server answers every PULL with one WORK, in order; a server without
  *    work answers when work is there.
  *  - WORK carries an item; its head names the item (correlation id and lineage id, in the outcome),

@@ -820,8 +820,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   / `...UPPERBOUNDARYMSEC` are **removed**. The pauses, time limits and defaults of the networked
   consumers are named constants in `courtier/GCourtierEnums.hpp`.
 - **courtier: the frame protocol.** A connection begins with the server's greeting (`HELLO`: the
-  commit of the server's Geneva sources, `Gem::Common::gemCommit()`, and the keep-alive
-  interval); a client built from another commit ends with a message that names both commits.
+  commit of the server's Geneva sources, `Gem::Common::gemCommit()`, the keep-alive interval
+  and the Geneva release, `GEM_VERSION_STRING`); a client built from another commit ends with a
+  message that names both releases and both commits. The fields of the `HELLO` keep their binary
+  layout from release to release, and new ones are only appended, so that a client can read the
+  greeting of a server of another release.
   Every Geneva build knows its commit: from git (`-dirty` appended when a tracked file has
   changed), else from the file `GEM_COMMIT`, which `git archive` fills in and a build that
   copies the sources without `.git` writes (the container build: the build argument

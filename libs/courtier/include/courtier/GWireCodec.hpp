@@ -128,8 +128,8 @@ void wireDecodePayload(
 /**
  * @brief Server side: the HELLO a session sends first on every connection: this build (the commit
  * of the Geneva sources, Gem::Common::gemCommit()), the identity of this program
- * (Gem::Common::programIdentity(), empty if it has none) and the keep-alive interval of the
- * connection, which the client takes.
+ * (Gem::Common::programIdentity(), empty if it has none), the keep-alive interval of the
+ * connection, which the client takes, and the Geneva release (GEM_VERSION_STRING).
  * @tparam processable_type The payload type of the command container
  * @param ser_mode The serialization format to use
  * @param keep_alive The keep-alive interval of the server's ends (GListenerI::keepAlive(); 0: none)
@@ -142,7 +142,8 @@ buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds ke
     hello.setHello(
         std::string(Gem::Common::gemCommit()),
         std::string(Gem::Common::programIdentity()),
-        keep_alive
+        keep_alive,
+        std::string(GEM_VERSION_STRING)
     );
     return container_to_string(hello, ser_mode);
 }
@@ -150,7 +151,8 @@ buildHello(Gem::Common::serializationMode ser_mode, std::chrono::milliseconds ke
 /******************************************************************************/
 /**
  * @brief Client side: whether a HELLO names the same build as this process -- first the commit of
- * the Geneva sources, then the identity of the program, where both sides have one.
+ * the Geneva sources, then the identity of the program, where both sides have one. Another commit
+ * is told with the releases and the commits of both sides.
  * @tparam processable_type The payload type of the command container
  * @param hello A HELLO frame
  * @return Empty if they match; otherwise what differs, for the log
@@ -159,9 +161,12 @@ template <typename processable_type>
 std::string helloMismatch(const GCommandContainerT<processable_type> &hello) {
     const std::string_view own = Gem::Common::gemCommit();
     if(hello.build() != own) {
-        return "The server was built from another commit: the server's Geneva commit is " +
-               hello.build() + ", this client's (Geneva " + GEM_VERSION_STRING + ") is " +
-               std::string(own) + ". Server and client must be built from the same commit.";
+        const std::string other_version =
+            hello.release().empty() ? std::string("(release not named)") : hello.release();
+        return "The server was built from another commit: the server is Geneva " + other_version +
+               " of commit " + hello.build() + ", this client is Geneva " + GEM_VERSION_STRING +
+               " of commit " + std::string(own) +
+               ". Server and client must be built from the same commit.";
     }
     const std::string_view own_program = Gem::Common::programIdentity();
     if(own_program.empty() || hello.program().empty() || hello.program() == own_program) {
