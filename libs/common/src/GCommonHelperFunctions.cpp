@@ -40,6 +40,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <functional>
 #include <iomanip>
@@ -715,9 +716,12 @@ void replaceFileAtomically(
     std::function<void(std::ostream &)> const &write,
     std::string_view context
 ) {
-    // The same directory, so the same filesystem: the rename below is atomic there
+    // The same directory, so the same filesystem: the rename below is atomic there. A name of
+    // its own per call, so that writers of one target never share a temporary file; noreplace
+    // refuses a name that exists already instead of filling another writer's file.
     std::filesystem::path const tmp_path =
-        target.parent_path() / ("." + target.filename().string() + ".tmp");
+        target.parent_path() /
+        std::format(".{}.{:016x}.tmp", target.filename().string(), randomBits64());
     auto const fail = [&](std::string const &what) {
         std::error_code ignore;
         std::filesystem::remove(tmp_path, ignore);
@@ -728,9 +732,14 @@ void replaceFileAtomically(
     };
 
     {
-        std::ofstream ofs(tmp_path, std::ofstream::trunc);
+        std::ofstream ofs(tmp_path, std::ofstream::out | std::ofstream::noreplace);
         if(not ofs) {
-            fail("Could not open the temporary file " + tmp_path.string());
+            // Not fail(): removing the name could remove a file that is not ours
+            throw gem_exception(
+                g_error_streamer()
+                << "In " << context << ": Error!" << '\n'
+                << "Could not create the temporary file " << tmp_path.string() << '\n'
+            );
         }
         try {
             write(ofs);

@@ -199,11 +199,14 @@ bool backupExistingFile(const std::string &file_name, std::string_view context);
  * @brief Replaces a file as a whole: what @p write puts into the stream it is given becomes the
  * content of @p target, or nothing changes.
  *
- * @p write fills a temporary file beside @p target (".<name>.tmp" in the same directory, so on the
- * same filesystem), which is then renamed over @p target. A reader, and a process that is ended while
- * it writes, sees the old file or the new one, never a part of the new one. If @p write throws or the
+ * @p write fills a temporary file beside @p target (".<name>.<random>.tmp" in the same directory, so
+ * on the same filesystem), which is then renamed over @p target. A reader, and a process that is ended
+ * while it writes, sees the old file or the new one, never a part of the new one. Each call has a
+ * temporary file of its own, so several threads or processes may replace one target at the same time:
+ * the target then holds the whole content of the writer that renamed last. If @p write throws or the
  * stream fails, the temporary file is removed, @p target is left as it was and the error is passed on
- * (a failed stream as a gem_exception naming @p context).
+ * (a failed stream as a gem_exception naming @p context). Only a process that is ended while it
+ * writes leaves its temporary file behind.
  *
  * @param target The file to replace (it need not exist yet; its directory must)
  * @param write Writes the new content into the stream it is given
