@@ -2370,7 +2370,7 @@ constexpr std::string_view OTHER_COMMIT = "0123456789abcdef0123456789abcdef01234
 constexpr std::string_view OTHER_VERSION = "0.0.1-other";
 
 /** @brief A listener whose server ends greet with a HELLO of a given build and program, and count
- *  what their clients send; and its threads */
+ *  what their clients send, and the HELLOs of this build among it; and its threads */
 class GreetingServer {
 public:
     /**
@@ -2393,6 +2393,7 @@ public:
              program = std::move(program),
              end_after,
              received = received_,
+             hellos = hellos_,
              connections = connections_](const std::shared_ptr<GPeerI> &peer, GWirePeerId) {
                 const std::size_t connection = connections->fetch_add(1) + 1;
                 const GPeerClose how =
@@ -2414,10 +2415,20 @@ public:
                                     );
                                 }
                             },
-                        // NOLINTNEXTLINE(cppcoreguidelines-rvalue-reference-param-not-moved)
                         .onMessage =
-                            [weak, received, end_after, how](std::string &&) {
+                            [weak, received, hellos, end_after, how](std::string &&message) {
                                 received->fetch_add(1);
+                                GCommandContainerT<GFaultyContainer> frame{GFrameKind::NONE};
+                                try {
+                                    Gem::Courtier::frameHeadFromString(message, frame, BIN);
+                                }
+                                catch(...) { // NOLINT(bugprone-empty-catch) -- counted above
+                                }
+                                if(frame.kind() == GFrameKind::HELLO &&
+                                   frame.build() == Gem::Common::gemCommit() &&
+                                   frame.release() == GEM_VERSION_STRING) {
+                                    hellos->fetch_add(1);
+                                }
                                 if(auto end = weak.lock(); end && end_after > 0) {
                                     end->close(how);
                                 }
@@ -2450,12 +2461,18 @@ public:
     [[nodiscard]] std::size_t received() const {
         return received_->load();
     }
+    /** @brief @return How many of them were a HELLO of this build (a client that does not match) */
+    [[nodiscard]] std::size_t hellos() const {
+        return hellos_->load();
+    }
 
 private:
     IoThreads io_{2};
     std::shared_ptr<GInProcessListener> listener_ =
         std::make_shared<GInProcessListener>(GInProcessListener::Options{});
     std::shared_ptr<std::atomic<std::size_t>> received_ =
+        std::make_shared<std::atomic<std::size_t>>(0);
+    std::shared_ptr<std::atomic<std::size_t>> hellos_ =
         std::make_shared<std::atomic<std::size_t>>(0);
     std::shared_ptr<std::atomic<std::size_t>> connections_ =
         std::make_shared<std::atomic<std::size_t>>(0);
@@ -2534,7 +2551,8 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     CHECK(client->terminalErrorFlagged());
     CHECK(client->losses() == 0);
     CHECK(client->connections() == 1); // it did not come back
-    CHECK(other.received() == 0);      // and asked for nothing
+    CHECK(other.received() == 1);      // it asked for nothing,
+    CHECK(other.hellos() == 1);        // but said who it is
     // The log names both commits, and this build's version for the reader.
     CHECK(log->hasLineWith(
         {"The server was built from another commit",
@@ -2561,7 +2579,8 @@ TEST_CASE(
     const auto client = runClientAgainst(server);
     CHECK(client->terminalErrorFlagged());
     CHECK(client->connections() == 2); // it did not come back a third time
-    CHECK(server.received() == 1);     // and asked for nothing on the second
+    CHECK(server.received() == 2);     // a PULL on the first, on the second
+    CHECK(server.hellos() == 1);       // only its HELLO
     CHECK(log->hasLineWith({"The server was built from another commit", OTHER_COMMIT}));
     glogger.resetLogTargets();
 }
@@ -2607,7 +2626,8 @@ TEST_CASE(
         const auto client = runClientAgainst(server);
         CHECK(client->terminalErrorFlagged());
         CHECK(client->connections() == 1); // it did not come back
-        CHECK(server.received() == 0);     // and asked for nothing
+        CHECK(server.received() == 1);     // it asked for nothing,
+        CHECK(server.hellos() == 1);       // but said who it is
         CHECK(
             log->hasLineWith({"The server runs another program", "another program", "this program"})
         );

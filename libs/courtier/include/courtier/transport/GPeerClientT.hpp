@@ -98,7 +98,8 @@ struct GPeerClientOptions {
  *  - CONNECTING: the connector's attempt, the peer's start, the wait for the server's HELLO. A
  *    HELLO whose build (the Geneva commit) differs from this client's ends the client (a terminal
  *    error; it does not come back), and so does one whose program identity differs where both
- *    sides have one; where one side has none, the client says so once per run in its log. The
+ *    sides have one; before it closes, the client sends its own HELLO, so that the server can say
+ *    who left. Where one side has no identity, the client says so once per run in its log. The
  *    HELLO is the contact with a server; it names the keep-alive interval, which the client hands
  *    to its end (GPeerI::setKeepAlive()).
  *  - OPEN: the client keeps its items in flight -- PULLs without an answer, items held, items
@@ -543,6 +544,12 @@ private:
                     << mismatch << '\n'
                     << "This will terminate the client." << '\n'
                     << GLOGGING;
+            // The server learns why: this client's HELLO goes before the close (GPeerI.hpp, rule 6)
+            if(auto peer = peer_.lock()) {
+                peer->send(makeMessage(
+                    buildHello<processable_type>(options_.mode, std::chrono::milliseconds::zero())
+                ));
+            }
             this->flagTerminalError();
             this->beginEnding_(GPeerClose::ERROR);
             return;

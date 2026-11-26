@@ -72,7 +72,9 @@ namespace Gem::Courtier::Consumers {
  * connection.
  *
  * The protocol (GFrameKind). The session greets its client with HELLO when the connection opens;
- * it names the keep-alive interval of the server's ends, which the client takes.
+ * it names the keep-alive interval of the server's ends, which the client takes. A client of
+ * another build answers with its own HELLO and ends; the session logs that once, naming both
+ * builds, and serves nothing more.
  * It answers every PULL with one WORK, in order; a PULL that cannot be met at once is counted, the
  * session is parked with the consumer and answers when it is woken for an item that has become
  * available (see GNetworkedConsumerT::checkoutOrPark()). A RESULT is checked in by the ids in its
@@ -265,6 +267,9 @@ private:
         case GFrameKind::RESULT:
             this->checkIn_(payload);
             break;
+        case GFrameKind::HELLO:
+            this->clientRefused_(*peer);
+            return;
         default:
             this->protocolError_(
                 *peer,
@@ -310,6 +315,21 @@ private:
             this->forgetBlobs_(); // the client returned no result; it may lack a blob
         }
         hooks_.putPayloadItem(std::move(command_container_));
+    }
+
+    //-------------------------------------------------------------------------
+    /** @brief The HELLO of a client of another build, which ends (see the class comment): logged
+     *  once, with both builds; nothing more is served. @param peer The connection */
+    void clientRefused_(GPeerI &peer) {
+        const std::string mismatch = helloMismatch(command_container_, "client", "server");
+        if(mismatch.empty()) {
+            this->protocolError_(peer, "a HELLO from a client of this build");
+            return;
+        }
+        glogger << "GPeerSessionT<processable_type>: client " << peer_id_ << " has ended:" << '\n'
+                << mismatch << '\n'
+                << GWARNING;
+        stopping_ = true; // the client closes the connection
     }
 
     //-------------------------------------------------------------------------
@@ -471,8 +491,8 @@ private:
 
     std::size_t owed_replies_ = 0; ///< PULLs of the client that have no answer yet
     bool parked_ = false; ///< The consumer holds this session's wake function; nothing is served
-    /// The session closes its connection (an error, or the end of the run): nothing is answered or
-    /// served any more
+    /// The session closes its connection (an error, or the end of the run), or its client ends (it
+    /// is another build): nothing is answered or served any more
     bool stopping_ = false;
     bool signed_on_ = false; ///< start() has signed the session on (the destructor signs it off)
     bool spoke_ = false;     ///< A message of the client has been read (clientSpoke was called)

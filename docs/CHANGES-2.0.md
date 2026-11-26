@@ -822,7 +822,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **courtier: the frame protocol.** A connection begins with the server's greeting (`HELLO`: the
   commit of the server's Geneva sources, `Gem::Common::gemCommit()`, the keep-alive interval
   and the Geneva release, `GEM_VERSION_STRING`); a client built from another commit ends with a
-  message that names both releases and both commits. The fields of the `HELLO` keep their binary
+  message that names both releases and both commits; before it closes it sends its own `HELLO`,
+  and the server logs once which client has left, naming both builds. The fields of the `HELLO` keep their binary
   layout from release to release, and new ones are only appended, so that a client can read the
   greeting of a server of another release.
   Every Geneva build knows its commit: from git (`-dirty` appended when a tracked file has

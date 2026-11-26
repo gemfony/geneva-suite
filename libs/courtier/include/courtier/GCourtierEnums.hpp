@@ -72,7 +72,8 @@ enum class run_state : Gem::Common::ENUMBASETYPE {
  *    (Gem::Common::programIdentity(), empty if it has none), the keep-alive interval of the
  *    connection in milliseconds (0: none), which the server alone sets, and the Geneva release
  *    (GEM_VERSION_STRING). A client built from another commit, or whose program has another
- *    identity, ends; one that matches takes the interval (GPeerI::setKeepAlive()). The HELLO's
+ *    identity, ends -- after it has sent its own HELLO, so that the server logs both builds; one
+ *    that matches takes the interval (GPeerI::setKeepAlive()). The HELLO's
  *    fields are only ever appended to (GFrameHead).
  *  - PULL asks for one item. The server answers every PULL with one WORK, in order; a server without
  *    work answers when work is there.
@@ -92,7 +93,8 @@ enum class GFrameKind : Gem::Common::ENUMBASETYPE {
     PULL = 1,   ///< worker -> server: "give me one item"
     WORK = 3,   ///< server -> worker: a work item to process
     RESULT = 8, ///< worker -> server: a processed item's outcome
-    HELLO = 10  ///< server -> worker: the first message (build, keep-alive)
+    HELLO = 10  ///< server -> worker: the first message (build, keep-alive); worker -> server:
+                ///< the last one of a worker of another build
 };
 //! [courtier-frame-kind]
 
