@@ -71,7 +71,7 @@ class GPreEvaluationValidityCheckT // NOLINT(cppcoreguidelines-special-member-fu
     friend struct Gem::Common::GReflectiveInterfaceAccess;
     ///////////////////////////////////////////////////////////////////////
 
-    // A constraint reads the candidate's parameter values via the genome value API (streamlineFP), which
+    // A constraint reads the candidate's parameter values via the genome value API (fpParameterValues), which
     // lives on the algorithm-facing base GGenome. Every individual derives that base, so the
     // constraint is parameterised on it.
     static_assert(

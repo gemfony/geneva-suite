@@ -391,7 +391,7 @@ void GNelderMead::proposeTrials() {
         std::vector<double> vfit(n_vert);
         for(std::size_t v = 0; v < n_vert; v++) {
             auto &ind = this->at(vertexPos(s, v));
-            ind->streamlineFPInternal(vparm[v], activityMode::ACTIVEONLY);
+            vparm[v] = ind->internalFPValues(activityMode::ACTIVEONLY);
             // A vertex modified by a shrink in applyNelderMeadDecision() during
             // this same iteration has not been re-evaluated yet (its stored
             // result was invalidated). Parameters are always readable, but its
@@ -565,14 +565,12 @@ void GNelderMead::applyNelderMeadDecision() {
  */
 void GNelderMead::shrinkTowardsBest(std::size_t s, std::size_t b) {
     const std::size_t n_vert = n_fp_parms_first_ + 1;
-    std::vector<double> xb;
-    this->at(vertexPos(s, b))->streamlineFPInternal(xb, activityMode::ACTIVEONLY);
+    auto const xb = this->at(vertexPos(s, b))->internalFPValues(activityMode::ACTIVEONLY);
     for(std::size_t v = 0; v < n_vert; v++) {
         if(v == b) {
             continue;
         }
-        std::vector<double> xv;
-        this->at(vertexPos(s, v))->streamlineFPInternal(xv, activityMode::ACTIVEONLY);
+        auto xv = this->at(vertexPos(s, v))->internalFPValues(activityMode::ACTIVEONLY);
         for(std::size_t k = 0; k < n_fp_parms_first_; k++) {
             xv[k] = xb[k] + (sigma_ * (xv[k] - xb[k]));
         }
@@ -723,8 +721,7 @@ void GNelderMead::initRunState_() {
  */
 void GNelderMead::buildInitialSimplices() {
     for(std::size_t s = 0; s < n_simplices_; s++) {
-        std::vector<double> p0;
-        this->at(vertexPos(s, 0))->streamlineFPInternal(p0, activityMode::ACTIVEONLY);
+        auto const p0 = this->at(vertexPos(s, 0))->internalFPValues(activityMode::ACTIVEONLY);
 
         for(std::size_t v = 1; v <= n_fp_parms_first_; v++) {
             std::vector<double> p = p0;
@@ -778,7 +775,7 @@ bool GNelderMead::restartSimplices() {
         std::vector<double> vfit(n_vert);
         for(std::size_t v = 0; v < n_vert; v++) {
             auto &ind = this->at(vertexPos(s, v));
-            ind->streamlineFPInternal(vparm[v], activityMode::ACTIVEONLY);
+            vparm[v] = ind->internalFPValues(activityMode::ACTIVEONLY);
             vfit[v] = minOnly_transformed_fitness((*ind));
         }
         std::size_t b = 0;

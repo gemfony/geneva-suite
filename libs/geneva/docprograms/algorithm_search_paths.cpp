@@ -173,12 +173,11 @@ private:
             return;
         }
 
-        std::vector<double> parameters;
         for(const auto &ind_ptr : *goa) {
             if(not ind_ptr->is_processed()) {
                 continue; // an individual without results says nothing about the search yet
             }
-            ind_ptr->streamline<double>(parameters);
+            auto const parameters = ind_ptr->parameterValues<double>();
             const double fitness = ind_ptr->raw_fitness(0);
             log_->append(points_, parameters[0], parameters[1], map_z_);
             ++n_recorded_;

@@ -946,8 +946,7 @@ private:
         }
         auto probe = best->clone();
 
-        std::vector<fp_type> values;
-        probe->template streamline<fp_type>(values);
+        auto values = probe->template parameterValues<fp_type>();
         const std::size_t ix = fp_prof_var_vec_[0].index;
         const std::size_t iy = fp_prof_var_vec_[1].index;
         if(ix >= values.size() || iy >= values.size()) {

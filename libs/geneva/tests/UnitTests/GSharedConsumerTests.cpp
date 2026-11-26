@@ -82,8 +82,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -129,8 +128,7 @@ protected:
         inner->optimize();
 
         auto best = inner->getBestGlobalIndividual<InnerSphere>();
-        std::vector<double> v;
-        best->streamline<double>(v);
+        auto const v = best->parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -209,8 +207,7 @@ TEST_CASE(
             ea->optimize();
 
             auto best = ea->getBestGlobalIndividual<InnerSphere>();
-            std::vector<double> v;
-            best->streamline<double>(v);
+            auto const v = best->parameterValues<double>();
             double s = 0.;
             for(double const x : v) {
                 s += x * x;

@@ -71,8 +71,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline<double>(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -187,8 +186,7 @@ TEST_CASE(
         GAuxiliaryStore scratch;
         cfg.installInto(scratch);
 
-        std::vector<double> before;
-        ind.streamline<double>(before);
+        auto const before = ind.parameterValues<double>();
 
         std::size_t total = 0;
         for(int it = 0; it < 5; ++it) {
@@ -197,16 +195,14 @@ TEST_CASE(
         CHECK(total > 0); // ad_prob == 1 over several iterations -> something adapts
 
         // The folded (external) double values stay strictly within [-5, 5).
-        std::vector<double> after;
-        ind.streamline<double>(after);
+        auto const after = ind.parameterValues<double>();
         REQUIRE(after.size() == before.size());
         for(double const x : after) {
             CHECK(x >= -5.);
             CHECK(x < 5.);
         }
         // Integer values fold into the closed range [-10, 10].
-        std::vector<std::int32_t> iv;
-        ind.streamline<std::int32_t>(iv);
+        auto const iv = ind.parameterValues<std::int32_t>();
         for(std::int32_t const x : iv) {
             CHECK(x >= -10);
             CHECK(x <= 10);

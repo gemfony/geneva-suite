@@ -188,9 +188,7 @@ GParaboloidIndividual2D::~GParaboloidIndividual2D() { /* nothing */
 // clang-format off
 //! [problem-evaluate]
 std::vector<double> GParaboloidIndividual2D::evaluate() {
-    std::vector<double> parVec; // Will hold the parameters
-
-    this->streamline(parVec); // Retrieve the (external) parameters
+    auto const parVec = this->parameterValues<double>(); // Retrieve the (external) parameters
 
     // Do the actual calculation (a single criterion -> a one-element result vector)
     return {std::ranges::fold_left(

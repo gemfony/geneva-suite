@@ -105,8 +105,7 @@ int main(int argc, char **argv) {
             auto best = go.optimize().getBestGlobalIndividual<Genome::GGenome>();
             const auto [raw, transformed] = best->getFitnessTuple();
 
-            std::vector<double> v;
-            best->streamline<double>(v);
+            auto const v = best->parameterValues<double>();
 
             std::cout << "Best result found (raw fitness = " << raw << "):" << '\n';
             for(auto const &[i, x] : std::views::enumerate(v)) {

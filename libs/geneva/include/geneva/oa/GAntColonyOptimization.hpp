@@ -261,7 +261,7 @@ protected:
  *       wheel), exactly as the swarm and sep-CMA-ES strategies draw their
  *       randomness;</li>
  *   <li>candidate parameters are read and written through the standard flat
- *       genome FP channels (streamlineFPInternal, assignFPValueVectorInternal) with
+ *       genome FP channels (internalFPValues, assignFPValueVectorInternal) with
  *       activityMode::ACTIVEONLY, and the population is evaluated through the one
  *       process consumer via workOnPopulation(), mirroring the other from-scratch
  *       flat-genome optimizers (e.g. GSepCmaEvolutionStrategy, GStandardPSO2011).</li>

@@ -96,8 +96,7 @@ GParaboloidGroupIndividual::buildAdaptionConfig(const gen::GGenome &sample) {
  * @return The fitness
  */
 std::vector<double> GParaboloidGroupIndividual::evaluate() {
-    std::vector<double> parameters;
-    this->streamline(parameters);
+    auto const parameters = this->parameterValues<double>();
     return {sumOfSquares(parameters, DELAYPERPARAMETER)};
 }
 

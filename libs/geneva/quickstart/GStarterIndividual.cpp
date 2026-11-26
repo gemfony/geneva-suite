@@ -154,8 +154,7 @@ std::string GStarterIndividual::print() {
     std::ostringstream result;
 
     // Retrieve the parameters
-    std::vector<double> parVec;
-    this->streamline(parVec);
+    auto const parVec = this->parameterValues<double>();
 
     result << "GStarterIndividual with target function "
            << (targetFunction_ == targetFunction::PARABOLA ? " PARABOLA"
@@ -182,8 +181,7 @@ std::string GStarterIndividual::print() {
 //! [quickstart-evaluate]
 std::vector<double> GStarterIndividual::evaluate() {
     // Retrieve the parameters
-    std::vector<double> parVec;
-    this->streamline(parVec);
+    auto const parVec = this->parameterValues<double>();
 
     // Perform the actual calculation
     switch(targetFunction_) {

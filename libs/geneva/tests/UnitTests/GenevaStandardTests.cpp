@@ -1051,9 +1051,9 @@ MetaSearchSpace producedSearchSpace(std::filesystem::path const &config_file) {
     auto p = factory.get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
 
     MetaSearchSpace s;
-    p->streamline<std::int32_t>(s.int_values);
+    s.int_values = p->parameterValues<std::int32_t>();
     p->boundaries<std::int32_t>(s.int_lower, s.int_upper);
-    p->streamline<double>(s.values);
+    s.values = p->parameterValues<double>();
     p->boundaries<double>(s.lower, s.upper);
     return s;
 }

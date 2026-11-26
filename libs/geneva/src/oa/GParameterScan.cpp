@@ -358,20 +358,15 @@ void GParameterScan::updateSelectedParameters() {
         std::shared_ptr<parSet> const p_s = getParameterSet();
 
         {
-            std::vector<bool> b_data;
-            std::vector<std::int32_t> i_data;
-            std::vector<float> f_data;
-            std::vector<double> d_data;
-
             // Fill the parameter set data into the current individual.
             // Read/write the parameter values through the genome-agnostic value channels.
             auto &ind = (*this->at(ind_pos));
 
             // Retrieve the parameter vectors
-            ind.streamline<bool>(b_data);
-            ind.streamline<std::int32_t>(i_data);
-            ind.streamline<float>(f_data);
-            ind.streamline<double>(d_data);
+            auto b_data = ind.parameterValues<bool>();
+            auto i_data = ind.parameterValues<std::int32_t>();
+            auto f_data = ind.parameterValues<float>();
+            auto d_data = ind.parameterValues<double>();
 
             // Add the data items from the parSet object to the vectors
 

@@ -93,8 +93,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->streamline(v);
+        auto const v = this->parameterValues<double>();
         return {std::ranges::fold_left(
             v | std::views::transform([](double x) { return x * x; }),
             0.,
@@ -296,16 +295,14 @@ int main(int argc, char **argv) {
     {
         GDemoIndividual ind;
 
-        std::vector<double> dvals;
-        ind.streamline(dvals);
+        auto const dvals = ind.parameterValues<double>();
         std::cout << "GDemoIndividual double values: ";
         for(double const v : dvals) {
             std::cout << v << ' ';
         }
         std::cout << '\n';
 
-        std::vector<std::int32_t> ivals;
-        ind.streamline(ivals);
+        auto const ivals = ind.parameterValues<std::int32_t>();
         std::cout << "GDemoIndividual int32 values: ";
         for(std::int32_t const v : ivals) {
             std::cout << v << ' ';
@@ -325,8 +322,7 @@ int main(int argc, char **argv) {
         // individual drives them via a self-owned scratch + the config it authors (StandaloneAdapter).
         // We expect changes.
         oa::StandaloneAdapter(ind, ind.getAdaptionConfig()).adapt(ind);
-        std::vector<double> after;
-        ind.streamline(after);
+        auto const after = ind.parameterValues<double>();
         std::cout << "GDemoIndividual double values after adapt(): ";
         for(double const v : after) {
             std::cout << v << ' ';

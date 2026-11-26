@@ -147,7 +147,7 @@ gen::GenomeData GImageIndividual::buildGenome(const Config &c) {
     validateBuildGenomeConfig(c);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Build the flat genome via GGenomeBuilder. The streamline order is a positional contract --
+    // Build the flat genome via GGenomeBuilder. The parameter order is a positional contract --
     // per triangle: cx, cy, radius, angle1..3, r, g, b, a (10 values), then the 3 background colours --
     // so getTriangleData() / getBackGroundColor() / the GPU marshaller read it positionally and the
     // rasteriser matches. Every value is a constrained gimage_fp_t with its own Gauss group; the
@@ -333,9 +333,8 @@ bool GImageIndividual::getMutateAlphaChannel() const {
 	 */
 std::vector<CircleTriangle> GImageIndividual::getTriangleData() const {
     // The flat genome stores 10 contiguous values per triangle in the canonical render order, so each
-    // triangle's fields are read positionally from the streamlined value array (10*nTriangles + 3 bg).
-    std::vector<gimage_fp_t> parVec;
-    this->streamline(parVec);
+    // triangle's fields are read positionally from the parameter values (10*nTriangles + 3 bg).
+    auto const parVec = this->parameterValues<gimage_fp_t>();
 
     // 10 values per triangle and the background color
     Gem::Common::checkThat(
@@ -384,14 +383,13 @@ std::vector<CircleTriangle> GImageIndividual::getTriangleData() const {
  * (Gem::Geneva::MonaLisa::score, shared in GMonaLisaProblem.hpp). This makes the individual evaluable purely
  * on the CPU -- to cross-check the GPU result and compare speed -- while the GGPUConsumer path uses the device
  * kernel. Requires the target image to have been loaded (Gem::Geneva::MonaLisa::loadTarget) beforehand. The
- * genome scalar type is selected at compile time (gimage_fp_t); streamline<gimage_fp_t> is required --
- * streamline<float> collects nothing from a double genome and vice-versa.
+ * genome scalar type is selected at compile time (gimage_fp_t); parameterValues<gimage_fp_t>() is required --
+ * parameterValues<float>() collects nothing from a double genome and vice-versa.
  *
  * @return The raw fitness (deviation from the target image) as a one-element vector
  */
 std::vector<double> GImageIndividual::evaluate() {
-    std::vector<gimage_fp_t> parVec;
-    this->streamline(parVec);
+    auto const parVec = this->parameterValues<gimage_fp_t>();
     return {
         Gem::Geneva::MonaLisa::scoreAgainstTarget(parVec.data(), static_cast<int>(parVec.size()))
     };

@@ -76,8 +76,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->template streamline<double>(v);
+        auto const v = this->template parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
@@ -108,8 +107,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->template streamline<double>(v);
+        auto const v = this->template parameterValues<double>();
         double s = 10. * static_cast<double>(v.size());
         for(double const x : v) {
             s += x * x - 10. * std::cos(2. * std::numbers::pi * x);
@@ -121,8 +119,7 @@ protected:
 /** @brief Sphere value of the best individual, also asserting the constraints held. */
 template <std::size_t N_DIM>
 double bestSphere(const SphereGSA<N_DIM> &best) {
-    std::vector<double> v;
-    best.template streamline<double>(v);
+    auto const v = best.template parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
         s += x * x;
@@ -135,8 +132,7 @@ double bestSphere(const SphereGSA<N_DIM> &best) {
 /** @brief Rastrigin value of the best individual, also asserting the constraints held. */
 template <std::size_t N_DIM>
 double bestRastrigin(const RastriginGSA<N_DIM> &best) {
-    std::vector<double> v;
-    best.template streamline<double>(v);
+    auto const v = best.template parameterValues<double>();
     double s = 10. * static_cast<double>(v.size());
     for(double const x : v) {
         s += x * x - 10. * std::cos(2. * std::numbers::pi * x);

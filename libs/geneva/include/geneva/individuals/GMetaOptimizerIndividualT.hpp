@@ -861,10 +861,8 @@ private:
      * @return A map from each manifest knob name to its current value in the genome
      */
     std::map<std::string, double> readTuned() const {
-        std::vector<std::int32_t> iv;
-        this->template streamline<std::int32_t>(iv);
-        std::vector<double> dv;
-        this->template streamline<double>(dv);
+        auto const iv = this->template parameterValues<std::int32_t>();
+        auto const dv = this->template parameterValues<double>();
 
         std::map<std::string, double> out;
         std::size_t ii = 0;

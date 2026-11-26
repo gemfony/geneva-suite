@@ -100,8 +100,7 @@ GTestIndividual1::getAdaptionConfig() const {
  */
 std::vector<double> GTestIndividual1::evaluate() {
     // Read the flat double values and calculate the value of the parabola.
-    std::vector<double> par_vec;
-    this->streamline(par_vec);
+    auto const par_vec = this->parameterValues<double>();
 
     return {std::ranges::fold_left(
         par_vec | std::views::transform([](double x) { return x * x; }),

@@ -23,8 +23,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> x;
-        this->streamline<double>(x);                               // read the (range-folded) values
+        auto const x = this->parameterValues<double>();            // read the (range-folded) values
         double sum = 0.;
         for(double v : x) { sum += v * v; }
         return {sum};                                              // one entry per criterion; minimized by default
@@ -40,8 +39,8 @@ private:
 ```
 
 `GGenomeT<derived_type>` supplies the clone/load/compare/serialize machinery. Your genome is a
-flat set of value channels (double / float / int32 / bool); read it with `streamline<T>()`,
-`streamlineFP()`, or — for a structured genome — a `GGenomeArchitecture` decoder (see ex09).
+flat set of value channels (double / float / int32 / bool); read it with `parameterValues<T>()`,
+`fpParameterValues()`, or — for a structured genome — a `GGenomeArchitecture` decoder (see ex09).
 
 ## 2. Build the genome STRUCTURE with `GGenomeBuilder`
 
@@ -68,7 +67,7 @@ created.
 
 Geneva stores a floating-point parameter in a **normalized internal coordinate** (confined to the
 centered unit interval `[-0.5, 0.5)` for a bounded parameter) and presents the user-visible **external**
-value — the one your `evaluate()` sees via `streamline<T>()` — as its affine image. You never
+value — the one your `evaluate()` sees via `parameterValues<T>()` — as its affine image. You never
 deal with the internal coordinate directly; the model only changes how you think about two things:
 
 - **Bounded vs unbounded is a single choice at build time.** A bounded parameter (`addDouble(init, lo,

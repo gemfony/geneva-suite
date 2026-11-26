@@ -71,8 +71,7 @@ std::vector<double> GMultiCriterionParabolaIndividual::evaluate() {
     const std::vector<double> &minima = minimaStore().get();
     //! [problem-store#3]
 
-    std::vector<double> parVec; // Will hold the individual parameters
-    this->streamline(parVec);   // Retrieve the (external) parameters
+    auto const parVec = this->parameterValues<double>(); // Retrieve the (external) parameters
 
     std::vector<double> results(parVec.size());
     for(std::size_t i = 0; i < parVec.size(); i++) {

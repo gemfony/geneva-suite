@@ -245,20 +245,15 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
     const auto &cp = dynamic_cast<const GGenome &>(cp_base);
     auto this_cp = this->clone<GGenome>();
 
-    std::vector<double> this_d, cp_d;
-    std::vector<float> this_f, cp_f;
-    std::vector<bool> this_b, cp_b;
-    std::vector<std::int32_t> this_i, cp_i;
+    auto this_d = this_cp->parameterValues<double>();
+    auto this_f = this_cp->parameterValues<float>();
+    auto this_b = this_cp->parameterValues<bool>();
+    auto this_i = this_cp->parameterValues<std::int32_t>();
 
-    this_cp->streamline(this_d);
-    this_cp->streamline(this_f);
-    this_cp->streamline(this_b);
-    this_cp->streamline(this_i);
-
-    cp.streamline(cp_d);
-    cp.streamline(cp_f);
-    cp.streamline(cp_b);
-    cp.streamline(cp_i);
+    auto const cp_d = cp.parameterValues<double>();
+    auto const cp_f = cp.parameterValues<float>();
+    auto const cp_b = cp.parameterValues<bool>();
+    auto const cp_i = cp.parameterValues<std::int32_t>();
 
     auto splice = [&](auto &this_vec, auto const &cp_vec) {
         // A cross-over position lies between two values: a channel with a single value has none
@@ -314,51 +309,6 @@ void GGenome::cannibalize(GGenome &cp_base) {
 
 /******************************************************************************/
 /**
- * @brief Retrieve the active double parameter at the given positional index.
- * @param idx The positional index into the streamlined double channel
- * @return The double value at the given index
- */
-double GGenome::getVarVal_d_(std::size_t idx) {
-    std::vector<double> v;
-    this->streamline<double>(v);
-    return v.at(idx);
-}
-
-/**
- * @brief Retrieve the active float parameter at the given positional index.
- * @param idx The positional index into the streamlined float channel
- * @return The float value at the given index
- */
-float GGenome::getVarVal_f_(std::size_t idx) {
-    std::vector<float> v;
-    this->streamline<float>(v);
-    return v.at(idx);
-}
-
-/**
- * @brief Retrieve the active int32 parameter at the given positional index.
- * @param idx The positional index into the streamlined int32 channel
- * @return The int32 value at the given index
- */
-std::int32_t GGenome::getVarVal_i_(std::size_t idx) {
-    std::vector<std::int32_t> v;
-    this->streamline<std::int32_t>(v);
-    return v.at(idx);
-}
-
-/**
- * @brief Retrieve the active boolean parameter at the given positional index.
- * @param idx The positional index into the streamlined boolean channel
- * @return The boolean value at the given index
- */
-bool GGenome::getVarVal_b_(std::size_t idx) {
-    std::vector<bool> v;
-    this->streamline<bool>(v);
-    return static_cast<bool>(v.at(idx));
-}
-
-/******************************************************************************/
-/**
  * @brief Transformation of the individual's parameters into a JSON object.
  *
  * Returns the individual body only (no wrapping key); callers place it wherever they need it. The
@@ -383,14 +333,10 @@ boost::json::object GGenome::toJSON() const {
     body["isValid"] = has_errors || dirty_flag ? false : this->isValid();
     body["type"] = "GGenome";
 
-    std::vector<double> d_data;
-    std::vector<float> f_data;
-    std::vector<std::int32_t> i_data;
-    std::vector<bool> b_data;
-    this->streamline<double>(d_data);
-    this->streamline<float>(f_data);
-    this->streamline<std::int32_t>(i_data);
-    this->streamline<bool>(b_data);
+    auto const d_data = this->parameterValues<double>();
+    auto const f_data = this->parameterValues<float>();
+    auto const i_data = this->parameterValues<std::int32_t>();
+    auto const b_data = this->parameterValues<bool>();
 
     const std::size_t n_vars = d_data.size() + f_data.size() + i_data.size() + b_data.size();
     body["nVars"] = n_vars;
@@ -445,15 +391,10 @@ std::string GGenome::toCSV(
     bool use_raw_fitness,
     bool show_validity
 ) const {
-    std::vector<double> d_data;
-    std::vector<float> f_data;
-    std::vector<std::int32_t> i_data;
-    std::vector<bool> b_data;
-
-    this->streamline<double>(d_data);
-    this->streamline<float>(f_data);
-    this->streamline<std::int32_t>(i_data);
-    this->streamline<bool>(b_data);
+    auto const d_data = this->parameterValues<double>();
+    auto const f_data = this->parameterValues<float>();
+    auto const i_data = this->parameterValues<std::int32_t>();
+    auto const b_data = this->parameterValues<bool>();
 
     std::vector<std::string> var_names;
     std::vector<std::string> var_types;

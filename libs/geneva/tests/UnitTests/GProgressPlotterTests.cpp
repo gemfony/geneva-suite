@@ -87,8 +87,7 @@ public:
 
 protected:
     std::vector<double> evaluate() override {
-        std::vector<double> v;
-        this->template streamline<double>(v);
+        auto const v = this->template parameterValues<double>();
         double s = 0.;
         for(double const x : v) {
             s += x * x;
