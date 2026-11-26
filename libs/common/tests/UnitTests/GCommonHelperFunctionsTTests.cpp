@@ -356,6 +356,78 @@ TEST_CASE("to_string: scoped enum yields its underlying integer", "[common][help
     REQUIRE(Gem::Common::to_string(ScopedColor::Blue) == "2");
 }
 
+// --- parseWhole / from_string --------------------------------------------
+
+// parseWhole() is the one strict reader of the collection: a text is one value of the type, or
+// nothing.
+TEST_CASE("parseWhole: a text is one value of the type or nothing", "[common][helper][parseWhole]") {
+    using Gem::Common::parseWhole;
+    CHECK(parseWhole<int>(" 12 ") == 12);
+    CHECK(parseWhole<int>("+12") == 12);
+    CHECK(parseWhole<int>("-12") == -12);
+    CHECK_FALSE(parseWhole<int>("12abc"));
+    CHECK_FALSE(parseWhole<int>("1 2"));
+    CHECK_FALSE(parseWhole<int>("+-12"));
+    CHECK_FALSE(parseWhole<int>(""));
+    CHECK_FALSE(parseWhole<int>("1.5"));
+    CHECK_FALSE(parseWhole<int>("99999999999"));
+    CHECK_FALSE(parseWhole<unsigned>("-1"));
+    CHECK_FALSE(parseWhole<std::size_t>("-0"));
+    CHECK(parseWhole<std::uint8_t>("255") == std::uint8_t{255});
+    CHECK_FALSE(parseWhole<std::uint8_t>("300"));
+    CHECK(parseWhole<std::int8_t>("-128") == std::int8_t{-128});
+    CHECK(parseWhole<double>("1.5e3") == 1500.);
+    CHECK(parseWhole<double>("-0.25") == -0.25);
+    CHECK_FALSE(parseWhole<double>("1e400"));
+    CHECK_FALSE(parseWhole<double>("1,5"));
+    CHECK(std::isnan(parseWhole<double>("nan").value()));
+    CHECK(std::isinf(parseWhole<double>("-inf").value()));
+    CHECK(parseWhole<float>("0.5") == 0.5F);
+    CHECK(parseWhole<bool>("true") == true);
+    CHECK(parseWhole<bool>("0") == false);
+    CHECK_FALSE(parseWhole<bool>("yes"));
+    CHECK(parseWhole<char>("x") == 'x');
+    CHECK_FALSE(parseWhole<char>("xy"));
+    CHECK(parseWhole<std::string>(" a b ") == " a b ");
+}
+
+// from_string() replaced boost::lexical_cast, which threw on text that is no value of the type; it
+// returned whatever the stream had read instead (a defect: "abc" read as 0, "12abc" as 12, "1.5" as
+// the integer 1, "-1" as an unsigned 4294967295, "a b" as the string "a", "200" as the
+// std::uint8_t 50, the character '2').
+TEST_CASE(
+    "from_string: a text that is not one value of the type throws",
+    "[common][helper][from_string]"
+) {
+    using Catch::Matchers::ContainsSubstring;
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("abc"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("12abc"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("1.5"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<unsigned>("-1"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<double>(""), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<std::uint8_t>("300"), gem_exception);
+    CHECK_THROWS_WITH(
+        Gem::Common::from_string<int>("12abc"),
+        ContainsSubstring("\"12abc\"") && ContainsSubstring("int")
+    );
+
+    CHECK(Gem::Common::from_string<int>(" 12 ") == 12);
+    CHECK(Gem::Common::from_string<int>("+12") == 12);
+    CHECK(Gem::Common::from_string<std::uint8_t>("200") == std::uint8_t{200});
+    CHECK(Gem::Common::from_string<std::string>("a b") == "a b");
+    CHECK(Gem::Common::from_string<bool>("true"));
+    CHECK_FALSE(Gem::Common::from_string<bool>("0"));
+}
+
+TEST_CASE(
+    "splitStringT: a fragment that is not a value of the type throws",
+    "[common][helper][splitStringT]"
+) {
+    CHECK_THROWS_AS(Gem::Common::splitStringT<std::size_t>("2-x-1", "-"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::splitStringT<std::size_t>("2-4.5-1", "-"), gem_exception);
+    CHECK_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1 2/y", " ", "/")), gem_exception);
+}
+
 // --- environmentVariableAs -----------------------------------------------
 
 TEST_CASE(
@@ -386,6 +458,19 @@ TEST_CASE(
     REQUIRE(result.has_value());
     REQUIRE(result.value() == "hello");
     ::unsetenv("GEM_TEST_STR");
+}
+
+TEST_CASE(
+    "environmentVariableAs: a value that is not one of the type throws and names the variable",
+    "[common][helper][environmentVariableAs]"
+) {
+    ::setenv("GEM_TEST_BAD_INT", "12abc", 1);
+    CHECK_THROWS_WITH(
+        Gem::Common::environmentVariableAs<int>("GEM_TEST_BAD_INT"),
+        Catch::Matchers::ContainsSubstring("GEM_TEST_BAD_INT") &&
+            Catch::Matchers::ContainsSubstring("\"12abc\"")
+    );
+    ::unsetenv("GEM_TEST_BAD_INT");
 }
 
 // --- narrow ---------------------------------------------------------

@@ -926,6 +926,17 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `postProcess_()` received it and a dereference there crashed.
 - **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
   read it.
+- **common: `from_string<T>()` throws on a text that is not one value of `T`.** It replaced
+  `boost::lexical_cast` but returned whatever the stream had read: "abc" as 0, "12abc" as 12, "1.5"
+  as the integer 1, "-1" as an unsigned 4294967295. It now throws `gem_exception` naming the text
+  and the type, and so do `splitStringT<>()` and `environmentVariableAs<>()` (which names the
+  variable). The reader is the new `Gem::Common::parseWhole<T>()`, which returns an empty
+  `std::optional` instead of throwing; configuration values, the parameter-scan specification and
+  the record sinks read numbers through it. Surrounding white space and a leading `+` are
+  accepted; a `std::string` is the text unchanged (it was its first word), `std::int8_t` and
+  `std::uint8_t` are read as numbers (they were read as a character), a `bool` is `true`, `false`,
+  `1` or `0`, and "inf" and "nan" are read as numbers. `narrow<>()` refuses a change of sign at
+  equal or larger width (`narrow<std::size_t>(-1)`) and a NaN.
 
 ## 8. Checkpointing
 

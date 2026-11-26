@@ -30,12 +30,13 @@
 #include "geneva/genome/GParameterPropertyParser.hpp"
 #include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
+#include "common/GCommonHelperFunctionsT.hpp" // parseWhole()
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 
-#include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <ranges>
 #include <string>
 #include <string_view>
@@ -89,19 +90,6 @@ std::vector<std::string> splitOnComma(const std::string &s) {
 }
 
 /**
- * @brief Checks whether a string consists solely of decimal digits (i.e. is a valid unsigned integer literal).
- *
- * @param s The token to test
- * @return true if @p s is non-empty and contains only characters '0'-'9', false otherwise
- */
-bool isUnsigned(const std::string &s) {
-    if(s.empty()) {
-        return false;
-    }
-    return std::ranges::all_of(s, [](char c) { return c >= '0' && c <= '9'; });
-}
-
-/**
  * @brief Aborts parsing by throwing a gem_exception that reports the offending fragment.
  *
  * Marked [[noreturn]]: it always throws and never returns to the caller.
@@ -115,34 +103,22 @@ bool isUnsigned(const std::string &s) {
 }
 
 /**
- * @brief Converts a token to an unsigned integer, failing the parse if it is not a valid unsigned literal.
+ * @brief Reads a token as a whole as a value of par_type (Gem::Common::parseWhole()), failing the
+ * parse otherwise: a remainder ("1.5x"), a number out of range or of another kind ("1.5" for an
+ * integer) and an empty token are refused. A bool is "true", "false", "1" or "0".
  *
+ * @tparam par_type The type of the value
  * @param s The token to convert
  * @param raw The enclosing raw fragment, forwarded to fail() for error reporting on failure
- * @return The parsed value as a std::size_t
+ * @return The value
  */
-std::size_t toUnsigned(const std::string &s, const std::string &raw) {
-    if(not isUnsigned(s)) {
+template <typename par_type>
+par_type readToken(const std::string &s, const std::string &raw) {
+    std::optional<par_type> value = Gem::Common::parseWhole<par_type>(s);
+    if(not value) {
         fail(raw);
     }
-    return static_cast<std::size_t>(std::stoul(s));
-}
-
-/**
- * @brief Converts a token to a boolean, accepting "true"/"1" and "false"/"0", and failing the parse otherwise.
- *
- * @param s The token to convert
- * @param raw The enclosing raw fragment, forwarded to fail() for error reporting on an unrecognized token
- * @return true for "true"/"1", false for "false"/"0"
- */
-bool toBool(const std::string &s, const std::string &raw) {
-    if(s == "true" || s == "1") {
-        return true;
-    }
-    if(s == "false" || s == "0") {
-        return false;
-    }
-    fail(raw);
+    return *value;
 }
 
 /**
@@ -158,7 +134,7 @@ bool toBool(const std::string &s, const std::string &raw) {
 std::size_t
 readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::string &raw) {
     for(std::size_t k = first; k < tok.size(); ++k) {
-        if(not isUnsigned(tok[k])) {
+        if(not Gem::Common::parseWhole<std::size_t>(tok[k])) {
             throw gem_exception(
                 g_error_streamer()
                 << "\"" << tok[k] << "\" in (" << raw << ") is not a step count." << '\n'
@@ -171,8 +147,7 @@ readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::st
     if(tok.size() > first + 1) {
         fail(raw);
     }
-    return tok.size() == first + 1 ? static_cast<std::size_t>(std::stoul(tok[first]))
-                                   : GPP_DEF_NSTEPS;
+    return tok.size() == first + 1 ? readToken<std::size_t>(tok[first], raw) : GPP_DEF_NSTEPS;
 }
 
 /**
@@ -183,25 +158,19 @@ readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::st
  * count (GPP_DEF_NSTEPS when none is given). See readNSteps() for what else is refused.
  *
  * @tparam par_type The parameter value type of the spec (double, float or std::int32_t)
- * @tparam conv_fun_type Callable type used to convert a boundary token into a par_type value
  * @param tok The comma-split argument tokens of the spec (at least index, lower, upper)
- * @param convertBound Functor converting a boundary token to par_type; invoked as convertBound(token, raw)
  * @param raw The raw fragment content, forwarded to fail() for error reporting
  * @return A fully populated parPropSpec<par_type> describing the parameter scan
  */
-template <typename par_type, typename conv_fun_type>
-parPropSpec<par_type> makeNumericSpec(
-    const std::vector<std::string> &tok,
-    conv_fun_type convertBound,
-    const std::string &raw
-) {
+template <typename par_type>
+parPropSpec<par_type> makeNumericSpec(const std::vector<std::string> &tok, const std::string &raw) {
     if(tok.size() < 3) {
         fail(raw);
     }
     parPropSpec<par_type> spec;
-    spec.index = toUnsigned(tok[0], raw);
-    spec.lowerBoundary = convertBound(tok[1], raw);
-    spec.upperBoundary = convertBound(tok[2], raw);
+    spec.index = readToken<std::size_t>(tok[0], raw);
+    spec.lowerBoundary = readToken<par_type>(tok[1], raw);
+    spec.upperBoundary = readToken<par_type>(tok[2], raw);
     spec.nSteps = readNSteps(tok, 3, raw);
     return spec;
 }
@@ -369,38 +338,13 @@ void GParameterPropertyParser::applyFragment(char type, std::string const &conte
     const std::vector<std::string> tok = splitOnComma(content);
 
     if(type == 'd') {
-        d_spec_vec_.push_back(
-            makeNumericSpec<double>(
-                tok,
-                [](const std::string &t, const std::string &raw) {
-                    return t.empty() ? (fail(raw), 0.0) : std::stod(t);
-                },
-                content
-            )
-        );
+        d_spec_vec_.push_back(makeNumericSpec<double>(tok, content));
     }
     else if(type == 'f') {
-        f_spec_vec_.push_back(
-            makeNumericSpec<float>(
-                tok,
-                [](const std::string &t, const std::string &raw) {
-                    return t.empty() ? (fail(raw), 0.0f) : std::stof(t);
-                },
-                content
-            )
-        );
+        f_spec_vec_.push_back(makeNumericSpec<float>(tok, content));
     }
     else if(type == 'i') {
-        i_spec_vec_.push_back(
-            makeNumericSpec<std::int32_t>(
-                tok,
-                [](const std::string &t, const std::string &raw) {
-                    return t.empty() ? (fail(raw), static_cast<std::int32_t>(0))
-                                     : static_cast<std::int32_t>(std::stoi(t));
-                },
-                content
-            )
-        );
+        i_spec_vec_.push_back(makeNumericSpec<std::int32_t>(tok, content));
     }
     else if(type == 'b') {
         applyBoolFragment(tok, content);
@@ -410,7 +354,7 @@ void GParameterPropertyParser::applyFragment(char type, std::string const &conte
             fail(content);
         }
         simpleScanSpec spec{};
-        spec.nItems = toUnsigned(tok[0], content);
+        spec.nItems = readToken<std::size_t>(tok[0], content);
         s_spec_vec_.push_back(spec);
     }
     else {
@@ -437,13 +381,13 @@ void GParameterPropertyParser::applyBoolFragment(
         fail(content);
     }
     parPropSpec<bool> spec;
-    spec.index = toUnsigned(tok[0], content);
+    spec.index = readToken<std::size_t>(tok[0], content);
     spec.lowerBoundary = false;
     spec.upperBoundary = true;
     std::size_t n_steps_at = 1; // b(index[, nSteps])
     if(tok.size() >= 3) {       // b(index, lower, upper[, nSteps])
-        spec.lowerBoundary = toBool(tok[1], content);
-        spec.upperBoundary = toBool(tok[2], content);
+        spec.lowerBoundary = readToken<bool>(tok[1], content);
+        spec.upperBoundary = readToken<bool>(tok[2], content);
         n_steps_at = 3;
     }
     spec.nSteps = readNSteps(tok, n_steps_at, content);

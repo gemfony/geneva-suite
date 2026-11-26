@@ -30,7 +30,6 @@
 #include "common/record/GCsvSink.hpp"
 
 // Standard header files go here
-#include <charconv>
 #include <format>
 #include <fstream>
 #include <sstream>
@@ -38,6 +37,8 @@
 #include <type_traits>
 #include <variant>
 #include <vector>
+
+#include "common/GCommonHelperFunctionsT.hpp" // parseWhole()
 
 namespace Gem::Common::Record {
 
@@ -238,13 +239,7 @@ std::optional<double> GCsvSink::numberIn_(std::string const &line, std::size_t c
     if(fields.size() != this->streamColumns_().size() || column >= fields.size()) {
         return std::nullopt;
     }
-    std::string const &field = fields[column];
-    double value = 0.;
-    const auto [end, ec] = std::from_chars(field.data(), field.data() + field.size(), value);
-    if(ec != std::errc{} || end != field.data() + field.size()) {
-        return std::nullopt;
-    }
-    return value;
+    return parseWhole<double>(fields[column]);
 }
 
 /******************************************************************************/

@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard headers go here
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <concepts>
@@ -51,6 +52,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <type_traits>
@@ -273,35 +275,99 @@ inline std::string generate_uuid_v4() {
 
 /******************************************************************************/
 /**
- * @brief Converts a string to T via stream extraction (replaces boost::lexical_cast).
+ * @brief Reads one value of type T from the whole of a text; the one strict reader of the
+ * collection, for every text a user or a file supplies.
  *
- * The stream uses the classic "C" locale, whatever global locale the program has set, so text
- * written by to_string() reads back everywhere.
+ * Surrounding white space is ignored. Anything else that is not part of one value of T makes the
+ * result empty: text where a number belongs, a remainder ("12abc", the ".5" of "2.5" for an
+ * integer), a negative number for an unsigned type (a stream would wrap "-1" around), a number
+ * outside the range of T ("1e400", "300" for std::uint8_t) and an empty text. Numbers are read with
+ * std::from_chars, independent of any locale, so the text of to_string() reads back, "inf" and
+ * "nan" included; a leading '+' is accepted. An 8-bit integer (std::int8_t, std::uint8_t) is read
+ * as a number, a char as a character. A bool is "true", "false", "1" or "0". A std::string is the
+ * text unchanged. Every other type is read through its stream extraction operator, in the classic
+ * "C" locale.
  *
- * @tparam T The target type to extract from the string (must be stream-extractable)
- * @param s The input string to convert
- * @return The value extracted from s; default-constructed/partially-read on extraction failure
+ * @tparam T The type to read (arithmetic, std::string, or a type with a stream extraction operator)
+ * @param text The text to read
+ * @return The value, or nothing if @p text is not one value of T
+ */
+template <typename T>
+std::optional<T> parseWhole(std::string_view text) {
+    if constexpr(std::is_same_v<T, std::string>) {
+        return std::string(text);
+    }
+    else {
+        const std::string trimmed = trimWhitespace(text);
+        if constexpr(std::is_same_v<T, bool>) {
+            if(trimmed == "true" || trimmed == "1") {
+                return true;
+            }
+            if(trimmed == "false" || trimmed == "0") {
+                return false;
+            }
+            return std::nullopt;
+        }
+        else if constexpr(std::is_arithmetic_v<T> && not std::is_same_v<T, char>) {
+            std::string_view number{trimmed};
+            if(number.starts_with('+') && not number.substr(1).starts_with('-')) {
+                number.remove_prefix(1); // std::from_chars knows no '+'
+            }
+            T value{};
+            const char *const last = number.data() + number.size();
+            const auto [end, ec] = std::from_chars(number.data(), last, value);
+            if(ec != std::errc{} || end != last) {
+                return std::nullopt;
+            }
+            return value;
+        }
+        else {
+            T value{};
+            std::istringstream iss(trimmed);
+            iss.imbue(std::locale::classic());
+            iss >> value;
+            if(iss.fail() || not(iss >> std::ws).eof()) {
+                return std::nullopt;
+            }
+            return value;
+        }
+    }
+}
+
+/******************************************************************************/
+/**
+ * @brief Converts a text to T with parseWhole(); it replaced boost::lexical_cast and, like that,
+ * refuses a text that is not one value of T.
+ *
+ * @tparam T The type to read (see parseWhole())
+ * @param s The text to convert
+ * @return The value read from the whole of @p s
+ * @throws gem_exception naming the text and the type if @p s is not one value of T
  */
 template <typename T>
 T from_string(const std::string &s) {
-    T val;
-    std::istringstream iss(s);
-    iss.imbue(std::locale::classic());
-    iss >> val;
-    return val;
+    std::optional<T> value = parseWhole<T>(s);
+    checkThat(
+        value.has_value(),
+        "the text \"",
+        s,
+        "\" is not a value of type ",
+        boost::core::demangle(typeid(T).name())
+    );
+    return *std::move(value);
 }
 
 /******************************************************************************/
 /**
  * @brief Reads a given environment variable and converts it to a target type.
  *
- * The function requires that target_type is extractable from an istringstream.
- * The raw value is trimmed of surrounding whitespace before conversion. Access
- * to std::getenv is serialised with a local mutex.
+ * The value is trimmed of surrounding whitespace and read with parseWhole(). Access to std::getenv
+ * is serialised with a local mutex.
  *
- * @tparam target_type The type the environment variable's value is converted to
+ * @tparam target_type The type the environment variable's value is converted to (see parseWhole())
  * @param var The name of the environment variable to be read
  * @return The converted environment variable, or an empty optional if it is unset
+ * @throws gem_exception naming the variable if its value is not one value of target_type
  */
 template <typename target_type>
 std::optional<target_type> environmentVariableAs(std::string const &var) {
@@ -334,7 +400,17 @@ std::optional<target_type> environmentVariableAs(std::string const &var) {
 #endif
     } // releases the lock
 
-    return {Gem::Common::from_string<target_type>(trimWhitespace(result_str))};
+    std::optional<target_type> value = parseWhole<target_type>(trimWhitespace(result_str));
+    checkThat(
+        value.has_value(),
+        "the environment variable ",
+        var,
+        " has the value \"",
+        result_str,
+        "\", which is not a value of type ",
+        boost::core::demangle(typeid(target_type).name())
+    );
+    return value;
 }
 
 /******************************************************************************/
@@ -727,10 +803,11 @@ void copyCloneableObjectsContainer(
 /**
  * @brief Splits a string into a vector of split_type values using a single separator.
  *
- * @tparam split_type The type each fragment is converted to
+ * @tparam split_type The type each fragment is converted to (see parseWhole())
  * @param raw The input string to split
  * @param sep The separator string fragments are split on
  * @return A vector of the converted fragments
+ * @throws gem_exception if a fragment is not one value of split_type
  */
 template <typename split_type>
 std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
@@ -754,7 +831,8 @@ std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
  * @param sep1 The outer separator splitting raw into fragments (must differ from sep2)
  * @param sep2 The inner separator splitting each fragment into its two sub-fields
  * @return A vector of (split1_type, split2_type) tuples
- * @throws gem_exception if sep1 and sep2 are identical, or if a fragment lacks exactly two sub-fields
+ * @throws gem_exception if sep1 and sep2 are identical, if a fragment lacks exactly two sub-fields,
+ *         or if a sub-field is not one value of its type
  */
 template <typename split1_type, typename split2_type>
 std::vector<std::tuple<split1_type, split2_type>>
