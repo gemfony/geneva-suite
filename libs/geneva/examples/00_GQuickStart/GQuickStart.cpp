@@ -113,7 +113,7 @@ GEM_REGISTER_ARCHIVABLE(first::GFirstProblem) // NOLINT
 int solve(geneva::GOptimizer &go) {
     // One prototype candidate, and how the evolutionary algorithm mutates it.
     auto problem = std::make_shared<first::GFirstProblem>();
-    go.registerAdaptionConfig("PERSONALITY_EA", problem->adaptionConfig());
+    go.registerAdaptionConfig("ea", problem->adaptionConfig());
     go.push_back(problem);
 
     // Record every evaluated candidate over x and y, above a heat map of f.

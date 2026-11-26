@@ -81,10 +81,7 @@ namespace {
 int optimize(GOptimizer &go) {
     const auto individual = std::make_shared<GParaboloidGroupIndividual>();
     go.push_back(individual);
-    go.registerAdaptionConfig(
-        "PERSONALITY_EA",
-        GParaboloidGroupIndividual::buildAdaptionConfig(*individual)
-    );
+    go.registerAdaptionConfig("ea", GParaboloidGroupIndividual::buildAdaptionConfig(*individual));
     go & "ea";
 
     const auto start = std::chrono::steady_clock::now();

@@ -171,8 +171,8 @@ int main(int argc, char **argv) {
              {
                  auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
                  auto cfg = gfi_ptr->getAdaptionConfig(*sample);
-                 go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-                 go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+                 go.registerAdaptionConfig("ea", cfg);
+                 go.registerAdaptionConfig("sa", cfg);
              }
 
              // Perform the actual optimization

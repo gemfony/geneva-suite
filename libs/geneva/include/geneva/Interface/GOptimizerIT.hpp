@@ -211,16 +211,6 @@ public:
 
     /***************************************************************************/
     /**
-	  * @brief Returns one-word information about the type of optimization algorithm.
-	  *
-	  * @return A short string identifying the algorithm's personality type
-	  */
-    std::string getAlgorithmPersonalityType() const {
-        return this->getAlgorithmPersonalityType_();
-    }
-
-    /***************************************************************************/
-    /**
 	  * @brief Returns a descriptive name assigned to this algorithm.
 	  *
 	  * @return The human-readable name of this optimization algorithm
@@ -282,8 +272,6 @@ private:
     /** @brief Retrieves a list of the best individuals found in the current iteration */
     virtual std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const = 0;
 
-    /** @brief Returns one-word information about the type of optimization algorithm. */
-    virtual std::string getAlgorithmPersonalityType_() const = 0;
     /** @brief Returns a descriptive name assigned to this algorithm */
     virtual std::string getAlgorithmName_() const = 0;
     /** @brief Retrieves the current iteration of this object */

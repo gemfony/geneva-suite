@@ -211,7 +211,6 @@ public:
     static constexpr std::string_view class_name = "GEvolutionaryAlgorithm";
     static constexpr std::string_view oa_algorithm_name = "Evolutionary Algorithm";
     static constexpr std::string_view oa_mnemonic = "ea";
-    static constexpr std::string_view oa_personality_type = "PERSONALITY_EA";
     /** @brief The personality traits getPersonalityTraits_() hands out, the
      *  per-individual scratch of this algorithm. */
     using personality_traits_type = GEvolutionaryAlgorithm_PersonalityTraits;

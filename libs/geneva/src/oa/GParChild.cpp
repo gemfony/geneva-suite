@@ -957,7 +957,7 @@ void GParChild::adjustPopulation_() {
                        "(or, with"
                     << '\n'
                     << "GOptimizer, register it via go.registerAdaptionConfig(\""
-                    << getAlgorithmPersonalityType() << "\", cfg))." << '\n'
+                    << getAlgorithmMnemonic() << "\", cfg))." << '\n'
                 );
             }
             provided_adaption_config_->checkConsistency(*flat);

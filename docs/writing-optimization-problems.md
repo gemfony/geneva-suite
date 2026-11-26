@@ -107,9 +107,9 @@ The config is validated against the genome (`checkConsistency`) when it is adopt
 There are three ways to give an algorithm its adaption config:
 
 - **Directly on the algorithm** — `oa_ptr->setAdaptionConfig(cfg);`
-- **Through GOptimizer (by OA personality type)** — when you let GOptimizer build the chain:
+- **Through GOptimizer (by algorithm mnemonic)** — when you let GOptimizer build the chain:
   ```cpp
-  go.registerAdaptionConfig("PERSONALITY_EA", cfg);   // every EA in the chain adopts this cfg
+  go.registerAdaptionConfig("ea", cfg);   // every EA in the chain adopts this cfg
   ```
 - **Self-driven adaption (no OA)** — to adapt a genome outside an algorithm:
   ```cpp
@@ -124,7 +124,7 @@ the program gives it:
 int main(int argc, char **argv) {
     return Gem::Geneva::runOptimization(argc, argv, {.produce = [](GOptimizer &go, const auto &) {
         go.registerContentCreator(factory);
-        go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+        go.registerAdaptionConfig("ea", cfg);
         auto best = go.optimize().getBestGlobalIndividual<MyProblem>();
         return 0;
     }});

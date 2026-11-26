@@ -67,8 +67,8 @@ int main(int argc, char **argv) {
             //! [adaptors-goptimizer-register]
             auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
             auto cfg = gfi_ptr->getAdaptionConfig(*sample);
-            go.registerAdaptionConfig("PERSONALITY_EA", cfg);
-            go.registerAdaptionConfig("PERSONALITY_SA", cfg);
+            go.registerAdaptionConfig("ea", cfg);
+            go.registerAdaptionConfig("sa", cfg);
             //! [adaptors-goptimizer-register]
         }
 

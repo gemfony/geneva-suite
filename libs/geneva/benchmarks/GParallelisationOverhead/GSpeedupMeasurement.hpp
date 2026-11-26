@@ -255,7 +255,7 @@ inline Timings measureParallel(
         // The same OA-owned adaption as the reference: the genome carries structure only, so an
         // evolutionary algorithm that is handed none refuses to init(), and the identical adaptor
         // on both sides is what makes the two halves comparable at all.
-        go.registerAdaptionConfig("PERSONALITY_EA", ballastAdaption(*individual));
+        go.registerAdaptionConfig("ea", ballastAdaption(*individual));
 
         // One run that is not measured, before the first delay: the clients (connected, if the
         // launcher waited for them) receive the genome's layout, so that the first measurement

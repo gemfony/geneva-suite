@@ -584,6 +584,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `personality_traits_type`, drop the traits class and its `GEM_REGISTER_ARCHIVABLE`. Personality
   traits are part of a checkpoint, so checkpoints of those seven algorithms written before this
   change do not load. `GMetaEvolutionaryAlgorithm` now reports its own name.
+- **The mnemonic replaces the personality type.** `oa_personality_type` and
+  `getAlgorithmPersonalityType()` are gone; everything that read them reads the mnemonic.
+  Users change the key of `GOptimizer::registerAdaptionConfig()`: `"PERSONALITY_EA"` becomes
+  `"ea"`, `"PERSONALITY_SA"` becomes `"sa"`, and so on (the meta-EA still shares the EA's key,
+  `"ea"`). A checkpoint's first field and its file name carry the mnemonic
+  (`checkpoint-ea-<iteration>-...`), so checkpoints written before this change do not load.
 
 ## 7. Renames and small API removals
 
@@ -919,7 +925,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **The checkpoint directory is created lazily**, at the first actual checkpoint write;
   merely configuring an algorithm (`setCheckpointBaseName`) no longer touches the
   filesystem.
-- **A checkpoint names its algorithm inside the file**: the personality type is its first
+- **A checkpoint names its algorithm inside the file**: the algorithm's mnemonic is its first
   field, and `loadCheckpoint()` / `cp_personality_fits()` read it from there. The file name
   stays a convention, so a renamed checkpoint loads; `saveCheckpoint()` is public, and a
   checkpoint is no longer the plain `toFile()` archive of the algorithm.

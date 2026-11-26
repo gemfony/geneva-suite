@@ -320,9 +320,6 @@ private:
     /** @brief Returns the name of this optimization algorithm
      *  @return The human-readable name of the algorithm */
     std::string getAlgorithmName_() const override = 0;
-    /** @brief Returns information about the type of optimization algorithm
-     *  @return A string describing the algorithm's personality type */
-    std::string getAlgorithmPersonalityType_() const override = 0;
 
     /** @brief Retrieve the number of processible items in the current iteration. */
     std::size_t getNProcessableItems_() const override;

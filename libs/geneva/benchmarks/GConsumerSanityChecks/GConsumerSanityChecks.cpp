@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
                  for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
                      cfg->groupDouble(i).gauss(0.025, 0.1, 0., 1., 1.);
                  }
-                 go.registerAdaptionConfig("PERSONALITY_EA", cfg);
+                 go.registerAdaptionConfig("ea", cfg);
              }
 
              // Add a default optimization algorithm to the GOptimizer object. This is optional.

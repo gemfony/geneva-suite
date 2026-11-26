@@ -313,7 +313,7 @@ public:
     void loadCheckpoint(std::filesystem::path const &cp_file);
 
     /**
-     * @brief Writes a checkpoint of this algorithm to a file: its personality type first, then the
+     * @brief Writes a checkpoint of this algorithm to a file: its mnemonic first, then the
      * algorithm with its population (checkpoint() calls it with the conventional file name).
      */
     void saveCheckpoint(std::filesystem::path const &output_file) const;
@@ -655,8 +655,8 @@ public:
     bool afterFirstIteration() const;
 
     /**
-     * @brief Checks whether a checkpoint file was written by an algorithm of our own personality
-     * type (read from the file, not from its name).
+     * @brief Checks whether a checkpoint file was written by an algorithm with our own mnemonic
+     * (read from the file, not from its name).
      */
     bool cp_personality_fits(const std::filesystem::path &p) const;
 

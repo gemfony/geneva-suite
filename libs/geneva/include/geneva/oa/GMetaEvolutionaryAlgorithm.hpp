@@ -79,8 +79,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * sub-optimization's results (handled by the work consumer) never starves the pool it is running on.
  *
  * It derives from GEvolutionaryAlgorithm to reuse all of the evolutionary machinery (selection, adaption,
- * sorting, personality traits -- its individuals are evolved exactly like an EA's, hence PERSONALITY_EA
- * and the EA's mnemonic "ea", which it inherits); it overrides only the per-generation evaluation seam
+ * sorting, personality traits -- its individuals are evolved exactly like an EA's, hence the EA's
+ * mnemonic "ea", which it inherits); it overrides only the per-generation evaluation seam
  * (evaluatePopulationRange_) and clone_(). It derives through GOptimizationAlgorithmT so that the name it
  * states is the one it reports.
  */
@@ -114,12 +114,11 @@ private:
     ///////////////////////////////////////////////////////////////////////
 
 public:
-    // Identifiers consumed by the GOptimizationAlgorithmT scaffold. The personality type stays
-    // PERSONALITY_EA and the mnemonic (oa_mnemonic, inherited) "ea": the umbrella-individuals are
-    // evolved exactly like an EA's and carry EA traits.
+    // Identifiers consumed by the GOptimizationAlgorithmT scaffold. The mnemonic (oa_mnemonic,
+    // inherited) stays the EA's "ea": the umbrella-individuals are evolved exactly like an EA's and
+    // carry EA traits, and the EA's adaption config (registered under "ea") applies to them.
     static constexpr std::string_view class_name = "GMetaEvolutionaryAlgorithm";
     static constexpr std::string_view oa_algorithm_name = "Meta Evolutionary Algorithm";
-    static constexpr std::string_view oa_personality_type = "PERSONALITY_EA";
 
     /** @brief The default constructor */
     GMetaEvolutionaryAlgorithm() = default;

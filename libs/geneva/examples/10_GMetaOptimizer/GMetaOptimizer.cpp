@@ -102,7 +102,7 @@ int optimize(GOptimizer &go) {
     {
         auto sample =
             gmoi_ptr->get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
-        go.registerAdaptionConfig("PERSONALITY_EA", sample->getAdaptionConfig());
+        go.registerAdaptionConfig("ea", sample->getAdaptionConfig());
     }
     //! [meta.example-main#2]
     // clang-format on
@@ -110,7 +110,7 @@ int optimize(GOptimizer &go) {
     // Drive the meta-optimization with the dedicated meta-EA: it evaluates the umbrella-individuals on
     // its own orchestration pool, so each umbrella's sub-EA can submit to the one work consumer without
     // the meta level competing for it (a plain EA here would deadlock once the sub-EA shares that
-    // consumer). It is a standard EA otherwise (PERSONALITY_EA), so the registered adaption config and
+    // consumer). It is a standard EA otherwise (mnemonic "ea"), so the registered adaption config and
     // the EA-targeted monitor apply unchanged.
     // clang-format off
     //! [meta.example-main#3]

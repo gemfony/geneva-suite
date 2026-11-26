@@ -68,7 +68,7 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  *
  * It derives directly from the CRTP scaffold @c GOptimizationAlgorithmT<GRandomSearch> (no parent/child
  * structure), which generates @c clone_() / @c name_() / @c getAlgorithmName_() / @c getAlgorithmMnemonic_()
- * / @c getAlgorithmPersonalityType_() from the @c oa_* identifiers below; @c oa_mnemonic is what users type,
+ * from the @c oa_* identifiers below; @c oa_mnemonic is what users type,
  * and its individuals carry the library's @c GPositionPersonalityTraits. The only state it adds beyond
  * the base is the population size (kept in the base via @c setDefaultPopulationSize()), so it carries no
  * local serialized data of its own.
@@ -90,11 +90,10 @@ class GRandomSearch // NOLINT(cppcoreguidelines-special-member-functions)
 
 public:
     // Identifiers consumed by the GOptimizationAlgorithmT scaffold to generate name_(),
-    // getAlgorithmName_(), getAlgorithmMnemonic_() and getAlgorithmPersonalityType_().
+    // getAlgorithmName_() and getAlgorithmMnemonic_().
     static constexpr std::string_view class_name = "GRandomSearch";
     static constexpr std::string_view oa_algorithm_name = "Random Search";
     static constexpr std::string_view oa_mnemonic = "rsearch";
-    static constexpr std::string_view oa_personality_type = "PERSONALITY_RSEARCH";
     /** @brief The personality traits getPersonalityTraits_() hands out: an individual only needs to
      *  know its position in the population. */
     using personality_traits_type = GPositionPersonalityTraits;

@@ -48,8 +48,8 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  * repeats by hand. The generic quartet -- clone_(), name_(), load_(), compare_() plus the folded
  * serialize() -- comes from Gem::Common::GReflectiveInterfaceT (single-sourced from the class's
  * localMembers_() and class_name, exactly as everywhere else in the tree); this layer only adds the
- * algorithm-specific overriders getAlgorithmName_(), getAlgorithmMnemonic_() and
- * getAlgorithmPersonalityType_(). A concrete algorithm derives as
+ * algorithm-specific overriders getAlgorithmName_() and getAlgorithmMnemonic_(). A concrete algorithm
+ * derives as
  *
  *     class GFoo : public GOptimizationAlgorithmT<GFoo>             // direct-from-base algorithms
  *     class GBar : public GOptimizationAlgorithmT<GBar, GParChild>  // mu/lambda algorithms
@@ -61,7 +61,6 @@ namespace Gem::Geneva::OptimizationAlgorithms {
  *     static constexpr std::string_view class_name          = "GFoo";  // read by GReflectiveInterfaceT
  *     static constexpr std::string_view oa_algorithm_name   = "Foo Optimizer";
  *     static constexpr std::string_view oa_mnemonic         = "foo";   // the command-line mnemonic
- *     static constexpr std::string_view oa_personality_type = "PERSONALITY_FOO";
  *     using personality_traits_type = GPositionPersonalityTraits;  // what getPersonalityTraits_() hands out
  *
  * The personality traits carry per-individual scratch only, not the algorithm's identity: an algorithm
@@ -120,15 +119,6 @@ private:
      */
     [[nodiscard]] std::string getAlgorithmMnemonic_() const override {
         return std::string(derived_type::oa_mnemonic);
-    }
-
-    /**
-     * @brief Returns the personality-type tag of this optimization algorithm
-     *
-     * @return The algorithm's personality-type tag, taken from derived_type::oa_personality_type.
-     */
-    [[nodiscard]] std::string getAlgorithmPersonalityType_() const override {
-        return std::string(derived_type::oa_personality_type);
     }
 };
 
