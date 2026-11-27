@@ -356,6 +356,84 @@ TEST_CASE(
     );
 }
 
+TEST_CASE(
+    "checkValueRange: lower > upper throws also when only a warning is asked for",
+    "[common][math][checkValueRange]"
+) {
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(5., 10., 0.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(5., 10., 0., false, false, true), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(5, 10, 0, false, false, true), gem_exception);
+}
+
+TEST_CASE(
+    "checkValueRange: the named flags select the boundaries and the warning",
+    "[common][math][checkValueRange]"
+) {
+    using namespace Gem::Common;
+    CHECK(checkValueRange(0., 0., 1., GFPLOWERCLOSED, GFPUPPEROPEN, GFNOWARNING, "x") == 0.);
+    CHECK_THROWS_AS(
+        checkValueRange(1., 0., 1., GFPLOWERCLOSED, GFPUPPEROPEN, GFNOWARNING, "x"),
+        gem_exception
+    );
+    // A warning instead of an exception returns the value unchanged
+    CHECK(checkValueRange(2, 0, 1, GFPLOWERCLOSED, GFPUPPERCLOSED, true, "n") == 2);
+}
+
+// --- NaN in the range checks ---------------------------------------------
+
+TEST_CASE("Range checks: NaN lies in no range", "[common][math][rangeNaN]") {
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+    float const nan_f = std::numeric_limits<float>::quiet_NaN();
+
+    CHECK_FALSE(Gem::Common::checkRangeCompliance(nan, 0., 1.));
+    CHECK_FALSE(Gem::Common::checkRangeCompliance(nan_f, 0.f, 1.f));
+
+    // Every combination of open and closed boundaries, and also when only a warning is asked for
+    for(bool const lower_open : {false, true}) {
+        for(bool const upper_open : {false, true}) {
+            CHECK_THROWS_AS(
+                Gem::Common::checkValueRange(nan, 0., 1., lower_open, upper_open),
+                gem_exception
+            );
+            CHECK_THROWS_AS(
+                Gem::Common::checkValueRange(nan, 0., 1., lower_open, upper_open, true),
+                gem_exception
+            );
+        }
+    }
+
+    double v = nan;
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 0., 1.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 0., 1., "caller", true), gem_exception);
+}
+
+TEST_CASE("Range checks: a NaN boundary is refused", "[common][math][rangeNaN]") {
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+
+    CHECK_THROWS_AS(Gem::Common::checkRangeCompliance(0.5, nan, 1.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkRangeCompliance(0.5, 0., nan), gem_exception);
+
+    double v = 0.5;
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, nan, 1.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 0., nan), gem_exception);
+
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(0.5, nan, 1., false, false, true), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(0.5, 0., nan, false, false, true), gem_exception);
+}
+
+TEST_CASE("Range checks: infinities are ordinary values", "[common][math][rangeNaN]") {
+    double const inf = std::numeric_limits<double>::infinity();
+
+    CHECK(Gem::Common::checkRangeCompliance(inf, 0., inf));
+    CHECK_FALSE(Gem::Common::checkRangeCompliance(inf, 0., 1.));
+    CHECK(Gem::Common::checkValueRange(-inf, -inf, 0.) == -inf);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(-inf, -inf, 0., true, false), gem_exception);
+
+    double v = inf;
+    CHECK(Gem::Common::enforceRangeConstraint(v, 0., 1.) == 1.);
+    CHECK(v == 1.);
+}
+
 // --- getMinMax -----------------------------------------------------------
 
 TEST_CASE("getMinMax 1D: returns correct min and max", "[common][math][getMinMax]") {

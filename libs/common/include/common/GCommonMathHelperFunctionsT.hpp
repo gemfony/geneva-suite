@@ -57,15 +57,75 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GTypeTraitsT.hpp"
 
 namespace Gem::Common {
+
+/******************************************************************************/
+/**
+ * The rules shared by the three range checks below -- checkRangeCompliance(), checkValueRange()
+ * and enforceRangeConstraint() -- stated once.
+ */
+namespace detail {
+
+/**
+ * @brief The prefix of a range message naming the caller: "[caller] ", or nothing for "" or "empty".
+ *
+ * @param caller The name of the calling context
+ * @return The prefix
+ */
+inline std::string rangeCaller(const std::string &caller) {
+    return (caller.empty() || caller == "empty") ? std::string() : "[" + caller + "] ";
+}
+
+/**
+ * @brief Checks whether a value lies in a range; the one body of the range checks.
+ *
+ * The boundaries must be ordered, lower <= upper; a NaN boundary orders with nothing and is
+ * refused as well. A value lies in the range if it is above lower (or equal to it, unless the lower
+ * boundary is open) and below upper (or equal to it, unless the upper boundary is open). NaN lies in
+ * no range: every comparison with it is false. Infinities are ordinary values.
+ *
+ * @tparam num_type The arithmetic type of the value and boundaries
+ * @param val The value to be checked
+ * @param lower The lower boundary
+ * @param upper The upper boundary
+ * @param lower_open If true, the lower boundary itself lies outside of the range
+ * @param upper_open If true, the upper boundary itself lies outside of the range
+ * @param caller The name of the calling context, for the error message ("" or "empty": none)
+ * @return true if val lies in the range
+ * @throw gem_exception if lower <= upper does not hold
+ */
+template <arithmetic num_type>
+bool inRange(
+    num_type val,
+    num_type lower,
+    num_type upper,
+    bool lower_open,
+    bool upper_open,
+    const std::string &caller
+) {
+    checkThat(
+        lower <= upper,
+        rangeCaller(caller),
+        "Lower boundary > upper boundary: ",
+        lower,
+        " / ",
+        upper
+    );
+    const bool above_lower = lower_open ? val > lower : val >= lower;
+    const bool below_upper = upper_open ? val < upper : val <= upper;
+    return above_lower && below_upper;
+}
+
+} /* namespace detail */
 
 /******************************************************************************/
 /**
  * @brief Enforces a value inside of a given range (both boundaries inclusive).
  *
  * Note that the value of @p val may change: if it falls outside [lower, upper]
- * it is clamped to the nearest boundary.
+ * it is clamped to the nearest boundary. A NaN has no nearest boundary and is refused.
  *
  * @tparam fp_type The floating point type of the value and boundaries
  * @param val The value to be constrained; modified in place if out of range
@@ -74,6 +134,7 @@ namespace Gem::Common {
  * @param caller Optional name of the calling context, used in log/error messages ("empty" suppresses the prefix)
  * @param verbose If true, emits a warning whenever the value is clamped
  * @return The (possibly clamped) value
+ * @throw gem_exception if val is NaN or lower <= upper does not hold
  */
 template <std::floating_point fp_type>
 fp_type enforceRangeConstraint(
@@ -83,92 +144,45 @@ fp_type enforceRangeConstraint(
     const std::string &caller = "empty",
     bool verbose = false
 ) {
-    if(lower > upper) {
-        throw gem_exception(
-            g_error_streamer() << (caller == "empty" ? "" : ("[" + caller + "] "))
-                               << "Lower boundary > upper boundary: " << lower << " / " << upper
-                               << '\n'
-        );
+    if(detail::inRange(val, lower, upper, false, false, caller)) {
+        return val;
     }
 
-    if(val < lower) {
-        if(verbose) {
-            glogger << (caller == "empty" ? "" : ("[" + caller + "] ")) << "value " << val
-                    << " < lower boundary " << lower << '\n'
-                    << "Will be adapted to " << lower << '\n'
-                    << GWARNING;
-        }
-        val = lower;
+    checkThat(not std::isnan(val), detail::rangeCaller(caller), "value NaN lies in no range");
+    const bool below = val < lower;
+    const fp_type bound = below ? lower : upper;
+    if(verbose) {
+        glogger << detail::rangeCaller(caller) << "value " << val
+                << (below ? " < lower boundary " : " > upper boundary ") << bound << '\n'
+                << "Will be adapted to " << bound << '\n'
+                << GWARNING;
     }
-    else if(val > upper) {
-        if(verbose) {
-            glogger << (caller == "empty" ? "" : ("[" + caller + "] ")) << "value " << val
-                    << " > upper boundary " << upper << '\n'
-                    << "Will be adapted to " << upper << '\n'
-                    << GWARNING;
-        }
-        val = upper;
-    }
-
+    val = bound;
     return val;
 }
 
 /******************************************************************************/
 /**
- * @brief Checks that a given floating point value is inside of a given set of boundaries (both inclusive).
+ * @brief Checks that a given value is inside of a given set of boundaries (both inclusive).
  *
- * @tparam fp_type The floating point type of the value and boundaries
+ * NaN lies in no range.
+ *
+ * @tparam num_type The arithmetic type of the value and boundaries
  * @param val The value to be checked
  * @param lower The lower (inclusive) boundary of the allowed range
  * @param upper The upper (inclusive) boundary of the allowed range
  * @param caller Optional name of the calling context, used in error messages ("empty" suppresses the prefix)
  * @return true if lower <= val <= upper, false otherwise
+ * @throw gem_exception if lower <= upper does not hold
  */
-template <std::floating_point fp_type>
+template <arithmetic num_type>
 bool checkRangeCompliance(
-    const fp_type &val,
-    const fp_type &lower,
-    const fp_type &upper,
+    const num_type &val,
+    const num_type &lower,
+    const num_type &upper,
     const std::string &caller = "empty"
 ) {
-    if(lower > upper) {
-        throw gem_exception(
-            g_error_streamer() << (caller == "empty" ? "" : ("[" + caller + "] "))
-                               << "Lower boundary > upper boundary: " << lower << " / " << upper
-                               << '\n'
-        );
-    }
-
-    return not(val < lower || val > upper);
-}
-
-/******************************************************************************/
-/**
- * @brief Checks that a given integral value is inside of a given set of boundaries (both inclusive).
- *
- * @tparam int_type The integral type of the value and boundaries
- * @param val The value to be checked
- * @param lower The lower (inclusive) boundary of the allowed range
- * @param upper The upper (inclusive) boundary of the allowed range
- * @param caller Optional name of the calling context, used in error messages ("empty" suppresses the prefix)
- * @return true if lower <= val <= upper, false otherwise
- */
-template <std::integral int_type>
-bool checkRangeCompliance(
-    const int_type &val,
-    const int_type &lower,
-    const int_type &upper,
-    const std::string &caller = "empty"
-) {
-    if(lower > upper) {
-        throw gem_exception(
-            g_error_streamer() << (caller == "empty" ? "" : ("[" + caller + "] "))
-                               << "Lower boundary > upper boundary: " << lower << " / " << upper
-                               << '\n'
-        );
-    }
-
-    return not(val < lower || val > upper);
+    return detail::inRange(val, lower, upper, false, false, caller);
 }
 
 /******************************************************************************/
@@ -269,9 +283,12 @@ constexpr bool GFPUPPEROPEN = true;
 constexpr bool GFNOWARNING = false;
 
 /**
- * @brief Checks that a floating point value is contained in a given range, warning or throwing otherwise.
+ * @brief Checks that a value is contained in a given range, warning or throwing otherwise.
  *
- * @tparam fp_type The floating point type of the value and boundaries
+ * NaN lies in no range and is refused also when only a warning is asked for: it is never returned
+ * as a valid value.
+ *
+ * @tparam num_type The arithmetic type of the value and boundaries
  * @param val The value to be checked for containment
  * @param min The lower boundary (included unless lower_open)
  * @param max The upper boundary (included unless upper_open)
@@ -280,126 +297,39 @@ constexpr bool GFNOWARNING = false;
  * @param warn_only If true, an out-of-range value only triggers a warning; otherwise it throws
  * @param var_name Optional variable name to include in the warning/error message
  * @return The value being checked (unchanged)
+ * @throw gem_exception if val lies outside of the range (and warn_only is false, or val is NaN), or
+ *        if min <= max does not hold
  */
-template <std::floating_point fp_type>
-fp_type checkValueRange(
-    fp_type val,
-    fp_type min,
-    fp_type max,
+template <arithmetic num_type>
+num_type checkValueRange(
+    num_type val,
+    num_type min,
+    num_type max,
     bool lower_open = false,
     bool upper_open = false,
     bool warn_only = false,
     const std::string &var_name = std::string()
 ) {
-    bool in_value_range = true;
-
-    if(lower_open) {
-        if(val < std::nextafter(min, std::numeric_limits<fp_type>::infinity())) {
-            in_value_range = false;
-        }
-    }
-    else {
-        if(val < min) {
-            in_value_range = false;
-        }
+    if(detail::inRange(val, min, max, lower_open, upper_open, var_name)) {
+        return val;
     }
 
-    if(upper_open) {
-        if(val > std::nextafter(max, -std::numeric_limits<fp_type>::infinity())) {
-            in_value_range = false;
-        }
-    }
-    else {
-        if(val > max) {
-            in_value_range = false;
-        }
-    }
+    std::ostringstream range;
+    range << min << (lower_open ? " (open) - " : " (closed) - ") << max
+          << (upper_open ? " (open)" : " (closed)");
+    const std::string name = var_name.empty() ? std::string() : " of variable " + var_name;
 
-    if(not in_value_range) {
-        if(warn_only) {
-            glogger << "Value " << val << (var_name.empty() ? "" : (" of variable " + var_name))
-                    << " outside of recommended range " << '\n'
-                    << min << (lower_open ? " (open) - " : " (closed) - ") << max
-                    << (upper_open ? " (open)" : " (closed)") << '\n'
-                    << GWARNING;
-        }
-        else {
-            throw gem_exception(
-                g_error_streamer()
-                << "Value " << val << (var_name.empty() ? "" : (" of variable " + var_name))
-                << " outside of allowed range " << '\n'
-                << min << (lower_open ? " (open) - " : " (closed) - ") << max
-                << (upper_open ? " (open)" : " (closed)") << '\n'
-            );
-        }
-    }
-
-    return val;
-}
-
-/******************************************************************************/
-/**
- * @brief Checks that an integral value is contained in a given range, warning or throwing otherwise.
- *
- * @tparam int_type The integral type of the value and boundaries
- * @param val The value to be checked for containment
- * @param min The lower boundary (included unless lower_open)
- * @param max The upper boundary (included unless upper_open)
- * @param lower_open If true the lower boundary is exclusive (val must be strictly greater); default closed
- * @param upper_open If true the upper boundary is exclusive (val must be strictly smaller); default closed
- * @param warn_only If true, an out-of-range value only triggers a warning; otherwise it throws
- * @return The value being checked (unchanged)
- */
-template <std::integral int_type>
-int_type checkValueRange(
-    int_type val,
-    int_type min,
-    int_type max,
-    bool lower_open = false,
-    bool upper_open = false,
-    bool warn_only = false
-) {
-    bool in_value_range = true;
-
-    if(lower_open) {
-        if(val <= min) {
-            in_value_range = false;
-        }
-    }
-    else {
-        if(val < min) {
-            in_value_range = false;
-        }
-    }
-
-    if(upper_open) {
-        if(val >= max) {
-            in_value_range = false;
-        }
-    }
-    else {
-        if(val > max) {
-            in_value_range = false;
-        }
-    }
-
-    if(not in_value_range) {
-        if(warn_only) {
-            glogger << "Warning:" << '\n'
-                    << "Value " << val << " outside of recommended range " << '\n'
-                    << min << (lower_open ? " (open) - " : " (closed) - ") << max
-                    << (upper_open ? " (open)" : " (closed)") << '\n'
-                    << GWARNING;
-        }
-        else {
-            throw gem_exception(
-                g_error_streamer() << "Value " << val << " outside of allowed range " << '\n'
-                                   << min << (lower_open ? " (open) - " : " (closed) - ") << max
-                                   << (upper_open ? " (open)" : " (closed)") << '\n'
-            );
-        }
-    }
-
+    checkThat(
+        warn_only && not std::isnan(val),
+        "Value ",
+        val,
+        name,
+        " outside of allowed range\n",
+        range.str()
+    );
+    glogger << "Value " << val << name << " outside of recommended range\n"
+            << range.str() << '\n'
+            << GWARNING;
     return val;
 }
 
