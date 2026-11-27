@@ -170,7 +170,7 @@ struct PodStorage {
  * via the clone()/load() protocol required by the Gemfony common interface.
  *
  * @tparam T         The element type. Must expose the Gemfony common interface
- *                   (detected via has_gemfony_common_interface<T>::value).
+ *                   (the concept gemfony_common_interface<T>).
  * @tparam container_type The underlying sequence container. Defaults to
  *                   std::vector<std::shared_ptr<T>>.
  */

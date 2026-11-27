@@ -1003,6 +1003,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `std::unordered_map` and their multi forms were compared in iteration order, so two equal
   containers with different bucket counts were reported as different. A `std::map` (whose pairs
   cannot be printed) did not compile in `compare()`; it does now.
+- **common: the struct type traits of `GTypeTraitsT.hpp` were removed.** `has_compare_member`,
+  `has_clone_member`, `has_load_member` and `has_gemfony_common_interface`: the second and third
+  were false for every class of the common interface (it overloads `clone()` and `load()`), and
+  nothing in the collection used any of them. A type is tested with the concept
+  `gemfony_common_interface<T>` (was `has_gemfony_common_interface<T>::value`).
 
 ## 8. Checkpointing
 

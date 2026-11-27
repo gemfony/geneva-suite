@@ -111,14 +111,8 @@ GEM_REGISTER_ARCHIVABLE(
 // ---------------------------------------------------------------------------
 // gemfony_common_interface_indicator: the interface should be detectable.
 
-TEST_CASE(
-    "GCommonInterfaceT: TestObj satisfies has_gemfony_common_interface",
-    "[common][interface]"
-) {
-    // Note: has_clone_member / has_load_member intentionally not asserted here.
-    // The base provides overloaded `clone()` (templated + non-templated), so
-    // `&T::clone` is ambiguous and the trait reports false — by design.
-    static_assert(has_gemfony_common_interface<TestObj>::value);
+TEST_CASE("GCommonInterfaceT: TestObj satisfies gemfony_common_interface", "[common][interface]") {
+    STATIC_REQUIRE(gemfony_common_interface<TestObj>);
 }
 
 // ---------------------------------------------------------------------------
