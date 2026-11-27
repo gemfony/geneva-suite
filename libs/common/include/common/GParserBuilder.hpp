@@ -586,94 +586,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * A base class for single parameters. This class was introduced so we can
- * reset the default values in a central location rather than having to
- * convert to different target class. This makes user-code easier.
- *
- * @tparam parameter_type The type of the wrapped single parameter
- */
-template <typename parameter_type>
-class GSingleParmT : public GFileParsableI {
-    // We want GParserBuilder to be able to call the reset function
-    friend class GParserBuilder;
-
-public:
-    /***************************************************************************/
-    /**
-	  * Initializes the parameter and sets values in the parent class
-	  *
-	  * @param option_name_var The option name of this parameter
-	  * @param comment_var The comment associated with this parameter
-	  * @param is_essential_var Whether this is an essential (true) or secondary (false) parameter
-	  * @param def_val The default value used when the option is absent from the configuration file
-	  */
-    GSingleParmT(
-        const std::string &option_name_var,
-        const std::string &comment_var,
-        const bool &is_essential_var,
-        const parameter_type &def_val
-    )
-      : GFileParsableI(option_name_var, comment_var, is_essential_var)
-      , def_val_(def_val)
-      , par_(def_val) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * The destructor
-	  */
-    ~GSingleParmT() override = default;
-
-    /***************************************************************************/
-    // Prevent copying, moving and default construction
-    GSingleParmT() = delete;
-    GSingleParmT(GSingleParmT<parameter_type> const &) = delete;
-    GSingleParmT(GSingleParmT<parameter_type> &&) = delete;
-    GSingleParmT<parameter_type> &operator=(GSingleParmT<parameter_type> const &) = delete;
-    GSingleParmT<parameter_type> &operator=(GSingleParmT<parameter_type> &&) = delete;
-
-protected:
-    /***************************************************************************/
-    /**
-	  * Allows derived classes to reset the default value. The function assumes
-	  * that no important data is stored in par_, as its value will be overwritten
-	  * as well. The reason is that configuration files will otherwise contain
-	  * the "old" par_-value.
-	  *
-	  * @param def_val The new default value, which also overwrites the current parameter value
-	  */
-    void resetDefault(parameter_type const &def_val) {
-        def_val_ = def_val;
-        par_ = def_val;
-    }
-
-    /***************************************************************************/
-    parameter_type def_val_; ///< Holds the parameter's default value
-    parameter_type par_;     ///< Holds the individual parameter
-
-private:
-    /***************************************************************************/
-    /** @brief Loads this parameter's value from the parsed configuration document
-     *  @param root The root JSON object of the parsed configuration */
-    void load_from(boost::json::object const &root) override = 0;
-
-    /** @brief Saves this parameter into the configuration document
-     *  @param root The root JSON object being assembled */
-    void save_to(boost::json::object &root) const override = 0;
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
  * This class wraps individual parsable file parameters, to which a callback
  * function has been assigned.
  *
  * @tparam parameter_type The type of the wrapped single parameter
  */
 template <typename parameter_type>
-class GFileSingleParsableParameterT : public GSingleParmT<parameter_type> {
-    // We want GParserBuilder to be able to call our load- and save functions
+class GFileSingleParsableParameterT : public GFileParsableI {
+    // We want GParserBuilder to be able to call our load- and save functions and resetDefault()
     friend class GParserBuilder;
 
 public:
@@ -689,32 +609,12 @@ public:
     GFileSingleParsableParameterT(
         const std::string &option_name_var,
         const std::string &comment_var,
-        const bool &is_essential_var,
+        bool is_essential_var,
         const parameter_type &def_val
     )
-      : GSingleParmT<parameter_type>(
-            option_name_var,
-            comment_var,
-            is_essential_var,
-            def_val
-        ) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * Initializes the parameter and sets values in the parent class, except
-	  * for comments.
-	  *
-	  * @param option_name_var The option name of this parameter
-	  * @param def_val The default value used when the option is absent from the configuration file
-	  */
-    GFileSingleParsableParameterT(const std::string &option_name_var, const parameter_type &def_val)
-      : GSingleParmT<parameter_type>(
-            option_name_var,
-            std::string(),
-            Gem::Common::VAR_IS_ESSENTIAL,
-            def_val
-        ) { /* nothing */
+      : GFileParsableI(option_name_var, comment_var, is_essential_var)
+      , def_val_(def_val)
+      , par_(def_val) { /* nothing */
     }
 
     /***************************************************************************/
@@ -752,6 +652,19 @@ public:
 private:
     /***************************************************************************/
     /**
+	  * Resets the default value (GParserBuilder::resetFileParameterDefaults()). The
+	  * current value is overwritten as well, as a configuration file would otherwise
+	  * contain the "old" value.
+	  *
+	  * @param def_val The new default value, which also overwrites the current parameter value
+	  */
+    void resetDefault(parameter_type const &def_val) {
+        def_val_ = def_val;
+        par_ = def_val;
+    }
+
+    /***************************************************************************/
+    /**
 	  * Loads this parameter's value from the parsed configuration document
 	  *
 	  * @param root The root JSON object of the parsed configuration
@@ -760,7 +673,7 @@ private:
         // An absent key keeps the value seeded from the default in the constructor; a present one
         // of the wrong form is refused.
         if(auto const *v = detail::cfgEntryValue(root, GParsableI::optionName(0), false)) {
-            GSingleParmT<parameter_type>::par_ = detail::cfgScalarFromString<parameter_type>(
+            par_ = detail::cfgScalarFromString<parameter_type>(
                 detail::cfgValueToString(*v),
                 GParsableI::optionName(0)
             );
@@ -787,8 +700,8 @@ private:
             detail::cfgWriteComments(entry, GParsableI::splitComment(this->comment(0)));
         }
 
-        entry["default"] = detail::cfgScalarToJson(GSingleParmT<parameter_type>::def_val_);
-        entry["value"] = detail::cfgScalarToJson(GSingleParmT<parameter_type>::par_);
+        entry["default"] = detail::cfgScalarToJson(def_val_);
+        entry["value"] = detail::cfgScalarToJson(par_);
         root[GParsableI::optionName(0)] = std::move(entry);
     }
 
@@ -805,123 +718,15 @@ private:
         }
 
         // Execute the function
-        call_back_func_(GSingleParmT<parameter_type>::par_);
+        call_back_func_(par_);
     }
 
     /***************************************************************************/
+
+    parameter_type def_val_; ///< Holds the parameter's default value
+    parameter_type par_;     ///< Holds the individual parameter
 
     std::move_only_function<void(parameter_type)> call_back_func_; ///< Holds the call-back function
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * A base class for combined parameters. This class was introduced so we can
- * reset the default values in a central location rather than having to
- * convert to different target class. This makes user-code easier.
- *
- * @tparam par0_type The type of the first combined parameter
- * @tparam par1_type The type of the second combined parameter
- */
-template <typename par0_type, typename par1_type>
-class GCombinedParT : public GFileParsableI {
-    // We want GParserBuilder to be able to call the reset function
-    friend class GParserBuilder;
-
-public:
-    /***************************************************************************/
-    /**
-	  * Initializes the parameter and sets values in the parent class
-	  *
-	  * @param option_name_var0 The option name of the first parameter
-	  * @param comment_var0 The comment associated with the first parameter
-	  * @param def_val0 The default value of the first parameter
-	  * @param option_name_var1 The option name of the second parameter
-	  * @param comment_var1 The comment associated with the second parameter
-	  * @param def_val1 The default value of the second parameter
-	  * @param is_essential_var Whether this is an essential (true) or secondary (false) parameter
-	  * @param combined_label The JSON group label under which both sub-options are nested
-	  */
-    GCombinedParT(
-        std::string const &option_name_var0,
-        std::string const &comment_var0,
-        par0_type const &def_val0,
-        std::string const &option_name_var1,
-        std::string const &comment_var1,
-        par1_type const &def_val1,
-        bool const &is_essential_var,
-        std::string combined_label
-    )
-      : GFileParsableI(
-            GFileParsableI::makeVector(option_name_var0, option_name_var1),
-            GFileParsableI::makeVector(comment_var0, comment_var1),
-            is_essential_var
-        )
-      , par0_(def_val0)
-      , def_val0_(def_val0)
-      , par1_(def_val1)
-      , def_val1_(def_val1)
-      , combined_label_(std::move(combined_label)) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * The destructor
-	  */
-    ~GCombinedParT() override = default;
-
-    /***************************************************************************/
-    // Prevent copying, moving and default construction
-    GCombinedParT() = delete;
-    GCombinedParT(GCombinedParT<par0_type, par1_type> const &) = delete;
-    GCombinedParT(GCombinedParT<par0_type, par1_type> &&) = delete;
-    GCombinedParT<par0_type, par1_type> &
-    operator=(GCombinedParT<par0_type, par1_type> const &) = delete;
-    GCombinedParT<par0_type, par1_type> &operator=(GCombinedParT<par0_type, par1_type> &&) = delete;
-
-    /***************************************************************************/
-    /** @brief The combined parameter nests its sub-options under a single JSON
-     *  group label, so that label -- not the individual sub-option names -- is the
-     *  top-level configuration-file key.
-     *  @return The combined JSON group label */
-    [[nodiscard]] std::string topLevelConfigKey() const override {
-        return combined_label_;
-    }
-
-protected:
-    /***************************************************************************/
-    /**
-	  * Allows derived classes to reset the default value. The function assumes
-	  * that no important data is stored in par0_ and par1_, as their values will
-	  * be overwritten as well. The reason is that configuration files will otherwise
-	  * contain the "old" par_-value.
-	  *
-	  * @param def_val0 The new default value for the first parameter
-	  * @param def_val1 The new default value for the second parameter
-	  */
-    void resetDefault(par0_type const &def_val0, par1_type const &def_val1) {
-        def_val0_ = def_val0;
-        def_val1_ = def_val1;
-        par0_ = def_val0;
-        par1_ = def_val1;
-    }
-
-    /***************************************************************************/
-    par0_type par0_, def_val0_; ///< Holds the individual parameters and default values 0
-    par1_type par1_, def_val1_; ///< Holds the individual parameters and default values 1
-
-    std::string combined_label_; ///< Holds a path label for the combined JSON path
-
-private:
-    /***************************************************************************/
-    /** @brief Loads this parameter's value from the parsed configuration document
-     *  @param root The root JSON object of the parsed configuration */
-    void load_from(boost::json::object const &root) override = 0;
-
-    /** @brief Saves this parameter into the configuration document
-     *  @param root The root JSON object being assembled */
-    void save_to(boost::json::object &root) const override = 0;
 };
 
 /******************************************************************************/
@@ -935,8 +740,8 @@ private:
  * @tparam par1_type The type of the second combined parameter
  */
 template <typename par0_type, typename par1_type>
-class GFileCombinedParsableParameterT : public GCombinedParT<par0_type, par1_type> {
-    // We want GParserBuilder to be able to call our load- and save functions
+class GFileCombinedParsableParameterT : public GFileParsableI {
+    // We want GParserBuilder to be able to call our load- and save functions and resetDefault()
     friend class GParserBuilder;
 
 public:
@@ -961,47 +766,18 @@ public:
         std::string const &comment_var1,
         par1_type const &def_val1,
         bool is_essential_var,
-        std::string const &combined_label
+        std::string combined_label
     )
-      : GCombinedParT<par0_type, par1_type>(
-            option_name_var0,
-            comment_var0,
-            def_val0,
-            option_name_var1,
-            comment_var1,
-            def_val1,
-            is_essential_var,
-            combined_label
-        ) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * Initializes the parameters, except for comments
-	  *
-	  * @param option_name_var0 The option name of the first parameter
-	  * @param def_val0 The default value of the first parameter
-	  * @param option_name_var1 The option name of the second parameter
-	  * @param def_val1 The default value of the second parameter
-	  * @param combined_label The JSON group label under which both sub-options are nested
-	  */
-    GFileCombinedParsableParameterT(
-        std::string const &option_name_var0,
-        par0_type const &def_val0,
-        std::string const &option_name_var1,
-        par1_type const &def_val1,
-        std::string const &combined_label
-    )
-      : GCombinedParT<par0_type, par1_type>(
-            option_name_var0,
-            std::string(),
-            def_val0,
-            option_name_var1,
-            std::string(),
-            def_val1,
-            Gem::Common::VAR_IS_ESSENTIAL,
-            combined_label
-        ) { /* nothing */
+      : GFileParsableI(
+            GFileParsableI::makeVector(option_name_var0, option_name_var1),
+            GFileParsableI::makeVector(comment_var0, comment_var1),
+            is_essential_var
+        )
+      , par0_(def_val0)
+      , def_val0_(def_val0)
+      , par1_(def_val1)
+      , def_val1_(def_val1)
+      , combined_label_(std::move(combined_label)) { /* nothing */
     }
 
     /***************************************************************************/
@@ -1023,6 +799,15 @@ public:
     operator=(GFileCombinedParsableParameterT<par0_type, par1_type> &&) = delete;
 
     /***************************************************************************/
+    /** @brief The combined parameter nests its sub-options under a single JSON
+     *  group label, so that label -- not the individual sub-option names -- is the
+     *  top-level configuration-file key.
+     *  @return The combined JSON group label */
+    [[nodiscard]] std::string topLevelConfigKey() const override {
+        return combined_label_;
+    }
+
+    /***************************************************************************/
     /**
 	  * Allows to register a call-back function with this object
 	  *
@@ -1041,6 +826,22 @@ public:
 private:
     /***************************************************************************/
     /**
+	  * Resets the default values (GParserBuilder::resetFileParameterDefaults()). The
+	  * current values are overwritten as well, as a configuration file would otherwise
+	  * contain the "old" values.
+	  *
+	  * @param def_val0 The new default value for the first parameter
+	  * @param def_val1 The new default value for the second parameter
+	  */
+    void resetDefault(par0_type const &def_val0, par1_type const &def_val1) {
+        def_val0_ = def_val0;
+        def_val1_ = def_val1;
+        par0_ = def_val0;
+        par1_ = def_val1;
+    }
+
+    /***************************************************************************/
+    /**
 	  * Loads this parameter's value from the parsed configuration document
 	  *
 	  * @param root The root JSON object of the parsed configuration
@@ -1048,21 +849,22 @@ private:
     void load_from(boost::json::object const &root) override {
         // An absent group or sub-key keeps the defaults seeded in the constructor; a present one of
         // the wrong form is refused.
-        std::string const &label = GCombinedParT<par0_type, par1_type>::combined_label_;
-        auto const *group = detail::cfgGroupEntry(root, label);
+        auto const *group = detail::cfgGroupEntry(root, combined_label_);
         if(group == nullptr) {
             return;
         }
-        if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(0), false, label)) {
-            GCombinedParT<par0_type, par1_type>::par0_ = detail::cfgScalarFromString<par0_type>(
+        if(auto const *v =
+               detail::cfgEntryValue(*group, GParsableI::optionName(0), false, combined_label_)) {
+            par0_ = detail::cfgScalarFromString<par0_type>(
                 detail::cfgValueToString(*v),
-                label + "/" + GParsableI::optionName(0)
+                combined_label_ + "/" + GParsableI::optionName(0)
             );
         }
-        if(auto const *v = detail::cfgEntryValue(*group, GParsableI::optionName(1), false, label)) {
-            GCombinedParT<par0_type, par1_type>::par1_ = detail::cfgScalarFromString<par1_type>(
+        if(auto const *v =
+               detail::cfgEntryValue(*group, GParsableI::optionName(1), false, combined_label_)) {
+            par1_ = detail::cfgScalarFromString<par1_type>(
                 detail::cfgValueToString(*v),
-                label + "/" + GParsableI::optionName(1)
+                combined_label_ + "/" + GParsableI::optionName(1)
             );
         }
     }
@@ -1087,20 +889,20 @@ private:
         if(this->hasComments()) {
             detail::cfgWriteComments(entry0, GParsableI::splitComment(this->comment(0)));
         }
-        entry0["default"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::def_val0_);
-        entry0["value"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::par0_);
+        entry0["default"] = detail::cfgScalarToJson(def_val0_);
+        entry0["value"] = detail::cfgScalarToJson(par0_);
 
         boost::json::object entry1;
         if(this->hasComments()) {
             detail::cfgWriteComments(entry1, GParsableI::splitComment(this->comment(1)));
         }
-        entry1["default"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::def_val1_);
-        entry1["value"] = detail::cfgScalarToJson(GCombinedParT<par0_type, par1_type>::par1_);
+        entry1["default"] = detail::cfgScalarToJson(def_val1_);
+        entry1["value"] = detail::cfgScalarToJson(par1_);
 
         boost::json::object group;
         group[GParsableI::optionName(0)] = std::move(entry0);
         group[GParsableI::optionName(1)] = std::move(entry1);
-        root[GCombinedParT<par0_type, par1_type>::combined_label_] = std::move(group);
+        root[combined_label_] = std::move(group);
     }
 
     /***************************************************************************/
@@ -1116,101 +918,18 @@ private:
         }
 
         // Execute the function
-        call_back_func_(
-            GCombinedParT<par0_type, par1_type>::par0_,
-            GCombinedParT<par0_type, par1_type>::par1_
-        );
+        call_back_func_(par0_, par1_);
     }
 
     /***************************************************************************/
+
+    par0_type par0_, def_val0_; ///< Holds the individual parameters and default values 0
+    par1_type par1_, def_val1_; ///< Holds the individual parameters and default values 1
+
+    std::string combined_label_; ///< Holds a path label for the combined JSON path
 
     std::move_only_function<void(par0_type, par1_type)>
         call_back_func_; ///< Holds the call-back function
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * A base class for vector parameters. This class was introduced so we can
- * reset the default values in a central location rather than having to
- * convert to different target class. This makes user-code easier.
- *
- * @tparam parameter_type The element type of the wrapped parameter vector
- */
-template <typename parameter_type>
-class GVectorParT : public GFileParsableI {
-    // We want GParserBuilder to be able to call the reset function
-    friend class GParserBuilder;
-
-public:
-    /***************************************************************************/
-    /**
-	  * Initializes the parameter and sets values in the parent class
-	  *
-	  * @param option_name_var The option name of this parameter
-	  * @param comment_var The comment associated with this parameter
-	  * @param def_val The default values; par_cnt_ is seeded with these so a write before parsing emits one value per default
-	  * @param is_essential_var Whether this is an essential (true) or secondary (false) parameter
-	  */
-    GVectorParT(
-        std::string const &option_name_var,
-        std::string const &comment_var,
-        std::vector<parameter_type> const &def_val,
-        bool is_essential_var
-    )
-      : GFileParsableI(option_name_var, comment_var, is_essential_var)
-      , def_val_cnt_(def_val)
-      // Seed par_cnt_ with the defaults so writeConfigFile() can emit a "value"
-      // for every "default" entry before any parsing has populated par_cnt_.
-      // The previous version left par_cnt_ empty, and save_to() then iterated
-      // def_val_cnt_ while dereferencing par_cnt_.cbegin() — UB whenever no
-      // load_from() had run yet, observable as silent garbage values in the
-      // generated config or a segfault depending on allocator layout.
-      , par_cnt_(def_val) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * The destructor
-	  */
-    ~GVectorParT() override = default;
-
-    /***************************************************************************/
-    // Prevent copying, moving and default construction
-    GVectorParT() = delete;
-    GVectorParT(GVectorParT<parameter_type> const &) = delete;
-    GVectorParT(GVectorParT<parameter_type> &&) = delete;
-    GVectorParT<parameter_type> &operator=(GVectorParT<parameter_type> const &) = delete;
-    GVectorParT<parameter_type> &operator=(GVectorParT<parameter_type> &&) = delete;
-
-protected:
-    /***************************************************************************/
-    /**
-	  * Allows derived classes to reset the default value. Keeps par_cnt_ in
-	  * lock-step with the new defaults so a subsequent writeConfigFile()
-	  * before parsing still emits one "value" per "default" entry.
-	  *
-	  * @param def_val The new default values, which also reseed the current parameter values
-	  */
-    void resetDefault(std::vector<parameter_type> const &def_val) {
-        def_val_cnt_ = def_val;
-        par_cnt_ = def_val;
-    }
-
-    /***************************************************************************/
-    std::vector<parameter_type> def_val_cnt_; ///< Holds default values
-    std::vector<parameter_type> par_cnt_;     ///< Holds the parsed parameters
-
-private:
-    /***************************************************************************/
-    /** @brief Loads this parameter's value from the parsed configuration document
-     *  @param root The root JSON object of the parsed configuration */
-    void load_from(boost::json::object const &root) override = 0;
-
-    /** @brief Saves this parameter into the configuration document
-     *  @param root The root JSON object being assembled */
-    void save_to(boost::json::object &root) const override = 0;
 };
 
 /******************************************************************************/
@@ -1224,8 +943,8 @@ private:
  * @tparam parameter_type The element type of the wrapped parameter vector
  */
 template <typename parameter_type>
-class GFileVectorParsableParameterT : public GVectorParT<parameter_type> {
-    // We want GParserBuilder to be able to call our load- and save functions
+class GFileVectorParsableParameterT : public GFileParsableI {
+    // We want GParserBuilder to be able to call our load- and save functions and resetDefault()
     friend class GParserBuilder;
 
 public:
@@ -1235,7 +954,7 @@ public:
 	  *
 	  * @param option_name_var The option name of this parameter
 	  * @param comment_var The comment associated with this parameter
-	  * @param def_val The default values used when the option is absent from the configuration file
+	  * @param def_val The default values; par_cnt_ is seeded with these so a write before parsing emits one value per default
 	  * @param is_essential_var Whether this is an essential (true) or secondary (false) parameter
 	  */
     GFileVectorParsableParameterT(
@@ -1244,31 +963,11 @@ public:
         std::vector<parameter_type> const &def_val,
         bool is_essential_var
     )
-      : GVectorParT<parameter_type>(
-            option_name_var,
-            comment_var,
-            def_val,
-            is_essential_var
-        ) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * Initializes the parameters, except for comments
-	  *
-	  * @param option_name_var The option name of this parameter
-	  * @param def_val The default values used when the option is absent from the configuration file
-	  */
-    GFileVectorParsableParameterT(
-        std::string const &option_name_var,
-        std::vector<parameter_type> const &def_val
-    )
-      : GVectorParT<parameter_type>(
-            option_name_var,
-            std::string(),
-            def_val,
-            Gem::Common::VAR_IS_ESSENTIAL
-        ) { /* nothing */
+      : GFileParsableI(option_name_var, comment_var, is_essential_var)
+      , def_val_cnt_(def_val)
+      // Seeded with the defaults, so that writeConfigFile() emits a "value" for every "default"
+      // entry before any parsing has filled par_cnt_.
+      , par_cnt_(def_val) { /* nothing */
     }
 
     /***************************************************************************/
@@ -1306,6 +1005,19 @@ public:
 private:
     /***************************************************************************/
     /**
+	  * Resets the default values (GParserBuilder::resetFileParameterDefaults()). Keeps
+	  * par_cnt_ in lock-step with the new defaults so a subsequent writeConfigFile()
+	  * before parsing still emits one "value" per "default" entry.
+	  *
+	  * @param def_val The new default values, which also reseed the current parameter values
+	  */
+    void resetDefault(std::vector<parameter_type> const &def_val) {
+        def_val_cnt_ = def_val;
+        par_cnt_ = def_val;
+    }
+
+    /***************************************************************************/
+    /**
 	  * Loads this parameter's value from the parsed configuration document
 	  *
 	  * @param root The root JSON object of the parsed configuration
@@ -1321,9 +1033,9 @@ private:
         }
 
         // The values are present: replace the seeded defaults with the on-disk values.
-        GVectorParT<parameter_type>::par_cnt_.clear();
+        par_cnt_.clear();
         for(auto const &v : values->get_array()) {
-            GVectorParT<parameter_type>::par_cnt_.push_back(
+            par_cnt_.push_back(
                 detail::cfgScalarFromString<parameter_type>(
                     detail::cfgValueToString(v),
                     GParsableI::optionName(0)
@@ -1358,14 +1070,14 @@ private:
         }
 
         boost::json::array default_arr;
-        default_arr.reserve(GVectorParT<parameter_type>::def_val_cnt_.size());
-        for(auto const &def_val : GVectorParT<parameter_type>::def_val_cnt_) {
+        default_arr.reserve(def_val_cnt_.size());
+        for(auto const &def_val : def_val_cnt_) {
             default_arr.emplace_back(detail::cfgScalarToJson(def_val));
         }
 
         boost::json::array value_arr;
-        value_arr.reserve(GVectorParT<parameter_type>::par_cnt_.size());
-        for(auto const &value : GVectorParT<parameter_type>::par_cnt_) {
+        value_arr.reserve(par_cnt_.size());
+        for(auto const &value : par_cnt_) {
             value_arr.emplace_back(detail::cfgScalarToJson(value));
         }
 
@@ -1387,94 +1099,16 @@ private:
         }
 
         // Execute the function
-        call_back_func_(GVectorParT<parameter_type>::par_cnt_);
+        call_back_func_(par_cnt_);
     }
 
     /***************************************************************************/
+
+    std::vector<parameter_type> def_val_cnt_; ///< Holds default values
+    std::vector<parameter_type> par_cnt_;     ///< Holds the parsed parameters
 
     std::move_only_function<void(std::vector<parameter_type>)>
         call_back_func_; ///< Holds the call-back function
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * A base class for array parameters. This class was introduced so we can
- * reset the default values in a central location rather than having to
- * convert to different target class. This makes user-code easier.
- *
- * @tparam parameter_type The element type of the wrapped parameter array
- * @tparam N The fixed number of elements in the array
- */
-template <typename parameter_type, std::size_t N>
-class GArrayParT : public GFileParsableI {
-    // We want GParserBuilder to be able to call the reset function
-    friend class GParserBuilder;
-
-public:
-    /***************************************************************************/
-    /**
-	  * Initializes the parameter and sets values in the parent class
-	  *
-	  * @param option_name_var The option name of this parameter
-	  * @param comment_var The comment associated with this parameter
-	  * @param def_val The default values used when the option is absent from the configuration file
-	  * @param is_essential_var Whether this is an essential (true) or secondary (false) parameter
-	  */
-    GArrayParT(
-        std::string const &option_name_var,
-        std::string const &comment_var,
-        std::array<parameter_type, N> const &def_val,
-        bool is_essential_var
-    )
-      : GFileParsableI(option_name_var, comment_var, is_essential_var)
-      , def_val_arr_(def_val)
-      , par_arr_(def_val) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * The destructor
-	  */
-    ~GArrayParT() override = default;
-
-    /***************************************************************************/
-    // Prevent copying, moving and default construction
-    GArrayParT() = delete;
-    GArrayParT(GArrayParT<parameter_type, N> const &) = delete;
-    GArrayParT(GArrayParT<parameter_type, N> &&) = delete;
-    GArrayParT<parameter_type, N> &operator=(GArrayParT<parameter_type, N> const &) = delete;
-    GArrayParT<parameter_type, N> &operator=(GArrayParT<parameter_type, N> &&) = delete;
-
-protected:
-    /***************************************************************************/
-    /**
-	  * Allows derived classes to reset the default value. The function assumes
-	  * that no important data is stored in par_, as its value will be overwritten
-	  * as well. The reason is that configuration files will otherwise contain
-	  * the "old" par_-value.
-	  *
-	  * @param def_val_arr The new default values, which also overwrite the current parameter values
-	  */
-    void resetDefault(std::array<parameter_type, N> const &def_val_arr) {
-        def_val_arr_ = def_val_arr;
-        par_arr_ = def_val_arr;
-    }
-
-    /***************************************************************************/
-    std::array<parameter_type, N> def_val_arr_; ///< Holds default values
-    std::array<parameter_type, N> par_arr_;     ///< Holds the parsed parameters
-
-private:
-    /***************************************************************************/
-    /** @brief Loads this parameter's value from the parsed configuration document
-     *  @param root The root JSON object of the parsed configuration */
-    void load_from(boost::json::object const &root) override = 0;
-
-    /** @brief Saves this parameter into the configuration document
-     *  @param root The root JSON object being assembled */
-    void save_to(boost::json::object &root) const override = 0;
 };
 
 /******************************************************************************/
@@ -1488,8 +1122,8 @@ private:
  * @tparam N The fixed number of elements in the array
  */
 template <typename parameter_type, std::size_t N>
-class GFileArrayParsableParameterT : public GArrayParT<parameter_type, N> {
-    // We want GParserBuilder to be able to call our load- and save functions
+class GFileArrayParsableParameterT : public GFileParsableI {
+    // We want GParserBuilder to be able to call our load- and save functions and resetDefault()
     friend class GParserBuilder;
 
 public:
@@ -1508,31 +1142,9 @@ public:
         std::array<parameter_type, N> const &def_val,
         bool is_essential_var
     )
-      : GArrayParT<parameter_type, N>(
-            option_name_var,
-            comment_var,
-            def_val,
-            is_essential_var
-        ) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * Initializes the parameters, except for comments
-	  *
-	  * @param option_name_var The option name of this parameter
-	  * @param def_val The default values used when the option is absent from the configuration file
-	  */
-    GFileArrayParsableParameterT(
-        std::string const &option_name_var,
-        std::array<parameter_type, N> const &def_val
-    )
-      : GArrayParT<parameter_type, N>(
-            option_name_var,
-            std::string(),
-            def_val,
-            Gem::Common::VAR_IS_ESSENTIAL
-        ) { /* nothing */
+      : GFileParsableI(option_name_var, comment_var, is_essential_var)
+      , def_val_arr_(def_val)
+      , par_arr_(def_val) { /* nothing */
     }
 
     /***************************************************************************/
@@ -1572,6 +1184,19 @@ public:
 private:
     /***************************************************************************/
     /**
+	  * Resets the default values (GParserBuilder::resetFileParameterDefaults()). The
+	  * current values are overwritten as well, as a configuration file would otherwise
+	  * contain the "old" values.
+	  *
+	  * @param def_val_arr The new default values, which also overwrite the current parameter values
+	  */
+    void resetDefault(std::array<parameter_type, N> const &def_val_arr) {
+        def_val_arr_ = def_val_arr;
+        par_arr_ = def_val_arr;
+    }
+
+    /***************************************************************************/
+    /**
 	  * Loads this parameter's value from the parsed configuration document
 	  *
 	  * @param root The root JSON object of the parsed configuration
@@ -1582,14 +1207,11 @@ private:
             return; // an absent key keeps the constructor-seeded defaults (a wrong form was refused)
         }
         auto const &values = value->get_array();
-        for(std::size_t i = 0;
-            i < GArrayParT<parameter_type, N>::par_arr_.size() && i < values.size();
-            ++i) {
-            GArrayParT<parameter_type, N>::par_arr_.at(i) =
-                detail::cfgScalarFromString<parameter_type>(
-                    detail::cfgValueToString(values[i]),
-                    GParsableI::optionName(0)
-                );
+        for(std::size_t i = 0; i < par_arr_.size() && i < values.size(); ++i) {
+            par_arr_.at(i) = detail::cfgScalarFromString<parameter_type>(
+                detail::cfgValueToString(values[i]),
+                GParsableI::optionName(0)
+            );
         }
         // Elements beyond the on-disk array length keep their defaults.
     }
@@ -1611,7 +1233,7 @@ private:
         }
 
         // Do some error checking
-        if(GArrayParT<parameter_type, N>::def_val_arr_.empty()) {
+        if(def_val_arr_.empty()) {
             throw gem_exception(
                 g_error_streamer() << "You need to provide at least one default value" << '\n'
             );
@@ -1623,14 +1245,14 @@ private:
         }
 
         boost::json::array default_arr;
-        default_arr.reserve(GArrayParT<parameter_type, N>::def_val_arr_.size());
-        for(auto const &def_val : GArrayParT<parameter_type, N>::def_val_arr_) {
+        default_arr.reserve(def_val_arr_.size());
+        for(auto const &def_val : def_val_arr_) {
             default_arr.emplace_back(detail::cfgScalarToJson(def_val));
         }
 
         boost::json::array value_arr;
-        value_arr.reserve(GArrayParT<parameter_type, N>::par_arr_.size());
-        for(auto const &value : GArrayParT<parameter_type, N>::par_arr_) {
+        value_arr.reserve(par_arr_.size());
+        for(auto const &value : par_arr_) {
             value_arr.emplace_back(detail::cfgScalarToJson(value));
         }
 
@@ -1652,10 +1274,13 @@ private:
         }
 
         // Execute the function
-        call_back_func_(GArrayParT<parameter_type, N>::par_arr_);
+        call_back_func_(par_arr_);
     }
 
     /***************************************************************************/
+
+    std::array<parameter_type, N> def_val_arr_; ///< Holds default values
+    std::array<parameter_type, N> par_arr_;     ///< Holds the parsed parameters
 
     std::move_only_function<void(std::array<parameter_type, N>)>
         call_back_func_; ///< Holds the call-back function
@@ -1752,33 +1377,6 @@ public:
       : GCLParsableI(
             GCLParsableI::makeVector(option_name_var),
             GCLParsableI::makeVector(comment_var)
-        )
-      , stored_reference_(stored_reference)
-      , def_val_(std::move(def_val))
-      , implicit_allowed_(implicit_allowed)
-      , impl_val_(std::move(impl_val)) { /* nothing */
-    }
-
-    /***************************************************************************/
-    /**
-	  * A constructor that initializes the internal variables, except for comments
-	  *
-	  * @param stored_reference The variable to which the parsed value will be assigned
-	  * @param option_name_var The option name of this command-line parameter
-	  * @param def_val The default value used when the option is absent from the command line
-	  * @param implicit_allowed Whether the option may be given without a value (e.g. --server vs --server=true)
-	  * @param impl_val The implicit value used when only the option name is given
-	  */
-    GCLReferenceParsableParameterT(
-        parameter_type &stored_reference,
-        std::string const &option_name_var,
-        parameter_type def_val,
-        bool implicit_allowed,
-        parameter_type impl_val
-    )
-      : GCLParsableI(
-            GCLParsableI::makeVector(option_name_var),
-            GCLParsableI::makeVector(std::string())
         )
       , stored_reference_(stored_reference)
       , def_val_(std::move(def_val))
@@ -2036,9 +1634,6 @@ public:
     ) {
         checkNotRegistered_(option_name, file_parameter_proxies_);
 
-        // Always route through the full constructor: the comment may legitimately be empty, but the
-        // caller's is_essential choice must never be dropped (the comment-less constructor hardcodes
-        // VAR_IS_ESSENTIAL, which used to silently mark comment-less SECONDARY parameters essential).
         auto single_parm_ptr = std::make_shared<GFileSingleParsableParameterT<parameter_type>>(
             option_name,
             comment,
@@ -2099,8 +1694,8 @@ public:
     template <typename parameter_type>
     void resetFileParameterDefaults(std::string const &option_name, parameter_type def_val) {
         // Retrieve the parameter object with this name
-        std::shared_ptr<GSingleParmT<parameter_type>> const parm_object =
-            file_at<GSingleParmT<parameter_type>>(option_name);
+        std::shared_ptr<GFileSingleParsableParameterT<parameter_type>> const parm_object =
+            file_at<GFileSingleParsableParameterT<parameter_type>>(option_name);
 
         // Check that we have indeed received an item
         if(not parm_object) {
@@ -2146,8 +1741,6 @@ public:
     ) {
         checkNotRegistered_(option_name1, file_parameter_proxies_);
 
-        // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
-        // empty comments must not drop the caller's is_essential choice.
         auto comb_parm_ptr =
             std::make_shared<GFileCombinedParsableParameterT<par1_type, par2_type>>(
                 option_name1,
@@ -2188,8 +1781,8 @@ public:
         par2_type def_val2
     ) {
         // Retrieve the parameter object with this name
-        std::shared_ptr<GCombinedParT<par1_type, par2_type>> const parm_object =
-            file_at<GCombinedParT<par1_type, par2_type>>(option_name1);
+        std::shared_ptr<GFileCombinedParsableParameterT<par1_type, par2_type>> const parm_object =
+            file_at<GFileCombinedParsableParameterT<par1_type, par2_type>>(option_name1);
 
         // Check that we have indeed received an item
         if(not parm_object) {
@@ -2224,8 +1817,6 @@ public:
     ) {
         checkNotRegistered_(option_name, file_parameter_proxies_);
 
-        // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
-        // an empty comment must not drop the caller's is_essential choice.
         auto vec_parm_ptr = std::make_shared<GFileVectorParsableParameterT<parameter_type>>(
             option_name,
             comment,
@@ -2288,8 +1879,8 @@ public:
         std::vector<parameter_type> const &def_val
     ) {
         // Retrieve the parameter object with this name
-        std::shared_ptr<GVectorParT<parameter_type>> const parm_object =
-            file_at<GVectorParT<parameter_type>>(option_name);
+        std::shared_ptr<GFileVectorParsableParameterT<parameter_type>> const parm_object =
+            file_at<GFileVectorParsableParameterT<parameter_type>>(option_name);
 
         // Check that we have indeed received an item
         if(not parm_object) {
@@ -2326,11 +1917,7 @@ public:
     ) {
         checkNotRegistered_(option_name, file_parameter_proxies_);
 
-        std::shared_ptr<GFileArrayParsableParameterT<parameter_type, N>> array_parm_ptr;
-
-        // Always route through the full constructor -- see registerFileParameter(single_parm_ptr):
-        // an empty comment must not drop the caller's is_essential choice.
-        array_parm_ptr = std::make_shared<GFileArrayParsableParameterT<parameter_type, N>>(
+        auto array_parm_ptr = std::make_shared<GFileArrayParsableParameterT<parameter_type, N>>(
             option_name,
             comment,
             def_val,
@@ -2399,8 +1986,8 @@ public:
         std::array<parameter_type, N> const &def_val
     ) {
         // Retrieve the parameter object with this name
-        std::shared_ptr<GArrayParT<parameter_type, N>> const parm_object =
-            file_at<GArrayParT<parameter_type, N>>(option_name);
+        std::shared_ptr<GFileArrayParsableParameterT<parameter_type, N>> const parm_object =
+            file_at<GFileArrayParsableParameterT<parameter_type, N>>(option_name);
 
         // Check that we have indeed received an item
         if(not parm_object) {
@@ -2436,29 +2023,14 @@ public:
     ) {
         checkNotRegistered_(option_name, cl_parameter_proxies_);
 
-        std::shared_ptr<GCLReferenceParsableParameterT<parameter_type>> ref_parm_ptr;
-
-        if(comment.empty()) {
-            ref_parm_ptr = std::make_shared<GCLReferenceParsableParameterT<parameter_type>>(
-                parameter,
-                option_name,
-                def_val,
-                implicit_allowed,
-                impl_val
-            );
-        }
-        else {
-            ref_parm_ptr = std::make_shared<GCLReferenceParsableParameterT<parameter_type>>(
-                parameter,
-                option_name,
-                comment,
-                def_val,
-                implicit_allowed,
-                impl_val
-            );
-        }
-
-        return addCLProxy_(ref_parm_ptr);
+        return addCLProxy_(std::make_shared<GCLReferenceParsableParameterT<parameter_type>>(
+            parameter,
+            option_name,
+            comment,
+            def_val,
+            implicit_allowed,
+            impl_val
+        ));
     }
 
     /***************************************************************************/

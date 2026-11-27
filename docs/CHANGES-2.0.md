@@ -803,7 +803,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `registerFileParameter(name, reference, default, ...)` overloads are **unchanged** —
   they now assign through the callback proxy internally; the on-disk config format is
   identical. The test-only helpers `configureFromFile()` and `GParserBuilder::cl_at()`
-  were removed as well.
+  were removed as well, and so were the base classes the two kinds of proxy had shared
+  (`GSingleParmT`, `GCombinedParT`, `GVectorParT`, `GArrayParT`): each is folded into its one
+  remaining proxy class (`GFileSingleParsableParameterT` and its siblings), whose constructors
+  without a comment are gone too.
 - **dietrich: the public headers no longer re-export all of `Gem::Common`** (the former
   `using namespace Gem::Common;` in every header). The specific common names dietrich's
   own API uses are still imported per-name; a consumer that relied on the blanket
