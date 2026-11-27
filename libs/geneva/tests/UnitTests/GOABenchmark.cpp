@@ -213,9 +213,7 @@ void runMatrix(double budget_s) {
     };
 
     // Each algorithm is gated by the GBENCH_ALGO env var (unset/"all" -> run all). Running one algorithm
-    // per process (GBENCH_ALGO=ea, sepcma, ...) isolates each run -- which the benchmark driver script
-    // does, both for fair per-algorithm wall-clock and to side-step a pre-existing heap-corruption that
-    // surfaces only when several of the EXISTING OAs run sequentially in one process.
+    // per process (GBENCH_ALGO=ea, sepcma, ...) gives each run the whole machine for its wall-clock.
 
     // --- Existing algorithms ---
     if(want("ea")) {
@@ -281,7 +279,7 @@ void runMatrix(double budget_s) {
                   << r.iterations << std::setw(10) << std::fixed << std::setprecision(2)
                   << r.seconds << "\n";
     }
-    // Machine-parseable rows (aggregated across one-algorithm-per-process invocations by the driver):
+    // Machine-parseable rows, so the results of several runs (e.g. one per algorithm) can be collected:
     for(const Row &r : rows) {
         std::cout << "RESULT," << r.algo << "," << Gem::Common::enumName(FN) << "," << N << ","
                   << std::scientific << std::setprecision(6) << r.best << "," << r.iterations << ","

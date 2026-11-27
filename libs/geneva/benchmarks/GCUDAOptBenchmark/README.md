@@ -1,7 +1,7 @@
 # GCUDAOptBenchmark
 
 A GPU-accelerated multi-algorithm comparison benchmark for the Geneva optimization library.
-Runs one or more Geneva optimization algorithms (EA, SA, Swarm, GD) against a set of
+Runs one or more Geneva optimization algorithms (EA, SA, Swarm, CGD) against a set of
 mathematical benchmark functions, with all fitness evaluations offloaded to a CUDA GPU.
 Produces per-run and summary CSV files for offline analysis.
 
@@ -36,7 +36,7 @@ would arise if each run used its own `GOptimizer` instance.
 |-------------|---------|
 | Geneva library (built) | ≥ 1.99 |
 | CMake | ≥ 4.0 |
-| GCC | ≥ 14 (C++23) |
+| GCC or Clang | GCC ≥ 15 or Clang ≥ 22 (C++23) |
 | Boost | ≥ 1.91 (program_options, json) |
 
 The benchmark itself builds with an ordinary C++ toolchain — it does **not** require the CUDA
@@ -154,7 +154,7 @@ The `benchmarkFunction` key must match one of the `solverFunction` enum names fr
 | Name | Description |
 |------|-------------|
 | `PARABOLA` | Simple sum of squares; global minimum at origin |
-| `NOISYPARABOLA` | Parabola plus uniform noise |
+| `NOISYPARABOLA` | (cos(‖x‖²)+2)·‖x‖²: a parabola with a cosine overlay of local optima; deterministic |
 | `ROSENBROCK` | Banana-shaped valley; challenging for gradient-free methods |
 | `ACKLEY` | Many local minima; tests global search ability |
 | `RASTRIGIN` | Highly multimodal; large number of local minima |
