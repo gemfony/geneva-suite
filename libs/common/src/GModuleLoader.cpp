@@ -121,16 +121,16 @@ std::string describeCompat(const GemCompat &c) {
 
 /**
  * @brief Returns an empty string if @p mod is ABI-compatible with @p host, otherwise a diagnostic
- * naming the first offending axis. Everything is matched exactly (Boost to major.minor); this is
- * Track A's exact-match policy, validated by PostgreSQL/nginx/kernel/Apache prior art.
+ * naming the first offending axis. Everything is matched exactly (Boost to major.minor), as in the
+ * prior art GBuildFingerprint.hpp names.
  */
 std::string compatMismatch(const GemCompat &host, const GemCompat &mod) {
     std::ostringstream os;
     auto axis = [&os](const char *name, unsigned long long modv, unsigned long long hostv) {
-        os << "toolchain mismatch on " << name << ": plugin=" << modv << ", this program=" << hostv;
+        os << "toolchain mismatch on " << name << ": module=" << modv << ", this program=" << hostv;
     };
     if(mod.compiler_family != host.compiler_family) {
-        os << "compiler family: plugin=" << compilerFamilyName(mod.compiler_family)
+        os << "compiler family: module=" << compilerFamilyName(mod.compiler_family)
            << ", this program=" << compilerFamilyName(host.compiler_family);
     }
     else if(mod.compiler_major != host.compiler_major) {
@@ -140,7 +140,7 @@ std::string compatMismatch(const GemCompat &host, const GemCompat &mod) {
         axis("compiler minor version", mod.compiler_minor, host.compiler_minor);
     }
     else if(mod.stdlib_family != host.stdlib_family) {
-        os << "standard-library family: plugin=" << stdlibFamilyName(mod.stdlib_family)
+        os << "standard-library family: module=" << stdlibFamilyName(mod.stdlib_family)
            << ", this program=" << stdlibFamilyName(host.stdlib_family);
     }
     else if(mod.stdlib_version != host.stdlib_version) {
@@ -214,7 +214,7 @@ void validateCompatOrThrow(const GemCompat &mod, const std::string &path_str) {
             g_error_streamer()
             << "The module '" << path_str << "' is not ABI-compatible with this program." << '\n'
             << mismatch << '\n'
-            << "  plugin:       " << describeCompat(mod) << '\n'
+            << "  module:       " << describeCompat(mod) << '\n'
             << "  this program: " << describeCompat(hostCompat()) << '\n'
             << "Rebuild the module with the same toolchain as the Geneva libraries this program"
             << " uses." << '\n'
@@ -225,8 +225,8 @@ void validateCompatOrThrow(const GemCompat &mod, const std::string &path_str) {
 /**
  * @brief Validates the module-ABI stamp -- gate 2, run right after the toolchain gate and before
  * any field behind it is read. A mismatch means the module was built against a different version of
- * common/GModuleManifest.hpp: the struct layout, a contribution kind's number, or the C++ type a
- * kind's void* payload denotes may all differ, so every later field is untrustworthy.
+ * common/GModuleManifest.hpp: the struct layout, the names of the contribution kinds, or the C++
+ * type a kind's void* payload denotes may all differ, so every later field is untrustworthy.
  *
  * @param manifest The module's manifest (its compat gate has already passed)
  * @param path_str The module path, for the error text
@@ -239,7 +239,7 @@ void validateAbiStampOrThrow(const GemModuleManifest &manifest, const std::strin
             << '\n'
             << "  module ABI version: " << manifest.abi_version << '\n'
             << "  this program:       " << GEM_MODULE_ABI_VERSION << '\n'
-            << "The manifest layout, the contribution-kind numbering or a kind's payload type"
+            << "The manifest layout, the names of the contribution kinds or a kind's payload type"
             << " differ, so nothing beyond this point can be read safely. Rebuild the module"
             << " against the Geneva libraries this program uses." << '\n'
         );

@@ -37,9 +37,9 @@
  * in-process C++ shared object that shares vtables, inline code and the GArchive type registry with
  * the host. Two such `.so`s are only ABI-compatible if they were built with a compatible toolchain:
  * same compiler family/version, same standard library, same `_GLIBCXX_USE_CXX11_ABI`, same Boost,
- * same build-mode ABI switches. The plugin loader historically compared only @c GEM_VERSION,
- * which does NOT capture any of that -- so a module built with a different toolchain but the same
- * Geneva version passed the gate and then crashed or silently corrupted the process.
+ * same build-mode ABI switches. @c GEM_VERSION alone does NOT capture any of that: a module built
+ * with a different toolchain but the same Geneva version would pass a gate on the version and then
+ * crash or silently corrupt the process.
  *
  * `GemCompat` closes that hole. It is a **plain-C struct** (fixed-width integers only) so that its
  * layout is readable under exactly the toolchain skew it exists to detect -- the loader must read it
@@ -47,6 +47,11 @@
  * macros via the @c GEM_BUILD_FINGERPRINT initializer, never from hand-written literals, so no field can
  * silently go stale: the host and every module compile the same initializer under their own toolchain, and
  * a mismatch is detected structurally.
+ *
+ * The loader can read the fingerprint only once the shared object is loaded, and loading runs the
+ * module's static initializers (among them its registrations with weft's registry): the gate
+ * protects the contributions, not the load. A refused module stays mapped with its registrations,
+ * so a program should end after a module was refused (see openModule()).
  *
  * The design mirrors long-proven prior art: PostgreSQL's @c PG_MODULE_MAGIC, nginx's module signature, the
  * Linux kernel's @c vermagic and Apache's Module Magic Number all gate module loading on discrete

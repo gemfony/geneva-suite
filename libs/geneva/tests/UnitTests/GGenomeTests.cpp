@@ -2588,6 +2588,8 @@ TEST_CASE("Module loader refuses a broken module and says why", "[genome][plugin
         const std::string msg = rejectionMessage(GENEVA_TEST_MODULE_STALE_ABI);
         REQUIRE_FALSE(msg.empty());
         CHECK(mentions(msg, "different Geneva module ABI"));
+        // Kinds are names since module ABI 6
+        CHECK(mentions(msg, "the names of the contribution kinds"));
         CHECK(mentions(msg, "Rebuild the module"));
         CHECK(mentions(msg, GENEVA_TEST_MODULE_STALE_ABI));
     }
