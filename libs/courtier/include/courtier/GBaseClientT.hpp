@@ -290,7 +290,7 @@ protected:
         auto haltOnce = [this](const char *reason) {
             if(not halt_logged_) {
                 halt_logged_ = true;
-                glogger << "Client is terminating because " << reason << '\n' << GLOGGING;
+                GEM_LOGGER << "Client is terminating because " << reason << '\n' << GEM_LOGGING;
             }
             return true;
         };

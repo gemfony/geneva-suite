@@ -164,13 +164,14 @@ void GSwarmAlgorithm::setSwarmSizes(
 ) {
     // Enforce useful settings
     if(n_neighborhoods == 0) {
-        glogger << "Requested number of neighborhoods is 0. Setting to 1." << '\n' << GWARNING;
+        GEM_LOGGER << "Requested number of neighborhoods is 0. Setting to 1." << '\n'
+                   << GEM_WARNING;
     }
 
     if(default_n_neighborhood_members <= 1) {
-        glogger << "Requested number of members in each neighborhood is too small. Setting to 2."
-                << '\n'
-                << GWARNING;
+        GEM_LOGGER << "Requested number of members in each neighborhood is too small. Setting to 2."
+                   << '\n'
+                   << GEM_WARNING;
     }
 
     n_neighborhoods_ = (n_neighborhoods >= 1) ? n_neighborhoods : 1;
@@ -450,7 +451,7 @@ void GSwarmAlgorithm::init() {
     if(this->at(0)->hasMultipleFitnessCriteria()) {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
-            glogger
+            GEM_LOGGER
                 << "The individuals expose more than one fitness criterion, but the swarm" << '\n'
                 << "algorithm is single-objective: it optimizes only the first criterion" << '\n'
                 << "(transformed_fitness(0)) and ignores the rest. Multi-objective PSO is not"
@@ -458,7 +459,7 @@ void GSwarmAlgorithm::init() {
                 << "implemented. Use an evolutionary algorithm in a PARETO sorting mode for true"
                 << '\n'
                 << "multi-objective optimization." << '\n'
-                << GWARNING;
+                << GEM_WARNING;
         }
     }
 }

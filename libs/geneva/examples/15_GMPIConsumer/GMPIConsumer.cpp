@@ -276,7 +276,7 @@ int main(int argc, char **argv) {
         // the console. Only the submitter: every process has a recorder of its own, and processes
         // sharing a working directory would back up each other's file.
         //! [arch-common:record-log-target]
-        glogger.addLogTarget(
+        GEM_LOGGER.addLogTarget(
             std::make_shared<GRecordLogTarget>(
                 "GMPIConsumer",
                 std::vector<std::shared_ptr<Gem::Common::Record::GSink>>{

@@ -114,26 +114,27 @@ reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, doubl
     );
     const double withinFraction = static_cast<double>(within) / static_cast<double>(n);
 
-    glogger << std::format(
-                   "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  "
-                   "max={:.3e}",
-                   n,
-                   relMin,
-                   relMedian,
-                   relMean,
-                   relMax
-               )
-            << '\n'
-            << std::format(
-                   "Within tolerance ({:.1e}):  {}/{} = {:.1f}%  (pass threshold {:.0f}%)",
-                   rel_tol,
-                   within,
-                   n,
-                   100.0 * withinFraction,
-                   100.0 * pass_fraction
-               )
-            << '\n'
-            << GLOGGING;
+    GEM_LOGGER
+        << std::format(
+               "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  "
+               "max={:.3e}",
+               n,
+               relMin,
+               relMedian,
+               relMean,
+               relMax
+           )
+        << '\n'
+        << std::format(
+               "Within tolerance ({:.1e}):  {}/{} = {:.1f}%  (pass threshold {:.0f}%)",
+               rel_tol,
+               within,
+               n,
+               100.0 * withinFraction,
+               100.0 * pass_fraction
+           )
+        << '\n'
+        << GEM_LOGGING;
 
     return withinFraction;
 }
@@ -147,9 +148,9 @@ int runParityCheck(int n, const std::string &consumerConfig) {
     constexpr double kPassFraction = 0.90;
     constexpr double kEps = 1.0e-12; // floor for the relative-error denominator (near-zero fitness)
 
-    glogger << "Example 19 (GFunctionGPU): PARITY CHECK -- CPU evaluate() vs GPU kernel over " << n
-            << " random individuals" << '\n'
-            << GLOGGING;
+    GEM_LOGGER << "Example 19 (GFunctionGPU): PARITY CHECK -- CPU evaluate() vs GPU kernel over "
+               << n << " random individuals" << '\n'
+               << GEM_LOGGING;
 
     gind::GFunctionIndividualFactory f("./config/GFunctionIndividual.json");
 
@@ -200,15 +201,15 @@ int runParityCheck(int n, const std::string &consumerConfig) {
         const double denom = std::max(std::abs(fitness_cpu[i]), kEps);
         rel[i] = std::abs(fitness_gpu[i] - fitness_cpu[i]) / denom;
         if(i < nShow) {
-            glogger << std::format(
-                           "  item {:3d}:  cpu={:.12g}  gpu={:.12g}  rel-err={:.3e}",
-                           i,
-                           fitness_cpu[i],
-                           fitness_gpu[i],
-                           rel[i]
-                       )
-                    << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << std::format(
+                              "  item {:3d}:  cpu={:.12g}  gpu={:.12g}  rel-err={:.3e}",
+                              i,
+                              fitness_cpu[i],
+                              fitness_gpu[i],
+                              rel[i]
+                          )
+                       << '\n'
+                       << GEM_LOGGING;
         }
     }
 
@@ -216,7 +217,7 @@ int runParityCheck(int n, const std::string &consumerConfig) {
     const double withinFraction = reportParitySummary(rel, n, kRelTol, kPassFraction);
 
     const bool pass = withinFraction >= kPassFraction;
-    glogger << (pass ? "PARITY PASS" : "PARITY FAIL") << '\n' << GLOGGING;
+    GEM_LOGGER << (pass ? "PARITY PASS" : "PARITY FAIL") << '\n' << GEM_LOGGING;
 
     return pass ? EXIT_SUCCESS : EXIT_FAILURE;
 }

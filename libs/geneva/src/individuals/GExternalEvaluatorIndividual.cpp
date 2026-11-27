@@ -798,14 +798,14 @@ void GExternalEvaluatorIndividual::applyConfig(GExternalEvaluatorIndividual &ind
  */
 void GExternalEvaluatorIndividual::finalize(const Config &c) {
     if(c.program_name.empty()) {
-        glogger << "In GExternalEvaluatorIndividual::finalize(): Error!" << '\n'
-                << "Program name was empty" << '\n'
-                << LOGEXIT(EXIT_FAILURE);
+        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): Error!" << '\n'
+                   << "Program name was empty" << '\n'
+                   << GEM_LOGEXIT(EXIT_FAILURE);
     }
     if(not std::filesystem::exists(c.program_name)) {
-        glogger << "In GExternalEvaluatorIndividual::finalize(): Error!" << '\n'
-                << "External program " << c.program_name << " does not seem to exist" << '\n'
-                << LOGEXIT(EXIT_FAILURE);
+        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): Error!" << '\n'
+                   << "External program " << c.program_name << " does not seem to exist" << '\n'
+                   << GEM_LOGEXIT(EXIT_FAILURE);
     }
 
     std::vector<std::string> arguments = customOptionArguments(c.custom_options);
@@ -819,11 +819,11 @@ void GExternalEvaluatorIndividual::finalize(const Config &c) {
         command
     );
     if(error_code) {
-        glogger << "In GExternalEvaluatorIndividual::finalize(): Error" << '\n'
-                << "Execution of external command failed." << '\n'
-                << "Command: " << command << '\n'
-                << "Error code: " << error_code << '\n'
-                << LOGEXIT(EXIT_FAILURE);
+        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): Error" << '\n'
+                   << "Execution of external command failed." << '\n'
+                   << "Command: " << command << '\n'
+                   << "Error code: " << error_code << '\n'
+                   << GEM_LOGEXIT(EXIT_FAILURE);
     }
 }
 

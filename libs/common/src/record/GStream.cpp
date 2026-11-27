@@ -187,9 +187,9 @@ void GStreamCore::closeOrLog() noexcept {
         what = describeException(std::current_exception());
     }
     try {
-        glogger << "the stream \"" << info_.name << "\" could not be closed cleanly:" << '\n'
-                << what << '\n'
-                << GWARNING;
+        GEM_LOGGER << "the stream \"" << info_.name << "\" could not be closed cleanly:" << '\n'
+                   << what << '\n'
+                   << GEM_WARNING;
     }
     catch(...) { // a log target failed as well: this function does not throw, so std::cerr has it
         std::cerr << "the stream \"" << info_.name << "\" could not be closed cleanly: " << what

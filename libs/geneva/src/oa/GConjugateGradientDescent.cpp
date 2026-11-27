@@ -1237,13 +1237,13 @@ void GConjugateGradientDescent::finalize() {
             }
             oss << "  curvature condition number = " << last_error_estimate_.condition_number
                 << " (a large value flags a flat / ill-conditioned minimum)";
-            glogger << oss.str() << '\n' << GLOGGING;
+            GEM_LOGGER << oss.str() << '\n' << GEM_LOGGING;
         }
         else {
-            glogger << "GConjugateGradientDescent: no usable error estimate "
-                       "(no positive curvature at the stopping point)."
-                    << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "GConjugateGradientDescent: no usable error estimate "
+                          "(no positive curvature at the stopping point)."
+                       << '\n'
+                       << GEM_LOGGING;
         }
     }
 

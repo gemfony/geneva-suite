@@ -360,10 +360,10 @@ private:
             }
         }
         if(not peers_.waitUntilEmpty(listener_->stopGrace())) {
-            glogger << "In " << consumer_name_ << "::stopServer(): " << peers_.size()
-                    << " peer(s) had not ended within " << listener_->stopGrace().count() << " ms"
-                    << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "In " << consumer_name_ << "::stopServer(): " << peers_.size()
+                       << " peer(s) had not ended within " << listener_->stopGrace().count()
+                       << " ms" << '\n'
+                       << GEM_LOGGING;
         }
     }
 

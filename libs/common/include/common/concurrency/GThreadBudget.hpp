@@ -196,14 +196,15 @@ public:
             for(const auto &[name, count] : top) {
                 top_txt += "  " + name + ": " + std::to_string(count) + '\n';
             }
-            glogger << "the process-wide reserved thread count (" << total << ") now exceeds "
-                    << OVERSUBSCRIPTION_FACTOR << "x the hardware ceiling (" << ceiling() << ")."
-                    << '\n'
-                    << "The largest reservations are:" << '\n'
-                    << top_txt
-                    << "Collectively these pools oversubscribe the cores and every pool slows down."
-                    << '\n'
-                    << GWARNING;
+            GEM_LOGGER
+                << "the process-wide reserved thread count (" << total << ") now exceeds "
+                << OVERSUBSCRIPTION_FACTOR << "x the hardware ceiling (" << ceiling() << ")."
+                << '\n'
+                << "The largest reservations are:" << '\n'
+                << top_txt
+                << "Collectively these pools oversubscribe the cores and every pool slows down."
+                << '\n'
+                << GEM_WARNING;
         }
 
         return Reservation{this, key, granted};

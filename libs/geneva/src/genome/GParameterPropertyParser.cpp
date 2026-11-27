@@ -267,9 +267,9 @@ void GParameterPropertyParser::parse() {
        1) { // If we did find a "simple scan" entry, we will discard the other entries.
         if(not d_spec_vec_.empty() || not f_spec_vec_.empty() || not i_spec_vec_.empty() ||
            not b_spec_vec_.empty()) {
-            glogger << "You have specified both a simple-scan component and explicit" << '\n'
-                    << "scan-components. The explicit components will be discarded." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "You have specified both a simple-scan component and explicit" << '\n'
+                       << "scan-components. The explicit components will be discarded." << '\n'
+                       << GEM_WARNING;
 
             d_spec_vec_.clear();
             f_spec_vec_.clear();

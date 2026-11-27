@@ -123,11 +123,11 @@ template <typename T>
 //-----------------------------------------------------------
 // Allow to mark functions as deprecated on supported compilers
 #ifdef __GNUC__
-#define G_DEPRECATED(message) __attribute__((deprecated(#message)))
+#define GEM_DEPRECATED(message) __attribute__((deprecated(#message)))
 #elif defined(__clang__)
-#define G_DEPRECATED(message) __attribute__((deprecated(#message)))
+#define GEM_DEPRECATED(message) __attribute__((deprecated(#message)))
 #elif defined(_MSC_VER)
-#define G_DEPRECATED(message) __declspec(deprecated(#message))
+#define GEM_DEPRECATED(message) __declspec(deprecated(#message))
 #else
-#define G_DEPRECATED(message)
+#define GEM_DEPRECATED(message)
 #endif

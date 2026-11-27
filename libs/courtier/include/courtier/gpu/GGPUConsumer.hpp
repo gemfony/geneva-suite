@@ -288,9 +288,9 @@ private:
         }
         backend_ = makeBackend<scalar_type>(kind);
         backend_->initialize(cfg_.kernelSpec());
-        glogger << "Gem::Courtier::GPU::GGPUConsumer using the '" << backend_->name()
-                << "' backend (kernel: " << cfg_.kernel_path << ")" << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "Gem::Courtier::GPU::GGPUConsumer using the '" << backend_->name()
+                   << "' backend (kernel: " << cfg_.kernel_path << ")" << '\n'
+                   << GEM_LOGGING;
     }
 
     /***************************************************************************/

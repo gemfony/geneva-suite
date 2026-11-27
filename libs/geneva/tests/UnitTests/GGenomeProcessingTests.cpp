@@ -974,7 +974,7 @@ private:
     }
 };
 
-/** @brief A log target that counts the error reports (GERROR) that contain a text */
+/** @brief A log target that counts the error reports (GEM_ERROR) that contain a text */
 class ErrorReportCounter : public Gem::Common::GBaseLogTarget {
 public:
     using Gem::Common::GBaseLogTarget::logWithSource;
@@ -1148,11 +1148,11 @@ TEST_CASE(
         std::vector<double> params;
         // Each failure ends its item's task in the marshaller, which reports it once
         const auto reports = std::make_shared<Gem::Tests::ErrorReportCounter>("processor failed");
-        glogger.addLogTarget(reports);
+        GEM_LOGGER.addLogTarget(reports);
         CHECK_NOTHROW(marshaller.flatten(batch, params));
         CHECK(params == std::vector<double>(9, 1.));
         CHECK_NOTHROW(marshaller.scatter(batch, std::vector<double>{-1., 3., 3.}, 0.));
-        glogger.resetLogTargets();
+        GEM_LOGGER.resetLogTargets();
         CHECK(reports->count == 2);
 
         CHECK(batch[0]->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);

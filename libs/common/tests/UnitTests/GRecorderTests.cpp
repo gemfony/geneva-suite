@@ -630,10 +630,10 @@ TEST_CASE("a stream whose close fails ends no program when its report fails as w
     };
     auto moved_onto = declare("failing_log_move");
     auto destroyed = std::make_unique<GStream>(declare("failing_log_destructor"));
-    glogger.addLogTarget(std::make_shared<ThrowingTarget>());
+    GEM_LOGGER.addLogTarget(std::make_shared<ThrowingTarget>());
     moved_onto = GStream();
     destroyed.reset();
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
     CHECK_FALSE(moved_onto.isOpen());
 }
 

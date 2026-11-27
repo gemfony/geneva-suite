@@ -820,7 +820,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   executable names change accordingly).
 - **common: `GLogger` is no longer a class template.** The single streamer type it ever
   produced (`GLogStreamer`) is now fixed; code naming `GLogger<GLogStreamer>` drops the
-  template arguments. The `glogger` singleton and all streaming behavior are unchanged.
+  template arguments. The logger singleton (`GEM_LOGGER`) and all streaming behavior are unchanged.
 - **common: two concurrency classes carry names that say what they are** (source-breaking):
   `GSPSCStagingRingT` is `GSPMCStagingRingT` (one producer, any number of readers; header
   `common/concurrency/GSPMCStagingRingT.hpp`), and `GCompletionLatchT` is `GCompletionLatch`
@@ -944,7 +944,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GLogger::throwException()` and the first two arguments of `g_error_streamer` (`DO_LOG` /
   `NO_LOG`, `timeAndPlace()`) are gone. Nothing is logged at the throw: an error a caller handles
   prints nothing, and one is written to the log and to `GEM-EXCEPTION.log` once, where it ends a
-  task (the new manipulator `GERROR`, which does not throw) or the program (the fatal report).
+  task (the new manipulator `GEM_ERROR`, which does not throw) or the program (the fatal report).
   `logType::EXCEPTION` is now `logType::ERROR_REPORT`.
 - **common: a check is written one way, and the `DEBUG` macro is gone.** A check calls
   `Gem::Common::checkThat(condition, message...)` from `common/GChecks.hpp`, which checks in every
@@ -1043,7 +1043,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   share one statement of the range rules; `checkRangeCompliance()` and `checkValueRange()` are one
   template each for all arithmetic types, and the integral `checkValueRange()` takes a variable
   name like the floating-point one.
-- **common: its names live in `Gem::Common`.** The exception classes, the error streamer, the
+- **common: its names live in `Gem::Common`, its macros begin with `GEM_`.** The exception classes, the error streamer, the
   logger's singleton type and the stream operator of `gem_exception` were in the global
   namespace; they keep their names and move into `Gem::Common`. Code outside that namespace
   qualifies them (`catch(const Gem::Common::gem_exception &e)`); the stream operator is found
@@ -1056,6 +1056,25 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   | `g_error_streamer` | `Gem::Common::g_error_streamer` |
   | `log_singleton` | `Gem::Common::log_singleton` |
   | `operator<<(std::ostream &, const gem_exception &)` | the same, in `Gem::Common` |
+
+  The macros of common carry the collection's prefix `GEM_`, so that they cannot collide with a
+  name of a user's program:
+
+  | Before | Now |
+  |---|---|
+  | `glogger` | `GEM_LOGGER` |
+  | `glogger_ptr` | `GEM_LOGGER_PTR` |
+  | `GERROR` | `GEM_ERROR` |
+  | `GWARNING` | `GEM_WARNING` |
+  | `GLOGGING` | `GEM_LOGGING` |
+  | `GFILE` | `GEM_FILE` |
+  | `GSTDOUT` | `GEM_STDOUT` |
+  | `GSTDERR` | `GEM_STDERR` |
+  | `GTERMINATION` | `GEM_TERMINATION` |
+  | `LOGEXIT(code)` | `GEM_LOGEXIT(code)` |
+  | `IDENTITY(x, y)` | `GEM_IDENTITY(x, y)` |
+  | `IDENTITY_CAST(t, x, y)` | `GEM_IDENTITY_CAST(t, x, y)` |
+  | `G_DEPRECATED(message)` | `GEM_DEPRECATED(message)` |
 
 ## 8. Checkpointing
 

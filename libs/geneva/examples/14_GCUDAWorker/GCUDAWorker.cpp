@@ -144,26 +144,27 @@ reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, doubl
     );
     const double withinFraction = static_cast<double>(within) / static_cast<double>(n);
 
-    glogger << std::format(
-                   "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  "
-                   "max={:.3e}",
-                   n,
-                   relMin,
-                   relMedian,
-                   relMean,
-                   relMax
-               )
-            << '\n'
-            << std::format(
-                   "Within tolerance ({:.1e}):  {}/{} = {:.1f}%  (pass threshold {:.0f}%)",
-                   rel_tol,
-                   within,
-                   n,
-                   100.0 * withinFraction,
-                   100.0 * pass_fraction
-               )
-            << '\n'
-            << GLOGGING;
+    GEM_LOGGER
+        << std::format(
+               "Parity relative error over {} items:  min={:.3e}  median={:.3e}  mean={:.3e}  "
+               "max={:.3e}",
+               n,
+               relMin,
+               relMedian,
+               relMean,
+               relMax
+           )
+        << '\n'
+        << std::format(
+               "Within tolerance ({:.1e}):  {}/{} = {:.1f}%  (pass threshold {:.0f}%)",
+               rel_tol,
+               within,
+               n,
+               100.0 * withinFraction,
+               100.0 * pass_fraction
+           )
+        << '\n'
+        << GEM_LOGGING;
 
     return withinFraction;
 }
@@ -186,9 +187,9 @@ int runParityCheck(
     // Floor for the relative-error denominator, so a near-zero CPU fitness cannot blow the ratio up.
     constexpr double kEps = 1.0e-12;
 
-    glogger << "Example 14 (Mona-Lisa): PARITY CHECK -- CPU evaluate() vs GPU kernel over " << n
-            << " random individuals" << '\n'
-            << GLOGGING;
+    GEM_LOGGER << "Example 14 (Mona-Lisa): PARITY CHECK -- CPU evaluate() vs GPU kernel over " << n
+               << " random individuals" << '\n'
+               << GEM_LOGGING;
 
     // Draw n random individuals for the CPU reference and, for each, an independent clone for the GPU so the
     // two paths score IDENTICAL genomes (each process() stores its result on its own item).
@@ -233,15 +234,15 @@ int runParityCheck(
         const double denom = std::max(std::abs(fitness_cpu[i]), kEps);
         rel[i] = std::abs(fitness_gpu[i] - fitness_cpu[i]) / denom;
         if(i < nShow) {
-            glogger << std::format(
-                           "  item {:3d}:  cpu={:.9g}  gpu={:.9g}  rel-err={:.3e}",
-                           i,
-                           fitness_cpu[i],
-                           fitness_gpu[i],
-                           rel[i]
-                       )
-                    << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << std::format(
+                              "  item {:3d}:  cpu={:.9g}  gpu={:.9g}  rel-err={:.3e}",
+                              i,
+                              fitness_cpu[i],
+                              fitness_gpu[i],
+                              rel[i]
+                          )
+                       << '\n'
+                       << GEM_LOGGING;
         }
     }
 
@@ -249,7 +250,7 @@ int runParityCheck(
     const double withinFraction = reportParitySummary(rel, n, kRelTol, kPassFraction);
 
     const bool pass = withinFraction >= kPassFraction;
-    glogger << (pass ? "PARITY PASS" : "PARITY FAIL") << '\n' << GLOGGING;
+    GEM_LOGGER << (pass ? "PARITY PASS" : "PARITY FAIL") << '\n' << GEM_LOGGING;
 
     return pass ? EXIT_SUCCESS : EXIT_FAILURE;
 }
@@ -326,9 +327,9 @@ int main(int argc, char **argv) {
              if(not Gem::Common::GParserBuilder::updateInPlace()) {
                  Gem::Geneva::MonaLisa::loadTarget(targetFile);
                  const auto &tgt = Gem::Geneva::MonaLisa::target();
-                 glogger << "Example 14 (Mona-Lisa): target " << targetFile << " (" << tgt.width
-                         << "x" << tgt.height << ")" << '\n'
-                         << GLOGGING;
+                 GEM_LOGGER << "Example 14 (Mona-Lisa): target " << targetFile << " (" << tgt.width
+                            << "x" << tgt.height << ")" << '\n'
+                            << GEM_LOGGING;
              }
              return std::nullopt;
          },
@@ -392,8 +393,8 @@ int main(int argc, char **argv) {
              // best individual is read back through the flat-genome base, so this program stays problem-agnostic.
              auto best = go.optimize().getBestGlobalIndividual<gen::GGenome>();
 
-             glogger << "Example 14 finished. Best fitness: " << best->raw_fitness(0) << '\n'
-                     << GLOGGING;
+             GEM_LOGGER << "Example 14 finished. Best fitness: " << best->raw_fitness(0) << '\n'
+                        << GEM_LOGGING;
 
              return 0;
          }}

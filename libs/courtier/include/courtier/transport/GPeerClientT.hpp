@@ -245,11 +245,11 @@ private:
             peer->abort();
         }
         // The last lines are read by the speed-up benchmarks (testSpeedupTools.py)
-        glogger << options_.name << ": the client has ended. Processed " << this->getNProcessed()
-                << " items in total" << '\n'
-                << "prefetch depth was " << options_.prefetchDepth << '\n'
-                << "parallel evaluations were " << options_.parallelEvaluations << '\n'
-                << GLOGGING;
+        GEM_LOGGER << options_.name << ": the client has ended. Processed " << this->getNProcessed()
+                   << " items in total" << '\n'
+                   << "prefetch depth was " << options_.prefetchDepth << '\n'
+                   << "parallel evaluations were " << options_.parallelEvaluations << '\n'
+                   << GEM_LOGGING;
     }
 
     //-------------------------------------------------------------------------
@@ -321,8 +321,8 @@ private:
         if(how == GPeerClose::RUN_ENDED) {
             // No result is needed any more: nothing is sent, evaluated or kept
             this->flagCloseRequested();
-            glogger << options_.name << ": the server announced the end of the run" << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << options_.name << ": the server announced the end of the run" << '\n'
+                       << GEM_LOGGING;
             unanswered_.clear();
             pending_pulls_ = 0;
             this->beginEnding_(GPeerClose::NORMAL);
@@ -345,11 +345,11 @@ private:
         if(opened) {
             n_losses_.fetch_add(1);
         }
-        glogger << "In " << options_.name << ": "
-                << (opened ? "the connection to the server was lost: "
-                           : "no connection to the server: ")
-                << reason << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "In " << options_.name << ": "
+                   << (opened ? "the connection to the server was lost: "
+                              : "no connection to the server: ")
+                   << reason << '\n'
+                   << GEM_LOGGING;
         if(not connector_->reconnectable()) {
             if(not opened) {
                 this->flagTerminalError();
@@ -425,12 +425,12 @@ private:
         if(limit.count() == 0) {
             return;
         }
-        glogger << "In " << options_.name << ":" << '\n'
-                << "No server within the limit ("
-                << std::chrono::duration_cast<std::chrono::duration<double>>(limit).count()
-                << " s, " << (contact_ever_ ? "after a loss" : "first contact")
-                << "). This will terminate the client." << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "In " << options_.name << ":" << '\n'
+                   << "No server within the limit ("
+                   << std::chrono::duration_cast<std::chrono::duration<double>>(limit).count()
+                   << " s, " << (contact_ever_ ? "after a loss" : "first contact")
+                   << "). This will terminate the client." << '\n'
+                   << GEM_LOGGING;
         this->flagTerminalError();
         this->beginEnding_(GPeerClose::NORMAL);
     }
@@ -539,10 +539,10 @@ private:
             return; // the client ends
         }
         if(const std::string mismatch = helloMismatch(hello); not mismatch.empty()) {
-            glogger << "In " << options_.name << ":" << '\n'
-                    << mismatch << '\n'
-                    << "This will terminate the client." << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "In " << options_.name << ":" << '\n'
+                       << mismatch << '\n'
+                       << "This will terminate the client." << '\n'
+                       << GEM_LOGGING;
             // The server learns why: this client's HELLO goes before the close (GPeerI.hpp, rule 6)
             if(auto peer = peer_.lock()) {
                 peer->send(makeMessage(
@@ -555,7 +555,9 @@ private:
         }
         if(not program_unchecked_told_) {
             if(const std::string unchecked = helloProgramUnchecked(hello); not unchecked.empty()) {
-                glogger << "In " << options_.name << ":" << '\n' << unchecked << '\n' << GLOGGING;
+                GEM_LOGGER << "In " << options_.name << ":" << '\n'
+                           << unchecked << '\n'
+                           << GEM_LOGGING;
                 program_unchecked_told_ = true;
             }
         }
@@ -685,9 +687,9 @@ private:
      *  outcome throw; that ends the program. @param frame Its frame; the ids in its head name the
      *  item @param reason Why it failed @return The message */
     std::string failedResult_(frame_type &frame, const std::string &reason) {
-        glogger << "In " << options_.name << ": " << reason << '\n'
-                << "It is returned to the server as failed; the client keeps running." << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << options_.name << ": " << reason << '\n'
+                   << "It is returned to the server as failed; the client keeps running." << '\n'
+                   << GEM_WARNING;
         Gem::Courtier::makeFailedResult(frame, frame.outcome(), reason);
         return Gem::Courtier::wireEncode(frame, &wire_ctx_, options_.mode);
     }
@@ -753,11 +755,11 @@ private:
     //-------------------------------------------------------------------------
     /** @brief A message the client cannot handle ends it @param what Why */
     void protocolError_(const std::string &what) {
-        glogger << "In " << options_.name
-                << ": a message from the server cannot be handled:" << '\n'
-                << what << '\n'
-                << "The client will shut down." << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << options_.name
+                   << ": a message from the server cannot be handled:" << '\n'
+                   << what << '\n'
+                   << "The client will shut down." << '\n'
+                   << GEM_WARNING;
         this->beginEnding_(GPeerClose::ERROR);
     }
 

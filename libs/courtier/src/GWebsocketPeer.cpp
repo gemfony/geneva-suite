@@ -162,9 +162,9 @@ void GWebsocketPeer::configure_() {
             close_received_ = true;
         }
         if(options_.verboseControlFrames) {
-            glogger << options_.name << " has received a " << Gem::Common::enumName(kind)
-                    << " frame" << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << options_.name << " has received a " << Gem::Common::enumName(kind)
+                       << " frame" << '\n'
+                       << GEM_LOGGING;
         }
     });
 }
@@ -557,10 +557,10 @@ void GWebsocketPeer::finish_(const error_code &cause, bool report_inline) {
         const auto silent_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - last_inbound_
         );
-        glogger << options_.name << ": the idle limit of " << (2 * options_.pingInterval).count()
-                << " ms has expired; the last complete message or control frame of the other end"
-                << " arrived " << silent_ms.count() << " ms ago" << '\n'
-                << GLOGGING;
+        GEM_LOGGER << options_.name << ": the idle limit of " << (2 * options_.pingInterval).count()
+                   << " ms has expired; the last complete message or control frame of the other end"
+                   << " arrived " << silent_ms.count() << " ms ago" << '\n'
+                   << GEM_LOGGING;
     }
 
     ws_.set_option(

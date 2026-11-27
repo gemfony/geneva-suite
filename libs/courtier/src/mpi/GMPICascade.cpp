@@ -487,10 +487,10 @@ void GMPICascade::abortJob(int code, std::string_view reason) {
         this->endJob_("abortJob()", reason, code);
     }
     try {
-        glogger << reason << '\n'
-                << "MPI is not in use: the process is ended with the exit code " << code << "."
-                << '\n'
-                << GERROR;
+        GEM_LOGGER << reason << '\n'
+                   << "MPI is not in use: the process is ended with the exit code " << code << "."
+                   << '\n'
+                   << GEM_ERROR;
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the process ends in any case
     }

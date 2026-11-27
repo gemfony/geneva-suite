@@ -327,12 +327,12 @@ protected:
     /***************************************************************************/
     /** @brief Clean, fatal exit when the policy cannot be honoured. This is an expected terminal
      *  condition (e.g. a lost evaluation under a need-all policy), not an internal fault, so it
-     *  exits cleanly via LOGEXIT rather than std::terminate()-ing with a core dump.
+     *  exits cleanly via GEM_LOGEXIT rather than std::terminate()-ing with a core dump.
      *  @param msg The human-readable reason for the fatal exit (logged before exiting) */
     void fatal_(const std::string &msg) const {
-        glogger << "In Gem::Courtier consumer:" << '\n'
-                << "FATAL: " << msg << '\n'
-                << LOGEXIT(EXIT_FAILURE);
+        GEM_LOGGER << "In Gem::Courtier consumer:" << '\n'
+                   << "FATAL: " << msg << '\n'
+                   << GEM_LOGEXIT(EXIT_FAILURE);
     }
 
     /***************************************************************************/

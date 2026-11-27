@@ -29,7 +29,7 @@
 
 /**
  * Standalone exerciser for the FATAL reconciliation paths of the courtier submission policies.
- * These paths exit the process via LOGEXIT (std::exit, a clean non-zero exit -- no core dump),
+ * These paths exit the process via GEM_LOGEXIT (std::exit, a clean non-zero exit -- no core dump),
  * which still cannot be observed in-process by Catch2, so each scenario is driven from CTest as a
  * subprocess and asserted via the process exit status (see the CMakeLists). Usage:
  *

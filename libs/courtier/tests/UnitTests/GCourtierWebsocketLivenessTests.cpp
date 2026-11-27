@@ -347,7 +347,7 @@ TEST_CASE(
 
     // What the client logs goes here for the duration of this test.
     auto log = std::make_shared<CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
 
     auto client = std::make_shared<GWebsocketClientT<GFaultyContainer>>(
         Gem::Courtier::GWebsocketConsumerConfig{
@@ -375,7 +375,7 @@ TEST_CASE(
     CHECK(log->hasLineWith(
         {"GWebsocketClientT<> client: the idle limit of 2000 ms has expired", "arrived", "ms ago"}
     ));
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     client->flagCloseRequested(); // ends a client that is still waiting, so the test can finish
     release->count_down();
@@ -776,7 +776,7 @@ void runSlowCodecCase(const SlowCodecCase &c) {
     slowRunsDone.store(0);
     evaluations.store(0);
     auto log = std::make_shared<CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
 
     auto consumer = startedServer<GSlowCodecItem>(c.serverThreads);
     std::vector<std::shared_ptr<GWebsocketClientT<GSlowCodecItem>>> clients;
@@ -824,7 +824,7 @@ void runSlowCodecCase(const SlowCodecCase &c) {
     }
 
     slowRun.store(CodecRun::NONE);
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
     for(auto &client : clients) {
         client->flagCloseRequested();
     }

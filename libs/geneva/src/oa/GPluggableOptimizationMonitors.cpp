@@ -90,23 +90,23 @@ void GStandardMonitor::informationFunction_(
 ) {
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT: {
-        glogger << "Starting an optimization run with algorithm \""
+        GEM_LOGGER << "Starting an optimization run with algorithm \""
                 << goa->getAlgorithmName() << "\"" << '\n'
-                << GLOGGING;
+                << GEM_LOGGING;
     } break;
 
     case Gem::Geneva::infoMode::INFOPROCESSING: {
-        glogger << std::setprecision(5) << goa->getIteration() << ": "
+        GEM_LOGGER << std::setprecision(5) << goa->getIteration() << ": "
                 << Gem::Common::g_to_string(goa->getBestCurrentPrimaryFitness())
                 << " // best past: "
                 << Gem::Common::g_to_string(goa->getBestKnownPrimaryFitness()) << '\n'
-                << GLOGGING;
+                << GEM_LOGGING;
     } break;
 
     case Gem::Geneva::infoMode::INFOEND: {
-        glogger << "End of optimization reached in algorithm \""
+        GEM_LOGGER << "End of optimization reached in algorithm \""
                 << goa->getAlgorithmName() << "\"" << '\n'
-                << GLOGGING;
+                << GEM_LOGGING;
     } break;
     }
 }

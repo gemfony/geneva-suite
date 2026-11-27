@@ -33,7 +33,7 @@
  * GFaultyContainer test double to exhibit success / clean error flag / throwing evaluations.
  *
  * Fatal policy paths (full_success_or_fatal hitting an unfixable failure, the zero-usable floor)
- * are intentionally NOT exercised here: they exit the process via LOGEXIT (std::exit), which
+ * are intentionally NOT exercised here: they exit the process via GEM_LOGEXIT (std::exit), which
  * cannot be caught in-process by Catch2. They are covered by the standalone manual exercisers.
  */
 

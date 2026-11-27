@@ -338,7 +338,7 @@ void GSepCmaEvolutionStrategy::init() {
         const std::size_t n_int = ind.countParameters<std::int32_t>(activityMode::ACTIVEONLY);
         const std::size_t n_bool = ind.countParameters<bool>(activityMode::ACTIVEONLY);
         if(n_int + n_bool > 0) {
-            glogger
+            GEM_LOGGER
                 << "The individual has " << n_int << " active integer and " << n_bool
                 << " active boolean parameter(s)." << '\n'
                 << "sep-CMA-ES optimizes only floating-point parameters; these will be left at "
@@ -347,7 +347,7 @@ void GSepCmaEvolutionStrategy::init() {
                 << "start values. Use an algorithm that adapts all parameter types (e.g. the EA)"
                 << '\n'
                 << "if the integer/boolean parameters should be optimized." << '\n'
-                << GWARNING;
+                << GEM_WARNING;
         }
     }
 

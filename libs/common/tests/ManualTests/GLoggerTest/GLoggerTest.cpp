@@ -77,36 +77,36 @@ int main(int argc, char **argv) {
         std::vector<std::shared_ptr<Record::GSink>>{std::make_shared<Record::GTextSink>()}
     );
 
-    glogger.addLogTarget(gcl_ptr);
-    glogger.addLogTarget(gfl_ptr);
+    GEM_LOGGER.addLogTarget(gcl_ptr);
+    GEM_LOGGER.addLogTarget(gfl_ptr);
 
     // Emission of a leading std::endl
-    glogger << '\n' << "This comment starts in the next line!" << '\n' << GLOGGING;
+    GEM_LOGGER << '\n' << "This comment starts in the next line!" << '\n' << GEM_LOGGING;
 
     // Normal output to all logging targets
-    glogger << "Some information " << 1 << " " << 2 << '\n' << GLOGGING;
+    GEM_LOGGER << "Some information " << 1 << " " << 2 << '\n' << GEM_LOGGING;
 
     // Warning emitted to all targets
-    glogger << "Some information " << 3 << " " << 4 << '\n' << GWARNING;
+    GEM_LOGGER << "Some information " << 3 << " " << 4 << '\n' << GEM_WARNING;
 
     // An error where it is finally handled: emitted to all targets and also written to a file
     // named GEM-EXCEPTION.log
-    glogger << "Some information " << 5 << " " << 6 << '\n' << GERROR;
+    GEM_LOGGER << "Some information " << 5 << " " << 6 << '\n' << GEM_ERROR;
 
     // Output to a specific file
-    glogger(std::filesystem::path("anotherFile"))
+    GEM_LOGGER(std::filesystem::path("anotherFile"))
         << "Some other information " << 7 << " " << 8 << '\n'
-        << GFILE;
+        << GEM_FILE;
 
     // Output to registered logging targets with a given extension
-    glogger(std::string("extension")) << "And yet another information " << 9 << " " << 10 << '\n'
-                                      << GLOGGING;
+    GEM_LOGGER(std::string("extension")) << "And yet another information " << 9 << " " << 10 << '\n'
+                                         << GEM_LOGGING;
 
     // Output to stdout
-    glogger << "std::out-information" << '\n' << GSTDOUT;
+    GEM_LOGGER << "std::out-information" << '\n' << GEM_STDOUT;
 
     // Output to stderr
-    glogger << "std::err information" << '\n' << GSTDERR;
+    GEM_LOGGER << "std::err information" << '\n' << GEM_STDERR;
 
     // Crash the applicaton if requested
     if(do_crash) {

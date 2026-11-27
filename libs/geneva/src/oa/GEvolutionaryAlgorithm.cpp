@@ -814,13 +814,13 @@ void GType::sortMuPlusNuParetoMode() {
     if(not(*this->begin())->hasMultipleFitnessCriteria()) {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
-            glogger
+            GEM_LOGGER
                 << "A PARETO sorting mode was selected, but the individuals expose only a single"
                 << '\n'
                 << "fitness criterion. Pareto selection therefore degenerates to single-objective"
                 << '\n'
                 << "MUPLUSNU selection." << '\n'
-                << GWARNING;
+                << GEM_WARNING;
         }
         this->sortMuPlusNuMode();
         return;
@@ -835,13 +835,13 @@ void GType::sortMuCommaNuParetoMode() {
     if(not(*this->begin())->hasMultipleFitnessCriteria()) {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
-            glogger
+            GEM_LOGGER
                 << "A PARETO sorting mode was selected, but the individuals expose only a single"
                 << '\n'
                 << "fitness criterion. Pareto selection therefore degenerates to single-objective"
                 << '\n'
                 << "MUCOMMANU selection." << '\n'
-                << GWARNING;
+                << GEM_WARNING;
         }
         this->sortMuCommaNuMode();
         return;

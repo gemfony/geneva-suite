@@ -500,7 +500,7 @@ void makeFailedResult(
  * is not due -- leaves the item unflagged; it is flagged here (ERROR_FLAGGED, the text appended to
  * its error descriptions, unless the item already reports an error). Neither ends the worker: the
  * flagged item is returned like any other result, and the server's submission policy decides what
- * happens to the slot. The failure ends the item's task here, so it is reported here (GERROR: the
+ * happens to the slot. The failure ends the item's task here, so it is reported here (GEM_ERROR: the
  * worker's log and its GEM-EXCEPTION.log), once.
  *
  * A due item is processed by @p processor if one is given (a client's item processor, see
@@ -535,11 +535,11 @@ void processWorkFrame(
             item->applyProcessingOutcome(outcome);
         }
         container.setItem(std::move(item));
-        glogger << "In " << worker_name << ":" << '\n'
-                << "The work item could not be processed:" << '\n'
-                << reason << '\n'
-                << "It is returned to the server flagged; the worker keeps running." << '\n'
-                << GERROR;
+        GEM_LOGGER << "In " << worker_name << ":" << '\n'
+                   << "The work item could not be processed:" << '\n'
+                   << reason << '\n'
+                   << "It is returned to the server flagged; the worker keeps running." << '\n'
+                   << GEM_ERROR;
         return true;
     };
 
@@ -547,11 +547,11 @@ void processWorkFrame(
         container.process(processor);
     }
     catch(const g_processing_exception &e) {
-        glogger << "In " << worker_name << ":" << '\n'
-                << "The work item flagged a processing exception:" << '\n'
-                << e.what() << '\n'
-                << "It is returned to the server flagged; the worker keeps running." << '\n'
-                << GERROR;
+        GEM_LOGGER << "In " << worker_name << ":" << '\n'
+                   << "The work item flagged a processing exception:" << '\n'
+                   << e.what() << '\n'
+                   << "It is returned to the server flagged; the worker keeps running." << '\n'
+                   << GEM_ERROR;
     }
     catch(const std::exception &e) {
         if(not return_flagged(e.what())) {

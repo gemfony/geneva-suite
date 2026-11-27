@@ -819,11 +819,11 @@ std::size_t GMqttPeer::maxMessageBytes() const {
  */
 void GMqttPeer::setKeepAlive(std::chrono::milliseconds interval) {
     if(interval != std::chrono::milliseconds(options_.keepAlive)) {
-        glogger << options_.name << ": the server's keep-alive is " << interval.count()
-                << " ms; this end's MQTT keep-alive stays "
-                << std::chrono::milliseconds(options_.keepAlive).count()
-                << " ms, as it was when it connected to the broker" << '\n'
-                << GLOGGING;
+        GEM_LOGGER << options_.name << ": the server's keep-alive is " << interval.count()
+                   << " ms; this end's MQTT keep-alive stays "
+                   << std::chrono::milliseconds(options_.keepAlive).count()
+                   << " ms, as it was when it connected to the broker" << '\n'
+                   << GEM_LOGGING;
     }
 }
 
@@ -1094,9 +1094,10 @@ void GMqttListener::connect_() {
             joins_->pause = GCLIENTRECONNECTPAUSEMIN;
             if(joins_->down) {
                 joins_->down = false;
-                glogger << "In " << name_
-                        << ": the listener reaches the MQTT broker again: clients can join" << '\n'
-                        << GLOGGING;
+                GEM_LOGGER << "In " << name_
+                           << ": the listener reaches the MQTT broker again: clients can join"
+                           << '\n'
+                           << GEM_LOGGING;
             }
             this->receiveJoin_();
         }
@@ -1127,9 +1128,9 @@ void GMqttListener::joinsBroken_(std::uint64_t generation, const std::string &wh
     }
     if(not joins_->down) {
         joins_->down = true;
-        glogger << "In " << name_ << ": the listener's connection to the MQTT broker has ended ("
-                << what << "): no client can join until it has connected again" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": the listener's connection to the MQTT broker has ended ("
+                   << what << "): no client can join until it has connected again" << '\n'
+                   << GEM_WARNING;
     }
     joins_->retry.expires_after(joins_->pause);
     joins_->pause = std::min(2 * joins_->pause, GCLIENTRECONNECTPAUSEMAX);
@@ -1171,9 +1172,9 @@ void GMqttListener::joined_(std::string id) {
         return;
     }
     if(not isId(id)) {
-        glogger << "In " << name_ << ": a join on " << options_.topic
-                << "/join that names no connection was ignored" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": a join on " << options_.topic
+                   << "/join that names no connection was ignored" << '\n'
+                   << GEM_WARNING;
         return;
     }
     auto [known, inserted] = ends_.try_emplace(id);
@@ -1209,8 +1210,9 @@ void GMqttListener::handOver_(const std::shared_ptr<GMqttPeer> &peer, const std:
         return;
     }
     if(not why.empty()) {
-        glogger << "In " << name_ << ": a client that joined could not be taken on: " << why << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": a client that joined could not be taken on: " << why
+                   << '\n'
+                   << GEM_WARNING;
         return;
     }
     if(stopped_.load() || not on_peer_) {
@@ -1221,11 +1223,12 @@ void GMqttListener::handOver_(const std::shared_ptr<GMqttPeer> &peer, const std:
         on_peer_(peer, next_peer_id_++);
     }
     catch(const std::exception &e) {
-        glogger << "In " << name_ << ": a new client could not be taken on: " << e.what() << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": a new client could not be taken on: " << e.what() << '\n'
+                   << GEM_WARNING;
     }
     catch(...) {
-        glogger << "In " << name_ << ": a new client could not be taken on" << '\n' << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": a new client could not be taken on" << '\n'
+                   << GEM_WARNING;
     }
 }
 
@@ -1246,10 +1249,10 @@ void GMqttListener::stop() {
         done->count_down();
     });
     if(not done->wait_for(LISTENER_STOP_BOUND)) {
-        glogger << "In " << name_
-                << ": the listener, with a new client it takes on, did not stop within "
-                << LISTENER_STOP_BOUND.count() << " ms" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_
+                   << ": the listener, with a new client it takes on, did not stop within "
+                   << LISTENER_STOP_BOUND.count() << " ms" << '\n'
+                   << GEM_WARNING;
     }
 }
 

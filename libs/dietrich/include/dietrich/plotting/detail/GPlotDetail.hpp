@@ -805,11 +805,11 @@ inline void warnPadOverflow(
     std::size_t max_plots
 ) {
     if(n_plotters > max_plots) {
-        glogger << "In " << where << " (Canvas label = \"" << canvas_label << "\":" << '\n'
-                << "Warning! Found more plots than pads (" << n_plotters << " vs. " << max_plots
-                << ")" << '\n'
-                << "Some of the plots will be ignored" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << where << " (Canvas label = \"" << canvas_label << "\":" << '\n'
+                   << "Warning! Found more plots than pads (" << n_plotters << " vs. " << max_plots
+                   << ")" << '\n'
+                   << "Some of the plots will be ignored" << '\n'
+                   << GEM_WARNING;
     }
 }
 

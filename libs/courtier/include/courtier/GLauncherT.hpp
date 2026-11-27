@@ -810,10 +810,10 @@ int GLauncherT<processable_type>::runSubmitter_(
                     consumer_->recordEndOfRun(mnemonic_);
                 }
                 catch(const std::exception &e) {
-                    glogger << "The end-of-run report of the consumer \"" << mnemonic_
-                            << "\" could not be recorded:" << '\n'
-                            << e.what() << '\n'
-                            << GWARNING;
+                    GEM_LOGGER << "The end-of-run report of the consumer \"" << mnemonic_
+                               << "\" could not be recorded:" << '\n'
+                               << e.what() << '\n'
+                               << GEM_WARNING;
                 }
             }
             if(registry_.consumer() == consumer_) {

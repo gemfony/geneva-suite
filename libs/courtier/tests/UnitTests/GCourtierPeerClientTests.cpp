@@ -2536,7 +2536,7 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
     auto evaluations = std::make_shared<Evaluations>();
     // What the client logs goes here for the duration of this test.
     auto log = std::make_shared<CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
     const GreetingServer other{std::string(OTHER_COMMIT), ""};
     World world;
     world.route().set(other.listener());
@@ -2562,7 +2562,7 @@ TEST_CASE("GPeerClientT: a server of another build ends the client", "[courtier]
          Gem::Common::gemCommit(),
          GEM_VERSION_STRING}
     ));
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 }
 
 // The HELLO is checked on every connection, not only on the first: a server that comes back as
@@ -2572,7 +2572,7 @@ TEST_CASE(
     "[courtier][peer][client]"
 ) {
     auto log = std::make_shared<CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
     // The first connection names this build and ends with ERROR at the client's PULL; the second
     // names another build.
     const GreetingServer
@@ -2584,7 +2584,7 @@ TEST_CASE(
     CHECK(eventually([&] { return server.received() == 2; })); // a PULL on the first, on the second
     CHECK(eventually([&] { return server.hellos() == 1; }));   // only its HELLO
     CHECK(log->hasLineWith({"The server was built from another commit", OTHER_COMMIT}));
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 }
 
 // The identity of the program is one per process (Gem::Common::setProgramIdentity()), so this case
@@ -2598,7 +2598,7 @@ TEST_CASE(
     const std::string own_commit{Gem::Common::gemCommit()};
     // What the clients log goes here for the duration of this test.
     auto log = std::make_shared<CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
 
     // This client's program has no identity: not checked; the client says so once, though it is
     // greeted twice (the server ends the first connection with ERROR, the second with RUN_ENDED).
@@ -2644,7 +2644,7 @@ TEST_CASE(
     CHECK(got.program() == "this program");
     CHECK(Gem::Courtier::helloMismatch(got).empty());
     CHECK(Gem::Courtier::helloProgramUnchecked(got).empty());
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 }
 
 /******************************************************************************/

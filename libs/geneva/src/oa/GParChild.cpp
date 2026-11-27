@@ -681,10 +681,11 @@ void GParChild::fixAfterJobSubmission() {
 
     // Emit a warning if no children have returned
     if(this->size() <= np) {
-        glogger << "No child individuals have returned" << '\n'
-                << "We have a size of " << this->size() << " with " << np << " parents" << '\n'
-                << "We need to fill up the population with clones from parent individuals" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "No child individuals have returned" << '\n'
+                   << "We have a size of " << this->size() << " with " << np << " parents" << '\n'
+                   << "We need to fill up the population with clones from parent individuals"
+                   << '\n'
+                   << GEM_WARNING;
     }
 
     // Check that the last individual is not unprocessed. This is a severe error.

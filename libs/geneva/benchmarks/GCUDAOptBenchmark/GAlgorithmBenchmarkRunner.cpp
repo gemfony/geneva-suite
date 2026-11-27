@@ -92,10 +92,10 @@ GAlgorithmBenchmarkRunner::GAlgorithmBenchmarkRunner(BenchmarkConfig cfg)
  * with GConsumerRegistryT::setConsumer() by the caller before this is invoked.
  */
 std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
-    glogger << "GAlgorithmBenchmarkRunner: starting benchmark." << std::endl
-            << "  function=" << cfg_.functionName << "  dims=" << cfg_.nDimensions
-            << "  nRuns=" << cfg_.nRuns << std::endl
-            << GLOGGING;
+    GEM_LOGGER << "GAlgorithmBenchmarkRunner: starting benchmark." << std::endl
+               << "  function=" << cfg_.functionName << "  dims=" << cfg_.nDimensions
+               << "  nRuns=" << cfg_.nRuns << std::endl
+               << GEM_LOGGING;
 
     // Individual configuration (shared across all runs). GFunctionIndividual is a flat individual driven
     // by the generic GIndividualFactory; this benchmark needs a specific genome DIMENSION, so it builds
@@ -112,8 +112,9 @@ std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
         std::vector<GBenchmarkRunResult> rawRuns;
         rawRuns.reserve(cfg_.nRuns);
 
-        glogger << "--- Algorithm: " << entry.tag << " (" << entry.mnemonic << ") ---" << std::endl
-                << GLOGGING;
+        GEM_LOGGER << "--- Algorithm: " << entry.tag << " (" << entry.mnemonic << ") ---"
+                   << std::endl
+                   << GEM_LOGGING;
 
         for(std::uint32_t r = 0; r < static_cast<std::uint32_t>(cfg_.nRuns); ++r) {
             auto result = runOne(entry, r, indCfg);

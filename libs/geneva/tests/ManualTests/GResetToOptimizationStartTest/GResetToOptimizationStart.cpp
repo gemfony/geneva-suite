@@ -66,10 +66,10 @@ int main(int argc, char **argv) {
 
             // Check that algorithms were indeed registered and fix, if this was not the case.
             if(go.getNAlgorithms() == 0) {
-                glogger << "In GResetToOptimizationStart:" << '\n'
-                        << "No algorithms were registered." << '\n'
-                        << "We will add an Evolutionary Algorithm" << '\n'
-                        << GLOGGING;
+                GEM_LOGGER << "In GResetToOptimizationStart:" << '\n'
+                           << "No algorithms were registered." << '\n'
+                           << "We will add an Evolutionary Algorithm" << '\n'
+                           << GEM_LOGGING;
 
                 go & "ea";
             }

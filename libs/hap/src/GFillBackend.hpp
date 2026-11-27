@@ -174,23 +174,25 @@ public:
         const bool useCuda = cuda_.has_value();
         std::call_once(cuda_decision_logged, [useCuda, allowed, device]() {
             if(useCuda) {
-                glogger << "In GFillBackend: a CUDA device is present;"
-                        << " random-number containers are refilled on the GPU via cuRAND." << '\n'
-                        << GLOGGING;
+                GEM_LOGGER << "In GFillBackend: a CUDA device is present;"
+                           << " random-number containers are refilled on the GPU via cuRAND."
+                           << '\n'
+                           << GEM_LOGGING;
             }
             else if(not allowed) {
-                glogger << "In GFillBackend: GPU random-number generation is switched off for this "
-                           "process;"
-                        << " random-number containers are refilled on the CPU." << '\n'
-                        << GLOGGING;
+                GEM_LOGGER
+                    << "In GFillBackend: GPU random-number generation is switched off for this "
+                       "process;"
+                    << " random-number containers are refilled on the CPU." << '\n'
+                    << GEM_LOGGING;
             }
             else if(not device) {
-                glogger << "This binary was built with the CUDA"
-                        << " random-number backend, but no CUDA-capable device is available."
-                        << '\n'
-                        << "Falling back to the SIMD/CPU bulk-refill engine -- the GPU is NOT being"
-                        << " used for random-number generation." << '\n'
-                        << GWARNING;
+                GEM_LOGGER
+                    << "This binary was built with the CUDA"
+                    << " random-number backend, but no CUDA-capable device is available." << '\n'
+                    << "Falling back to the SIMD/CPU bulk-refill engine -- the GPU is NOT being"
+                    << " used for random-number generation." << '\n'
+                    << GEM_WARNING;
             }
         });
 #endif
@@ -261,9 +263,10 @@ private:
     static void logGpuFailure_() {
         static std::once_flag gpu_failure_logged;
         std::call_once(gpu_failure_logged, []() {
-            glogger << "A CUDA call for random-number generation failed." << '\n'
-                    << "The affected random-number sources continue on the SIMD/CPU engine." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "A CUDA call for random-number generation failed." << '\n'
+                       << "The affected random-number sources continue on the SIMD/CPU engine."
+                       << '\n'
+                       << GEM_WARNING;
         });
     }
 

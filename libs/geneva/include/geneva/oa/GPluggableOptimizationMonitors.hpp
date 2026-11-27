@@ -71,7 +71,7 @@ namespace Gem::Geneva {
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * This monitor writes a short text summary of a run through the logger (glogger): the start of
+ * This monitor writes a short text summary of a run through the logger (GEM_LOGGER): the start of
  * each algorithm, the best current and best known primary fitness of every reported iteration,
  * and the end -- the summary the algorithm itself prints to std::cout. It records no stream. It
  * is not registered by itself: register it like any other monitor.
@@ -909,11 +909,12 @@ private:
         } break;
 
         default:
-            glogger << "NOTE: In GProgressPlotterT<fp_type>::informationFunction_(infoMode::INFOINIT):"
-                    << '\n'
-                    << this->nProfileVars() << " profiled variables can not be drawn; the stream \""
-                    << stream_name_ << "\" records them without a plot." << '\n'
-                    << GLOGGING;
+            GEM_LOGGER
+                << "NOTE: In GProgressPlotterT<fp_type>::informationFunction_(infoMode::INFOINIT):"
+                << '\n'
+                << this->nProfileVars() << " profiled variables can not be drawn; the stream \""
+                << stream_name_ << "\" records them without a plot." << '\n'
+                << GEM_LOGGING;
             break;
         }
 

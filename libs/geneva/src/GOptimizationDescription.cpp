@@ -204,10 +204,10 @@ void GOptimizationDescription::configure(Gem::Courtier::processRole role) {
     static std::once_flag archive_check;
     std::call_once(archive_check, [] {
         Gem::Weft::verifyArchiveRegistrations();
-        glogger << "GArchive registration self-check passed: "
-                << Gem::Weft::archiveRegisteredHierarchyCount()
-                << " polymorphic hierarchies are fully archive-dispatchable." << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "GArchive registration self-check passed: "
+                   << Gem::Weft::archiveRegisteredHierarchyCount()
+                   << " polymorphic hierarchies are fully archive-dispatchable." << '\n'
+                   << GEM_LOGGING;
     });
     static std::once_flag random_numbers;
     std::call_once(random_numbers, [this] {

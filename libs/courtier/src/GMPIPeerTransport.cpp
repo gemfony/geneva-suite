@@ -369,9 +369,9 @@ void GMPIPeer::handle_(int tag, std::string &&bytes) {
             handlers_.onMessage(std::move(bytes));
         }
         else if(state_ == GState::WAITING) {
-            glogger << name_ << ": a message from rank " << rank_
-                    << " that came before the greeting was dropped" << '\n'
-                    << GWARNING;
+            GEM_LOGGER << name_ << ": a message from rank " << rank_
+                       << " that came before the greeting was dropped" << '\n'
+                       << GEM_WARNING;
         }
         return;
 
@@ -381,9 +381,9 @@ void GMPIPeer::handle_(int tag, std::string &&bytes) {
         return;
 
     default:
-        glogger << name_ << ": a message with the unknown tag " << tag << " from rank " << rank_
-                << " was dropped" << '\n'
-                << GWARNING;
+        GEM_LOGGER << name_ << ": a message with the unknown tag " << tag << " from rank " << rank_
+                   << " was dropped" << '\n'
+                   << GEM_WARNING;
         return;
     }
 }
@@ -662,10 +662,10 @@ void GMPIListener::handOver_(std::vector<std::shared_ptr<GMPIPeer>> peers) {
                 }
             }
             catch(...) {
-                glogger << "In " << options_.name << ": the session of rank " << peer_id
-                        << " could not be made: "
-                        << Gem::Common::describeException(std::current_exception()) << '\n'
-                        << GWARNING;
+                GEM_LOGGER << "In " << options_.name << ": the session of rank " << peer_id
+                           << " could not be made: "
+                           << Gem::Common::describeException(std::current_exception()) << '\n'
+                           << GEM_WARNING;
                 peer->close(GPeerClose::ERROR);
             }
             on_peer_calls_.remove(peer_id);
@@ -684,10 +684,10 @@ void GMPIListener::stop() {
         return;
     }
     if(not on_peer_calls_.waitUntilEmpty(LISTENER_STOP_BOUND)) {
-        glogger << "In " << options_.name << ": " << on_peer_calls_.size()
-                << " rank(s) did not reach the server within " << LISTENER_STOP_BOUND.count()
-                << " ms of the stop" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << options_.name << ": " << on_peer_calls_.size()
+                   << " rank(s) did not reach the server within " << LISTENER_STOP_BOUND.count()
+                   << " ms of the stop" << '\n'
+                   << GEM_WARNING;
     }
 }
 
@@ -756,9 +756,9 @@ void GMPIListener::announceEndWithoutStart() {
         peer->close(GPeerClose::RUN_ENDED);
     }
     if(not ended->wait_for(this->stopGrace())) {
-        glogger << "In " << options_.name << ": " << ended->remaining() << " of " << peers.size()
-                << " end(s) did not close within " << this->stopGrace().count() << " ms" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << options_.name << ": " << ended->remaining() << " of " << peers.size()
+                   << " end(s) did not close within " << this->stopGrace().count() << " ms" << '\n'
+                   << GEM_WARNING;
     }
     this->joinPoll_();
     // The closes just sent get the drain grace to arrive (a rank that never receives is given up)

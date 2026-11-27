@@ -255,9 +255,9 @@ public:
             gpb.writeConfigFile(config_path_, header, true);
         }
         else {
-            glogger << "Configuration file " << config_path_.string()
-                    << " was not written: no configuration options are registered" << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "Configuration file " << config_path_.string()
+                       << " was not written: no configuration options are registered" << '\n'
+                       << GEM_WARNING;
         }
     }
 

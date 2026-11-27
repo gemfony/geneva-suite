@@ -57,7 +57,7 @@ namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
 /**
- * @brief Ends the MPI job: reports @p text as an error (GERROR: logged and recorded in
+ * @brief Ends the MPI job: reports @p text as an error (GEM_ERROR: logged and recorded in
  * GEM-EXCEPTION.log, where the error is finally handled), flushes the program's streams and calls
  * MPI_Abort on @p communicator with @p code, which ends every process of the job. Does not
  * return. The one way courtier ends a job (GMPICascade, ~GMPIEnvironment()).
@@ -69,7 +69,7 @@ namespace Gem::Courtier::Consumers {
 [[noreturn]] inline void
 endMpiJob(MPI_Comm communicator, std::string_view text, int code) noexcept {
     try {
-        glogger << text << '\n' << GERROR;
+        GEM_LOGGER << text << '\n' << GEM_ERROR;
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
     }
@@ -228,10 +228,11 @@ public:
         }
         if(lost_rank_.load()) {
             try {
-                glogger << "ranks were lost during the run: the program's MPI_Finalize will wait "
-                           "for them"
-                        << '\n'
-                        << GWARNING;
+                GEM_LOGGER
+                    << "ranks were lost during the run: the program's MPI_Finalize will wait "
+                       "for them"
+                    << '\n'
+                    << GEM_WARNING;
             }
             catch(...) { // NOLINT(bugprone-empty-catch): nothing to do about a log line
             }

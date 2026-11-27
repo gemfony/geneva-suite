@@ -435,9 +435,9 @@ void GOptimizer::refreshAllConfigs_() {
             (void)provider->provide();
         }
         catch(std::exception const &e) {
-            glogger << "could not refresh the \"" << provider->getMnemonic()
-                    << "\" algorithm config: " << e.what() << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "could not refresh the \"" << provider->getMnemonic()
+                       << "\" algorithm config: " << e.what() << '\n'
+                       << GEM_WARNING;
         }
     }
 
@@ -447,7 +447,8 @@ void GOptimizer::refreshAllConfigs_() {
             (void)(*content_creator_ptr_)();
         }
         catch(std::exception const &e) {
-            glogger << "could not refresh the individual config: " << e.what() << '\n' << GWARNING;
+            GEM_LOGGER << "could not refresh the individual config: " << e.what() << '\n'
+                       << GEM_WARNING;
         }
     }
 }
@@ -463,11 +464,11 @@ void GOptimizer::ensureAlgorithmPresent() {
             // Simply add the Geneva-side default algorithm
             this->registerDefaultAlgorithm(default_algorithm_str_);
 
-            glogger << "In GOptimizer::optimize(): INFORMATION:" << '\n'
-                    << "No user-defined optimization algorithm available." << '\n'
-                    << "Using default algorithm \"" << default_algorithm_str_ << "\" instead."
-                    << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "In GOptimizer::optimize(): INFORMATION:" << '\n'
+                       << "No user-defined optimization algorithm available." << '\n'
+                       << "Using default algorithm \"" << default_algorithm_str_ << "\" instead."
+                       << '\n'
+                       << GEM_LOGGING;
         }
 
         algorithms_cnt_.push_back(default_algorithm_->clone<GOABase>());

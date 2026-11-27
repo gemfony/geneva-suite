@@ -159,9 +159,9 @@ public:
             catch(const Gem::Courtier::g_processing_exception &e) {
                 // Recorded on the item (EXCEPTION_CAUGHT); it fails alone. Its task ends here, so
                 // it is reported here, as on the CPU path.
-                glogger << "The pre-processing of work item " << i << " failed:" << '\n'
-                        << e.what() << '\n'
-                        << GERROR;
+                GEM_LOGGER << "The pre-processing of work item " << i << " failed:" << '\n'
+                           << e.what() << '\n'
+                           << GEM_ERROR;
             }
             // The consumer checked the uniform dimension before the pre-processors ran; a
             // pre-processor that changed it would make copyParameterValuesTo() write past the item's row.
@@ -210,10 +210,11 @@ public:
             catch(const Gem::Courtier::g_processing_exception &e) {
                 // Recorded on the item (EXCEPTION_CAUGHT / ERROR_FLAGGED); its task ends here, so
                 // it is reported here, as on the CPU path.
-                glogger << "The completion of a work item with its device-computed fitness failed:"
-                        << '\n'
-                        << e.what() << '\n'
-                        << GERROR;
+                GEM_LOGGER
+                    << "The completion of a work item with its device-computed fitness failed:"
+                    << '\n'
+                    << e.what() << '\n'
+                    << GEM_ERROR;
             }
         }
     }

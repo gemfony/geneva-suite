@@ -626,9 +626,9 @@ void GParameterScan::clearAllParVec() {
  */
 bool GParameterScan::customHalt_() const {
     if(this->cycle_logic_halt_) {
-        glogger << "Terminating the loop as no items are left to be" << '\n'
-                << "processed in parameter scan." << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "Terminating the loop as no items are left to be" << '\n'
+                   << "processed in parameter scan." << '\n'
+                   << GEM_LOGGING;
         return true;
     }
     return false;

@@ -388,7 +388,7 @@ std::string assembleBanner(
 /******************************************************************************/
 /**
  * @brief Appends a text to a file of the error path (GEM-EXCEPTION.log, GEM-TERMINATION.log, the
- * file of GFILE): opened for this text alone, so that it works while the program fails, and
+ * file of GEM_FILE): opened for this text alone, so that it works while the program fails, and
  * appended to across runs. If the file cannot be opened, the text goes to std::cerr -- a failure
  * to write a log must not bring the program down.
  *
@@ -414,7 +414,7 @@ constexpr std::string_view WARNING_ADVICE =
     "If you suspect that there is an underlying problem with Geneva,\n"
     "then please consider filing a bug.";
 
-/// The file to which errors are appended where they are finally handled (recordError(), GERROR).
+/// The file to which errors are appended where they are finally handled (recordError(), GEM_ERROR).
 constexpr std::string_view EXCEPTION_LOG_FILE = "GEM-EXCEPTION.log";
 
 } // anonymous namespace
@@ -440,7 +440,7 @@ void recordError(std::string_view where, std::string_view what) {
  * Note that this function does not return a reference to self, as it is meant to
  * be called as the last element of a streaming-chain.
  *
- * @param gm A GManipulator object (e.g. produced by the GERROR / GWARNING / GLOGGING macros) whose log type selects the action taken
+ * @param gm A GManipulator object (e.g. produced by the GEM_ERROR / GEM_WARNING / GEM_LOGGING macros) whose log type selects the action taken
  */
 // NOLINTNEXTLINE(readability-function-size) -- one switch-driven dispatcher over logType (error report/termination/warning/logging/file/stdout/stderr/exit); each case is a short, self-contained action and splitting would only scatter the dispatch table
 void GLogStreamer::operator<<(GManipulator const &gm) {
@@ -458,10 +458,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         // An error at the place where it is finally handled: to the log targets, and recorded in
         // the central exception file (as recordError() does). It does not throw.
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(error, this->getExtension(), logType::ERROR_REPORT);
+            GEM_LOGGER_PTR->logWithSource(error, this->getExtension(), logType::ERROR_REPORT);
         }
         else {
-            glogger_ptr->log(error, logType::ERROR_REPORT);
+            GEM_LOGGER_PTR->log(error, logType::ERROR_REPORT);
         }
         appendToFile(EXCEPTION_LOG_FILE, error);
     } break;
@@ -482,7 +482,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         appendToFile("GEM-TERMINATION.log", error);
 
         // Initiate the termination sequence.
-        glogger_ptr->terminateApplication(error);
+        GEM_LOGGER_PTR->terminateApplication(error);
     } break;
 
     //------------------------------------------------------------------------
@@ -497,10 +497,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
 
         // Do all necessary logging.
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(warning, this->getExtension(), logType::WARNING);
+            GEM_LOGGER_PTR->logWithSource(warning, this->getExtension(), logType::WARNING);
         }
         else {
-            glogger_ptr->log(warning, logType::WARNING);
+            GEM_LOGGER_PTR->log(warning, logType::WARNING);
         }
     } break;
 
@@ -508,10 +508,10 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
     case Gem::Common::logType::LOGGING: {
         // Do all necessary logging.
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(oss_.str(), this->getExtension(), logType::LOGGING);
+            GEM_LOGGER_PTR->logWithSource(oss_.str(), this->getExtension(), logType::LOGGING);
         }
         else {
-            glogger_ptr->log(oss_.str(), logType::LOGGING);
+            GEM_LOGGER_PTR->log(oss_.str(), logType::LOGGING);
         }
     } break;
 
@@ -523,19 +523,19 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             '\n',
             "You need to supply a file name like this:",
             '\n',
-            "glogger(\"filename.txt\") << \"some log text\" << GFILE"
+            "GEM_LOGGER(\"filename.txt\") << \"some log text\" << GEM_FILE"
         );
         appendToFile(this->getOneTimeLogFile(), oss_.str());
     } break;
 
     //------------------------------------------------------------------------
     case Gem::Common::logType::STDOUT: {
-        glogger_ptr->toStdOut(oss_.str());
+        GEM_LOGGER_PTR->toStdOut(oss_.str());
     } break;
 
     //------------------------------------------------------------------------
     case Gem::Common::logType::STDERR: {
-        glogger_ptr->toStdErr(oss_.str());
+        GEM_LOGGER_PTR->toStdErr(oss_.str());
     } break;
 
     //------------------------------------------------------------------------
@@ -547,13 +547,13 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
         msg << oss_.str() << '\n';
 
         if(this->hasExtension()) {
-            glogger_ptr->logWithSource(msg.str(), this->getExtension(), logType::EXIT);
+            GEM_LOGGER_PTR->logWithSource(msg.str(), this->getExtension(), logType::EXIT);
         }
         else {
-            glogger_ptr->log(msg.str(), logType::EXIT);
+            GEM_LOGGER_PTR->log(msg.str(), logType::EXIT);
         }
 
-        glogger_ptr->exitApplication(msg.str(), gm.getReturnCode());
+        GEM_LOGGER_PTR->exitApplication(msg.str(), gm.getReturnCode());
     } break;
 
         //------------------------------------------------------------------------

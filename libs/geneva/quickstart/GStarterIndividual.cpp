@@ -80,10 +80,10 @@ GStarterIndividual::GStarterIndividual(
         );
     }
     catch(const Gem::Common::gem_exception &e) {
-        glogger << e.what() << GTERMINATION;
+        GEM_LOGGER << e.what() << GEM_TERMINATION;
     }
     catch(...) {
-        glogger << "Unknown exception caught" << '\n' << GTERMINATION;
+        GEM_LOGGER << "Unknown exception caught" << '\n' << GEM_TERMINATION;
     }
 }
 

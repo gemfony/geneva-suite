@@ -259,26 +259,26 @@ TEST_CASE("GLogger::logWithSource: forwards to logWithSource on each target", "[
 }
 
 // ---------------------------------------------------------------------------
-// LOCATIONSTRING / GERROR / GWARNING / GLOGGING / GFILE / GSTDOUT / GSTDERR
+// LOCATIONSTRING / GEM_ERROR / GEM_WARNING / GEM_LOGGING / GEM_FILE / GEM_STDOUT / GEM_STDERR
 // macros — only check that they compile and yield the expected log type.
 
 TEST_CASE(
     "GLogger macros: each produces a GManipulator of the expected type",
     "[common][logger][macros]"
 ) {
-    GManipulator const gex = GERROR;
+    GManipulator const gex = GEM_ERROR;
     CHECK(gex.getLogType() == logType::ERROR_REPORT);
-    GManipulator const gterm = GTERMINATION;
+    GManipulator const gterm = GEM_TERMINATION;
     CHECK(gterm.getLogType() == logType::TERMINATION);
-    GManipulator const gwarn = GWARNING;
+    GManipulator const gwarn = GEM_WARNING;
     CHECK(gwarn.getLogType() == logType::WARNING);
-    GManipulator const glog = GLOGGING;
+    GManipulator const glog = GEM_LOGGING;
     CHECK(glog.getLogType() == logType::LOGGING);
-    GManipulator const gfile = GFILE;
+    GManipulator const gfile = GEM_FILE;
     CHECK(gfile.getLogType() == logType::FILE);
-    GManipulator const gso = GSTDOUT;
+    GManipulator const gso = GEM_STDOUT;
     CHECK(gso.getLogType() == logType::STDOUT);
-    GManipulator const gse = GSTDERR;
+    GManipulator const gse = GEM_STDERR;
     CHECK(gse.getLogType() == logType::STDERR);
 
     // Macros that include a location string should populate accomp info.
@@ -293,47 +293,47 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // GLogStreamer::operator<<(GManipulator&): switch arms.
 //
-// These go through the real `glogger` singleton (the warning/logging paths go to the registered
-// targets -- by default the console). GERROR is tested in GErrorReportTests, in a working
+// These go through the real `GEM_LOGGER` singleton (the warning/logging paths go to the registered
+// targets -- by default the console). GEM_ERROR is tested in GErrorReportTests, in a working
 // directory of its own, as it writes GEM-EXCEPTION.log. TERMINATION is deliberately NOT exercised
 // -- it would call std::terminate().
 
 TEST_CASE(
-    "GLogStreamer << GWARNING does not throw; emits to the logger sink",
+    "GLogStreamer << GEM_WARNING does not throw; emits to the logger sink",
     "[common][logger][manipulator]"
 ) {
-    CHECK_NOTHROW(glogger << "warning text" << '\n' << GWARNING);
+    CHECK_NOTHROW(GEM_LOGGER << "warning text" << '\n' << GEM_WARNING);
 }
 
 TEST_CASE(
-    "GLogStreamer << GLOGGING does not throw; emits to the logger sink",
+    "GLogStreamer << GEM_LOGGING does not throw; emits to the logger sink",
     "[common][logger][manipulator]"
 ) {
-    CHECK_NOTHROW(glogger << "logging text" << '\n' << GLOGGING);
+    CHECK_NOTHROW(GEM_LOGGER << "logging text" << '\n' << GEM_LOGGING);
 }
 
 TEST_CASE(
-    "GLogStreamer << GSTDOUT does not throw; writes via toStdOut",
+    "GLogStreamer << GEM_STDOUT does not throw; writes via toStdOut",
     "[common][logger][manipulator]"
 ) {
-    CHECK_NOTHROW(glogger << "to stdout " << 42 << '\n' << GSTDOUT);
+    CHECK_NOTHROW(GEM_LOGGER << "to stdout " << 42 << '\n' << GEM_STDOUT);
 }
 
 TEST_CASE(
-    "GLogStreamer << GSTDERR does not throw; writes via toStdErr",
+    "GLogStreamer << GEM_STDERR does not throw; writes via toStdErr",
     "[common][logger][manipulator]"
 ) {
-    CHECK_NOTHROW(glogger << "to stderr " << 42 << '\n' << GSTDERR);
+    CHECK_NOTHROW(GEM_LOGGER << "to stderr " << 42 << '\n' << GEM_STDERR);
 }
 
 TEST_CASE(
-    "GLogStreamer << GFILE with a path writes to that file",
+    "GLogStreamer << GEM_FILE with a path writes to that file",
     "[common][logger][manipulator]"
 ) {
     auto path = scratch("one_time.log");
     std::filesystem::remove(path);
 
-    CHECK_NOTHROW(glogger(path) << "one-time-payload" << '\n' << GFILE);
+    CHECK_NOTHROW(GEM_LOGGER(path) << "one-time-payload" << '\n' << GEM_FILE);
     REQUIRE(std::filesystem::exists(path));
 
     std::ifstream ifs(path);
@@ -343,30 +343,30 @@ TEST_CASE(
     std::filesystem::remove(path);
 }
 
-TEST_CASE("GLogStreamer << GFILE without a path throws", "[common][logger][manipulator]") {
+TEST_CASE("GLogStreamer << GEM_FILE without a path throws", "[common][logger][manipulator]") {
     // The path-less form must complain: there is no destination to write to.
-    CHECK_THROWS_AS(glogger << "should-fail" << '\n' << GFILE, gem_exception);
+    CHECK_THROWS_AS(GEM_LOGGER << "should-fail" << '\n' << GEM_FILE, gem_exception);
 }
 
 TEST_CASE(
-    "GLogStreamer << GWARNING with extension forwards through logWithSource",
+    "GLogStreamer << GEM_WARNING with extension forwards through logWithSource",
     "[common][logger][manipulator]"
 ) {
-    // The string-form of glogger() captures an extension; the WARNING arm
+    // The string-form of GEM_LOGGER() captures an extension; the WARNING arm
     // then routes through logWithSource on every registered target.
     CHECK_NOTHROW(
-        glogger(std::string{"unit-test-module"}) << "warning with source" << '\n'
-                                                 << GWARNING
+        GEM_LOGGER(std::string{"unit-test-module"}) << "warning with source" << '\n'
+                                                    << GEM_WARNING
     );
 }
 
 TEST_CASE(
-    "GLogStreamer << GLOGGING with extension forwards through logWithSource",
+    "GLogStreamer << GEM_LOGGING with extension forwards through logWithSource",
     "[common][logger][manipulator]"
 ) {
     CHECK_NOTHROW(
-        glogger(std::string{"unit-test-module"}) << "logging with source" << '\n'
-                                                 << GLOGGING
+        GEM_LOGGER(std::string{"unit-test-module"}) << "logging with source" << '\n'
+                                                    << GEM_LOGGING
     );
 }
 
@@ -415,7 +415,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// Re-entry: a target whose own path logs again through glogger on the same thread (a record
+// Re-entry: a target whose own path logs again through GEM_LOGGER on the same thread (a record
 // sink's backup warning, a plot emitter's warning). The inner call must not lock the logger's
 // mutex a second time -- a deadlock -- and must not reach the targets; it goes to std::cerr.
 
@@ -444,7 +444,7 @@ private:
     std::streambuf *old_;
 };
 
-// A target that logs again through glogger from inside log(), with the given manipulator
+// A target that logs again through GEM_LOGGER from inside log(), with the given manipulator
 class ReenteringTarget : public GBaseLogTarget {
 public:
     using GBaseLogTarget::log;
@@ -454,7 +454,7 @@ public:
     }
     void log(std::string const &msg) const override {
         messages.push_back(msg);
-        glogger << "inner message" << '\n' << GManipulator(inner_);
+        GEM_LOGGER << "inner message" << '\n' << GManipulator(inner_);
     }
     void logWithSource(std::string const &msg, std::string const &src) const override {
         this->log("[" + src + "] " + msg);
@@ -468,15 +468,15 @@ private:
 // Logs twice through a ReenteringTarget: the outer messages reach it, the inner ones std::cerr
 void checkReentry(logType inner) {
     auto target = std::make_shared<ReenteringTarget>(inner);
-    glogger.addLogTarget(target);
+    GEM_LOGGER.addLogTarget(target);
     std::string err;
     {
         CerrCapture const capture;
-        glogger << "outer message" << '\n' << GLOGGING;
-        glogger(std::string("src")) << "outer with source" << '\n' << GWARNING;
+        GEM_LOGGER << "outer message" << '\n' << GEM_LOGGING;
+        GEM_LOGGER(std::string("src")) << "outer with source" << '\n' << GEM_WARNING;
         err = capture.text();
     }
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     REQUIRE(target->messages.size() == 2);
     CHECK(target->messages[0] == "outer message\n");
@@ -490,21 +490,21 @@ void checkReentry(logType inner) {
 } // namespace
 
 TEST_CASE(
-    "GLogger: a target that logs again with GLOGGING does not deadlock",
+    "GLogger: a target that logs again with GEM_LOGGING does not deadlock",
     "[common][logger][reentry]"
 ) {
     checkReentry(logType::LOGGING);
 }
 
 TEST_CASE(
-    "GLogger: a target that logs again with GWARNING does not deadlock",
+    "GLogger: a target that logs again with GEM_WARNING does not deadlock",
     "[common][logger][reentry]"
 ) {
     checkReentry(logType::WARNING);
 }
 
 TEST_CASE(
-    "GLogger: a target that writes with GSTDERR does not deadlock",
+    "GLogger: a target that writes with GEM_STDERR does not deadlock",
     "[common][logger][reentry]"
 ) {
     checkReentry(logType::STDERR);
@@ -541,14 +541,17 @@ public:
 
 } // namespace
 
-TEST_CASE("GLogger: GLOGGING and GWARNING pass their severity to the targets", "[common][logger]") {
+TEST_CASE(
+    "GLogger: GEM_LOGGING and GEM_WARNING pass their severity to the targets",
+    "[common][logger]"
+) {
     auto target = std::make_shared<SeverityTarget>();
-    glogger.addLogTarget(target);
-    glogger << "plain" << '\n' << GLOGGING;
-    glogger << "careful" << '\n' << GWARNING;
-    glogger(std::string("modY")) << "plain with source" << '\n' << GLOGGING;
-    glogger(std::string("modY")) << "careful with source" << '\n' << GWARNING;
-    glogger.resetLogTargets();
+    GEM_LOGGER.addLogTarget(target);
+    GEM_LOGGER << "plain" << '\n' << GEM_LOGGING;
+    GEM_LOGGER << "careful" << '\n' << GEM_WARNING;
+    GEM_LOGGER(std::string("modY")) << "plain with source" << '\n' << GEM_LOGGING;
+    GEM_LOGGER(std::string("modY")) << "careful with source" << '\n' << GEM_WARNING;
+    GEM_LOGGER.resetLogTargets();
 
     REQUIRE(target->entries.size() == 4);
     CHECK(target->entries[0].severity == logType::LOGGING);
@@ -591,7 +594,7 @@ public:
     LogsWhenDestroyedTarget &operator=(LogsWhenDestroyedTarget const &) = delete;
     LogsWhenDestroyedTarget &operator=(LogsWhenDestroyedTarget &&) = delete;
     ~LogsWhenDestroyedTarget() override {
-        glogger << "a target is destroyed" << '\n' << GLOGGING;
+        GEM_LOGGER << "a target is destroyed" << '\n' << GEM_LOGGING;
     }
     void log(std::string const &) const override { /* nothing */
     }
@@ -605,18 +608,18 @@ TEST_CASE(
     "GLogger::resetLogTargets: a target whose destructor logs does not deadlock",
     "[common][logger][release]"
 ) {
-    glogger.addLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
-    glogger.resetLogTargets();
-    CHECK_FALSE(glogger.hasLogTargets());
+    GEM_LOGGER.addLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
+    GEM_LOGGER.resetLogTargets();
+    CHECK_FALSE(GEM_LOGGER.hasLogTargets());
 }
 
 TEST_CASE(
     "GLogger::setDefaultLogTarget: a replaced default whose destructor logs does not deadlock",
     "[common][logger][release]"
 ) {
-    glogger.setDefaultLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
-    glogger.setDefaultLogTarget(std::make_shared<GConsoleLogger>());
-    CHECK_FALSE(glogger.hasLogTargets());
+    GEM_LOGGER.setDefaultLogTarget(std::make_shared<LogsWhenDestroyedTarget>());
+    GEM_LOGGER.setDefaultLogTarget(std::make_shared<GConsoleLogger>());
+    CHECK_FALSE(GEM_LOGGER.hasLogTargets());
 }
 
 // ---------------------------------------------------------------------------
@@ -639,7 +642,7 @@ public:
     RecordScratch &operator=(RecordScratch const &) = delete;
     RecordScratch &operator=(RecordScratch &&) = delete;
     ~RecordScratch() {
-        glogger.resetLogTargets();
+        GEM_LOGGER.resetLogTargets();
         Record::recorder().closeAll();
         std::error_code ec;
         std::filesystem::remove_all(dir_, ec);
@@ -689,10 +692,10 @@ TEST_CASE(
 ) {
     RecordScratch const dir("severity");
     Record::recorder().addSink("log", std::make_shared<Record::GJsonLinesSink>());
-    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
-    glogger << "plain message" << '\n' << GLOGGING;
-    glogger(std::string("modA")) << "careful" << '\n' << GWARNING;
-    glogger.resetLogTargets();
+    GEM_LOGGER.addLogTarget(std::make_shared<GRecordLogTarget>());
+    GEM_LOGGER << "plain message" << '\n' << GEM_LOGGING;
+    GEM_LOGGER(std::string("modA")) << "careful" << '\n' << GEM_WARNING;
+    GEM_LOGGER.resetLogTargets();
 
     auto const rows = csvRecords(dir / "log.csv");
     REQUIRE(rows.size() == 3);
@@ -711,10 +714,10 @@ TEST_CASE(
 
 TEST_CASE("GRecordLogTarget: a multi-line message is one row", "[common][logger][record]") {
     RecordScratch const dir("multiline");
-    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    GEM_LOGGER.addLogTarget(std::make_shared<GRecordLogTarget>());
     std::string const message = "first line\nsecond line, with a comma\n\"quoted\"\n";
-    glogger << message << GLOGGING;
-    glogger.resetLogTargets();
+    GEM_LOGGER << message << GEM_LOGGING;
+    GEM_LOGGER.resetLogTargets();
 
     auto const rows = csvRecords(dir / "log.csv");
     REQUIRE(rows.size() == 2);
@@ -727,7 +730,7 @@ TEST_CASE(
     "[common][logger][record]"
 ) {
     RecordScratch const dir("threads");
-    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    GEM_LOGGER.addLogTarget(std::make_shared<GRecordLogTarget>());
     constexpr std::size_t N_THREADS = 8;
     constexpr std::size_t N_MESSAGES = 50;
     std::set<std::string> expected;
@@ -743,14 +746,14 @@ TEST_CASE(
         for(std::size_t t = 0; t < N_THREADS; ++t) {
             threads.emplace_back([t] {
                 for(std::size_t i = 0; i < N_MESSAGES; ++i) {
-                    glogger << "thread " << t << " message " << i << '\n'
-                            << "second line of " << t << "/" << i << '\n'
-                            << GLOGGING;
+                    GEM_LOGGER << "thread " << t << " message " << i << '\n'
+                               << "second line of " << t << "/" << i << '\n'
+                               << GEM_LOGGING;
                 }
             });
         }
     }
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     auto const rows = csvRecords(dir / "log.csv");
     REQUIRE(rows.size() == 1 + N_THREADS * N_MESSAGES);
@@ -769,14 +772,15 @@ TEST_CASE(
     RecordScratch const dir("backup");
     std::filesystem::create_directories(dir / "");
     std::ofstream(dir / "log.csv") << "an earlier file\n";
-    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
+    GEM_LOGGER.addLogTarget(std::make_shared<GRecordLogTarget>());
     std::string err;
     {
         CerrCapture const capture;
-        glogger << "the first message" << '\n' << GLOGGING; // the sink backs up log.csv and warns
+        GEM_LOGGER << "the first message" << '\n'
+                   << GEM_LOGGING; // the sink backs up log.csv and warns
         err = capture.text();
     }
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     CHECK(err.contains("Attempt to output information to file"));
     auto const rows = csvRecords(dir / "log.csv");
@@ -789,16 +793,16 @@ TEST_CASE(
     "[common][logger][record]"
 ) {
     RecordScratch const dir("closed");
-    glogger.addLogTarget(std::make_shared<GRecordLogTarget>());
-    glogger << "before the close" << '\n' << GLOGGING;
+    GEM_LOGGER.addLogTarget(std::make_shared<GRecordLogTarget>());
+    GEM_LOGGER << "before the close" << '\n' << GEM_LOGGING;
     Record::recorder().closeAll();
     std::string err;
     {
         CerrCapture const capture;
-        CHECK_NOTHROW(glogger << "after the close" << '\n' << GLOGGING);
+        CHECK_NOTHROW(GEM_LOGGER << "after the close" << '\n' << GEM_LOGGING);
         err = capture.text();
     }
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     CHECK(err.contains("after the close"));
     auto const rows = csvRecords(dir / "log.csv");
@@ -811,17 +815,17 @@ TEST_CASE(
     "[common][logger][record]"
 ) {
     RecordScratch const dir("text");
-    glogger.addLogTarget(
+    GEM_LOGGER.addLogTarget(
         std::make_shared<GRecordLogTarget>(
             "plain",
             std::vector<std::shared_ptr<Record::GSink>>{std::make_shared<Record::GTextSink>()}
         )
     );
-    glogger << "first message" << '\n' << GLOGGING;
-    glogger << "second message, no line break" << GLOGGING;
-    glogger(std::string("modA")) << "from a source" << '\n' << GLOGGING;
-    glogger << "careful" << '\n' << GWARNING;
-    glogger.resetLogTargets();
+    GEM_LOGGER << "first message" << '\n' << GEM_LOGGING;
+    GEM_LOGGER << "second message, no line break" << GEM_LOGGING;
+    GEM_LOGGER(std::string("modA")) << "from a source" << '\n' << GEM_LOGGING;
+    GEM_LOGGER << "careful" << '\n' << GEM_WARNING;
+    GEM_LOGGER.resetLogTargets();
 
     std::ifstream in(dir / "plain.log");
     std::vector<std::string> lines;
@@ -843,7 +847,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// The rest of the public surface: LOGEXIT's manipulator, locationString(), glogger_ptr, the
+// The rest of the public surface: GEM_LOGEXIT's manipulator, locationString(), GEM_LOGGER_PTR, the
 // manipulator overloads of GLogger and GLogStreamer, and what toStdOut() / toStdErr() write
 
 namespace {
@@ -860,10 +864,10 @@ std::string placeOfThisFunction() {
 } // namespace
 
 TEST_CASE(
-    "GManipulator: LOGEXIT stores the return code and the place",
+    "GManipulator: GEM_LOGEXIT stores the return code and the place",
     "[common][logger][macros]"
 ) {
-    GManipulator const m = LOGEXIT(7);
+    GManipulator const m = GEM_LOGEXIT(7);
     CHECK(m.getLogType() == logType::EXIT);
     CHECK(m.getReturnCode() == 7);
     CHECK(m.hasAccompInfo());
@@ -883,8 +887,8 @@ TEST_CASE(
     CHECK(where.contains("placeOfThisFunction"));
 }
 
-TEST_CASE("glogger_ptr: is the logger that glogger names", "[common][logger]") {
-    CHECK(glogger_ptr.get() == &glogger);
+TEST_CASE("GEM_LOGGER_PTR: is the logger that GEM_LOGGER names", "[common][logger]") {
+    CHECK(GEM_LOGGER_PTR.get() == &GEM_LOGGER);
 }
 
 TEST_CASE(

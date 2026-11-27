@@ -285,12 +285,12 @@ void GRandomFactory::setNProducerThreads(const std::uint16_t &n_producer_threads
 
     if(threads_started_) {
         if(n_producer_threads_local < n_current) { // Running threads cannot be removed
-            glogger << "Attempt to decrease the number of producer threads from " << n_current
-                    << " to " << n_producer_threads_local << '\n'
-                    << "while threads were already running. The number of threads will remain "
-                       "unchanged."
-                    << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "Attempt to decrease the number of producer threads from " << n_current
+                       << " to " << n_producer_threads_local << '\n'
+                       << "while threads were already running. The number of threads will remain "
+                          "unchanged."
+                       << '\n'
+                       << GEM_WARNING;
 
             return;
         }
@@ -429,12 +429,12 @@ GRandomFactory::startProducers(std::uint16_t n_new) {
         if(0 == n_started) {
             throw;
         }
-        glogger << "Only " << n_started << " of " << n_new
-                << " producer thread(s) could be started:" << '\n'
-                << e.what() << '\n'
-                << "Random-number production goes on with " << n_started << " producer thread(s)."
-                << '\n'
-                << GWARNING;
+        GEM_LOGGER << "Only " << n_started << " of " << n_new
+                   << " producer thread(s) could be started:" << '\n'
+                   << e.what() << '\n'
+                   << "Random-number production goes on with " << n_started
+                   << " producer thread(s)." << '\n'
+                   << GEM_WARNING;
     }
 
     // The producers that were never started neither build an engine nor count down the latch
@@ -493,7 +493,7 @@ void GRandomFactory::awaitStart(GProducerStart &start) {
         const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now() - begin
         );
-        glogger
+        GEM_LOGGER
             << "The start of " << start.finished.remaining() << " of " << start.n_producers
             << " producer thread(s) has not finished after "
             << static_cast<double>(waited.count()) / 1000. << " s:" << '\n'
@@ -503,7 +503,7 @@ void GRandomFactory::awaitStart(GProducerStart &start) {
             << " still filling its first container." << '\n'
             << "The call that starts random-number production waits for them; a GPU that does not"
             << " answer keeps it waiting." << '\n'
-            << GWARNING;
+            << GEM_WARNING;
         period = std::chrono::milliseconds(g_producer_start_repeat_warning_ms.load());
     }
 }
@@ -627,11 +627,11 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
     // producer threads keep supplying random numbers.
     catch(...) {
         const std::string what = Gem::Common::describeException(std::current_exception());
-        glogger << "Caught an exception with message" << '\n'
-                << what << '\n'
-                << "This producer thread will now terminate cleanly. Random-number" << '\n'
-                << "production continues on the remaining producer threads, if any." << '\n'
-                << GWARNING;
+        GEM_LOGGER << "Caught an exception with message" << '\n'
+                   << what << '\n'
+                   << "This producer thread will now terminate cleanly. Random-number" << '\n'
+                   << "production continues on the remaining producer threads, if any." << '\n'
+                   << GEM_WARNING;
         keep_error(what);
     }
 

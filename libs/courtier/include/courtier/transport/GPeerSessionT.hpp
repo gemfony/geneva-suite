@@ -305,7 +305,7 @@ private:
             const std::string what =
                 "The result of client " + std::to_string(peer_id_) +
                 " could not be read: " + Gem::Common::describeException(std::current_exception());
-            glogger << "GPeerSessionT<processable_type>: " << what << '\n' << GLOGGING;
+            GEM_LOGGER << "GPeerSessionT<processable_type>: " << what << '\n' << GEM_LOGGING;
             this->forgetBlobs_();
             hooks_.failPayloadItem(id, what);
             return;
@@ -325,9 +325,10 @@ private:
             this->protocolError_(peer, "a HELLO from a client of this build");
             return;
         }
-        glogger << "GPeerSessionT<processable_type>: client " << peer_id_ << " has ended:" << '\n'
-                << mismatch << '\n'
-                << GWARNING;
+        GEM_LOGGER << "GPeerSessionT<processable_type>: client " << peer_id_
+                   << " has ended:" << '\n'
+                   << mismatch << '\n'
+                   << GEM_WARNING;
         stopping_ = true; // the client closes the connection
     }
 
@@ -335,9 +336,9 @@ private:
     /** @brief A message that cannot be handled ends the connection (see the class comment)
      *  @param peer The connection @param what Why */
     void protocolError_(GPeerI &peer, const std::string &what) {
-        glogger << "GPeerSessionT<processable_type>: client " << peer_id_ << ": " << what << '\n'
-                << "The connection is closed." << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "GPeerSessionT<processable_type>: client " << peer_id_ << ": " << what << '\n'
+                   << "The connection is closed." << '\n'
+                   << GEM_LOGGING;
         if(not stopping_) { // a connection that is closing already keeps what its close said
             peer.close(GPeerClose::ERROR);
             closed_with_error_ = true;
@@ -412,9 +413,9 @@ private:
     void when_closed_(GPeerEnd end, [[maybe_unused]] GPeerClose how, std::string_view detail) {
         if(end != GPeerEnd::CLOSED_HERE && end != GPeerEnd::CLOSED_THERE &&
            not hooks_.checkServerStopped()) {
-            glogger << "GPeerSessionT<processable_type>: the connection to client " << peer_id_
-                    << " has ended: " << detail << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "GPeerSessionT<processable_type>: the connection to client " << peer_id_
+                       << " has ended: " << detail << '\n'
+                       << GEM_LOGGING;
         }
     }
 

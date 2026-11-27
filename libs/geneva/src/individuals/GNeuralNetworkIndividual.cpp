@@ -448,10 +448,10 @@ Gem::Dietrich::GPlotDesigner networkData::trainingDataPlot() const {
  */
 void networkData::toROOT(const std::string &output_file) const {
     if(getNInputNodes() != 2 || getNOutputNodes() != 1) {
-        glogger << "Got inappropriate number of input and/or output nodes: " << getNInputNodes()
-                << "/" << getNOutputNodes() << '\n'
-                << "We need 2/1. The function will return without further action." << '\n'
-                << GWARNING;
+        GEM_LOGGER << "Got inappropriate number of input and/or output nodes: " << getNInputNodes()
+                   << "/" << getNOutputNodes() << '\n'
+                   << "We need 2/1. The function will return without further action." << '\n'
+                   << GEM_WARNING;
         return;
     }
 
@@ -730,9 +730,9 @@ void GNeuralNetworkIndividual::writeVisualizationFile(
     Gem::Common::checkThat(not vis_file.empty(), "Received empty file name.");
 
     if(n_d_->getNInputNodes() != 2) {
-        glogger << "The figure of the network's output needs two input nodes; the network has "
-                << n_d_->getNInputNodes() << ". No file was written." << '\n'
-                << GWARNING;
+        GEM_LOGGER << "The figure of the network's output needs two input nodes; the network has "
+                   << n_d_->getNInputNodes() << ". No file was written." << '\n'
+                   << GEM_WARNING;
         return;
     }
 
