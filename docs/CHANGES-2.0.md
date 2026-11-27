@@ -1054,6 +1054,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   overloads that take a `std::shared_ptr` to the reference value did not compile for
   `GUniquePtrContainerT`; they now search both pointer storages alike (only elements of the
   reference value's type or derived from it can match, empty slots match nothing).
+- **common: `copyCloneableSmartPointerContainer()` is one template over the smart pointer.** The
+  `std::shared_ptr` and `std::unique_ptr` versions were the same body twice; the one template
+  (parameters: the smart-pointer type, the container template) also copies containers without
+  random access such as `std::list`, which did not compile when the target grew.
 - **common: the object streams and `sharedPtrToString()` write one format.** `toString()`,
   `toStream()` and `toFile()` of an object of the common interface write the text
   `sharedPtrToString()` writes for a pointer to it, so `fromString()` reads a string of

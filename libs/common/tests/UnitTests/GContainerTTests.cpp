@@ -2071,3 +2071,37 @@ TEMPLATE_TEST_CASE(
         CHECK_THROWS_AS(c.find(std::shared_ptr<TestBase>{}), Gem::Common::gem_exception);
     }
 }
+
+/******************************************************************************/
+// Regression: the deep copy of a smart-pointer container advanced the source iterator with `+` when it
+// grew the target, so a container without random access (std::list) did not compile.
+TEST_CASE(
+    "copyCloneableSmartPointerContainer copies containers without random access",
+    "[GContainerT][ptr]"
+) {
+    std::list<std::shared_ptr<TestBase>> const shared_from{
+        std::make_shared<TestBase>(1),
+        std::make_shared<TestBase>(2)
+    };
+    std::list<std::shared_ptr<TestBase>> shared_to{std::make_shared<TestBase>(0)};
+    Gem::Common::copyCloneableSmartPointerContainer(shared_from, shared_to);
+    REQUIRE(shared_to.size() == 2);
+    CHECK(shared_to.front()->val == 1);
+    CHECK(shared_to.back()->val == 2);
+    CHECK(shared_to.back() != shared_from.back()); // deep, not shared
+
+    std::list<std::unique_ptr<TestBase>> unique_from;
+    unique_from.push_back(std::make_unique<TestBase>(3));
+    std::list<std::unique_ptr<TestBase>> unique_to;
+    unique_to.push_back(std::make_unique<TestBase>(0));
+    unique_to.push_back(std::make_unique<TestBase>(0));
+    Gem::Common::copyCloneableSmartPointerContainer(unique_from, unique_to);
+    REQUIRE(unique_to.size() == 1);
+    CHECK(unique_to.front()->val == 3);
+
+    Gem::Common::copyCloneableSmartPointerContainer(
+        std::list<std::unique_ptr<TestBase>>{},
+        unique_to
+    );
+    CHECK(unique_to.empty());
+}

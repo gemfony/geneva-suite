@@ -647,104 +647,35 @@ std::shared_ptr<T> nonOwningShared(const std::unique_ptr<T> &p) {
 
 /******************************************************************************/
 /**
- * @brief Deep-copies a container of shared_ptrs to cloneable objects using
- * clone()/load().
+ * @brief Deep-copies a container of smart pointers (std::shared_ptr or std::unique_ptr) to
+ * cloneable objects using clone()/load().
  *
- * Reuses existing slots when sizes match (load in place) and resizes the
- * target container as needed.
+ * Loads in place where both containers hold an element of the same dynamic type, clones
+ * otherwise (copyCloneableSmartPointer()), and resizes the target to the size of the source; an
+ * empty slot is copied as an empty slot.
  *
- * @tparam T The element pointee type (must satisfy gemfony_common_interface)
- * @tparam c_type The container template (e.g. std::vector) holding the shared_ptrs
+ * @tparam smart_ptr_type The element type of the containers: a std::shared_ptr or std::unique_ptr
+ *         to a type that satisfies gemfony_common_interface
+ * @tparam c_type The container template (e.g. std::vector) holding the smart pointers
  * @param from The source container to copy from
  * @param to The destination container to copy into (resized/modified in place)
  */
-template <typename T, template <typename, typename> class c_type>
-    requires Gem::Common::gemfony_common_interface<T>
+template <typename smart_ptr_type, template <typename, typename> class c_type>
+    requires requires(const smart_ptr_type &from, smart_ptr_type &to) {
+        copyCloneableSmartPointer(from, to); // a shared_ptr or unique_ptr of the common interface
+    }
 void copyCloneableSmartPointerContainer(
-    const c_type<std::shared_ptr<T>, std::allocator<std::shared_ptr<T>>> &from,
-    c_type<std::shared_ptr<T>, std::allocator<std::shared_ptr<T>>> &to
+    const c_type<smart_ptr_type, std::allocator<smart_ptr_type>> &from,
+    c_type<smart_ptr_type, std::allocator<smart_ptr_type>> &to
 ) {
-    using iter_t =
-        typename c_type<std::shared_ptr<T>, std::allocator<std::shared_ptr<T>>>::iterator;
-    using const_iter_t =
-        typename c_type<std::shared_ptr<T>, std::allocator<std::shared_ptr<T>>>::const_iterator;
-
-    const std::size_t size_from = from.size();
-    const std::size_t size_to = to.size();
-
-    if(size_from == size_to) {
-        auto it_from = from.begin();
-        for(auto it_to = to.begin(); it_to != to.end(); ++it_from, ++it_to) {
-            copyCloneableSmartPointer(*it_from, *it_to);
-        }
+    auto it_from = from.begin();
+    for(auto it_to = to.begin(); it_from != from.end() && it_to != to.end(); ++it_from, ++it_to) {
+        copyCloneableSmartPointer(*it_from, *it_to);
     }
-    else if(size_from > size_to) {
-        auto it_from = from.begin();
-        for(auto it_to = to.begin(); it_to != to.end(); ++it_from, ++it_to) {
-            copyCloneableSmartPointer(*it_from, *it_to);
-        }
-        for(auto it = from.begin() + size_to; it != from.end(); ++it) {
-            copyCloneableSmartPointer(*it, to.emplace_back()); // an empty slot stays empty
-        }
+    for(; it_from != from.end(); ++it_from) {
+        copyCloneableSmartPointer(*it_from, to.emplace_back()); // an empty slot stays empty
     }
-    else { // size_from < size_to
-        auto it_from = from.begin();
-        for(auto it_to = to.begin(); it_from != from.end(); ++it_from, ++it_to) {
-            copyCloneableSmartPointer(*it_from, *it_to);
-        }
-        to.resize(size_from);
-    }
-}
-
-/******************************************************************************/
-/**
- * @brief unique_ptr counterpart of copyCloneableSmartPointerContainer(): deep-copies a container of
- * unique_ptrs to cloneable objects via clone()/load().
- *
- * Reuses existing slots when sizes match (load in place) and resizes the target
- * as needed. No atomic reference counting.
- *
- * @tparam T The element pointee type (must satisfy gemfony_common_interface)
- * @tparam c_type The container template (e.g. std::vector) holding the unique_ptrs
- * @param from The source container to copy from
- * @param to The destination container to copy into (resized/modified in place)
- */
-template <typename T, template <typename, typename> class c_type>
-    requires Gem::Common::gemfony_common_interface<T>
-void copyCloneableSmartPointerContainer(
-    const c_type<std::unique_ptr<T>, std::allocator<std::unique_ptr<T>>> &from,
-    c_type<std::unique_ptr<T>, std::allocator<std::unique_ptr<T>>> &to
-) {
-    using iter_t =
-        typename c_type<std::unique_ptr<T>, std::allocator<std::unique_ptr<T>>>::iterator;
-    using const_iter_t =
-        typename c_type<std::unique_ptr<T>, std::allocator<std::unique_ptr<T>>>::const_iterator;
-
-    const std::size_t size_from = from.size();
-    const std::size_t size_to = to.size();
-
-    if(size_from == size_to) {
-        auto it_from = from.begin();
-        for(auto it_to = to.begin(); it_to != to.end(); ++it_from, ++it_to) {
-            copyCloneableSmartPointer(*it_from, *it_to);
-        }
-    }
-    else if(size_from > size_to) {
-        auto it_from = from.begin();
-        for(auto it_to = to.begin(); it_to != to.end(); ++it_from, ++it_to) {
-            copyCloneableSmartPointer(*it_from, *it_to);
-        }
-        for(auto it = from.begin() + size_to; it != from.end(); ++it) {
-            copyCloneableSmartPointer(*it, to.emplace_back()); // an empty slot stays empty
-        }
-    }
-    else { // size_from < size_to
-        auto it_from = from.begin();
-        for(auto it_to = to.begin(); it_from != from.end(); ++it_from, ++it_to) {
-            copyCloneableSmartPointer(*it_from, *it_to);
-        }
-        to.resize(size_from);
-    }
+    to.resize(from.size()); // drops the surplus of a longer target
 }
 
 /******************************************************************************/
