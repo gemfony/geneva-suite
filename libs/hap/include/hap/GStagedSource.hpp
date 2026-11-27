@@ -62,7 +62,9 @@ namespace detail {
  * @f]
  * After the copy the proxy serves from its own memory and touches the pool no further, so a
  * dormant STAGED proxy pins no shared memory. See GRotatingPool for the ring, the producer, and
- * the (benign, aligned-64-bit) race analysis. The implementation lives in GStagedSource.cpp.
+ * the (benign, aligned-64-bit) race analysis. A number can be handed out twice when the proxies claim
+ * faster than the producer fills (see GRotatingPool); the default source QUEUE does not do that. The
+ * implementation lives in GStagedSource.cpp.
  */
 void stagedClaim(std::uint64_t *dst, std::size_t n);
 

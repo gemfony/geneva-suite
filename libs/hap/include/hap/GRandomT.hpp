@@ -476,7 +476,9 @@ private:
  * The cross-thread hazard is entirely inside the shared pool, not here: see
  * Gem::Hap::detail::GRotatingPool for the lock-free ring, the background producer, and the full
  * benign-race analysis. STAGED takes a private snapshot, so unlike QUARANTINE it does not depend on
- * the benign race while serving -- after the copy there is no shared access at all.
+ * the benign race while serving -- after the copy there is no shared access at all. Proxies that claim
+ * faster than the pool's producer fills receive chunks a second time, so a number can be handed out
+ * twice; that is accepted for optimization, and the default source QUEUE does not do it.
  */
 template <>
 class GRandomT<Gem::Hap::randomSource::STAGED> : public Gem::Hap::GRandomBase {
@@ -606,9 +608,11 @@ private:
  * Unlike STAGED, QUARANTINE does @e not snapshot: it reads pool memory directly, so each read may
  * race the background producer refilling a quarantined pool. That race is harmless under exactly
  * the conditions analysed in Gem::Hap::detail::GRotatingPool: aligned 64-bit reads are atomic on
- * x86-64 / AArch64 (old-or-new, never torn), the @f$N\ge 3@f$ quarantine keeps an active reader and
- * the refiller in different pools, and there are no locks so it is deadlock-free. See that class for
- * the full derivation.
+ * x86-64 / AArch64 (old-or-new, never torn), and there are no locks so it is deadlock-free. A number
+ * can be handed out twice: a proxy that holds its span while the producer refills that pool reads
+ * numbers a later claim hands out again, and proxies that claim faster than the producer fills
+ * receive chunks a second time. That is accepted for optimization; the default source QUEUE does not
+ * do it. See GRotatingPool for the full derivation.
  */
 template <>
 class GRandomT<Gem::Hap::randomSource::QUARANTINE> : public Gem::Hap::GRandomBase {
