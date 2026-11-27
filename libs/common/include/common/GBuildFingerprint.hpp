@@ -37,9 +37,9 @@
  * in-process C++ shared object that shares vtables, inline code and the GArchive type registry with
  * the host. Two such `.so`s are only ABI-compatible if they were built with a compatible toolchain:
  * same compiler family/version, same standard library, same `_GLIBCXX_USE_CXX11_ABI`, same Boost,
- * same build-mode ABI switches. The plugin loader historically compared only @c GEM_VERSION,
- * which does NOT capture any of that -- so a module built with a different toolchain but the same
- * Geneva version passed the gate and then crashed or silently corrupted the process.
+ * same build-mode ABI switches. @c GEM_VERSION alone does NOT capture any of that: a module built
+ * with a different toolchain but the same Geneva version would pass a gate on the version and then
+ * crash or silently corrupt the process.
  *
  * `GemCompat` closes that hole. It is a **plain-C struct** (fixed-width integers only) so that its
  * layout is readable under exactly the toolchain skew it exists to detect -- the loader must read it
@@ -47,6 +47,11 @@
  * macros via the @c GEM_BUILD_FINGERPRINT initializer, never from hand-written literals, so no field can
  * silently go stale: the host and every module compile the same initializer under their own toolchain, and
  * a mismatch is detected structurally.
+ *
+ * The loader can read the fingerprint only once the shared object is loaded, and loading runs the
+ * module's static initializers (among them its registrations with weft's registry): the gate
+ * protects the contributions, not the load. A refused module stays mapped with its registrations,
+ * so a program should end after a module was refused (see openModule()).
  *
  * The design mirrors long-proven prior art: PostgreSQL's @c PG_MODULE_MAGIC, nginx's module signature, the
  * Linux kernel's @c vermagic and Apache's Module Magic Number all gate module loading on discrete
@@ -102,9 +107,7 @@
  * The plain-C compatibility fingerprint. extern "C" so the tag type has C linkage and an identical layout
  * on both sides of a module boundary. Field order is frozen within GEM_COMPAT_STRUCT_VERSION.
  */
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 typedef struct GemCompat {
     std::uint32_t struct_version;  /* == GEM_COMPAT_STRUCT_VERSION                         */
@@ -121,9 +124,7 @@ typedef struct GemCompat {
     std::uint32_t abi_flags;         /* GEM_ABI_FLAG_* bitfield                                 */
 } GemCompat;
 
-#ifdef __cplusplus
 } /* extern "C" */
-#endif
 
 /******************************************************************************/
 /*
@@ -135,12 +136,12 @@ typedef struct GemCompat {
 /* Compiler family + version. Check __clang__ FIRST: clang also defines __GNUC__. */
 #if defined(__clang__)
 #define GEM_FP_COMPILER_FAMILY GEM_COMPILER_FAMILY_CLANG
-#define GEM_FP_COMPILER_MAJOR  ((std::uint32_t)__clang_major__)
-#define GEM_FP_COMPILER_MINOR  ((std::uint32_t)__clang_minor__)
+#define GEM_FP_COMPILER_MAJOR  (static_cast<std::uint32_t>(__clang_major__))
+#define GEM_FP_COMPILER_MINOR  (static_cast<std::uint32_t>(__clang_minor__))
 #elif defined(__GNUC__)
 #define GEM_FP_COMPILER_FAMILY GEM_COMPILER_FAMILY_GNU
-#define GEM_FP_COMPILER_MAJOR  ((std::uint32_t)__GNUC__)
-#define GEM_FP_COMPILER_MINOR  ((std::uint32_t)__GNUC_MINOR__)
+#define GEM_FP_COMPILER_MAJOR  (static_cast<std::uint32_t>(__GNUC__))
+#define GEM_FP_COMPILER_MINOR  (static_cast<std::uint32_t>(__GNUC_MINOR__))
 #else
 #define GEM_FP_COMPILER_FAMILY GEM_COMPILER_FAMILY_UNKNOWN
 #define GEM_FP_COMPILER_MAJOR  0u
@@ -150,11 +151,11 @@ typedef struct GemCompat {
 /* Standard library family + version. */
 #if defined(_LIBCPP_VERSION)
 #define GEM_FP_STDLIB_FAMILY  GEM_STDLIB_FAMILY_LIBCXX
-#define GEM_FP_STDLIB_VERSION ((std::uint32_t)_LIBCPP_VERSION)
+#define GEM_FP_STDLIB_VERSION (static_cast<std::uint32_t>(_LIBCPP_VERSION))
 #elif defined(__GLIBCXX__)
 #define GEM_FP_STDLIB_FAMILY GEM_STDLIB_FAMILY_LIBSTDCXX
 #if defined(_GLIBCXX_RELEASE)
-#define GEM_FP_STDLIB_VERSION ((std::uint32_t)_GLIBCXX_RELEASE)
+#define GEM_FP_STDLIB_VERSION (static_cast<std::uint32_t>(_GLIBCXX_RELEASE))
 #else
 #define GEM_FP_STDLIB_VERSION 0u
 #endif
@@ -165,7 +166,7 @@ typedef struct GemCompat {
 
 /* libstdc++ dual-ABI switch (irrelevant / absent under libc++). */
 #if defined(_GLIBCXX_USE_CXX11_ABI)
-#define GEM_FP_GLIBCXX_CXX11_ABI ((std::uint32_t)_GLIBCXX_USE_CXX11_ABI)
+#define GEM_FP_GLIBCXX_CXX11_ABI (static_cast<std::uint32_t>(_GLIBCXX_USE_CXX11_ABI))
 #else
 #define GEM_FP_GLIBCXX_CXX11_ABI 0u
 #endif
@@ -246,8 +247,8 @@ typedef struct GemCompat {
 #define GEM_BUILD_FINGERPRINT                                                                      \
     {                                                                                              \
         .struct_version = GEM_COMPAT_STRUCT_VERSION,                                               \
-        .struct_size = (std::uint32_t)sizeof(GemCompat),                                           \
-        .gem_version = (std::uint32_t)GEM_VERSION,                                                 \
+        .struct_size = static_cast<std::uint32_t>(sizeof(GemCompat)),                              \
+        .gem_version = static_cast<std::uint32_t>(GEM_VERSION),                                    \
         .compiler_family = GEM_FP_COMPILER_FAMILY,                                                 \
         .compiler_major = GEM_FP_COMPILER_MAJOR,                                                   \
         .compiler_minor = GEM_FP_COMPILER_MINOR,                                                   \
@@ -255,7 +256,7 @@ typedef struct GemCompat {
         .stdlib_version = GEM_FP_STDLIB_VERSION,                                                   \
         .cxx_standard = GEM_FP_CXX_STANDARD,                                                       \
         .glibcxx_cxx11_abi = GEM_FP_GLIBCXX_CXX11_ABI,                                             \
-        .boost_version = (std::uint32_t)BOOST_VERSION,                                             \
+        .boost_version = static_cast<std::uint32_t>(BOOST_VERSION),                                \
         .abi_flags = GEM_FP_ABI_FLAGS,                                                             \
     }
 

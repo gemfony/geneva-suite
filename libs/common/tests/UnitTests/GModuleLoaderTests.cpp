@@ -336,6 +336,8 @@ TEST_CASE(
         const std::string d = moduleCompatMismatch(m);
         CHECK_FALSE(d.empty());
         CHECK(d.contains("compiler major"));
+        CHECK(d.contains("module=")); // the message names a module as every other text does
+        CHECK_FALSE(d.contains("plugin"));
     }
     SECTION("standard-library version") {
         GemCompat m = host;
@@ -343,6 +345,14 @@ TEST_CASE(
         const std::string d = moduleCompatMismatch(m);
         CHECK_FALSE(d.empty());
         CHECK(d.contains("standard-library version"));
+        CHECK_FALSE(d.contains("plugin"));
+    }
+    SECTION("compiler family") {
+        GemCompat m = host;
+        m.compiler_family = GEM_COMPILER_FAMILY_UNKNOWN;
+        const std::string d = moduleCompatMismatch(m);
+        CHECK(d.contains("compiler family: module="));
+        CHECK_FALSE(d.contains("plugin"));
     }
     SECTION("build-mode ABI flags") {
         GemCompat m = host;

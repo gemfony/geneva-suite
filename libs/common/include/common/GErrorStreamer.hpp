@@ -100,8 +100,8 @@ public:
     // Deleted or defaulted constructors, destructor and assignment operators
 
     g_error_streamer(const g_error_streamer &) = delete;
-    g_error_streamer &operator=(g_error_streamer &) = delete;
-    g_error_streamer(const g_error_streamer &&) = delete;
+    g_error_streamer &operator=(const g_error_streamer &) = delete;
+    g_error_streamer(g_error_streamer &&) = delete;
     g_error_streamer &operator=(g_error_streamer &&) = delete;
 
     ~g_error_streamer() = default;

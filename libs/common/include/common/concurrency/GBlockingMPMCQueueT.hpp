@@ -59,26 +59,22 @@ namespace Gem::Common::Concurrency {
  * is safe for the fully general case. Use it whenever the producer/consumer
  * multiplicity is not provably restricted to a single thread on one side.
  *
- * This is a modernised successor of the older GBoundedBufferT. It keeps the proven
- * concurrency core (a mutex plus two condition variables, predicate-based waits,
- * notification outside the lock) but cleans up the API and fixes several issues:
+ * Its concurrency core is a mutex plus two condition variables, predicate-based waits
+ * and notification outside the lock. Its interface:
  *
- *  - A single, perfect-forwarding `push` family covers both copy and move (one
- *    function instead of a copy/move pair), constrained with a concept so it only
- *    accepts items convertible to `T`. This makes the queue usable both for
- *    copyable items (e.g. std::shared_ptr) and move-only items (e.g.
- *    std::unique_ptr) without dead overloads.
+ *  - A single, perfect-forwarding `push` family covers both copy and move,
+ *    constrained with a concept so it only accepts items convertible to `T`. The
+ *    queue serves copyable items (e.g. std::shared_ptr) and move-only items (e.g.
+ *    std::unique_ptr) alike.
  *  - `pop` returns `std::optional<T>` (works for move-only `T`; no out-parameter,
  *    no default-construct-then-assign).
- *  - Bounded vs. unbounded is handled with `if constexpr`, not a duplicated set of
- *    `requires`-constrained overloads on a dummy template parameter.
- *  - `remaining_space()` no longer underflows for the unbounded case (it returns
- *    SIZE_MAX) — the old `T_CAPACITY - size()` wrapped around when `T_CAPACITY==0`.
+ *  - Bounded vs. unbounded is handled with `if constexpr`.
+ *  - `remaining_space()` returns SIZE_MAX for the unbounded case.
  *  - A `close()` operation wakes every blocked waiter and gives clean shutdown
  *    semantics: after `close()` no new items are accepted, blocked producers return
  *    `false`, and consumers drain the remaining items before `pop()` reports the
- *    end of stream via `std::nullopt`. The old class had no way to unblock a
- *    consumer parked in a no-timeout blocking pop, so teardown could hang.
+ *    end of stream via `std::nullopt`, so a consumer parked in a blocking pop
+ *    without a timeout is released at teardown.
  *  - All observers are `const`; all value-returning functions are `[[nodiscard]]`.
  *
  * Setting the template argument `T_CAPACITY` to 0 yields an unbounded queue (in
@@ -338,8 +334,8 @@ public:
 
     /*************************************************************************/
     /**
-     * The remaining space. Returns SIZE_MAX for an unbounded queue (the old
-     * GBoundedBufferT underflowed here). Only an indication in concurrent use.
+     * The remaining space. Returns SIZE_MAX for an unbounded queue. Only an
+     * indication in concurrent use.
      */
     [[nodiscard]] std::size_t remaining_space() const {
         if constexpr(T_CAPACITY == 0) {

@@ -313,3 +313,26 @@ TEST_CASE(
     CHECK(s.waitUntilEmpty(std::chrono::milliseconds(0)));
     CHECK(s.drain().empty());
 }
+
+/******************************************************************************/
+namespace {
+/** @brief A mapped value without a default constructor. */
+struct NoDefault {
+    explicit NoDefault(int v)
+      : value(v) { /* nothing */ }
+    int value;
+};
+} // namespace
+
+TEST_CASE(
+    "GThreadSafeKeyedStoreT: set and setOnce take a mapped type without a default constructor",
+    "[common][keyed-store]"
+) {
+    GThreadSafeKeyedStoreT<std::string, NoDefault> s;
+    s.set("a", NoDefault{1});
+    s.set("a", NoDefault{2}); // overwrites
+    CHECK(s.setOnce("b", NoDefault{3}));
+    CHECK_FALSE(s.setOnce("b", NoDefault{4})); // left unchanged
+    CHECK(s.get("a")->value == 2);
+    CHECK(s.get("b")->value == 3);
+}

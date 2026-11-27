@@ -106,14 +106,13 @@
 
 //-----------------------------------------------------------
 
-/** @brief Returns x squared, evaluating its argument exactly once (the former GSQUARED
- *  macro evaluated it twice). Direct multiplication is faster than std::pow(x, 2)
- *  on g++.
+namespace Gem::Common {
+/** @brief Returns x squared, evaluating its argument exactly once. Direct multiplication is
+ *  faster than std::pow(x, 2) on g++.
  *
  *  @tparam T The type of the value to be squared (must support operator*)
  *  @param x The value to be squared; evaluated exactly once
  *  @return The product x * x, of whatever type x * x yields */
-namespace Gem::Common {
 template <typename T>
 [[nodiscard]] constexpr auto gsquared(T const &x) -> decltype(x * x) {
     return x * x;
@@ -121,13 +120,11 @@ template <typename T>
 } // namespace Gem::Common
 
 //-----------------------------------------------------------
-// Allow to mark functions as deprecated on supported compilers
-#ifdef __GNUC__
-#define GEM_DEPRECATED(message) __attribute__((deprecated(#message)))
-#elif defined(__clang__)
-#define GEM_DEPRECATED(message) __attribute__((deprecated(#message)))
-#elif defined(_MSC_VER)
-#define GEM_DEPRECATED(message) __declspec(deprecated(#message))
-#else
-#define GEM_DEPRECATED(message)
-#endif
+/**
+ * @brief Marks a declaration as deprecated: the standard attribute @c [[deprecated]], with
+ * @p message turned into its text. It stands in front of the declaration, as the attribute does:
+ * @code
+ * GEM_DEPRECATED("Use newFunction() instead") void oldFunction();
+ * @endcode
+ */
+#define GEM_DEPRECATED(message) [[deprecated(#message)]]

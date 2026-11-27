@@ -337,36 +337,39 @@ num_type checkValueRange(
 /**
  * @brief Finds the minimum and maximum component in a vector of undefined types.
  *
- * This function requires that x_type can be compared using the usual operators.
+ * This function requires that x_type can be compared using the usual operators. The one element
+ * of a vector of size 1 is both its minimum and its maximum.
  *
  * @tparam x_type The element type of the vector (must be comparable)
  * @param ext_dat The vector holding the data, for which extreme values should be calculated
  * @return A std::tuple {min, max} holding the extreme values
+ * @throws gem_exception if the vector is empty
  */
 template <typename x_type>
 auto getMinMax(const std::vector<x_type> &ext_dat) {
-    checkThat(ext_dat.size() >= 2uz, "Got vector of invalid size ", ext_dat.size());
+    checkThat(not ext_dat.empty(), "Got an empty vector: it has no minimum and maximum");
 
-    auto [min_it, max_it] = std::minmax_element(ext_dat.begin(), ext_dat.end());
-    return std::tuple<x_type, x_type>{*min_it, *max_it};
+    auto [smallest, largest] = std::ranges::minmax(ext_dat);
+    return std::tuple<x_type, x_type>{smallest, largest};
 }
 
 /******************************************************************************/
 /**
  * @brief Find the per-component minimum and maximum in a vector of tuples of undefined types.
  *
- * One variadic implementation serves every tuple arity (the former separate 2D/3D/4D overloads
- * were scaled copy-paste of the same per-component min/max loop). Each component type must be
- * comparable with the usual operators; the comparison shape (a plain `<`/`>` pair seeded from the
- * first entry) is preserved exactly, so NaN handling is unchanged.
+ * One variadic implementation serves every tuple arity. Each component type must be comparable
+ * with the usual operators; every pair is seeded from the first entry and updated with a plain
+ * `<`/`>` comparison, so a NaN after the first entry changes nothing. The one entry of a vector of
+ * size 1 holds both the minima and the maxima.
  *
  * @tparam tuple_element_type The tuple's component types (any arity >= 1)
  * @param ext_dat The vector holding the data, for which extreme values should be calculated
  * @return A std::tuple {min_0, max_0, min_1, max_1, ...} holding the per-component extreme values
+ * @throws gem_exception if the vector is empty
  */
 template <typename... tuple_element_type>
 auto getMinMax(const std::vector<std::tuple<tuple_element_type...>> &ext_dat) {
-    checkThat(ext_dat.size() >= 2uz, "Got vector of invalid size ", ext_dat.size());
+    checkThat(not ext_dat.empty(), "Got an empty vector: it has no minimum and maximum");
 
     // Seed every {min, max} pair from the first entry: {min_0, max_0, min_1, max_1, ...}
     auto result = [&]<std::size_t... INDICES>(std::index_sequence<INDICES...>) {
@@ -452,23 +455,17 @@ auto GStandardDeviation(const std::vector<T> &par_vec) {
 /**
  * @brief Compile-time integer power: B^E.
  *
- * Replaces the old PowSmallPosInt struct template metaprogramming.
- *
  * @tparam B The base of the power
  * @tparam E The exponent of the power
  * @return The value of B raised to the power E, computed at compile time
  */
 template <std::size_t B, std::size_t E>
 constexpr std::size_t PowSmallPosInt() {
-    if constexpr(E == 0) {
-        return 1uz;
+    std::size_t result = 1uz;
+    for(std::size_t i = 0; i < E; ++i) {
+        result *= B;
     }
-    else if constexpr(E == 1) {
-        return B;
-    }
-    else {
-        return B * PowSmallPosInt<B, E - 1>();
-    }
+    return result;
 }
 
 /******************************************************************************/

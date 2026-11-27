@@ -76,7 +76,7 @@ public:
     /** @brief @param key The element to test. @return true iff @p key is currently a member. */
     [[nodiscard]] bool contains(const key_type &key) const {
         std::scoped_lock const lk(mtx_);
-        return set_.find(key) != set_.end();
+        return set_.contains(key);
     }
 
     /** @brief @return The current number of elements. */

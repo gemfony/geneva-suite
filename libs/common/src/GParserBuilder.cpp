@@ -872,7 +872,7 @@ void GParserBuilder::createConfigFile_(
 
 /******************************************************************************/
 /**
- * Builds the canonical configuration property tree: a header (the given header split on ';' into comment
+ * Builds the canonical configuration document: a header (the given header split on ';' into comment
  * lines, plus a creation timestamp) followed by one entry per registered file option, each carrying its
  * comment, registered default and current value. Shared by writeConfigFile() and the update-in-place
  * rewrite so both emit byte-identical structure.

@@ -105,9 +105,7 @@
     "." GEM_MODULE_STRINGIZE(GEM_VERSION_MINOR) "." GEM_MODULE_STRINGIZE(GEM_VERSION_PATCH)        \
         GEM_VERSION_PRERELEASE
 
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 /**
  * @brief One thing a module provides: a typed factory keyed by name/mnemonic. Plain C.
@@ -146,9 +144,7 @@ typedef struct GemModuleManifest {
     std::uint32_t contributions_count;
 } GemModuleManifest;
 
-#ifdef __cplusplus
 } /* extern "C" */
-#endif
 
 /*
  * The leading gate fields of a manifest, as an initializer prefix. Every manifest -- the ones the typed
@@ -159,8 +155,9 @@ typedef struct GemModuleManifest {
  *       GEM_MODULE_ABI_STAMP, "MyModule", "1.0.0", contributions, 2u};
  */
 #define GEM_MODULE_ABI_STAMP                                                                       \
-    GEM_BUILD_FINGERPRINT, GEM_MODULE_ABI_VERSION, (std::uint32_t)sizeof(GemModuleManifest),       \
-        (std::uint32_t)sizeof(GemContribution)
+    GEM_BUILD_FINGERPRINT, GEM_MODULE_ABI_VERSION,                                                 \
+        static_cast<std::uint32_t>(sizeof(GemModuleManifest)),                                     \
+        static_cast<std::uint32_t>(sizeof(GemContribution))
 
 namespace Gem::Common {
 

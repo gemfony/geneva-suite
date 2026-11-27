@@ -1136,6 +1136,17 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   them includes them itself.
 - **common: `condnotset()` was removed.** It raised an error when a function was called although a
   compile-time switch was not set; its callers left with the self-test mechanism.
+- **common: `GEM_DEPRECATED(message)` is the standard `[[deprecated]]`.** It stands in front of the
+  declaration it marks (`GEM_DEPRECATED("Use g() instead") void f();`); behind the declarator, where
+  the compiler-specific attribute it was before also fitted, it no longer compiles.
+- **common: `getMinMax()` answers a vector of one element.** Its one element (for a vector of
+  tuples, its one entry) is both the minimum and the maximum; before, a vector of fewer than two
+  elements was refused with a `gem_exception`. An empty vector is still refused.
+- **common: the module loader's messages say "module".** A module refused for its toolchain is
+  reported as `compiler family: module=GNU, this program=Clang` (was `plugin=`), and a refused
+  module ABI names "the names of the contribution kinds" (was "the contribution-kind numbering").
+  The gates run after the shared object is loaded, so a refused module's static initializers have
+  run and it stays mapped: a program ends after a refused module rather than going on.
 
 ## 8. Checkpointing
 

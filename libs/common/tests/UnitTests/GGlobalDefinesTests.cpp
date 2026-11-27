@@ -50,3 +50,20 @@ TEST_CASE(
 ) {
     CHECK(oa + gen + gind + gbm == 10);
 }
+
+namespace {
+// GEM_DEPRECATED stands in front of a declaration, as the standard attribute it expands to.
+// The message may be given as a string literal or as bare words.
+GEM_DEPRECATED("Use currentAnswer() instead") int deprecatedAnswer() {
+    return 42;
+}
+GEM_DEPRECATED(use the current constant instead) constexpr int DEPRECATED_CONSTANT = 7;
+} // namespace
+
+TEST_CASE("GEM_DEPRECATED marks a declaration that can still be used", "[common][defines]") {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
+    CHECK(deprecatedAnswer() == 42);
+    CHECK(DEPRECATED_CONSTANT == 7);
+#pragma GCC diagnostic pop
+}

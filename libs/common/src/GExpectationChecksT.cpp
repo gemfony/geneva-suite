@@ -36,17 +36,9 @@
 #include <cstddef>
 #include <ostream>
 #include <string>
-#include <tuple>
 #include <utility>
 
 namespace Gem::Common {
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-// Identifies test counter and success counter
-constexpr std::size_t TESTCOUNTER = 0;
-constexpr std::size_t SUCCESSCOUNTER = 1;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,8 +52,7 @@ constexpr std::size_t SUCCESSCOUNTER = 1;
  * caller passed to compare(), handed on to every comparison made under this token
  */
 GToken::GToken(std::string caller, Gem::Common::expectation e, double limit)
-  : test_counter_(std::make_tuple(0uz, 0uz))
-  , caller_(std::move(caller))
+  : caller_(std::move(caller))
   , e_(e)
   , limit_(limit) { /* nothing */
 }
@@ -71,7 +62,7 @@ GToken::GToken(std::string caller, Gem::Common::expectation e, double limit)
  * @brief Increments the counter of performed tests
  */
 void GToken::incrTestCounter() {
-    std::get<TESTCOUNTER>(test_counter_) += 1;
+    ++test_counter_;
 }
 
 /******************************************************************************/
@@ -79,7 +70,7 @@ void GToken::incrTestCounter() {
  * @brief Increments the counter of tests that met the expectation
  */
 void GToken::incrSuccessCounter() {
-    std::get<SUCCESSCOUNTER>(test_counter_) += 1;
+    ++success_counter_;
 }
 
 /******************************************************************************/
@@ -89,7 +80,7 @@ void GToken::incrSuccessCounter() {
  * @return The number of tests that have met the expectation so far
  */
 std::size_t GToken::getSuccessCounter() const {
-    return std::get<SUCCESSCOUNTER>(test_counter_);
+    return success_counter_;
 }
 
 /******************************************************************************/
@@ -99,7 +90,7 @@ std::size_t GToken::getSuccessCounter() const {
  * @return The number of tests that have been performed so far
  */
 std::size_t GToken::getTestCounter() const {
-    return std::get<TESTCOUNTER>(test_counter_);
+    return test_counter_;
 }
 
 /******************************************************************************/
@@ -112,13 +103,13 @@ bool GToken::expectationMet() const {
     switch(e_) {
     case Gem::Common::expectation::FP_SIMILARITY:
     case Gem::Common::expectation::EQUALITY:
-        if(std::get<TESTCOUNTER>(test_counter_) == std::get<SUCCESSCOUNTER>(test_counter_)) {
+        if(test_counter_ == success_counter_) {
             return true;
         }
         break;
 
     case Gem::Common::expectation::INEQUALITY:
-        if(std::get<SUCCESSCOUNTER>(test_counter_) > 0) {
+        if(success_counter_ > 0) {
             return true;
         }
         break;

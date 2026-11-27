@@ -63,12 +63,19 @@ namespace Gem::Common {
  *    contribution**: the @c GemCompat toolchain fingerprint (a compiler/stdlib/Boost/build-mode
  *    mismatch is rejected with a diagnostic naming the offending axis, rather than being mis-loaded
  *    and crashing later) and then the module-ABI stamp (@c GEM_MODULE_ABI_VERSION -- the module
- *    and this program must agree on the manifest layout, the kind numbering and each kind's payload
- *    type);
+ *    and this program must agree on the manifest layout, the names of the contribution kinds and
+ *    each kind's payload type);
  *  - keeps the library resident for the process lifetime (its code + GArchive registrations back
  *    live objects) and never unloads it.
  *
  * The returned manifest (and everything it points to) lives for the process lifetime.
+ *
+ * @warning The gates protect the contributions, not the load. Loading the shared object runs its
+ * static initializers -- among them the registrations of its types with weft's registry -- before
+ * @c gem_module_manifest() can be called, so a module built with another toolchain has already run
+ * C++ code against this program's libraries when a gate refuses it. A refused module stays mapped,
+ * with its registrations, as every opened module does. A program should therefore end after a
+ * module was refused, not catch the refusal and go on.
  *
  * @param module_path The filesystem path to the module shared object
  * @return The module's manifest (never nullptr; throws on any failure, incl. a missing manifest)
