@@ -509,6 +509,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   naming how many were left out. Likewise `GThreadGroup::join_all()` from a thread of the group
   and a `GCompletionLatchT::count_down()` beyond the armed count throw `gem_exception` (they
   ended in a `std::system_error` and in a latch that never opened again).
+- **`close()` of the preallocated queue keeps every item it accepted.** With
+  `QueueBackend::Preallocated`, an item whose `push()` was under way when `close()` came was
+  reported as accepted, but a consumer could see the end of the stream before the item was
+  stored, and the item stayed behind. Now an item is either stored before `close()` returns and
+  then consumed, or refused, as with the default backend.
 
 ## 6. Packaging: libraries and runtime-loadable modules
 
