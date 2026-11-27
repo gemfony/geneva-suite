@@ -38,6 +38,8 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <span>
+#include <stdexcept>
 #include <sstream>
 #include <string>
 #include <thread>
@@ -130,6 +132,36 @@ std::size_t backupsOf(std::filesystem::path const &file) {
     }
     return n;
 }
+
+// A sink that notes the calls it gets, and throws where it is told to: a std::exception, or
+// something that is none
+class ProbeSink final : public GSink {
+public:
+    enum class FailIn { NOWHERE, OPEN, CLOSE };
+    explicit ProbeSink(FailIn fail = FailIn::NOWHERE, bool foreign = false)
+      : fail_(fail)
+      , foreign_(foreign) {}
+    void open(GStreamInfo const &) override { this->note_("open", FailIn::OPEN); }
+    void write(std::span<GRow const> rows) override {
+        calls.push_back("write " + std::to_string(rows.size()));
+    }
+    void close() override { this->note_("close", FailIn::CLOSE); }
+
+    std::vector<std::string> calls; ///< The calls, in their order
+
+private:
+    void note_(std::string const &call, FailIn here) {
+        calls.push_back(call);
+        if(fail_ == here) {
+            if(foreign_) {
+                throw 42; // NOLINT(hicpp-exception-baseclass): what the test is about
+            }
+            throw std::runtime_error("the probe fails in " + call);
+        }
+    }
+    FailIn fail_;
+    bool foreign_;
+};
 
 GTimeStamp parseTimeStamp(std::string const &text) {
     std::istringstream in(text);
@@ -455,6 +487,78 @@ TEST_CASE("GCsvSink::readRows() returns the complete rows of a file written for 
     auto const none = GCsvSink::readRows(dir / "empty.csv", columns);
     REQUIRE(none);
     CHECK(none->empty());
+}
+
+TEST_CASE("a stream whose sink fails to open takes no further row and closes only the sinks it opened", "[common][record]") {
+    // The GSink contract: write() and close() only after open(); close() also when open() threw
+    ScratchDirectory const dir("failopen");
+    auto const first = std::make_shared<ProbeSink>();
+    auto const failing = std::make_shared<ProbeSink>(ProbeSink::FailIn::OPEN);
+    auto const third = std::make_shared<ProbeSink>();
+    auto s = recorder().stream(
+        "failopen",
+        {GColumn{.name = "n", .type = columnType::INTEGER}},
+        withTime::none,
+        GStreamOptions{.sinks = {first, failing, third}}
+    );
+    CHECK_THROWS_AS(s.append(GRow{std::int64_t{1}}), std::runtime_error);
+    try {
+        s.append(GRow{std::int64_t{2}});
+        FAIL("a stream whose sink failed to open took a row");
+    }
+    catch(gem_exception const &e) {
+        CHECK_THAT(e.what(), Catch::Matchers::ContainsSubstring("failed to open"));
+    }
+    CHECK_THROWS_AS(s.close(), gem_exception); // the rows held back reach no sink
+    CHECK(first->calls == std::vector<std::string>{"open", "close"});
+    CHECK(failing->calls == std::vector<std::string>{"open", "close"});
+    CHECK(third->calls.empty());
+}
+
+TEST_CASE("a sink that throws no std::exception is reported by the handle and by closeAll()", "[common][record]") {
+    // The handle's end and its move assignment do not throw, and closeAll() reports through the log
+    ScratchDirectory const dir("foreign_exception");
+    std::vector<GColumn> const columns{GColumn{.name = "n", .type = columnType::INTEGER}};
+    auto const declare = [&columns](std::string const &name) {
+        auto s = recorder().stream(
+            name,
+            columns,
+            withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<ProbeSink>(ProbeSink::FailIn::CLOSE, true)}}
+        );
+        s.append(GRow{std::int64_t{1}});
+        return s;
+    };
+    auto by_close_all = declare("by_close_all");
+    CHECK_NOTHROW(recorder().closeAll());
+    CHECK_FALSE(by_close_all.isOpen());
+    auto by_close = declare("by_close");
+    CHECK_THROWS_AS(by_close.close(), int); // close() itself passes it on
+    auto moved_onto = declare("by_move");
+    moved_onto = GStream();
+    CHECK_FALSE(moved_onto.isOpen());
+    {
+        auto s = declare("by_destructor");
+    }
+}
+
+TEST_CASE("a handle moved onto an open stream closes that stream and takes over the other", "[common][record]") {
+    ScratchDirectory const dir("move");
+    auto target = recorder().stream<int>("target", {"n"});
+    auto source = recorder().stream<int>("source", {"n"});
+    target.append(1);
+    source.append(2);
+    target = std::move(source);
+    CHECK(target.name() == "source");
+    CHECK(target.isOpen());
+    CHECK_FALSE(source.isOpen()); // NOLINT(bugprone-use-after-move): a moved-from handle is empty
+    CHECK(source.name().empty());  // NOLINT(bugprone-use-after-move)
+    CHECK(linesOf(dir / "target.csv") == std::vector<std::string>{"n", "1"});
+    auto again = recorder().stream<int>("target", {"n"}); // its name is free again
+    CHECK(again.isOpen());
+    target.append(3);
+    target.close();
+    CHECK(linesOf(dir / "source.csv") == std::vector<std::string>{"n", "2", "3"});
 }
 
 TEST_CASE("a sink added by name joins the next declaration of that stream", "[common][record]") {

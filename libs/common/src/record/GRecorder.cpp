@@ -31,7 +31,6 @@
 
 // Standard header files go here
 #include <algorithm>
-#include <exception>
 #include <iterator>
 #include <set>
 #include <string_view>
@@ -39,7 +38,6 @@
 // Geneva header files go here
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
-#include "common/GLogger.hpp"
 #include "common/GSingletonT.hpp"
 #include "common/record/GCsvSink.hpp"
 
@@ -213,15 +211,7 @@ void GRecorder::closeAll() {
     }
     // Outside the lock: a closing stream frees its name (forget_())
     for(auto const &core : open) {
-        try {
-            core->close();
-        }
-        catch(std::exception const &e) {
-            glogger << "the stream \"" << core->info().name
-                    << "\" could not be closed cleanly:" << '\n'
-                    << e.what() << '\n'
-                    << GWARNING;
-        }
+        core->closeOrLog();
     }
 }
 

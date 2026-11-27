@@ -32,6 +32,7 @@
 // Standard header files go here
 #include <exception>
 #include <format>
+#include <string>
 
 // Geneva header files go here
 #include "common/GErrorStreamer.hpp"
@@ -112,6 +113,7 @@ void GStreamCore::append(GRow row) {
                                << "\" is closed; it takes no further row" << '\n'
         );
     }
+    this->refuseAfterFailedOpen_();
     if(time_ == withTime::wall) {
         row.insert(row.begin(), GValue(std::chrono::system_clock::now()));
     }
@@ -148,15 +150,13 @@ bool GStreamCore::close() {
         catch(...) {
             failure = std::current_exception();
         }
-        if(sinks_open_) {
-            for(auto const &sink : sinks_) {
-                try {
-                    sink->close();
-                }
-                catch(...) {
-                    if(not failure) {
-                        failure = std::current_exception();
-                    }
+        for(std::size_t i = 0; i < sinks_begun_; ++i) {
+            try {
+                sinks_[i]->close();
+            }
+            catch(...) {
+                if(not failure) {
+                    failure = std::current_exception();
                 }
             }
         }
@@ -166,6 +166,28 @@ bool GStreamCore::close() {
         std::rethrow_exception(failure);
     }
     return true;
+}
+
+/******************************************************************************/
+/**
+ * Closes the stream for a caller that must not throw (the end of a handle, closeAll()): a
+ * failure, also one that is no std::exception, is reported through the log.
+ */
+void GStreamCore::closeOrLog() noexcept {
+    std::string what;
+    try {
+        this->close();
+        return;
+    }
+    catch(std::exception const &e) {
+        what = e.what();
+    }
+    catch(...) {
+        what = "an exception that is no std::exception";
+    }
+    glogger << "the stream \"" << info_.name << "\" could not be closed cleanly:" << '\n'
+            << what << '\n'
+            << GWARNING;
 }
 
 /******************************************************************************/
@@ -202,23 +224,38 @@ std::source_location const &GStreamCore::declarer() const {
 /******************************************************************************/
 /**
  * Hands the rows held back to the sinks, opening them before the first rows. Called under
- * mutex_. The sinks count as open once their opening has begun, so that a sink whose open()
- * failed is still closed.
+ * mutex_. A sink counts as begun once its opening has begun, so that a sink whose open()
+ * failed is still closed; the sinks after it are not opened (refuseAfterFailedOpen_()).
  */
 void GStreamCore::flushLocked_() {
     if(held_.empty()) {
         return;
     }
     if(not sinks_open_) {
-        sinks_open_ = true;
-        for(auto const &sink : sinks_) {
-            sink->open(info_);
+        this->refuseAfterFailedOpen_();
+        while(sinks_begun_ < sinks_.size()) {
+            sinks_[sinks_begun_++]->open(info_);
         }
+        sinks_open_ = true;
     }
     std::vector<GRow> rows;
     rows.swap(held_);
     for(auto const &sink : sinks_) {
         sink->write(rows);
+    }
+}
+
+/******************************************************************************/
+/**
+ * Refuses rows once the opening of a sink failed: that sink was not written to, and the sinks
+ * after it were not opened. Called under mutex_.
+ */
+void GStreamCore::refuseAfterFailedOpen_() const {
+    if(sinks_begun_ > 0 && not sinks_open_) {
+        throw gem_exception(
+            g_error_streamer() << "A sink of the stream \"" << info_.name
+                               << "\" failed to open; the stream takes no further row" << '\n'
+        );
     }
 }
 
@@ -243,13 +280,8 @@ GStream::GStream(std::shared_ptr<detail::GStreamCore> core)
  */
 GStream &GStream::operator=(GStream &&cp) noexcept {
     if(this != &cp) {
-        try {
-            this->close();
-        }
-        catch(std::exception const &e) {
-            glogger << "the stream could not be closed cleanly:" << '\n'
-                    << e.what() << '\n'
-                    << GWARNING;
+        if(core_) {
+            core_->closeOrLog();
         }
         core_ = std::move(cp.core_);
     }
@@ -261,13 +293,8 @@ GStream &GStream::operator=(GStream &&cp) noexcept {
  * Closes the stream. A failure is reported through the log, since a destructor does not throw.
  */
 GStream::~GStream() {
-    try {
-        this->close();
-    }
-    catch(std::exception const &e) {
-        glogger << "the stream could not be closed cleanly:" << '\n'
-                << e.what() << '\n'
-                << GWARNING;
+    if(core_) {
+        core_->closeOrLog();
     }
 }
 

@@ -1126,7 +1126,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
   A CSV row whose text holds a line break spans several lines of the file; it is now read as one
   row, so it survives the cut-back of a resumed file and reaches `GCsvSink::readRows()` and the
-  plot of a resumed stream.
+  plot of a resumed stream. A stream one of whose sinks fails to open takes no further row
+  (before, the next rows went to sinks that were never opened), and the end of a handle and
+  `closeAll()` report a failure of a sink of any type through the log.
 - **The log file is a stream.** `GRecordLogTarget` (columns time, severity, source, text; plain
   text with `GTextSink`) replaces `GFileLogger`; a target may override `log(message, logType)`.
 - **courtier's end-of-run report.** When the launcher releases a consumer that counts something,
