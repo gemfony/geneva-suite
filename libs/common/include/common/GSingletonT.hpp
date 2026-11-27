@@ -75,10 +75,10 @@ std::shared_ptr<T> TFactory_GSingletonT() {
  * singleton types that must NOT be destroyed at program shutdown — typically
  * those logged-to or otherwise used during static destruction, where the
  * destruction order against other statics and still-running threads is
- * unspecified. A never-destroy singleton is pinned by a single leaked owning
- * reference in instance() and is reclaimed only by the OS at process exit;
- * GSingletonT::reset() is disabled for such types (it would orphan the pinned
- * instance and break the singleton invariant). Leave the default
+ * unspecified. A never-destroy singleton is held by a storage that is itself
+ * never destroyed (see storage()) and is reclaimed only by the OS at process exit;
+ * GSingletonT::reset() is disabled for such types (it would drop the instance
+ * that must outlive every other static). Leave the default
  * (std::false_type) for singletons whose destructor must run, e.g. those that
  * join threads or release OS resources (such as GRandomFactory).
  *
@@ -137,19 +137,6 @@ public:
             if(not sp) {
                 sp = Gem::Common::TFactory_GSingletonT<T>();
                 s.p.store(sp);
-                if constexpr(gsingleton_never_destroy<T>::value) {
-                    // Never-destroy singletons must outlive every other static
-                    // (they are logged-to / used during static destruction).
-                    // Pin the instance with one owning reference that is
-                    // deliberately leaked: the refcount can then never reach
-                    // zero, so T is never destroyed and is reclaimed only by
-                    // the OS at process exit. The raw pointer is parked in a
-                    // function-local static so the allocation stays reachable
-                    // (LSan reports it as still-reachable, not as a leak). This
-                    // branch runs once, under creation_mutex.
-                    static auto *const keep_alive = new std::shared_ptr<T>(sp);
-                    (void)keep_alive;
-                }
             }
         }
         return sp;
@@ -159,8 +146,8 @@ public:
     /**
 	  * @brief Drops the stored instance so the next instance() call creates a fresh one.
 	  * Disabled for never-destroy singletons (see gsingleton_never_destroy): for
-	  * those, resetting would leave the leaked pin pointing at an orphaned
-	  * instance while instance() builds a second one, breaking uniqueness.
+	  * those, resetting would drop the instance that must outlive every other
+	  * static, while users may still hold it and instance() builds a second one.
 	  * Calling reset() on such a type is therefore a compile error.
 	  *
 	  * @tparam U Defaulted to T; exists only so the requires-clause can disable reset()
@@ -200,8 +187,22 @@ private:
      * @return A reference to the single storage_type instance backing this singleton
      */
     static storage_type &storage() {
-        static storage_type s;
-        return s;
+        if constexpr(gsingleton_never_destroy<T>::value) {
+            // The instance must outlive every other static (it is used during static
+            // destruction), and it is reached through this storage: so the storage, which holds
+            // its owning reference, is leaked on purpose and reclaimed by the OS at process exit
+            // (LSan reports it as still reachable). A destroyed storage would be a use after the
+            // end of its life. No test can show that defect with libstdc++, whose destroyed
+            // std::atomic<std::shared_ptr> keeps its pointer, so a use appears to work; a
+            // lifetime sanitizer would see it.
+            // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) -- deliberately never deleted
+            static storage_type *const s = new storage_type;
+            return *s;
+        }
+        else {
+            static storage_type s;
+            return s;
+        }
     }
 
     /***************************************************************************/
