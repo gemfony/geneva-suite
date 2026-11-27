@@ -68,6 +68,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -283,14 +284,8 @@ public:
         // Serialise with concurrent log() / addLogTarget() etc.
         std::scoped_lock const lk(logger_mutex_);
 
-        if(gblt) {
-            released = std::exchange(default_logger_, gblt);
-        }
-        else {
-            throw gem_exception(
-                g_error_streamer() << "Tried to register empty default logger" << '\n'
-            );
-        }
+        checkThat(gblt != nullptr, "Tried to register empty default logger");
+        released = std::exchange(default_logger_, gblt);
     }
 
     /***************************************************************************/
@@ -305,12 +300,8 @@ public:
         // Serialise with concurrent log() / log_cnt_ readers.
         std::scoped_lock const lk(logger_mutex_);
 
-        if(gblt) {
-            log_cnt_.push_back(gblt);
-        }
-        else {
-            throw gem_exception(g_error_streamer() << "Tried to register empty logger" << '\n');
-        }
+        checkThat(gblt != nullptr, "Tried to register empty logger");
+        log_cnt_.push_back(gblt);
     }
 
     /***************************************************************************/

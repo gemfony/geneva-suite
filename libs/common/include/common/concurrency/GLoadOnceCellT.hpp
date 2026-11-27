@@ -38,6 +38,7 @@
 #include <utility>
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -172,14 +173,12 @@ public:
      *         @c ensureLoaded() before any reader calls @c get())
      */
     [[nodiscard]] const T &get() const {
-        if(not this->loaded()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "The cell was read before it was loaded. Fill it once (via ensureLoaded())"
-                << '\n'
-                << "before any reader calls get()." << '\n'
-            );
-        }
+        checkThat(
+            this->loaded(),
+            "The cell was read before it was loaded. Fill it once (via ensureLoaded())",
+            '\n',
+            "before any reader calls get()."
+        );
         return data_;
     }
 

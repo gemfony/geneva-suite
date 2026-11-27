@@ -47,6 +47,7 @@
 
 // Geneva headers go here
 #include "common/GBuildFingerprint.hpp"
+#include "common/GChecks.hpp"
 
 namespace Gem::Common {
 
@@ -350,35 +351,35 @@ bool isPrefixedKind(std::string_view kind) {
  *  module is opened, because an opened module stays in the process.
  *  @param handlers The caller's handlers */
 void validateHandlersOrThrow(std::span<const GContributionHandler> handlers) {
-    if(handlers.empty()) {
-        throw gem_exception(
-            g_error_streamer()
-            << "No contribution handler was given: a program states at the call which kinds of"
-            << " contribution it accepts." << '\n'
-        );
-    }
+    checkThat(
+        not handlers.empty(),
+        "No contribution handler was given: a program states at the call which kinds of",
+        " contribution it accepts."
+    );
     std::set<std::string> kinds;
     for(const GContributionHandler &handler : handlers) {
-        if(not isPrefixedKind(handler.kind)) {
-            throw gem_exception(
-                g_error_streamer()
-                << "The handler for the kind \"" << handler.kind << "\" (" << handler.noun
-                << ") does not name it with the prefix of its library (\"<library>.<kind>\")."
-                << '\n'
-            );
-        }
-        if(not handler.take) {
-            throw gem_exception(
-                g_error_streamer() << "The handler for kind \"" << handler.kind << "\" ("
-                                   << handler.noun << ") has no take function." << '\n'
-            );
-        }
-        if(not kinds.insert(handler.kind).second) {
-            throw gem_exception(
-                g_error_streamer()
-                << "More than one handler was given for kind \"" << handler.kind << "\"." << '\n'
-            );
-        }
+        checkThat(
+            isPrefixedKind(handler.kind),
+            "The handler for the kind \"",
+            handler.kind,
+            "\" (",
+            handler.noun,
+            ") does not name it with the prefix of its library (\"<library>.<kind>\")."
+        );
+        checkThat(
+            handler.take != nullptr,
+            "The handler for kind \"",
+            handler.kind,
+            "\" (",
+            handler.noun,
+            ") has no take function."
+        );
+        checkThat(
+            kinds.insert(handler.kind).second,
+            "More than one handler was given for kind \"",
+            handler.kind,
+            "\"."
+        );
     }
 }
 

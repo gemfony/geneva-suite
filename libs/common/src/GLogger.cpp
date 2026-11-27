@@ -517,17 +517,15 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
 
     //------------------------------------------------------------------------
     case Gem::Common::logType::FILE: {
-        if(this->hasOneTimeLogFile()) {
-            appendToFile(this->getOneTimeLogFile(), oss_.str());
-        }
-        else {
-            throw gem_exception(
-                g_error_streamer()
-                << "Tried to log to one time log file without a file name specification" << '\n'
-                << "You need to supply a file name like this:" << '\n'
-                << "glogger(\"filename.txt\") << \"some log text\" << GFILE" << '\n'
-            );
-        }
+        checkThat(
+            this->hasOneTimeLogFile(),
+            "Tried to log to one time log file without a file name specification",
+            '\n',
+            "You need to supply a file name like this:",
+            '\n',
+            "glogger(\"filename.txt\") << \"some log text\" << GFILE"
+        );
+        appendToFile(this->getOneTimeLogFile(), oss_.str());
     } break;
 
     //------------------------------------------------------------------------

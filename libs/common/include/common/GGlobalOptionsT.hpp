@@ -41,6 +41,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GSingletonT.hpp" // for the gsingleton_never_destroy opt-in below
@@ -113,16 +114,17 @@ public:
 	 * @throw gem_exception if the key is not present in the option map
 	 */
     T get(const std::string &key) {
-        if(auto value = store_.get(key)) {
-            return *value;
-        }
-        throw gem_exception(
-            g_error_streamer() << "Key \"" << key << "\" is not present in the global options map."
-                               << '\n'
-                               << "Use exists(key) to check before calling, or get(key, value) "
-                                  "which signals absence via its return value."
-                               << '\n'
+        auto value = store_.get(key);
+        checkThat(
+            value.has_value(),
+            "Key \"",
+            key,
+            "\" is not present in the global options map.",
+            '\n',
+            "Use exists(key) to check before calling, or get(key, value) "
+            "which signals absence via its return value."
         );
+        return *value;
     }
 
     /***************************************************************************/
