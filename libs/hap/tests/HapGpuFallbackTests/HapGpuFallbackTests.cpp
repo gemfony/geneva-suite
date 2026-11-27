@@ -35,6 +35,7 @@
  * to start with are skipped (SKIP, exit code 4) in builds without the CUDA backend or without a device.
  */
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -52,6 +53,7 @@
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
+#include "hap/GCUDARng.hpp"
 #include "hap/GRandomFactory.hpp"
 #include "hap/GRandomT.hpp"
 
@@ -343,6 +345,31 @@ TEST_CASE("A failing GPU source moves to the CPU and keeps delivering", "[gpu-fa
     REQUIRE(gpuRandomNumbersAllowed());
     requireRandomWords();
     REQUIRE(nGpuRandomSources() == 0);
+}
+
+TEST_CASE("A failing CUDA call leaves its buffer to the caller", "[gpu-failure-leaves-buffer]") {
+#if defined(HAP_USE_CUDA)
+    if(not GCudaRNG::deviceAvailable()) {
+        SKIP("No CUDA device");
+    }
+    GCudaRNG rng(0x9e3779b97f4a7c15ULL);
+    REQUIRE_FALSE(rng.failed());
+
+    constexpr std::uint64_t SENTINEL = 0x5a5a5a5a5a5a5a5aULL;
+    std::vector<std::uint64_t> buffer(64, SENTINEL);
+    simulateGpuRandomFailureForTests(true);
+    bool filled = true;
+    CHECK_NOTHROW(filled = rng.generate(buffer.data(), buffer.size()));
+    simulateGpuRandomFailureForTests(false);
+
+    // The failure is reported, and the buffer is not filled from an engine of GCudaRNG's own: the
+    // caller (GFillBackend) fills it from its CPU engine
+    CHECK_FALSE(filled);
+    CHECK(rng.failed());
+    CHECK(std::ranges::all_of(buffer, [](std::uint64_t w) { return w == SENTINEL; }));
+#else
+    SKIP("No CUDA backend in this build");
+#endif
 }
 
 TEST_CASE(

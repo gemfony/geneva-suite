@@ -57,7 +57,6 @@ namespace Gem::Hap::detail {
 void countGpuRandomSource(
     bool engaged
 ) noexcept; ///< +1 when a source starts using the GPU, -1 when it stops
-[[nodiscard]] bool gpuRandomFailureSimulated() noexcept;   ///< the failure seam for tests
 void gpuRandomSourceStartStage(GpuSourceStartStage stage); ///< the start seam for tests
 
 /******************************************************************************/
@@ -118,7 +117,8 @@ void gpuRandomSourceStartStage(GpuSourceStartStage stage); ///< the start seam f
  * A GPU backend moves to its CPU engine for good, and stops counting in nGpuRandomSources(), when
  * a CUDA or cuRAND call fails (one warning per process) or when GPU use has been switched off
  * through setGpuRandomNumbersAllowed(false). The switch is read at every refill, so it also reaches
- * producer threads that started before it was set.
+ * producer threads that started before it was set. The buffer of the call that failed is filled by
+ * the CPU engine as well.
  */
 class GFillBackend {
 public:
@@ -220,19 +220,14 @@ public:
     void generate(result_type *dst, std::size_t n) {
 #if defined(HAP_USE_CUDA)
         if(cuda_) {
-            const bool simulated_failure = gpuRandomFailureSimulated();
-            if(gpuRandomNumbersAllowed() && not simulated_failure) {
-                cuda_->generate(dst, n);
-                if(not cuda_->failed()) {
-                    return;
-                }
-                // dst was filled from a CPU generator; later calls use this backend's CPU engine
-                releaseGpu_();
-                logGpuFailure_();
+            if(gpuRandomNumbersAllowed() && cuda_->generate(dst, n)) {
                 return;
             }
+            // GPU use was switched off, or a CUDA call failed and left dst unfilled: this call and
+            // every later one draw from this backend's CPU engine
+            const bool failed = cuda_->failed();
             releaseGpu_();
-            if(simulated_failure) {
+            if(failed) {
                 logGpuFailure_();
             }
         }

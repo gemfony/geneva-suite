@@ -43,7 +43,12 @@ TARGET_LINK_LIBRARIES (${EXECUTABLENAME}
 		${Boost_LIBRARIES}
 		Catch2::Catch2WithMain)
 
-FOREACH(_case gpu-off-at-start gpu-off-later gpu-failure gpu-off-while-creating gpu-failure-while-creating
+# The test of the GPU source itself (GCudaRNG) exists only where hap was built with the CUDA backend
+IF(GEM_USE_CUDA_RNG_ENABLED)
+	TARGET_COMPILE_DEFINITIONS(${EXECUTABLENAME} PRIVATE HAP_USE_CUDA=1)
+ENDIF()
+
+FOREACH(_case gpu-off-at-start gpu-off-later gpu-failure gpu-failure-leaves-buffer gpu-off-while-creating gpu-failure-while-creating
 		gpu-off-after-choice start-awaited-first-draw start-awaited-more-producers exit-after-first-draw
 		start-wait-warning start-wait-first-draw start-wait-others-served gpu-start-throws
 		producer-creation-fails producer-creation-fails-all no-producer-left)
