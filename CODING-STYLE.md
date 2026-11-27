@@ -54,6 +54,12 @@ The whole tree was formatted once with `.clang-format`; that commit is listed in
 `git blame` can skip it once git is told to use the file:
 `git config blame.ignoreRevsFile .git-blame-ignore-revs`.
 
+The tree is kept formatted with clang-format 23, and the convention test `FormatClean` turns red on any file
+under `libs/` that deviates (`ctest -R '^FormatClean$'` lists them). Formatters of different major versions lay
+out the same code differently, so the test is registered only when configure finds a clang-format 23: set its
+path as `CLANG_FORMAT` in `genevaConfig.gcfg` (the cache entry `GEM_CLANG_FORMAT`), or configure says why the
+test is missing.
+
 ## 2. File layout
 
 ### 2.1 The license banner

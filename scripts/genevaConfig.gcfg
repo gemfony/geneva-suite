@@ -175,6 +175,11 @@ FORCECUDA="0"
 CUDA_NVCC=""
 CUDA_ROOT=""
 
+# The clang-format for the convention test FormatClean, which checks that the sources follow
+# .clang-format. The tree is formatted with clang-format 23; the test is registered only if this
+# binary (empty: clang-format from the PATH) has that major version, and configure says so if not.
+CLANG_FORMAT=""
+
 # Whether to add CUDA-generated random numbers to Hap.
 # Note: enabling this makes the Hap library depend on the CUDA runtime, so
 # programs linked with Geneva become less portable (CUDA toolkit required).

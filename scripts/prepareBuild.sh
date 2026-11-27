@@ -233,6 +233,7 @@ WITHCOVERAGE="0"
 SANITIZER="none"
 CUDA_NVCC=""
 CUDA_ROOT=""
+CLANG_FORMAT=""
 COMPILER="clang"
 
 if [ -n "${CONFIGFILE}" ]; then
@@ -440,6 +441,7 @@ if [ "${GENERATE_PRESET}" = "1" ]; then
 	_preset_add "GEM_SANITIZER"              "STRING" "${SANITIZER}"
 	[ -n "${CUDA_NVCC}" ] && [ "${SKIPALLCUDA}" = "0" ] && _preset_add "CMAKE_CUDA_COMPILER" "FILEPATH" "${CUDA_NVCC}"
 	[ -n "${CUDA_ROOT}" ] && [ "${SKIPALLCUDA}" = "0" ] && _preset_add "CUDAToolkit_ROOT"   "PATH"     "${CUDA_ROOT}"
+	[ -n "${CLANG_FORMAT}" ]     && _preset_add "GEM_CLANG_FORMAT"        "FILEPATH" "${CLANG_FORMAT}"
 	[ -n "${_C_COMPILER}" ]      && _preset_add "CMAKE_C_COMPILER"        "FILEPATH" "${_C_COMPILER}"
 	[ -n "${_CXX_COMPILER}" ]    && _preset_add "CMAKE_CXX_COMPILER"      "FILEPATH" "${_CXX_COMPILER}"
 	[ -n "${CXXEXTRAFLAGS}" ]    && _preset_add "CMAKE_CXX_FLAGS"         "STRING"   "${CXXEXTRAFLAGS}"
@@ -509,6 +511,7 @@ cmake_args+=(
 	"-DGEM_SANITIZER=${SANITIZER}"
 )
 [ -n "${MPIROOT}" ]          && cmake_args+=("-DMPI_HOME=${MPIROOT}")
+[ -n "${CLANG_FORMAT}" ]     && cmake_args+=("-DGEM_CLANG_FORMAT=${CLANG_FORMAT}")
 if [ -n "${CUDA_NVCC}" ] && [ "${SKIPALLCUDA}" = "0" ]; then
 	cmake_args+=("-DCMAKE_CUDA_COMPILER=${CUDA_NVCC}")
 	if [ -n "${CUDA_ROOT}" ] && [ -d "${CUDA_ROOT}" ]; then

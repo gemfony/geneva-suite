@@ -823,6 +823,32 @@ IF (GEM_BUILD_TESTS)
 	SET_TESTS_PROPERTIES(LibraryLayersRespected PROPERTIES LABELS "conventions")
 	GEM_TEST_SIZE(LibraryLayersRespected S)
 
+	# Every source under libs/ is laid out as .clang-format says. Formatters of different major
+	# versions lay out the same code differently, so the test needs the major version the tree is
+	# formatted with; GEM_CLANG_FORMAT (genevaConfig.gcfg: CLANG_FORMAT) names the binary.
+	SET(_format_major 23)
+	FIND_PROGRAM(GEM_CLANG_FORMAT NAMES clang-format DOC "clang-format for the test FormatClean")
+	SET(_format_version "")
+	IF(GEM_CLANG_FORMAT)
+		EXECUTE_PROCESS(COMMAND ${GEM_CLANG_FORMAT} --version OUTPUT_VARIABLE _format_version
+			ERROR_QUIET)
+		STRING(REGEX MATCH "version ([0-9]+)\\." _format_version "${_format_version}")
+		SET(_format_version "${CMAKE_MATCH_1}")
+	ENDIF()
+	IF(_format_version STREQUAL _format_major)
+		ADD_TEST(
+			NAME FormatClean
+			COMMAND ${CMAKE_COMMAND} -DCLANG_FORMAT=${GEM_CLANG_FORMAT}
+				-DSOURCE_DIR=${PROJECT_SOURCE_DIR}/libs
+				-P ${PROJECT_SOURCE_DIR}/CMakeModules/CheckFormatClean.cmake
+		)
+		SET_TESTS_PROPERTIES(FormatClean PROPERTIES LABELS "conventions")
+		GEM_TEST_SIZE(FormatClean S)
+	ELSE ()
+		MESSAGE(STATUS "FormatClean not registered: needs clang-format ${_format_major}, "
+			"GEM_CLANG_FORMAT='${GEM_CLANG_FORMAT}' is version '${_format_version}'")
+	ENDIF ()
+
 	# The build driver reports a failed configuration by its exit status.
 	ADD_TEST(
 		NAME PrepareBuildFailsWhenCMakeFails
