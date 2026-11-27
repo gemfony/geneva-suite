@@ -60,7 +60,7 @@
 #include "GDemoProcessingContainers.hpp"
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -717,7 +717,7 @@ TEST_CASE(
     {
         Shell shell{listener, 2};
         shell.startServer();
-        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
         auto holding = std::make_shared<std::atomic<bool>>(false);
         listener->holdAcceptThread([holding, release] {
             holding->store(true);

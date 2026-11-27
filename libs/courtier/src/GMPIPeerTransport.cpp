@@ -42,7 +42,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
@@ -747,7 +747,7 @@ void GMPIListener::announceEndWithoutStart() {
     this->startPoll_();
     core->start();
 
-    auto ended = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(peers.size());
+    auto ended = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(peers.size());
     for(const auto &peer : peers) {
         peer->start(GPeerHandlers{.onClosed = [ended](GPeerEnd, GPeerClose, std::string_view) {
             ended->count_down();

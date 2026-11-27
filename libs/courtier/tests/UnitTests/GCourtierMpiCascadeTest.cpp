@@ -73,7 +73,7 @@
 #include "common/GConfigEmission.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GParserBuilder.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -964,7 +964,7 @@ int releaseDuringRoundScenario(Report &report) {
     }
     cascade.requireRole(processRole::CLIENT);
     cascade.lead(lifecycle);
-    auto entered = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    auto entered = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     std::atomic<bool> right{false};
     {
         Gem::Common::Concurrency::GThreadGroup threads;

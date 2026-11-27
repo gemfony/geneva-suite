@@ -51,7 +51,7 @@
 #include <boost/asio/strand.hpp>
 
 // Geneva headers go here
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/transport/GIoContext.hpp"
 #include "courtier/transport/GMqttPeerTransport.hpp"
 
@@ -111,7 +111,7 @@ class JoinableIo {
 public:
     /** @brief @param n_threads How many threads run the context */
     explicit JoinableIo(std::size_t n_threads = 4)
-      : idle_(std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(n_threads)) {
+      : idle_(std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(n_threads)) {
         for(std::size_t i = 0; i < n_threads; ++i) {
             threads_.emplace_back([this, idle = idle_] {
                 ctx_.run();
@@ -147,7 +147,7 @@ private:
         boost::asio::executor_work_guard<Gem::Courtier::Consumers::GIoContext::executor_type>>
         guard_{ctx_.get_executor()}; ///< Keeps the threads in run() until join()
     /// Counted down by every thread that has left run()
-    std::shared_ptr<Gem::Common::Concurrency::GCompletionLatchT> idle_;
+    std::shared_ptr<Gem::Common::Concurrency::GCompletionLatch> idle_;
     std::vector<std::jthread> threads_; ///< The threads
 };
 

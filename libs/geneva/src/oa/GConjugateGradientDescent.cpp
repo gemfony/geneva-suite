@@ -719,7 +719,7 @@ std::vector<double> GConjugateGradientDescent::lbfgsDirection_(
         }
         if(s_dot_y > std::numeric_limits<long double>::min()) {
             // The curvature history is a fixed-capacity ring laid out in a flat GAuxiliaryStore
-            // block, kept bespoke: no common/ facility fits (GSPSCStagingRingT is a lock-free RNG
+            // block, kept bespoke: no common/ facility fits (GSPMCStagingRingT is a lock-free RNG
             // staging ring, unrelated), and the two-loop recursion below wants the pairs in
             // oldest-to-newest order in contiguous memory.
             // Eviction is therefore a shift rather than a modular head index: O(m*n) instead of

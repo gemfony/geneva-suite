@@ -55,7 +55,7 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/websocket.hpp>
 
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/transport/GPeerI.hpp"
 #include "courtier/transport/GWebsocketPeer.hpp"
@@ -445,9 +445,9 @@ TEST_CASE(
     GSeen server_seen;
     std::weak_ptr<GWebsocketPeer> server_weak;
     // the end under test is open (and has queued its messages)
-    const auto opened = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto opened = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     // close() has been called on it
-    const auto closed_here = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto closed_here = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     std::promise<std::uint16_t> their_view; // the code of the close frame the other end read
     boost::asio::io_context own;
     boost::beast::websocket::stream<tcp::socket> ws(own);
@@ -590,7 +590,7 @@ TEST_CASE(
     GSeen server_seen;
     std::atomic<bool> shaken{false};
     std::atomic<bool> ponged{false}; // LIVE: the end has answered a ping sent after D
-    const auto go = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto go = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     std::promise<std::uint16_t> their_view;
     boost::asio::io_context own;
     boost::beast::websocket::stream<tcp::socket> ws(own);
@@ -1020,7 +1020,7 @@ TEST_CASE(
     boost::asio::io_context ctx;
     tcp::acceptor acceptor(ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
 
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     const std::jthread other_end([port = acceptor.local_endpoint().port(), held = release]() {
         boost::asio::io_context own;
         boost::beast::websocket::stream<tcp::socket> ws(own);
@@ -1143,7 +1143,7 @@ TEST_CASE(
     boost::asio::io_context ctx;
     auto [accepted, connecting] = connectedPair(ctx);
     // The other end: the server's side of the handshake, then nothing until the test ends
-    const auto test_over = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto test_over = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     std::jthread other([socket = std::move(accepted), test_over]() mutable {
         boost::beast::websocket::stream<tcp::socket> ws(std::move(socket));
         boost::system::error_code ec;

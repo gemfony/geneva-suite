@@ -104,6 +104,45 @@ struct Counted {
 };
 std::atomic<long long> Counted::alive{0};
 
+/** @brief Shared state of a producer held inside the construction of its item. */
+struct Gate {
+    std::atomic<bool> entered{false}; ///< the producer is constructing the item
+    std::atomic<bool> open{false};    ///< the test lets the construction finish
+};
+
+/** @brief What a producer offers: a ticket from which the queue constructs a Held item. */
+struct Ticket {
+    Gate *gate;
+};
+
+/** @brief An item whose construction from a Ticket waits (bounded) until the test opens its gate,
+ *  so a producer can be held after the queue accepted it and before the item is stored. */
+struct Held {
+    int v_ = 0;
+    explicit Held(Ticket const &ticket)
+      : v_(1) {
+        ticket.gate->entered.store(true);
+        const auto deadline = std::chrono::steady_clock::now() + 10s;
+        while(not ticket.gate->open.load() and std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(100us);
+        }
+    }
+};
+
+/**
+ * @brief Waits until @p flag is set or @p limit elapses.
+ * @param flag The flag to wait for
+ * @param limit The longest wait
+ * @return The flag's value at the end of the wait
+ */
+bool waitFor(std::atomic<bool> const &flag, std::chrono::milliseconds limit) {
+    const auto deadline = std::chrono::steady_clock::now() + limit;
+    while(not flag.load() and std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(100us);
+    }
+    return flag.load();
+}
+
 } // namespace
 
 #define MPMC_BACKENDS DequeTag, PreallocTag
@@ -243,6 +282,60 @@ TEMPLATE_TEST_CASE(
     REQUIRE(ok);
     REQUIRE(consumed_count == accepted_count);
     REQUIRE(q.empty());
+}
+
+/******************************************************************************/
+// close() while a producer stores an accepted item: the item is consumed
+
+TEMPLATE_TEST_CASE(
+    "GMPMCQueueT shutdown: an item accepted before close is consumed",
+    "[GMPMCQueueT][shutdown]",
+    MPMC_BACKENDS
+) {
+    // Regression (R138-16): the preallocated backend let close() pass a producer that had been
+    // accepted, and a consumer that saw the closed flag ended before the item was stored.
+    typename TestType::template queue<Held, 4> q;
+    Gate gate;
+
+    std::atomic<bool> accepted{false};
+    std::thread producer([&]() { accepted.store(q.push(Ticket{&gate})); });
+    REQUIRE(waitFor(gate.entered, 10s)); // the producer is inside the store
+
+    std::atomic<bool> closed{false};
+    std::thread closer([&]() {
+        q.close();
+        closed.store(true);
+    });
+
+    // A consumer in the form the report names: pop_wait(1ms) until it sees the end of the stream.
+    std::atomic<int> consumed{0};
+    std::atomic<bool> consumer_done{false};
+    std::thread consumer([&]() {
+        for(;;) {
+            const bool closed_before = q.is_closed();
+            if(auto item = q.pop_wait(1ms)) {
+                consumed.fetch_add(item->v_);
+                continue;
+            }
+            if(closed_before) {
+                break; // closed and drained
+            }
+        }
+        consumer_done.store(true);
+    });
+
+    // A queue that keeps its contract does not end the stream while the store is under way.
+    const bool ended_early = waitFor(consumer_done, 200ms);
+    gate.open.store(true);
+    producer.join();
+    closer.join();
+    consumer.join();
+
+    CHECK_FALSE(ended_early);
+    REQUIRE(accepted.load());
+    REQUIRE(closed.load());
+    CHECK(consumed.load() == 1);
+    CHECK(q.empty());
 }
 
 /******************************************************************************/

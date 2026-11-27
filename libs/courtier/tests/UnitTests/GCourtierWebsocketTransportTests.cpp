@@ -57,7 +57,7 @@
 #include <boost/asio.hpp>
 
 #include "common/GLogger.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/transport/GPeerI.hpp"
 #include "courtier/transport/GWebsocketPeerTransport.hpp"
 
@@ -388,7 +388,7 @@ TEST_CASE(
     std::atomic<int> n_client_open{0};
     std::atomic<int> n_client_closed{0};
     std::atomic<bool> holding{false};
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     OneThread sessions; // the shell's executor, with its one session thread
     OneThread client;
     GWebsocketListener

@@ -34,7 +34,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "hap/GRandomDefines.hpp"
 #include <array>
 #include <atomic>
@@ -120,7 +120,7 @@ struct GRandomFactory::GProducerStart {
     std::uint16_t n_producers;             ///< How many producers this start launched
     std::atomic<std::size_t> n_building;   ///< How many are building their engine
     std::atomic<std::size_t> n_filling{0}; ///< How many are filling their first container
-    Gem::Common::Concurrency::GCompletionLatchT finished; ///< Counted down by each producer once
+    Gem::Common::Concurrency::GCompletionLatch finished; ///< Counted down by each producer once
 };
 
 /******************************************************************************/
@@ -406,7 +406,7 @@ std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
  */
 std::shared_ptr<GRandomFactory::GProducerStart>
 GRandomFactory::startProducers(std::uint16_t n_new) {
-    // Shared with every new producer: the latch must outlive the last count_down() (see GCompletionLatchT)
+    // Shared with every new producer: the latch must outlive the last count_down() (see GCompletionLatch)
     auto start = std::make_shared<GProducerStart>(n_new);
     std::uint16_t n_started = 0;
     try {
@@ -657,7 +657,7 @@ struct GGpuSourceStartHold {
     std::atomic<std::size_t> n_reached{0}; ///< How many sources have reached this stage
     std::atomic<std::size_t> n_free{0};    ///< n_reached below which sources pass a held stage
     std::atomic<bool> fail{false};         ///< Whether starting sources throw at this stage
-    Gem::Common::Concurrency::GCompletionLatchT gate; ///< Opened on release
+    Gem::Common::Concurrency::GCompletionLatch gate; ///< Opened on release
 };
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 std::array<GGpuSourceStartHold, 3> g_gpu_source_start_holds;

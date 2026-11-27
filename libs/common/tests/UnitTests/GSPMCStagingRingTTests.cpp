@@ -35,7 +35,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "common/concurrency/GSPSCStagingRingT.hpp"
+#include "common/concurrency/GSPMCStagingRingT.hpp"
 
 using namespace Gem::Common::Concurrency;
 
@@ -45,7 +45,7 @@ namespace {
 constexpr std::size_t kChunkWords = 8;
 constexpr std::size_t kChunksPerPool = 4;
 constexpr int kNPools = 4;
-using Ring = GSPSCStagingRingT<kChunkWords, kChunksPerPool, kNPools>;
+using Ring = GSPMCStagingRingT<kChunkWords, kChunksPerPool, kNPools>;
 
 constexpr std::uint64_t kSentinel = 0xA5A5A5A5DEADBEEFULL;
 
@@ -64,7 +64,7 @@ auto sentinel_fill = [](std::uint64_t *dst, std::size_t n) {
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GSPSCStagingRingT: non-copyable and non-movable", "[common][spsc-ring]") {
+TEST_CASE("GSPMCStagingRingT: non-copyable and non-movable", "[common][spmc-ring]") {
     static_assert(not std::is_copy_constructible_v<Ring>);
     static_assert(not std::is_move_constructible_v<Ring>);
     static_assert(not std::is_copy_assignable_v<Ring>);
@@ -75,8 +75,8 @@ TEST_CASE("GSPSCStagingRingT: non-copyable and non-movable", "[common][spsc-ring
 // The injected fill runs for the initial generations at construction.
 
 TEST_CASE(
-    "GSPSCStagingRingT: the fill callback populates the initial generations",
-    "[common][spsc-ring]"
+    "GSPMCStagingRingT: the fill callback populates the initial generations",
+    "[common][spmc-ring]"
 ) {
     std::atomic<int> fill_calls{0};
     {
@@ -95,8 +95,8 @@ TEST_CASE(
 // Single-threaded read paths agree and are valid.
 
 TEST_CASE(
-    "GSPSCStagingRingT: claimSpan and copyChunkInto both yield filled words",
-    "[common][spsc-ring]"
+    "GSPMCStagingRingT: claimSpan and copyChunkInto both yield filled words",
+    "[common][spmc-ring]"
 ) {
     Ring ring(sentinel_fill);
 
@@ -118,8 +118,8 @@ TEST_CASE(
 // Distinct chunks within one pool decode to distinct, non-overlapping memory.
 
 TEST_CASE(
-    "GSPSCStagingRingT: consecutive claims advance through distinct chunk slots",
-    "[common][spsc-ring]"
+    "GSPMCStagingRingT: consecutive claims advance through distinct chunk slots",
+    "[common][spmc-ring]"
 ) {
     // A fill that paints each word with its absolute index within the pool, so we can see the offset
     // decode walk chunk slots 0,1,2,... within a pool (each generation re-paints the same pattern).
@@ -146,8 +146,8 @@ TEST_CASE(
 
 // NOLINTNEXTLINE(readability-function-size) -- one coherent concurrency stress-test kernel (spawns reader threads sharing atomics + the ring under test, joins, then asserts); splitting would only scatter the tightly-coupled thread lambdas
 TEST_CASE(
-    "GSPSCStagingRingT: concurrent readers only ever see valid words",
-    "[common][spsc-ring][concurrency]"
+    "GSPMCStagingRingT: concurrent readers only ever see valid words",
+    "[common][spmc-ring][concurrency]"
 ) {
     Ring ring(sentinel_fill);
 

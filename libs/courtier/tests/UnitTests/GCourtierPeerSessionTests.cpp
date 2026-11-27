@@ -55,7 +55,7 @@
 #include "GDemoProcessingContainers.hpp"
 #include "GInProcessPeer.hpp"
 #include "GInProcessTestSupport.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GServerSessionLogic.hpp"
 #include "courtier/GWireCodec.hpp"
@@ -759,12 +759,12 @@ TEST_CASE(
         // The strand of the session's end is held while the client sends a message whose head
         // cannot be read (the session closes with ERROR on it), a RESULT and a PULL: all three
         // have arrived before the session's close goes out.
-        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
         boost::asio::post(server_end->executor(), [held = release]() { held->wait_for(PATIENCE); });
         connection.client->sendBytes("x");
         connection.client->send(GFrameKind::RESULT);
         connection.client->send(GFrameKind::PULL);
-        const auto sent = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        const auto sent = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
         boost::asio::post(connection.clientPeer->executor(), [sent] { sent->count_down(); });
         REQUIRE(sent->wait_for(PATIENCE));
         release->count_down();

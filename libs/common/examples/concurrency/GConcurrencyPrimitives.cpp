@@ -45,9 +45,9 @@
 #include <vector>
 
 #include "common/concurrency/GAgingStoreT.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GContentAddressedStoreT.hpp"
-#include "common/concurrency/GSPSCStagingRingT.hpp"
+#include "common/concurrency/GSPMCStagingRingT.hpp"
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp"
 #include "common/concurrency/GThreadSafeSetT.hpp"
 
@@ -115,16 +115,16 @@ bool demo_thread_safe_keyed_store() {
     return ok;
 }
 
-/** @brief Demonstrates GCompletionLatchT: a per-batch "wait for N completions" latch. N workers each count
+/** @brief Demonstrates GCompletionLatch: a per-batch "wait for N completions" latch. N workers each count
  *  down once; one waiter blocks until the batch is fully drained (the GStdThreadConsumerT round pattern).
  *  @return true iff every demonstrated invariant held. */
 bool demo_completion_latch() {
-    std::cout << "== GCompletionLatchT ==\n";
+    std::cout << "== GCompletionLatch ==\n";
     bool ok = true;
 
     constexpr std::size_t kWorkers = 8;
     // Held via shared_ptr by every worker AND this waiter, so it outlives the last count_down().
-    auto latch = std::make_shared<GCompletionLatchT>(kWorkers);
+    auto latch = std::make_shared<GCompletionLatch>(kWorkers);
     std::atomic<std::size_t> done{0};
 
     std::vector<std::thread> workers;
@@ -149,19 +149,19 @@ bool demo_completion_latch() {
     return ok;
 }
 
-/** @brief Demonstrates GSPSCStagingRingT: a lock-free ring of bulk-filled pools refilled by one
+/** @brief Demonstrates GSPMCStagingRingT: a lock-free ring of bulk-filled pools refilled by one
  *  background producer ahead of a claim cursor (the Hap RNG prefetch substrate). Here a trivial fill
  *  paints a sentinel; readers claim chunks and must only ever see filled words.
  *  @return true iff every demonstrated invariant held. */
-bool demo_spsc_staging_ring() {
-    std::cout << "== GSPSCStagingRingT ==\n";
+bool demo_spmc_staging_ring() {
+    std::cout << "== GSPMCStagingRingT ==\n";
     bool ok = true;
 
     constexpr std::size_t kChunkWords = 8;
     constexpr std::uint64_t kSentinel = 0xC0FFEEULL;
 
     // The fill callback bulk-populates one pool's worth of words; it runs only on the producer thread.
-    GSPSCStagingRingT<kChunkWords> ring([](std::uint64_t *dst, std::size_t n) {
+    GSPMCStagingRingT<kChunkWords> ring([](std::uint64_t *dst, std::size_t n) {
         for(std::size_t i = 0; i < n; ++i) {
             dst[i] = kSentinel;
         }
@@ -250,7 +250,7 @@ int main() {
     ok = demo_content_addressed_store() && ok;
     ok = demo_thread_safe_keyed_store() && ok;
     ok = demo_completion_latch() && ok;
-    ok = demo_spsc_staging_ring() && ok;
+    ok = demo_spmc_staging_ring() && ok;
     ok = demo_aging_store() && ok;
     ok = demo_thread_safe_set() && ok;
 

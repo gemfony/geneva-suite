@@ -37,7 +37,7 @@
 #include <vector>
 
 #include "common/GExceptions.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 
 using namespace Gem::Common::Concurrency;
 using namespace std::chrono_literals;
@@ -45,19 +45,19 @@ using namespace std::chrono_literals;
 // ---------------------------------------------------------------------------
 // Static interface contract
 
-TEST_CASE("GCompletionLatchT: non-copyable", "[common][latch]") {
-    static_assert(not std::is_copy_constructible_v<GCompletionLatchT>);
-    static_assert(not std::is_copy_assignable_v<GCompletionLatchT>);
+TEST_CASE("GCompletionLatch: non-copyable", "[common][latch]") {
+    static_assert(not std::is_copy_constructible_v<GCompletionLatch>);
+    static_assert(not std::is_copy_assignable_v<GCompletionLatch>);
 }
 
 // ---------------------------------------------------------------------------
 // Single-threaded count-down semantics
 
 TEST_CASE(
-    "GCompletionLatchT: count_down reports the last completion and reaches zero",
+    "GCompletionLatch: count_down reports the last completion and reaches zero",
     "[common][latch]"
 ) {
-    GCompletionLatchT latch(3);
+    GCompletionLatch latch(3);
     CHECK(latch.remaining() == 3);
     CHECK_FALSE(latch.count_down()); // 3 -> 2
     CHECK(latch.remaining() == 2);
@@ -66,18 +66,18 @@ TEST_CASE(
     CHECK(latch.remaining() == 0);
 }
 
-TEST_CASE("GCompletionLatchT: a latch armed for zero is already complete", "[common][latch]") {
-    GCompletionLatchT latch(0);
+TEST_CASE("GCompletionLatch: a latch armed for zero is already complete", "[common][latch]") {
+    GCompletionLatch latch(0);
     CHECK(latch.remaining() == 0);
     latch.wait();               // returns immediately, no hang
     CHECK(latch.wait_for(0ms)); // already complete -> true
 }
 
 TEST_CASE(
-    "GCompletionLatchT: wait() returns once the count is fully drained (single thread)",
+    "GCompletionLatch: wait() returns once the count is fully drained (single thread)",
     "[common][latch]"
 ) {
-    GCompletionLatchT latch(2);
+    GCompletionLatch latch(2);
     latch.count_down();
     latch.count_down();
     latch.wait(); // must not block
@@ -88,10 +88,10 @@ TEST_CASE(
 // wait_for timeout behaviour
 
 TEST_CASE(
-    "GCompletionLatchT: wait_for times out while completions are outstanding",
+    "GCompletionLatch: wait_for times out while completions are outstanding",
     "[common][latch]"
 ) {
-    GCompletionLatchT latch(1);
+    GCompletionLatch latch(1);
     CHECK_FALSE(latch.wait_for(20ms)); // still 1 outstanding -> timeout
     latch.count_down();
     CHECK(latch.wait_for(20ms)); // now drained -> success without waiting
@@ -100,8 +100,8 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // Re-arm for reuse
 
-TEST_CASE("GCompletionLatchT: arm() re-uses the latch for a fresh round", "[common][latch]") {
-    GCompletionLatchT latch(1);
+TEST_CASE("GCompletionLatch: arm() re-uses the latch for a fresh round", "[common][latch]") {
+    GCompletionLatch latch(1);
     CHECK(latch.count_down());
     CHECK(latch.remaining() == 0);
 
@@ -120,11 +120,11 @@ TEST_CASE("GCompletionLatchT: arm() re-uses the latch for a fresh round", "[comm
 // outlives the last count_down() (see the lifetime note on the primitive).
 
 TEST_CASE(
-    "GCompletionLatchT: waiter unblocks only after every worker counts down",
+    "GCompletionLatch: waiter unblocks only after every worker counts down",
     "[common][latch][concurrency]"
 ) {
     constexpr std::size_t kWorkers = 64;
-    auto latch = std::make_shared<GCompletionLatchT>(kWorkers);
+    auto latch = std::make_shared<GCompletionLatch>(kWorkers);
     std::atomic<std::size_t> done{0};
 
     std::vector<std::thread> workers;
@@ -149,14 +149,14 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GCompletionLatchT: stress -- repeated batches each release exactly their own waiter",
+    "GCompletionLatch: stress -- repeated batches each release exactly their own waiter",
     "[common][latch][concurrency]"
 ) {
     constexpr int kRounds = 200;
     constexpr std::size_t kBatch = 16;
 
     for(int round = 0; round < kRounds; ++round) {
-        auto latch = std::make_shared<GCompletionLatchT>(kBatch);
+        auto latch = std::make_shared<GCompletionLatch>(kBatch);
         std::atomic<std::size_t> completed{0};
 
         std::vector<std::thread> ts;
@@ -177,15 +177,15 @@ TEST_CASE(
     }
 }
 
-TEST_CASE("GCompletionLatchT: a count_down beyond the armed count is refused", "[common][latch]") {
+TEST_CASE("GCompletionLatch: a count_down beyond the armed count is refused", "[common][latch]") {
     // Regression: the count wrapped below zero, and wait() would never have returned
-    GCompletionLatchT latch(1);
+    GCompletionLatch latch(1);
     CHECK(latch.count_down());
     CHECK_THROWS_AS(latch.count_down(), gem_exception);
     CHECK(latch.remaining() == 0);
     CHECK(latch.wait_for(0ms));
 
-    GCompletionLatchT never_armed;
+    GCompletionLatch never_armed;
     CHECK_THROWS_AS(never_armed.count_down(), gem_exception);
     CHECK(never_armed.remaining() == 0);
 }

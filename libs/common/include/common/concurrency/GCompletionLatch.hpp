@@ -69,15 +69,15 @@ namespace Gem::Common::Concurrency {
  * beyond the armed count is refused with gem_exception (the count would wrap, and wait() would
  * not return).
  */
-class GCompletionLatchT { // NOLINT(cppcoreguidelines-special-member-functions)
+class GCompletionLatch { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
     /** @brief Constructs a latch armed for @p n completions (0 == already complete). */
-    explicit GCompletionLatchT(std::size_t n = 0)
+    explicit GCompletionLatch(std::size_t n = 0)
       : remaining_(n) {
     }
 
-    GCompletionLatchT(const GCompletionLatchT &) = delete;
-    GCompletionLatchT &operator=(const GCompletionLatchT &) = delete;
+    GCompletionLatch(const GCompletionLatch &) = delete;
+    GCompletionLatch &operator=(const GCompletionLatch &) = delete;
 
     /** @brief (Re-)arms the latch to wait for @p n completions. Call only when no count_down/wait of a
      *  previous round is still in flight. @param n The number of completions to await. */
@@ -94,7 +94,7 @@ public:
         do {
             Gem::Common::checkThat(
                 old != 0,
-                "GCompletionLatchT::count_down() beyond the armed count"
+                "GCompletionLatch::count_down() beyond the armed count"
             );
         }
         while(not remaining_.compare_exchange_weak(old, old - 1));

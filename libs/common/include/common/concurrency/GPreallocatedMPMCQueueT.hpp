@@ -74,9 +74,11 @@ namespace Gem::Common::Concurrency {
  * number of `items_` permits always equals the number of live items, so a successful `items_` acquire
  * guarantees there is an item to take (no separate emptiness re-check is needed on the hot path).
  *
- * Shutdown. close() simply sets a flag. A semaphore has no broadcast, so blocked producers/consumers
- * are woken by a short poll backstop: the blocking waits use try_acquire_for() and re-check the flag
- * on timeout. This keeps close() trivially correct and avoids injecting "fake" permits (which would
+ * Shutdown. close() sets a flag under the tail mutex, and a producer re-checks it under the same
+ * mutex before it stores: an item is either stored and published before close() returns, and then
+ * consumed, or refused -- as in the deque backend. A semaphore has no broadcast, so blocked
+ * producers/consumers are woken by a short poll backstop: the blocking waits use try_acquire_for()
+ * and re-check the flag on timeout. This keeps close() simple and avoids injecting "fake" permits (which would
  * desynchronise the permit==item invariant). Work arrival still wakes a waiter IMMEDIATELY via the
  * normal semaphore release; the poll only fires while a thread would otherwise be blocked anyway
  * (queue genuinely full/empty AND no close yet), so its only cost is a few wake-ups per second on an
@@ -176,12 +178,7 @@ public:
         if(not free_.try_acquire()) {
             return false; // full
         }
-        if(closed_.load(std::memory_order_acquire)) {
-            free_.release(); // closed meanwhile -> hand the slot back and reject
-            return false;
-        }
-        store_at_tail_(std::forward<U>(item));
-        return true;
+        return store_at_tail_(std::forward<U>(item));
     }
 
     /*************************************************************************/
@@ -204,12 +201,7 @@ public:
                 break; // got a free slot
             }
         }
-        if(closed_.load(std::memory_order_acquire)) {
-            free_.release();
-            return false;
-        }
-        store_at_tail_(std::forward<U>(item));
-        return true;
+        return store_at_tail_(std::forward<U>(item));
     }
 
     /*************************************************************************/
@@ -241,12 +233,7 @@ public:
                 break;
             }
         }
-        if(closed_.load(std::memory_order_acquire)) {
-            free_.release();
-            return false;
-        }
-        store_at_tail_(std::forward<U>(item));
-        return true;
+        return store_at_tail_(std::forward<U>(item));
     }
 
     /*************************************************************************/
@@ -318,9 +305,12 @@ public:
     /**
      * Closes the queue. Subsequent and blocked producers return false; consumers drain the remaining
      * items (each still has its items_ permit) and then see std::nullopt. Blocked waiters notice this
-     * within one poll interval. Terminal and idempotent.
+     * within one poll interval. Terminal and idempotent. The flag is set under the tail mutex, so a
+     * producer that is storing an item finishes and publishes it first, and every later store is
+     * refused.
      */
     void close() {
+        std::scoped_lock const lock(tail_mtx_);
         closed_.store(true, std::memory_order_release);
     }
 
@@ -390,31 +380,39 @@ private:
     /*************************************************************************/
     /**
      * @brief Constructs an item into the tail slot (caller already holds a free_ permit), then
-     *  publishes it by releasing an items_ permit.
+     *  publishes it by releasing an items_ permit -- or refuses it if the queue has been closed.
+     *
+     * The check of the closed flag, the store and the publication happen under the tail mutex, which
+     * close() takes as well: a consumer that sees the flag also sees every item accepted before it.
+     *
      * @tparam U The forwarded argument type (used to construct a T)
      * @param item The item to construct into the tail slot (forwarded)
+     * @return true if the item was stored, false if the queue was closed (the permit is given back)
      */
     template <typename U>
-    void store_at_tail_(U &&item) {
-        {
-            std::scoped_lock const lock(tail_mtx_);
-            try {
-                ::new (static_cast<void *>(std::addressof(ring_[tail_].value_)))
-                    T(std::forward<U>(item));
-            }
-            catch(...) {
-                // The element constructor threw, so the slot stays empty and nothing is published.
-                // Give the reserved free_ permit back -- otherwise capacity would shrink by one for
-                // the queue's lifetime -- and propagate, leaving the queue unchanged (the strong
-                // guarantee the deque backend also offers). The items_ == live-items invariant holds:
-                // no items_ permit was released.
-                free_.release();
-                throw;
-            }
-            tail_ = next_index(tail_);
+    [[nodiscard]] bool store_at_tail_(U &&item) {
+        std::scoped_lock const lock(tail_mtx_);
+        if(closed_.load(std::memory_order_relaxed)) {
+            free_.release(); // closed meanwhile -> hand the slot back and refuse
+            return false;
         }
+        try {
+            ::new (static_cast<void *>(std::addressof(ring_[tail_].value_)))
+                T(std::forward<U>(item));
+        }
+        catch(...) {
+            // The element constructor threw, so the slot stays empty and nothing is published.
+            // Give the reserved free_ permit back -- otherwise capacity would shrink by one for
+            // the queue's lifetime -- and propagate, leaving the queue unchanged (the strong
+            // guarantee the deque backend also offers). The items_ == live-items invariant holds:
+            // no items_ permit was released.
+            free_.release();
+            throw;
+        }
+        tail_ = next_index(tail_);
         count_.fetch_add(1, std::memory_order_relaxed); // observers only
-        items_.release(); // publish: synchronises with the consumer's acquire
+        items_.release();                               // publish, before close() can set the flag
+        return true;
     }
 
     /*************************************************************************/

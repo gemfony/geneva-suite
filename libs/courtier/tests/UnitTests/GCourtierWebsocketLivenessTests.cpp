@@ -59,7 +59,7 @@
 
 #include "GDemoProcessingContainers.hpp"
 #include "common/GLogger.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GProcessable.hpp" // detail::lineageSalt (a foreign result)
 #include "courtier/GProcessingContainerT.hpp"
@@ -334,7 +334,7 @@ TEST_CASE(
     boost::asio::io_context server_ctx;
     tcp::acceptor acceptor(server_ctx, tcp::endpoint(boost::asio::ip::address_v4::loopback(), 0));
     const unsigned short port = acceptor.local_endpoint().port();
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     const std::jthread server_thread([&acceptor, held = release]() {
         boost::system::error_code ec;
         Websocket::stream<tcp::socket> ws(acceptor.accept(ec));
@@ -634,7 +634,7 @@ TEST_CASE(
 
     // If an item does not arrive, the read below waits forever. The watchdog then stops the
     // server, and the batch that still waits ends the test process with a fatal error.
-    const auto all_arrived = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto all_arrived = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     const std::jthread watchdog([&consumer, arrived = all_arrived] {
         if(not arrived->wait_for(PATIENCE)) {
             consumer->stopServer();
@@ -886,7 +886,7 @@ TEST_CASE(
     Gem::Courtier::Tests::GTcpRelay relay(consumer->getPort());
     auto client = matchingClient<GRandomNumberContainer>(relay.port());
     std::atomic<int> n_evaluated{0};
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     client->setItemProcessor([&n_evaluated, release](GRandomNumberContainer &item) {
         n_evaluated.fetch_add(1);
         release->wait_for(PATIENCE);

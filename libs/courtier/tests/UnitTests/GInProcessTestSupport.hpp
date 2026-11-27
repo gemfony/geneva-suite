@@ -44,7 +44,7 @@
 #include <boost/asio/post.hpp>
 
 // Geneva headers go here
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/transport/GPeerI.hpp"
 
 /******************************************************************************/
@@ -121,7 +121,7 @@ public:
     }
 
 private:
-    using latch_type = Gem::Common::Concurrency::GCompletionLatchT;
+    using latch_type = Gem::Common::Concurrency::GCompletionLatch;
     std::shared_ptr<latch_type> held_ = std::make_shared<latch_type>(1);     ///< The thread is held
     std::shared_ptr<latch_type> released_ = std::make_shared<latch_type>(1); ///< It may go on
     bool done_ = false; ///< release() was called
