@@ -999,6 +999,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   so an object that holds a NaN now equals its clone and itself after a round trip; a NaN and a
   number differ under every expectation. Two equal infinities are similar as well (they failed
   `FP_SIMILARITY`, their difference being NaN).
+- **common: `compare()` takes unordered containers by their `==`.** `std::unordered_set`,
+  `std::unordered_map` and their multi forms were compared in iteration order, so two equal
+  containers with different bucket counts were reported as different. A `std::map` (whose pairs
+  cannot be printed) did not compile in `compare()`; it does now.
 
 ## 8. Checkpointing
 

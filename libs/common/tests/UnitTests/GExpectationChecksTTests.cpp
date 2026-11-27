@@ -34,10 +34,13 @@
 #include <deque>
 #include <limits>
 #include <list>
+#include <map>
 #include <memory>
 #include <set>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "common/GCommonInterfaceT.hpp"
@@ -1098,4 +1101,61 @@ TEST_CASE(
     checkEqual(-inf, -inf);
     checkDifferent(inf, -inf);
     checkDifferent(inf, 1.0);
+}
+
+// ---------------------------------------------------------------------------
+// An unordered container is compared with its ==: two equal ones with different bucket counts iterate
+// in different orders and are still equal.
+
+TEST_CASE(
+    "compare<unordered containers>: equal contents in another bucket order are equal",
+    "[common][expectations][compare][unordered]"
+) {
+    std::unordered_set<int> a;
+    std::unordered_set<int> b;
+    b.reserve(1000);
+    for(int i = 0; i < 20; ++i) {
+        a.insert(i);
+        b.insert(19 - i);
+    }
+    checkEqual(a, b);
+    std::unordered_set<int> c(a);
+    c.erase(7);
+    c.insert(70);
+    checkDifferent(a, c);
+    c.erase(70);
+    checkDifferent(a, c);
+
+    std::unordered_map<int, std::string> m;
+    std::unordered_map<int, std::string> n;
+    n.reserve(1000);
+    for(int i = 0; i < 20; ++i) {
+        m.emplace(i, std::to_string(i));
+        n.emplace(19 - i, std::to_string(19 - i));
+    }
+    checkEqual(m, n);
+    n[3] = "three";
+    checkDifferent(m, n);
+
+    std::vector<std::unordered_set<int>> const nested_a{a};
+    std::vector<std::unordered_set<int>> const nested_b{b};
+    checkEqual(nested_a, nested_b);
+}
+
+TEST_CASE(
+    "compare<map>: pairs that cannot be printed are compared and reported",
+    "[common][expectations][compare]"
+) {
+    std::map<int, std::string> const a{{1, "one"}, {2, "two"}};
+    checkEqual(a, std::map<int, std::string>{{1, "one"}, {2, "two"}});
+    checkDifferent(a, std::map<int, std::string>{{1, "one"}, {2, "zwei"}});
+    checkDifferent(a, std::map<int, std::string>{{1, "one"}});
+    std::string const message = violationOf(
+        a,
+        std::map<int, std::string>{{1, "one"}, {2, "zwei"}},
+        expectation::EQUALITY,
+        0.
+    );
+    CHECK(message.contains("a[1]"));
+    CHECK(message.contains("cannot be printed"));
 }

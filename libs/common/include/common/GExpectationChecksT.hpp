@@ -368,9 +368,10 @@ concept GemPointer =
 
 /**
  * Satisfied by a container or other sized range that compare() takes element by element: a vector,
- * deque, list, set, map or array, also nested. Strings (all types with a traits_type) are compared as
- * values, and an object with the Gemfony common interface through its own compare(), even if it is a
- * range as well.
+ * deque, list, set, map or array, also nested. An unordered container (a type with a hasher) is
+ * compared with its own ==, which does not depend on the order of its elements. Strings (all types
+ * with a traits_type) are compared as values, and an object with the Gemfony common interface through
+ * its own compare(), even if it is a range as well.
  *
  * @tparam T The type checked
  */
@@ -447,10 +448,14 @@ template <typename printable_type>
 ) {
     std::ostringstream error;
     error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
-          << "[" << '\n'
-          << x_name << " = " << x << '\n'
-          << y_name << " = " << y << '\n'
-          << "]" << '\n';
+          << "[" << '\n';
+    if constexpr(requires(std::ostream &out) { out << x; }) {
+        error << x_name << " = " << x << '\n' << y_name << " = " << y << '\n';
+    }
+    else { // e.g. the std::pair elements of a map
+        error << x_name << " and " << y_name << " (values that cannot be printed)" << '\n';
+    }
+    error << "]" << '\n';
     return error.str();
 }
 
@@ -748,8 +753,10 @@ template <typename T>
  * violation, its names indexed by the position (x_name[i]). INEQUALITY is met if the sizes differ or
  * one pair of elements differs. Elements are compared by their kind: floating point values with the
  * limit, objects with the Gemfony common interface and pointers to them through their compare(),
- * nested ranges by this function, all others as values. The function will throw a
- * g_expectation_violation exception if the expectation was violated.
+ * nested ranges by this function, all others as values. An unordered container (std::unordered_set,
+ * std::unordered_map and their multi forms) has no order of its own: two equal ones may iterate in
+ * different orders, so it is compared with its == (exactly, also under FP_SIMILARITY). The function
+ * will throw a g_expectation_violation exception if the expectation was violated.
  *
  * @tparam range_type The type of the two ranges
  * @param x The first range to be compared
@@ -777,40 +784,51 @@ void compare(
                x_name + " and " + y_name;
     };
 
-    if(Gem::Common::expectation::INEQUALITY == e) {
-        auto const differ = [limit](auto const &xy) {
-            return elementsMeet<element_type>(
-                std::get<0>(xy),
-                std::get<1>(xy),
-                Gem::Common::expectation::INEQUALITY,
-                limit
+    if constexpr(requires { typename range_type::hasher; }) {
+        bool const equal = x == y;
+        if(equal == (Gem::Common::expectation::INEQUALITY == e)) {
+            throw g_expectation_violation(
+                violation() + (equal ? ": they do not differ\n" : ": they differ\n")
             );
-        };
-        if(x_size != y_size || std::ranges::any_of(std::views::zip(x, y), differ)) {
-            return;
         }
-        throw g_expectation_violation(violation() + ": they do not differ\n");
     }
+    else {
+        if(Gem::Common::expectation::INEQUALITY == e) {
+            auto const differ = [limit](auto const &xy) {
+                return elementsMeet<element_type>(
+                    std::get<0>(xy),
+                    std::get<1>(xy),
+                    Gem::Common::expectation::INEQUALITY,
+                    limit
+                );
+            };
+            if(x_size != y_size || std::ranges::any_of(std::views::zip(x, y), differ)) {
+                return;
+            }
+            throw g_expectation_violation(violation() + ": they do not differ\n");
+        }
 
-    if(x_size != y_size) {
-        throw g_expectation_violation(
-            violation() + ": different sizes " + x_name + ".size() = " + std::to_string(x_size) +
-            ", " + y_name + ".size() = " + std::to_string(y_size) + '\n'
-        );
-    }
-
-    for(auto const &[index, xy] : std::views::zip(x, y) | std::views::enumerate) {
-        element_type const &x_element = std::get<0>(xy);
-        element_type const &y_element = std::get<1>(xy);
-        if(not elementsMeet(x_element, y_element, e, limit)) {
-            compare(
-                x_element,
-                y_element,
-                x_name + "[" + std::to_string(index) + "]",
-                y_name + "[" + std::to_string(index) + "]",
-                e,
-                limit
+        if(x_size != y_size) {
+            throw g_expectation_violation(
+                violation() + ": different sizes " + x_name +
+                ".size() = " + std::to_string(x_size) + ", " + y_name +
+                ".size() = " + std::to_string(y_size) + '\n'
             );
+        }
+
+        for(auto const &[index, xy] : std::views::zip(x, y) | std::views::enumerate) {
+            element_type const &x_element = std::get<0>(xy);
+            element_type const &y_element = std::get<1>(xy);
+            if(not elementsMeet(x_element, y_element, e, limit)) {
+                compare(
+                    x_element,
+                    y_element,
+                    x_name + "[" + std::to_string(index) + "]",
+                    y_name + "[" + std::to_string(index) + "]",
+                    e,
+                    limit
+                );
+            }
         }
     }
 }
