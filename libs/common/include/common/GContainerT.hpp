@@ -1042,51 +1042,46 @@ public:
     }
 
     // ------------------------------------------------------------------
-    // SharedPtrStorage-specific: count / find
+    // Pointer storage (SharedPtrStorage or UniquePtrStorage): count / find
     // ------------------------------------------------------------------
 
     /**
      * @brief Counts elements whose dereferenced value equals @p item.
      *
-     * Compares via operator== on the pointed-to objects, not on pointer identity.
+     * Compares via operator== on the pointed-to objects, not on pointer identity. Only elements
+     * whose dynamic type is @p item_type or derives from it can match; empty slots match nothing.
      * A null pointer in @p item is not accepted.
      *
      * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return The number of matching elements.
      * @throws gem_exception when @p item is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] size_type count(const std::shared_ptr<item_type> &item) const {
         checkThat(item != nullptr, "Tried to count with an empty smart pointer.");
-        return Gem::Common::narrow<size_type>(
-            std::ranges::count_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
-                auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
-                return cast && (*item == *cast);
-            })
-        );
+        return Gem::Common::narrow<size_type>(std::ranges::count_if(data_cnt_, equalTo_(item)));
     }
 
     /**
      * @brief Returns an iterator to the first element whose dereferenced value
      *        equals @p item.
      *
+     * Matching follows count(): only elements of @p item_type (or derived from it) can match.
+     *
      * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return A const_iterator to the found element, or end() if not found.
      * @throws gem_exception when @p item is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] const_iterator find(const std::shared_ptr<item_type> &item) const {
         checkThat(item != nullptr, "Tried to find an empty smart pointer.");
-        return std::ranges::find_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
-            auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
-            return cast && (*item == *cast);
-        });
+        return std::ranges::find_if(data_cnt_, equalTo_(item));
     }
 
     // ------------------------------------------------------------------
@@ -1579,11 +1574,24 @@ public:
     }
 
 protected:
-    // ------------------------------------------------------------------
-    // Test hooks (protected virtual)
-    // ------------------------------------------------------------------
-
     ContainerType data_cnt_; ///< The underlying sequence container holding the data.
+
+private:
+    /**
+     * @brief The predicate of count() and find(): a stored element of @p item_type whose value
+     *        equals the one @p item points to.
+     *
+     * @tparam item_type The type the stored elements are cast to before the comparison.
+     * @param item A non-null shared_ptr to the reference value; it must outlive the predicate.
+     * @return A predicate over a stored handle.
+     */
+    template <typename item_type>
+    [[nodiscard]] static auto equalTo_(const std::shared_ptr<item_type> &item) {
+        return [&item](const StoredType &cont_item) -> bool {
+            auto const cast = viewCast_<item_type>(cont_item);
+            return cast && (*item == *cast);
+        };
+    }
 };
 
 /******************************************************************************/

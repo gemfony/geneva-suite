@@ -28,16 +28,19 @@
  ********************************************************************************/
 
 #include <catch2/catch_approx.hpp>
+#include <catch2/catch_template_test_macros.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
 
 #include <algorithm>
+#include <concepts>
 #include <deque>
 #include <list>
 #include <memory>
 #include <ranges>
 #include <sstream>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "common/GArchiveNamed.hpp" // archive_named
@@ -1993,4 +1996,78 @@ TEST_CASE(
     REQUIRE(unique_to[0]);
     CHECK(unique_to[0]->val == 2);
     CHECK_FALSE(unique_to[1]);
+}
+
+/******************************************************************************/
+// The three storage policies side by side. Each case names its concrete container, how an element
+// is appended and how a search value is made: a value for PodStorage, a shared_ptr to the reference
+// object for the two pointer policies.
+
+namespace {
+
+struct PodPolicyCase {
+    using container_type = ConcretePodVec;
+    static int item(int v) {
+        return v;
+    }
+    static void add(container_type &c, int v) {
+        c.push_back(v);
+    }
+};
+
+struct SharedPolicyCase {
+    using container_type = ConcretePtrVec;
+    static std::shared_ptr<TestBase> item(int v) {
+        return std::make_shared<TestBase>(v);
+    }
+    static void add(container_type &c, int v) {
+        c.push_back(std::make_shared<TestBase>(v));
+    }
+};
+
+struct UniquePolicyCase {
+    using container_type = ConcreteUniquePtrVec;
+    static std::shared_ptr<TestBase> item(int v) {
+        return std::make_shared<TestBase>(v);
+    }
+    static void add(container_type &c, int v) {
+        c.push_back(std::make_unique<TestBase>(v));
+    }
+};
+
+} // namespace
+
+// Regression (R138-21): count() and find() by value did not compile for UniquePtrStorage -- their
+// bodies took the stored handle as a std::shared_ptr.
+TEMPLATE_TEST_CASE(
+    "GContainerT: count() and find() by value for the three storage policies",
+    "[GContainerT][search]",
+    PodPolicyCase,
+    SharedPolicyCase,
+    UniquePolicyCase
+) {
+    typename TestType::container_type c;
+    for(int const v : {1, 2, 2, 3}) {
+        TestType::add(c, v);
+    }
+
+    CHECK(c.count(TestType::item(2)) == 2);
+    CHECK(c.count(TestType::item(4)) == 0);
+
+    auto const it = std::as_const(c).find(TestType::item(3));
+    REQUIRE(it != c.cend());
+    CHECK(std::distance(c.cbegin(), it) == 3);
+    CHECK(std::as_const(c).find(TestType::item(4)) == c.cend());
+
+    if constexpr(not std::same_as<TestType, PodPolicyCase>) {
+        // An empty slot matches nothing and is passed over
+        c.resize_empty(c.size() + 1);
+        CHECK(c.count(TestType::item(2)) == 2);
+        CHECK(c.find(TestType::item(4)) == c.cend());
+        // A search value of a derived type matches only elements of that type
+        CHECK(c.count(std::make_shared<TestDerived>(2, 0)) == 0);
+        // An empty search value is refused
+        CHECK_THROWS_AS(c.count(std::shared_ptr<TestBase>{}), Gem::Common::gem_exception);
+        CHECK_THROWS_AS(c.find(std::shared_ptr<TestBase>{}), Gem::Common::gem_exception);
+    }
 }
