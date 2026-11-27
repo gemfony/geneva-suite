@@ -474,8 +474,13 @@ TEST_CASE("getMinMax 1D: two-element vector", "[common][math][getMinMax]") {
     REQUIRE(hi == 7);
 }
 
-TEST_CASE("getMinMax 1D: size < 2 throws", "[common][math][getMinMax]") {
-    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<double>{1.}), Gem::Common::gem_exception);
+TEST_CASE("getMinMax 1D: one element is both minimum and maximum", "[common][math][getMinMax]") {
+    auto [lo, hi] = Gem::Common::getMinMax(std::vector<double>{1.5});
+    REQUIRE(lo == 1.5);
+    REQUIRE(hi == 1.5);
+}
+
+TEST_CASE("getMinMax 1D: an empty vector throws", "[common][math][getMinMax]") {
     REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<double>{}), Gem::Common::gem_exception);
 }
 
@@ -492,9 +497,18 @@ TEST_CASE(
     REQUIRE(maxY == Approx(10.));
 }
 
-TEST_CASE("getMinMax 2D: size < 2 throws", "[common][math][getMinMax]") {
+TEST_CASE("getMinMax 2D: one entry is both minimum and maximum", "[common][math][getMinMax]") {
     using T = std::tuple<double, double>;
-    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<T>{{1., 2.}}), Gem::Common::gem_exception);
+    auto [minX, maxX, minY, maxY] = Gem::Common::getMinMax(std::vector<T>{{1., 2.}});
+    REQUIRE(minX == 1.);
+    REQUIRE(maxX == 1.);
+    REQUIRE(minY == 2.);
+    REQUIRE(maxY == 2.);
+}
+
+TEST_CASE("getMinMax 2D: an empty vector throws", "[common][math][getMinMax]") {
+    using T = std::tuple<double, double>;
+    REQUIRE_THROWS_AS(Gem::Common::getMinMax(std::vector<T>{}), Gem::Common::gem_exception);
 }
 
 TEST_CASE(

@@ -1139,6 +1139,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **common: `GEM_DEPRECATED(message)` is the standard `[[deprecated]]`.** It stands in front of the
   declaration it marks (`GEM_DEPRECATED("Use g() instead") void f();`); behind the declarator, where
   the compiler-specific attribute it was before also fitted, it no longer compiles.
+- **common: `getMinMax()` answers a vector of one element.** Its one element (for a vector of
+  tuples, its one entry) is both the minimum and the maximum; before, a vector of fewer than two
+  elements was refused with a `gem_exception`. An empty vector is still refused.
 
 ## 8. Checkpointing
 
