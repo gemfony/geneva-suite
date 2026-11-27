@@ -393,9 +393,10 @@ concept ComparedByValue = !std::floating_point<T> && !gemfony_common_interface<T
 /**
  * @brief Tells whether two values meet an expectation. The one place of the floating point tolerance.
  *
- * Floating point values meet FP_SIMILARITY if they deviate by less than the limit. All other cases
- * compare with == (EQUALITY, and FP_SIMILARITY for values that are not floating point) or != (INEQUALITY;
- * floating point values too are then compared exactly).
+ * Floating point values meet FP_SIMILARITY if they are equal or deviate by less than the limit. All
+ * other cases compare with == (EQUALITY, and FP_SIMILARITY for values that are not floating point) or
+ * != (INEQUALITY; floating point values too are then compared exactly). compare() checks the equality
+ * of object states, so two floating point NaN are equal here, and a NaN differs from every number.
  *
  * @tparam T The type of the two values
  * @param x The first value
@@ -408,8 +409,14 @@ template <typename T>
 [[nodiscard]] bool
 valuesMeet(T const &x, T const &y, Gem::Common::expectation e, [[maybe_unused]] double limit) {
     if constexpr(std::floating_point<T>) {
-        if(Gem::Common::expectation::FP_SIMILARITY == e) {
-            return std::abs(x - y) < Gem::Common::narrow<T>(limit);
+        bool const equal = x == y || (std::isnan(x) && std::isnan(y));
+        switch(e) {
+        case Gem::Common::expectation::FP_SIMILARITY:
+            return equal || std::abs(x - y) < Gem::Common::narrow<T>(limit);
+        case Gem::Common::expectation::EQUALITY:
+            return equal;
+        case Gem::Common::expectation::INEQUALITY:
+            return not equal;
         }
     }
     if(Gem::Common::expectation::INEQUALITY == e) {

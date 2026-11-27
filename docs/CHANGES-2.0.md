@@ -995,6 +995,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `limit` it receives, `GToken token("MyClass", e, limit)`; `identity` no longer carries a limit
   (its constructor takes the two items and their names). `GEqualityPrinter` of the standard tests
   applies the limit it is made with.
+- **common: in `compare()` two NaN are equal.** `compare()` checks the equality of object states,
+  so an object that holds a NaN now equals its clone and itself after a round trip; a NaN and a
+  number differ under every expectation. Two equal infinities are similar as well (they failed
+  `FP_SIMILARITY`, their difference being NaN).
 
 ## 8. Checkpointing
 

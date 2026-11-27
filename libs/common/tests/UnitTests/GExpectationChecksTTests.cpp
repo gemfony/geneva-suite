@@ -32,6 +32,7 @@
 #include <array>
 #include <chrono>
 #include <deque>
+#include <limits>
 #include <list>
 #include <memory>
 #include <set>
@@ -1047,4 +1048,54 @@ TEST_CASE(
     GToken narrow_token("X", expectation::FP_SIMILARITY, 1e-6);
     compare_t(getIdentity(a, b, "a", "b"), narrow_token);
     CHECK_FALSE(narrow_token.expectationMet());
+}
+
+// ---------------------------------------------------------------------------
+// compare() checks the equality of object states: two NaN are equal, a NaN differs from a number.
+// Two equal infinities are similar as well (their difference is NaN).
+
+TEST_CASE(
+    "compare<double>: two NaN are equal; a NaN and a number differ",
+    "[common][expectations][compare][nan]"
+) {
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+    checkEqual(nan, nan);
+    checkDifferent(nan, 1.0);
+    checkDifferent(1.0, nan);
+    checkEqual(std::vector<double>{1.0, nan}, std::vector<double>{1.0, nan});
+    checkDifferent(std::vector<double>{1.0, nan}, std::vector<double>{1.0, 2.0});
+
+    float const nan_f = std::numeric_limits<float>::quiet_NaN();
+    checkEqual(nan_f, nan_f);
+    checkDifferent(nan_f, 0.f);
+}
+
+TEST_CASE(
+    "compare<double>: an object holding a NaN equals its copy",
+    "[common][expectations][compare][nan]"
+) {
+    LimitDerived x;
+    x.d_ = std::numeric_limits<double>::quiet_NaN();
+    LimitDerived const copy(x);
+    CHECK_NOTHROW(x.compare(copy, expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE));
+    CHECK_THROWS_AS(
+        x.compare(copy, expectation::INEQUALITY, CE_DEF_SIMILARITY_DIFFERENCE),
+        g_expectation_violation
+    );
+    LimitDerived const number;
+    CHECK_THROWS_AS(
+        x.compare(number, expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE),
+        g_expectation_violation
+    );
+}
+
+TEST_CASE(
+    "compare<double>: equal infinities are equal and similar; opposite ones differ",
+    "[common][expectations][compare][nan]"
+) {
+    double const inf = std::numeric_limits<double>::infinity();
+    checkEqual(inf, inf);
+    checkEqual(-inf, -inf);
+    checkDifferent(inf, -inf);
+    checkDifferent(inf, 1.0);
 }
