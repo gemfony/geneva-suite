@@ -258,6 +258,20 @@ TEST_CASE(
     }
 }
 
+// Regression (R138-17): an archive whose root pointer is empty is a valid archive; fromStream() handed
+// the empty pointer on to load_(), which dereferences it in a generated load_().
+TEST_CASE(
+    "GCommonInterfaceT::fromString: an archive that holds no object is refused",
+    "[common][interface][serialize]"
+) {
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        std::string const empty = sharedPtrToString(std::shared_ptr<TestObj>{}, mode);
+        TestObj dst(5);
+        CHECK_THROWS_AS(dst.fromString(empty, mode), gem_exception);
+        CHECK(dst.v() == 5);
+    }
+}
+
 // ---------------------------------------------------------------------------
 // toFile / fromFile round-trip
 

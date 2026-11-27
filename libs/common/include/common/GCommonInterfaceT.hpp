@@ -107,9 +107,12 @@ public:
         // dynamic type and members: the deleter does nothing, as `self` is borrowed; the const_cast is
         // safe because saving never mutates.
         const g_class_type *local = &self;
-        std::shared_ptr<g_class_type> const sp(const_cast<g_class_type *>(local), [](g_class_type *) {
-            /* borrowed: nothing to delete */
-        });
+        std::shared_ptr<g_class_type> const sp(
+            const_cast<g_class_type *>(local),
+            [](g_class_type *) {
+                /* borrowed: nothing to delete */
+            }
+        );
         oarchive_stream << Gem::Common::sharedPtrToString(sp, ser_mod);
     }
 
@@ -120,11 +123,16 @@ public:
      *
      * @param istr The stream from which the object should be loaded
      * @param ser_mod The desired serialization mode
+     * @throws gem_exception if the stream holds an empty pointer instead of an object
      */
     void fromStream(std::istream &istr, Gem::Common::serializationMode ser_mod) {
         std::ostringstream ss;
         ss << istr.rdbuf();
         auto const loaded = Gem::Common::sharedPtrFromString<g_class_type>(ss.str(), ser_mod);
+        checkThat(
+            loaded != nullptr,
+            "fromStream(): the stream holds no object, only an empty pointer"
+        );
         this->load_(loaded.get());
     }
 

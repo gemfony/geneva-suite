@@ -1059,7 +1059,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `sharedPtrToString()` writes for a pointer to it, so `fromString()` reads a string of
   `sharedPtrToString()` and `sharedPtrFromString<>()` one of `toString()`. Both free functions refuse
   a serialization mode other than `GEM_BINARY` and `GEM_JSON` with a `gem_exception`
-  (`sharedPtrFromString()` returned an empty pointer).
+  (`sharedPtrFromString()` returned an empty pointer). `fromString()`, `fromStream()` and
+  `fromFile()` refuse an archive that holds an empty pointer instead of an object with a
+  `gem_exception`; they passed the empty pointer on to `load_()`.
 - **common: its names live in `Gem::Common`, its macros begin with `GEM_`, the logger names its two streamers.** The exception classes, the error streamer, the
   logger's singleton type and the stream operator of `gem_exception` were in the global
   namespace; they keep their names and move into `Gem::Common`. Code outside that namespace
