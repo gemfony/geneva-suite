@@ -35,6 +35,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GJsonIO.hpp"
 #include "common/GLogger.hpp"
 #include "dietrich/GPlotDesigner.hpp"
 #include "dietrich/plotting/detail/GPlotDetail.hpp"
@@ -416,11 +417,13 @@ std::string buildZip(const std::vector<zipMember> &members) {
 std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &canvas) {
     std::vector<zipMember> members;
 
-    std::string manifest = "{\n";
-    manifest += "  \"canvas\": {\"label\": \"" + GPlotSpec::jsonEscape(canvas.label) +
-                "\", \"c_x_div\": " + std::to_string(canvas.c_x_div) +
-                ", \"c_y_div\": " + std::to_string(canvas.c_y_div) + "},\n";
-    manifest += "  \"series\": [\n";
+    boost::json::object manifest;
+    manifest["canvas"] = boost::json::object{
+        {"label", canvas.label},
+        {"c_x_div", canvas.c_x_div},
+        {"c_y_div", canvas.c_y_div}
+    };
+    boost::json::array entries;
     for(const auto &[si, s] : series | std::views::enumerate) {
         const std::size_t rows = seriesRows(s);
 
@@ -430,25 +433,21 @@ std::string emitNpz(const std::vector<dataSeries> &series, const canvasInfo &can
         member.data = buildNpy(s.columns, rows);
         members.push_back(std::move(member));
 
-        // The manifest entry: the plotter's GPlotSpec JSON ({...}) augmented in-place
-        // with its pad / secondary placement (splice before the closing brace).
-        std::string spec_json = s.spec.toJson();
-        spec_json.pop_back(); // drop the trailing '}'
-        spec_json += ", \"pad\": " + std::to_string(s.pad) +
-                     ", \"secondary\": " + (s.secondary ? "true" : "false");
+        // The manifest entry: the plotter's GPlotSpec augmented with its pad / secondary placement
+        boost::json::object entry = s.spec.toJsonObject();
+        entry["pad"] = s.pad;
+        entry["secondary"] = s.secondary;
         // Whether and with which sample the pad's legend lists the series (by its name), from
         // GBasePlotter::legendEntries(): an external renderer draws the same legend.
-        spec_json += ", \"draw_style\": \"" + styleTokens(s.style) + "\"";
+        entry["draw_style"] = styleTokens(s.style);
         if(s.legend.has_value()) {
-            spec_json += ", \"legend_sample\": \"" + Gem::Common::enumName(*s.legend) + "\"";
+            entry["legend_sample"] = Gem::Common::enumName(*s.legend);
         }
-        spec_json += "}";
-        manifest += "    " + spec_json;
-        manifest += (si + 1 == std::ssize(series) ? "\n" : ",\n");
+        entries.emplace_back(std::move(entry));
     }
-    manifest += "  ]\n}\n";
+    manifest["series"] = std::move(entries);
 
-    members.push_back({"manifest.json", manifest});
+    members.push_back({"manifest.json", Gem::Common::prettyPrintJson(manifest) + '\n'});
 
     return buildZip(members);
 }

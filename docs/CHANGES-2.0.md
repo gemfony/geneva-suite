@@ -884,6 +884,12 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GHistogram1D/1I/2D`; and `GPlotDesigner::staticHeader(const std::string &indent) const`
   (protected). A `GHistogram1I` without a range (minimum equal to maximum) now takes its range
   from its data, as `GHistogram1D` does.
+- **dietrich: the JSON of a plot spec and of the NPZ manifest is written through Boost.JSON.**
+  Numbers keep their full precision (a range of `1e-7` was written as `0.000000`), every
+  control character in a label is escaped, and the decimal sign no longer follows the locale.
+  `GPlotSpec::toJsonObject()` returns the spec as a `boost::json::object`; `toJson()` is its
+  text, indented as `Gem::Common::prettyPrintJson()` writes it. **Removed:**
+  `GPlotSpec::jsonEscape()`.
 - **A process-wide thread budget now accounts every pool** (`GThreadBudget` in
   `common/concurrency/`). The budget does accounting only — every reservation is granted in
   full; its single behavioral effect is a warning (at most three per process) when the

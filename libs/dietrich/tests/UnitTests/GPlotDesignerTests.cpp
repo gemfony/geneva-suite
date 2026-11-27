@@ -54,6 +54,7 @@
 #include "dietrich/GPlotDesigner.hpp"
 #include "dietrich/plotting/detail/GPlotDetail.hpp" // emitRootLegend(), tested directly
 
+#include "common/GJsonIO.hpp" // parseJsonString(): the JSON a spec and a manifest write must parse
 #include "common/testing/GStandardTests.hpp"
 
 using namespace Gem::Common;
@@ -568,6 +569,62 @@ TEST_CASE("GHistogram1D reports a hist_1d GPlotSpec with n_bins_x", "[plotting]"
     const std::string j = spec.toJson();
     CHECK(j.contains("hist_1d"));
     CHECK(j.contains("\"n_bins_x\": 7"));
+}
+
+/******************************************************************************/
+// Regression: toJson() wrote numbers with six fixed decimals (a range of 1e-7 became 0.000000)
+// and passed control characters other than \n, \r, \t into the text, which then was no JSON.
+TEST_CASE("GPlotSpec toJson keeps small numbers and escapes control characters", "[plotting]") {
+    GPlotSpec spec(plotKind::hist_1d);
+    spec.x_label = std::string("a\x01" "b");
+    spec.range_x = std::make_tuple(1e-7, 2e-7);
+    spec.marker_size = std::make_tuple(0.123456789, 3e-9);
+
+    boost::json::value parsed;
+    REQUIRE_NOTHROW(parsed = parseJsonString(spec.toJson(), "GPlotSpec::toJson()"));
+    auto const &obj = parsed.as_object();
+    CHECK(obj.at("x_label").as_string() == "a\x01" "b");
+    auto const &range = obj.at("range_x").as_array();
+    CHECK(range.at(0).to_number<double>() == 1e-7);
+    CHECK(range.at(1).to_number<double>() == 2e-7);
+    auto const &marker = obj.at("marker_size").as_array();
+    CHECK(marker.at(0).to_number<double>() == 0.123456789);
+    CHECK(marker.at(1).to_number<double>() == 3e-9);
+}
+
+/******************************************************************************/
+// Regression: the NPZ manifest is JSON as well when a label holds a control character, and it
+// carries a small histogram range in full.
+TEST_CASE("data backend (NPZ) writes a manifest that parses", "[plotting]") {
+    auto h = std::make_shared<GHistogram1D>(7, 1e-7, 2e-7);
+    (*h) & 1.5e-7;
+
+    GPlotDesigner gpd(std::string("canvas\x02" "label"), 1, 1);
+    gpd.setDataFormat(dataFormat::NPZ);
+    gpd.registerPlotter(h);
+    const std::string s = gpd.plot();
+
+    // The archive is stored uncompressed: the manifest's bytes follow its name in the local file
+    // header and end where the central directory begins.
+    std::string const member = "manifest.json";
+    auto const begin = s.find(member);
+    REQUIRE(begin != std::string::npos);
+    auto const end = s.find(std::string("PK\x01\x02", 4), begin);
+    REQUIRE(end != std::string::npos);
+    std::string const manifest = s.substr(begin + member.size(), end - begin - member.size());
+
+    boost::json::value parsed;
+    REQUIRE_NOTHROW(parsed = parseJsonString(manifest, "manifest.json"));
+    auto const &obj = parsed.as_object();
+    CHECK(obj.at("canvas").as_object().at("label").as_string() == "canvas\x02" "label");
+    auto const &series = obj.at("series").as_array();
+    REQUIRE(series.size() == 1);
+    auto const &entry = series.at(0).as_object();
+    CHECK(entry.at("kind").as_string() == "hist_1d");
+    CHECK(entry.at("pad").to_number<std::size_t>() == 0);
+    auto const &range = entry.at("range_x").as_array();
+    CHECK(range.at(0).to_number<double>() == 1e-7);
+    CHECK(range.at(1).to_number<double>() == 2e-7);
 }
 
 /******************************************************************************/
@@ -1816,9 +1873,10 @@ TEST_CASE(
         CHECK(spec.pad_title == "Up to 1 s");
         CHECK(spec.legend == legendPosition::BOTTOM_RIGHT);
         CHECK(spec.line_width == 2u);
-        CHECK(spec.toJson().contains(
-            "\"pad_title\": \"Up to 1 s\", \"legend\": \"bottom_right\", \"line_width\": 2"
-        ));
+        const std::string json = spec.toJson();
+        CHECK(json.contains("\"pad_title\": \"Up to 1 s\""));
+        CHECK(json.contains("\"legend\": \"bottom_right\""));
+        CHECK(json.contains("\"line_width\": 2"));
         const auto rebuilt = makePlotter(spec);
         CHECK(rebuilt->padTitle() == "Up to 1 s");
         CHECK(rebuilt->getLegendPosition() == legendPosition::BOTTOM_RIGHT);
