@@ -33,6 +33,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
+#include <atomic>
 #include <concepts>
 #include <condition_variable>
 #include <cstddef>
@@ -51,6 +52,7 @@
 #include <utility>
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
@@ -86,9 +88,10 @@ namespace Gem::Common::Concurrency {
  * runs it.
  *
  * This class is neither copyable nor movable (it owns threads, a queue, mutexes
- * and condition variables). wait() / setNThreads() must NOT be called from inside
- * a task running in the pool (and a task must not submit further work while another
- * thread is inside wait()): both would deadlock.
+ * and condition variables). wait(), setNThreads() and blocking_for_each() called from a task
+ * of the same pool are refused with gem_exception: they wait for tasks only its workers can
+ * run, and could deadlock (from a task of another pool they run). A task must not submit
+ * further work while another thread is inside wait(), which would deadlock as well.
  */
 class GThreadPool final {
 public:
@@ -130,11 +133,11 @@ public:
 
     /***************************************************************************/
     /**
-     * @brief True iff the calling thread is currently executing a task on SOME GThreadPool worker.
+     * @brief True iff the calling thread is a worker of SOME GThreadPool (of any pool, not only this one).
      *
      * Lets nested work avoid spawning a second pool on a thread that is already a pool worker (which
      * multiplies threads without adding parallelism -- the outer pool already parallelises across the
-     * outer work items). The flag is thread-local, so it reflects only the current thread's state.
+     * outer work items). The mark is thread-local, so it reflects only the current thread's state.
      */
     [[nodiscard]] static bool inWorkerThread() noexcept;
 
@@ -255,6 +258,10 @@ public:
      * and the latch is still counted down so the join never hangs. A single-thread pool degenerates to sequential execution in
      * submission order.
      *
+     * On a closing pool (its destructor runs) the elements it no longer takes are not run: the call
+     * waits for the others, then throws gem_exception. If a submission throws, the tasks already
+     * queued are waited for before the exception leaves.
+     *
      * @tparam T The element type of the span (e.g. a work-item unique_ptr)
      * @tparam fn_type A callable invoked as @c per_item(T&) for each element
      * @param items The batch to run; its backing storage must outlive the call (this blocks until done)
@@ -262,39 +269,62 @@ public:
      */
     template <typename T, typename fn_type>
     void blocking_for_each(std::span<T> items, const fn_type &per_item) {
+        this->refuseFromOwnWorker("blocking_for_each()");
         if(items.empty()) {
             return;
         }
         auto latch = std::make_shared<GCompletionLatchT>(items.size());
-        for(std::size_t i = 0; i < items.size(); ++i) {
-            T *elem =
-                &items
-                    [i]; // stable pointer into the caller's span (which outlives this blocking call)
-            this->post([elem, &per_item, latch]() {
-                // Counted down on every way out of the task -- also if the report below throws --
-                // so that the join never hangs
-                const std::unique_ptr<GCompletionLatchT, void (*)(GCompletionLatchT *)> arrival(
-                    latch.get(),
-                    [](GCompletionLatchT *l) { l->count_down(); }
-                );
-                try {
-                    per_item(*elem);
+        std::size_t n_refused = 0;
+        std::size_t i = 0;
+        try {
+            for(; i < items.size(); ++i) {
+                // a stable pointer into the caller's span, which outlives this blocking call
+                T *elem = &items[i];
+                auto task = [elem, &per_item, latch]() {
+                    // Counted down on every way out of the task -- also if the report below
+                    // throws -- so that the join never hangs
+                    const std::unique_ptr<GCompletionLatchT, void (*)(GCompletionLatchT *)> arrival(
+                        latch.get(),
+                        [](GCompletionLatchT *l) { l->count_down(); }
+                    );
+                    try {
+                        per_item(*elem);
+                    }
+                    // Reported here, where the task ends; the element records its own failure
+                    catch(std::exception const &e) {
+                        glogger << "A task of a bulk fork/join ended with an error:" << '\n'
+                                << e.what() << '\n'
+                                << GERROR;
+                    }
+                    catch(...) {
+                        glogger << "A task of a bulk fork/join ended with an exception that is "
+                                   "not a std::exception."
+                                << '\n'
+                                << GERROR;
+                    }
+                };
+                if(not enqueue(std::move_only_function<void()>(std::move(task)))) {
+                    latch->count_down(); // refused (the pool is closing): no task will count it
+                    ++n_refused;
                 }
-                // Reported here, where the task ends; the element records its own failure
-                catch(std::exception const &e) {
-                    glogger << "A task of a bulk fork/join ended with an error:" << '\n'
-                            << e.what() << '\n'
-                            << GERROR;
-                }
-                catch(...) {
-                    glogger << "A task of a bulk fork/join ended with an exception that is not a "
-                               "std::exception."
-                            << '\n'
-                            << GERROR;
-                }
-            });
+            }
+        }
+        catch(...) { // e.g. out of memory: the queued tasks hold items and per_item, so wait
+            for(; i < items.size(); ++i) {
+                latch->count_down();
+            }
+            latch->wait();
+            throw;
         }
         latch->wait();
+        checkThat(
+            n_refused == 0,
+            "blocking_for_each(): ",
+            n_refused,
+            " of ",
+            items.size(),
+            " elements were not run, as the pool was closed"
+        );
     }
 
 private:
@@ -319,6 +349,8 @@ private:
     void start_workers(unsigned int n);
     /** @brief Blocks (under counter_mutex_) until no tasks are in flight */
     void drain();
+    /** @brief Refuses the named call from a task of this pool (see the class comment) */
+    void refuseFromOwnWorker(std::string_view caller) const;
 
     /***************************************************************************/
     /// The pool's reservation in the process-wide thread budget (empty for the unbudgeted
@@ -348,7 +380,9 @@ private:
     /// the pool can be quiesced (no new submissions) while it drains.
     mutable std::shared_mutex submission_mutex_;
 
-    unsigned int n_threads_; ///< The configured / live number of worker threads
+    /// The configured / live number of worker threads (atomic: read without the lock that
+    /// setNThreads() writes it under)
+    std::atomic<unsigned int> n_threads_;
 };
 
 /******************************************************************************/

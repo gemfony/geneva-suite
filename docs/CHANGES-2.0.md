@@ -502,6 +502,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   machine of the run), the meta-EA's orchestration pool, the thread-pool consumer, the session
   and I/O threads of the networked consumers and hap's producer threads (they counted all
   threads of the machine).
+- **A `GThreadPool` refuses to wait for itself.** `wait()`, `setNThreads()` and
+  `blocking_for_each()` called from a task of the same pool throw `gem_exception` (they could
+  deadlock; from a task of another pool they run). `blocking_for_each()` on a pool whose
+  destructor runs no longer hangs: it waits for the elements the pool still took and throws,
+  naming how many were left out.
 
 ## 6. Packaging: libraries and runtime-loadable modules
 
