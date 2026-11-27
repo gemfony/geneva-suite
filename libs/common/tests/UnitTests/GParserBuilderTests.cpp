@@ -613,7 +613,7 @@ TEST_CASE(
     "GParserBuilder::resetFileParameterDefaults: missing option throws",
     "[common][parser-builder]"
 ) {
-    // The message names the option and the kind of parameter that was looked for (R138-60)
+    // The message names the option and the kind of parameter that was looked for
     GParserBuilder gpb;
     CHECK_THROWS_WITH(
         gpb.resetFileParameterDefaults<int>("nope", 1),
@@ -1385,7 +1385,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// Regression (R138-13): an array parameter took a list of the wrong length without a word -- the
+// Regression: an array parameter took a list of the wrong length without a word -- the
 // surplus of a longer list was dropped, the missing values of a shorter one kept their defaults. A
 // list of any other length than the array's is refused, naming the key and both lengths.
 
@@ -1414,7 +1414,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// Regression (R138-23): a registration was refused only if its first option name was taken. A
+// Regression: a registration was refused only if its first option name was taken. A
 // combined parameter writes its group under its label, which was not checked, so two combined
 // parameters with one label -- or a parameter named like a label, or "header" -- wrote the same key
 // of the file, and the later one replaced the earlier one. Each such registration is refused.
@@ -1811,7 +1811,161 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// GEM_CONFIG_BASENAME (R138-45): the environment variable places the configuration files of a
+// The public functions of GParserBuilder that had no test of what they do
+
+namespace {
+/** Restores the process-wide switches of GParserBuilder when it goes out of scope */
+struct GProcessSettingsGuard {
+    GProcessSettingsGuard() = default;
+    ~GProcessSettingsGuard() { GParserBuilder::resetProcessSettings(); }
+    GProcessSettingsGuard(GProcessSettingsGuard const &) = delete;
+    GProcessSettingsGuard(GProcessSettingsGuard &&) = delete;
+    GProcessSettingsGuard &operator=(GProcessSettingsGuard const &) = delete;
+    GProcessSettingsGuard &operator=(GProcessSettingsGuard &&) = delete;
+};
+} // namespace
+
+TEST_CASE(
+    "GParserBuilder::parseConfigFile hands the parsed document to the caller",
+    "[common][parser-builder]"
+) {
+    auto cfg = scratch("captured");
+    std::filesystem::remove(cfg);
+    {
+        std::ofstream out(cfg);
+        out << R"({ "answer": { "value": 13 } })" << '\n';
+    }
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+    boost::json::value captured;
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg, &captured));
+    CHECK(answer == 13);
+    CHECK(captured.at("answer").at("value").to_number<int>() == 13);
+
+    // The captured document is applied again without the file
+    std::filesystem::remove(cfg);
+    answer = 0;
+    gpb.loadFromDocument(captured);
+    CHECK(answer == 13);
+}
+
+TEST_CASE(
+    "GParserBuilder::loadFromDocument refuses a document that is no object",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+    CHECK_THROWS_WITH(
+        gpb.loadFromDocument(boost::json::parse("[1, 2]"), "list.json"),
+        ContainsSubstring("list.json") && ContainsSubstring("does not contain a JSON object")
+    );
+    gpb.loadFromDocument(boost::json::parse("{}"));
+    CHECK(answer == 42); // an absent key keeps its default, and the call-back runs
+}
+
+TEST_CASE(
+    "GParserBuilder::setCheckUnknownKeys and setUnknownKeyIsError decide what an unknown key does",
+    "[common][parser-builder]"
+) {
+    GProcessSettingsGuard const guard;
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+    auto const doc = boost::json::parse(R"({ "answer": { "value": 1 }, "stale": { "value": 2 } })");
+
+    GParserBuilder::setUnknownKeyIsError(true);
+    CHECK_THROWS_WITH(
+        gpb.loadFromDocument(doc, "stale.json"),
+        ContainsSubstring(R"(contains the unknown key "stale")")
+    );
+    // The check runs for a genuine parse only: a re-application of a cached document skips it
+    CHECK_NOTHROW(gpb.loadFromDocument(doc, "stale.json", false));
+    CHECK(answer == 1);
+
+    GParserBuilder::setCheckUnknownKeys(false);
+    answer = 0;
+    CHECK_NOTHROW(gpb.loadFromDocument(doc, "stale.json"));
+    CHECK(answer == 1);
+
+    GParserBuilder::setCheckUnknownKeys(true);
+    GParserBuilder::setUnknownKeyIsError(false);
+    CHECK_NOTHROW(gpb.loadFromDocument(doc, "stale.json")); // a warning only
+}
+
+TEST_CASE(
+    "GParserBuilder::setUpdateInPlace makes parseConfigFile rewrite the file it reads",
+    "[common][parser-builder]"
+) {
+    GProcessSettingsGuard const guard;
+    auto cfg = scratch("update_in_place");
+    auto write = [&cfg] {
+        std::filesystem::remove(cfg);
+        std::ofstream out(cfg);
+        out << R"({ "answer": { "value": 13 }, "stale": { "value": 2 } })" << '\n';
+    };
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+
+    write();
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+    CHECK(Gem::Common::parseJsonFile(cfg).as_object().contains("stale")); // off: left as it is
+
+    GParserBuilder::setUpdateInPlace(true);
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+    boost::json::value const doc = Gem::Common::parseJsonFile(cfg);
+    CHECK_FALSE(doc.as_object().contains("stale"));
+    CHECK(doc.at("answer").at("value").to_number<int>() == 13);
+    CHECK(doc.at("answer").at("default").to_number<int>() == 42);
+    CHECK(answer == 13);
+    std::filesystem::remove(cfg);
+}
+
+TEST_CASE(
+    "GParserBuilder::resetFileParameterDefaults (combined form) resets both defaults",
+    "[common][parser-builder]"
+) {
+    auto cfg = scratch("reset_combined");
+    std::filesystem::remove(cfg);
+    GParserBuilder gpb;
+    int first = 0;
+    double second = 0.;
+    gpb.registerFileParameter<int, double>(
+        "first",
+        "second",
+        1,
+        2.5,
+        [&](int f, double s) {
+            first = f;
+            second = s;
+        },
+        "pair"
+    );
+    gpb.resetFileParameterDefaults<int, double>("first", 7, 8.5);
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+    CHECK(first == 7);
+    CHECK(second == 8.5);
+    boost::json::value const doc = Gem::Common::parseJsonFile(cfg);
+    CHECK(doc.at("pair").at("second").at("default").to_number<double>() == 8.5);
+    std::filesystem::remove(cfg);
+}
+
+TEST_CASE(
+    "GParserBuilder: setHidden and isHidden of a command-line option",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    int count = 0;
+    auto &option = gpb.registerCLParameter<int>("count", count, 1);
+    CHECK_FALSE(option.isHidden());
+    CHECK(option.setHidden().isHidden());
+    CHECK_FALSE(option.setHidden(false).isHidden());
+}
+
+// ---------------------------------------------------------------------------
+// GEM_CONFIG_BASENAME: the environment variable places the configuration files of a
 // process below one directory. Regression: writeConfigFile() wrote to the path as given, so a file
 // a program wrote with it was not the file parseConfigFile() then read below that directory.
 
