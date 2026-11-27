@@ -111,7 +111,7 @@ enum class solverFunction : Gem::Common::ENUMBASETYPE {
 	 * NOTE: This is NOT the canonical Ackley function. It accumulates n-1 pairwise
 	 * terms and has a different, numerically approximated global minimum location.
 	 * Retained for backward compatibility with existing configurations.
-	 * For the standard CEC/BBOB benchmark formulation, use ACKLEY_CANONICAL (8).
+	 * For the standard formulation (a basic function of the CEC suites), use ACKLEY_CANONICAL (8).
 	 */
     ACKLEY = 3,
 
@@ -165,7 +165,7 @@ enum class solverFunction : Gem::Common::ENUMBASETYPE {
 	 * (nearly zero gradient for large ‖x‖), suddenly dropping into a narrow global
 	 * basin at the origin. Gradient-based methods stall on the plateau; stochastic
 	 * and population-based methods are generally more effective. The canonical
-	 * formulation used in all CEC and BBOB benchmark suites.
+	 * formulation, a basic function of the CEC competition suites (not of BBOB).
 	 */
     ACKLEY_CANONICAL = 8,
 

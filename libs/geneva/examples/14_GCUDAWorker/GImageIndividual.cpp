@@ -384,7 +384,7 @@ std::vector<CircleTriangle> GImageIndividual::getTriangleData() const {
  * on the CPU -- to cross-check the GPU result and compare speed -- while the GGPUConsumer path uses the device
  * kernel. Requires the target image to have been loaded (Gem::Geneva::MonaLisa::loadTarget) beforehand. The
  * genome scalar type is selected at compile time (gimage_fp_t); parameterValues<gimage_fp_t>() is required --
- * parameterValues<float>() collects nothing from a double genome and vice-versa.
+ * parameterValues<float>() on a double genome is refused, and vice-versa.
  *
  * @return The raw fitness (deviation from the target image) as a one-element vector
  */

@@ -387,7 +387,7 @@ public:
     }
 
     /***************************************************************************/
-    // Int32 channel (Gauss adaptor not yet available -- flip adaptor added later)
+    // Int32 channel
 
     /**
      * @brief Adds one constrained int32 parameter as its own adaption group (size 1).

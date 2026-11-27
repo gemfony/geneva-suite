@@ -54,6 +54,11 @@ namespace Gem::Hap::detail {
  * @c generate() to the ring as the bulk-fill callback. claimSpan() / copyChunkInto() forward straight
  * through, so the per-chunk read path is unchanged.
  *
+ * @note The pool can hand a random number out twice: to a reader that holds a span in place while the
+ * producer refills its pool, and to readers that claim faster than the producer fills (the ring's
+ * "A word can be handed out twice" has the cases and the measurement). That is accepted for
+ * optimization; the default source QUEUE does not do it.
+ *
  * @note Member order matters: @c ring_ is declared after @c backend_ so it is destroyed first -- its
  * destructor joins the producer thread (which calls into @c backend_) before @c backend_ itself goes
  * away. The fill callback captures @c this and reaches @c backend_, which is fully constructed by the

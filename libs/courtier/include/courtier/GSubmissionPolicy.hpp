@@ -33,6 +33,8 @@
 
 #include <cstddef>
 
+#include "common/GCommonEnums.hpp"
+
 namespace Gem::Courtier {
 
 /******************************************************************************/

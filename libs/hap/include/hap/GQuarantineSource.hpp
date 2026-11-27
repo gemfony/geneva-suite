@@ -60,6 +60,7 @@ namespace detail {
  * pool's benign race on every read. See Gem::Hap::detail::GRotatingPool for the ring, the
  * background producer, the N@f$\ge@f$3 quarantine, and the conditions under which the race is
  * harmless (aligned-64-bit atomicity on x86-64 / AArch64, lock-free @f$\Rightarrow@f$ deadlock-free).
+ * A number can be handed out twice (see GRotatingPool); the default source QUEUE does not do that.
  * This is the library-private seam used by GRandomT<randomSource::QUARANTINE>; the implementation
  * lives in GQuarantineSource.cpp.
  */

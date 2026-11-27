@@ -50,10 +50,9 @@
 // supports (x86-64 / AArch64) every access is a single hardware-atomic
 // instruction: a reader observes a clean old-or-new value, never a torn half,
 // and both values are valid words. The lock-free design (no producer ever
-// waits on a reader) makes it deadlock-free; the N>=3 quarantine makes such an
-// overlap reachable only for a reader descheduled across a full pool rotation,
-// and even then it is benign (the consumer that lifted this ring -- a bulk RNG
-// staging buffer -- is happy with old-or-new words). It is *formally* still a
+// waits on a reader) makes it deadlock-free. The overlap does occur (the class
+// comment says when, and that a word can then be handed out twice); the user
+// it was lifted for -- a bulk RNG staging buffer -- accepts that. It is *formally* still a
 // data race (a scheduling delay creates no happens-before edge), so under
 // ThreadSanitizer we annotate the pool STORAGE as a benign race. We annotate the
 // memory (not the writer) because the actual write happens inside the injected
@@ -112,11 +111,11 @@ namespace Gem::Common::Concurrency {
    | gen g     | gen g+1   | gen g+2   | gen g-1   |   each = C chunks of W words
    +===========+===========+===========+===========+
         ^  reader is here              ^  producer refills here
-        |  (the "lead" pool the        |  (>= N-1 generations AHEAD of the lead;
-        |   cursor currently claims     |   i.e. the pool the cursor will reach
-        |   chunks from)                |   only after a full ring rotation)
+        |  (the "lead" pool the        |  (N-1 generations AHEAD of the lead:
+        |   cursor currently claims     |   the pool the cursor has just left,
+        |   chunks from)                |   reached again after a full rotation)
         |                               |
-        +------- quarantine gap (>= N-1 pools) keeps these two apart -------+
+        +------- the gap (N-1 pools) between the lead and the refill -------+
    @endverbatim
  *
  * @par Algorithm
@@ -134,7 +133,8 @@ namespace Gem::Common::Concurrency {
  *   \texttt{lead} = \left\lfloor \texttt{cursor}/C \right\rfloor ,
  * @f]
  * by bulk-filling one pool at a time (pool @f$ (f\!+\!1)\bmod N @f$ for generation @f$f\!+\!1@f$).
- * It @e never inspects or waits on reader state, so a dormant or dead reader can stall nothing.
+ * It @e never inspects or waits on reader state, so a dormant or dead reader can stall nothing --
+ * and a reader never waits for the producer either (see "A word can be handed out twice").
  *
  * @par Two read modes (same claim)
  * @li claimSpan() returns a pointer for reading the chunk @e in @e place;
@@ -151,13 +151,25 @@ namespace Gem::Common::Concurrency {
  *     (x86-64, AArch64) an aligned 64-bit load/store is a @e single hardware-atomic instruction, so a
  *     reader observes a clean @b old-or-new value, never a torn half. This is enforced portably by
  *     @c static_assert(@c atomic_ref<uint64_t>::is_always_lock_free) below.
- * @li @b Separation. With @f$N\ge 3@f$ the producer refills a pool @f$\ge N-1@f$ generations ahead of
- *     an @e active reader's pool, so they never coincide; an overlap requires a reader descheduled
- *     across a @e full rotation (@f$\ge (N\!-\!1)\,C@f$ chunks) -- astronomically unlikely.
- * @li @b Benign @b even @b then. Should the overlap occur, by the atomicity condition every individual
- *     word is still a valid value; the only effect is mixing two generations of words. Whether that is
- *     acceptable is the caller's contract -- it holds for the RNG staging use this was lifted from.
+ * @li @b Valid @b words. When the overlap occurs, by the atomicity condition every individual word is
+ *     still a valid value; the effect is that a chunk mixes two generations of words.
  * @li @b No @b deadlock. There are no locks and the producer never blocks on reader state.
+ *
+ * @par A word can be handed out twice
+ * The ring does @e not guarantee that every word reaches exactly one reader. Two cases repeat words:
+ * @li A reader that reads a span @e in @e place (claimSpan()) while the cursor has moved into the next
+ *     pool: the producer refills the pool the cursor has just left, so the reader reads words of a
+ *     later generation, which a later claim of the same chunk hands out again.
+ * @li Readers that claim faster than the producer fills: they reach a pool before it is refilled and
+ *     read the words it held @f$N@f$ generations earlier once more.
+ *
+ * Measured on 2026-11-27 (@f$W=4096@f$, @f$C=64@f$, @f$N=4@f$, a 32-core host, each reader doing work
+ * per word to reach about 33 million words per second, 3 s): no chunk was handed out twice with 1, 8
+ * or 16 readers; with 30 readers about a third of all chunks were; readers that do no work per word
+ * repeated 52 to 98 % of the chunks. This is accepted for the use the ring was built for, random
+ * numbers for optimization: a repeated word falls into another region of the search, not directly
+ * after its first use, and is spread over all readers (the maintainer's decision of 2026-11-27). A use
+ * that needs every word exactly once does not use this ring.
  *
  * It is @e formally still a data race, so the pool storage is marked with @c AnnotateBenignRaceSized
  * (see the file-top note); a ThreadSanitizer build then reports zero races while all assertions pass.

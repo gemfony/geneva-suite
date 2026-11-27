@@ -50,6 +50,7 @@
 #include "geneva/oa/GPostProcessorT.hpp"
 #include "weft/GBinaryArchive.hpp"
 #include "weft/GJsonArchive.hpp"
+#include "weft/GPolymorphicRegistry.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cstddef>
@@ -587,6 +588,16 @@ GOptimizationAlgorithmBase &GOptimizationAlgorithmBase::optimize_(std::uint32_t 
     // Resize the population to the desired size and do some error checks.
     // This function will also check that individuals have indeed been registered
     adjustPopulation_();
+
+    // A checkpoint holds the individuals, so their classes must be registered for archives. Say so
+    // now (tagOf() names the missing line), not after the first iteration at the first checkpoint.
+    if(cp_interval_ != 0) {
+        for(auto const &ind : *this) {
+            static_cast<void>(
+                Gem::Weft::GPolymorphicRegistry<gen::GGenome::gemfony_common_root_t>::tagOf(*ind)
+            );
+        }
+    }
 
     // A new run builds the run state of its algorithm; a run resumed from a checkpoint goes on with
     // the state the checkpoint holds

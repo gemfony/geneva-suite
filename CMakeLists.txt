@@ -872,6 +872,38 @@ IF (GEM_BUILD_TESTS)
 		MESSAGE(STATUS "DoxygenWarningsOnlyAllowed not registered: Doxygen not found")
 	ENDIF ()
 
+	# Every installed header compiles on its own (Inv 19: the installed header set is
+	# self-contained), so a user may include any one of them first. One translation unit per
+	# header, which includes only that header, in a target outside "all" that the test builds in
+	# parallel. The MPI headers need the MPI library, which only an MPI build has.
+	SET(_alone_dir ${CMAKE_BINARY_DIR}/HeadersCompileAlone)
+	SET(_alone_sources)
+	FOREACH(_lib IN ITEMS weft common hap dietrich courtier geneva)
+		FILE(GLOB_RECURSE _headers CONFIGURE_DEPENDS RELATIVE ${PROJECT_SOURCE_DIR}/libs/${_lib}/include
+			${PROJECT_SOURCE_DIR}/libs/${_lib}/include/*.hpp)
+		FOREACH(_header IN LISTS _headers)
+			IF(_header MATCHES "^courtier/mpi/" AND NOT TARGET ${COURTIER_MPI_LIBNAME})
+				CONTINUE()
+			ENDIF()
+			STRING(REGEX REPLACE "\\.hpp$" ".cpp" _tu ${_alone_dir}/${_header})
+			FILE(CONFIGURE OUTPUT ${_tu} CONTENT "#include \"${_header}\"\n")
+			LIST(APPEND _alone_sources ${_tu})
+		ENDFOREACH()
+	ENDFOREACH()
+	ADD_LIBRARY(HeadersCompileAlone OBJECT EXCLUDE_FROM_ALL ${_alone_sources})
+	TARGET_LINK_LIBRARIES(HeadersCompileAlone PRIVATE $<COMPILE_ONLY:${GENEVA_LIBNAME}>)
+	IF(TARGET ${COURTIER_MPI_LIBNAME})
+		TARGET_LINK_LIBRARIES(HeadersCompileAlone PRIVATE $<COMPILE_ONLY:${COURTIER_MPI_LIBNAME}>)
+	ELSE()
+		MESSAGE(STATUS "HeadersCompileAlone leaves out courtier/mpi/: no MPI in this build")
+	ENDIF()
+	ADD_TEST(
+		NAME HeadersCompileAlone
+		COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target HeadersCompileAlone --parallel 8
+	)
+	SET_TESTS_PROPERTIES(HeadersCompileAlone PROPERTIES LABELS "conventions")
+	GEM_TEST_SIZE(HeadersCompileAlone L)
+
 	# The rule of CheckFigureTitles.cmake on two figures of one pad with a canvas label: a series
 	# with a blank title (the plotting library's " " for an unlabelled series) shows no second
 	# title, a labelled one does.

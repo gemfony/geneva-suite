@@ -739,6 +739,35 @@ TEST_CASE(
 
 /******************************************************************************/
 
+// A problem class without GEM_REGISTER_ARCHIVABLE ran locally and failed at the first checkpoint, after
+// its first iteration, with a message that named the identity-only macro and a mangled type (U166
+// D4). A run that writes checkpoints now refuses it at its start, before anything is evaluated or
+// written, and the message names the macro and the class.
+TEST_CASE("a run that writes checkpoints refuses an unregistered problem class at its start", "[oa]") {
+    namespace fs = std::filesystem;
+    const fs::path cp_dir = fs::temp_directory_path() / "geneva-unregistered-class-test";
+    fs::remove_all(cp_dir);
+
+    oa::GEvolutionaryAlgorithm ea;
+    ea.push_back(SphereOA().clone()); // SphereOA is not registered for archives
+    ea.setPopulationSizes(6, 2);
+    ea.setMaxIteration(2);
+    ea.setReportIteration(0);
+    ea.setAdaptionConfig(SphereOA().buildAdaptionConfig());
+    ea.setCheckpointInterval(1);
+    ea.setCheckpointBaseName(cp_dir.string(), "unregistered.cp");
+    CHECK_THROWS_WITH(
+        ea.optimize(),
+        Catch::Matchers::ContainsSubstring("GEM_REGISTER_ARCHIVABLE") &&
+            Catch::Matchers::ContainsSubstring("SphereOA")
+    );
+    CHECK(not fs::exists(cp_dir)); // refused before the first checkpoint
+    CHECK(ea.getIteration() == 0);
+    fs::remove_all(cp_dir);
+}
+
+/******************************************************************************/
+
 TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
     // A resume starts at the iteration after the one its checkpoint holds (GOptimizer). Regression
     // (2026-11-20): the final checkpoint was written after the loop had counted on, so it held the

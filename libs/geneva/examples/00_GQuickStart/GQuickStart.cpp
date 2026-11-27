@@ -91,9 +91,9 @@ public:
 protected:
     /** @brief The evaluation: one number per criterion, here a single one */
     std::vector<double> evaluate() override {
-        auto const parameters = this->parameterValues<double>(); // in the units declared above
-        const double dx = parameters[0] - 1.;
-        const double dy = parameters[1] + 2.;
+        auto const [x, y] = this->parameters<double, 2>(); // in the units declared above
+        const double dx = x - 1.;
+        const double dy = y + 2.;
         return {dx * dx + dy * dy};
     }
 };
@@ -125,15 +125,13 @@ int solve(geneva::GOptimizer &go) {
 
     // Run, then read the best candidate found.
     auto best = go.optimize().getBestGlobalIndividual<first::GFirstProblem>();
-    auto const best_parameters = best->parameterValues<double>();
-    std::cout << "best solution: x = " << best_parameters[0]
-              << ", y = " << best_parameters[1]
+    auto const [x, y] = best->parameters<double, 2>();
+    std::cout << "best solution: x = " << x << ", y = " << y
               << ", f = " << best->raw_fitness(0) << '\n';
 
     // Check the answer against the known minimum at (1, -2) -- with a tolerance, as
     // the search is stochastic.
-    const bool close_enough = std::abs(best_parameters[0] - 1.) < 0.1
-                              && std::abs(best_parameters[1] + 2.) < 0.1;
+    const bool close_enough = std::abs(x - 1.) < 0.1 && std::abs(y + 2.) < 0.1;
     if(not close_enough) {
         std::cerr << "GQuickStart: the search did not get close to (1, -2)\n";
     }

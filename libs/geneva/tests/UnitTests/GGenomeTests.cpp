@@ -29,6 +29,7 @@
 
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <algorithm>
 #include <any>
@@ -835,6 +836,38 @@ TEST_CASE("GGenome: value round-trip (parameterValues / assignValueVector)", "[f
     CHECK(
         ind.parameterValues<double>() == assigned
     ); // in-range constrained values round-trip identically
+}
+
+/******************************************************************************/
+// A channel the genome does not have was read as an empty vector, which a user's evaluate() then
+// indexed (U166 F3: a crash). It is refused with the counts of the channels the genome has.
+TEST_CASE("GGenome: parameterValues refuses a channel the genome does not have", "[flat]") {
+    Sphere ind(4);
+    CHECK_THROWS_WITH(
+        ind.parameterValues<float>(),
+        Catch::Matchers::ContainsSubstring("no float parameters") &&
+            Catch::Matchers::ContainsSubstring("4 double")
+    );
+    CHECK_THROWS_AS(ind.parameterValues<std::int32_t>(), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(ind.parameterValues<bool>(), Gem::Common::gem_exception);
+    // The generic readers over all channels still work on a genome of doubles only
+    CHECK(ind.fpParameterValues().size() == 4);
+    CHECK(ind.parameterValues<double>(activityMode::INACTIVEONLY).empty());
+}
+
+/******************************************************************************/
+// The checked accessor of fixed size: the values when the count matches, a named count otherwise.
+TEST_CASE("GGenome: parameters<T N>() reads a genome of fixed size", "[flat]") {
+    Sphere ind(2);
+    ind.assignValueVector<double>(std::vector<double>{1.5, -2.5});
+    auto const [x, y] = ind.parameters<double, 2>();
+    CHECK(x == 1.5);
+    CHECK(y == -2.5);
+    CHECK_THROWS_WITH(
+        (ind.parameters<double, 3>()),
+        Catch::Matchers::ContainsSubstring("the genome has 2 double parameter(s), 3 were asked for")
+    );
+    CHECK_THROWS_WITH((ind.parameters<float, 2>()), Catch::Matchers::ContainsSubstring("no float"));
 }
 
 /******************************************************************************/

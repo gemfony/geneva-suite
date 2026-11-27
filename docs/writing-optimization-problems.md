@@ -39,8 +39,8 @@ private:
 ```
 
 `GGenomeT<derived_type>` supplies the clone/load/compare/serialize machinery. Your genome is a
-flat set of value channels (double / float / int32 / bool); read it with `parameterValues<T>()`,
-`fpParameterValues()`, or — for a structured genome — a `GGenomeArchitecture` decoder (see ex09).
+flat set of value channels (double / float / int32 / bool); read it with `parameters<T, N>()` (a
+fixed number of values), `parameterValues<T>()`, `fpParameterValues()`, or — for a structured genome — a `GGenomeArchitecture` decoder (see ex09).
 
 ## 2. Build the genome STRUCTURE with `GGenomeBuilder`
 
@@ -92,7 +92,7 @@ genome's structure. Use the fluent API to attach a kernel to a group (by index o
 namespace oa = Gem::Geneva::OptimizationAlgorithms;
 
 MyProblem proto;                                                   // a prototype to read the structure
-auto cfg = oa::makeAdaptionConfig<oa::GEAAdaptionConfig>(proto);   // GEA / GSA / base variant
+auto cfg = oa::makeAdaptionConfig<oa::GEAAdaptionConfig>(proto);   // or GAdaptionConfigBase
 cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);                 // sigma, sigma_sigma, min, max, ad_prob
 cfg->groupInt32(0).intGauss(0.5, 0.8, 1e-3, 2., 1.);              // integer Gaussian
 cfg->groupBool(0).flip(1.);                                        // bit-flip

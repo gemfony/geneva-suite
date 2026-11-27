@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_string.hpp>
 
 #include <memory>
 #include <string>
@@ -182,6 +183,26 @@ TEST_CASE(
     using A = DerA<Tag>;
     A concrete; // never registered
     CHECK_THROWS_AS(GPolymorphicRegistry<Root>::tagOf(concrete), weft_exception);
+}
+
+// The message named the identity-only macro and the mangled type ("1P"): it names the macro a
+// user writes for a class that is checkpointed or sent, and the type as it is written in C++.
+TEST_CASE(
+    "GPolymorphicRegistry: tagOf() names the registration macro and the readable type",
+    "[common][polyregistry]"
+) {
+    struct Tag {};
+    using Root = RootT<Tag>;
+    DerA<Tag> concrete; // never registered
+    CHECK_THROWS_WITH(
+        GPolymorphicRegistry<Root>::tagOf(concrete),
+        Catch::Matchers::ContainsSubstring("GEM_REGISTER_ARCHIVABLE") &&
+            Catch::Matchers::ContainsSubstring("DerA<")
+    );
+    CHECK_THROWS_WITH(
+        GPolymorphicRegistry<Root>::create("nope"),
+        Catch::Matchers::ContainsSubstring("GEM_REGISTER_ARCHIVABLE")
+    );
 }
 
 // ---------------------------------------------------------------------------

@@ -192,7 +192,7 @@ G_CALLABLE inline double rosenbrock(const double *x, int n) {
  * @brief Ackley pairwise variant (Geneva-specific): f = Σ[e⁻⁰·²√(xᵢ²+xᵢ₊₁²)+3(cos2xᵢ+sin2xᵢ₊₁)], n≥2
  *
  * Non-canonical form retained for backward compatibility.
- * For the standard CEC/BBOB benchmark, use ackleyCanonical().
+ * For the standard formulation (a basic function of the CEC suites), use ackleyCanonical().
  *
  * @param x Pointer to the array of n parameter values (n≥2 expected)
  * @param n Number of parameters (problem dimension)
@@ -283,7 +283,7 @@ G_CALLABLE inline double negParabola(const double *x, int n) {
  * Non-separable, multimodal. Global minimum f=0 at origin.
  * Recommended domain [-32.768, 32.768].
  * Almost flat outer plateau (near-zero gradient) followed by steep drop to global basin.
- * Standard benchmark in CEC and BBOB suites.
+ * A basic function of the CEC competition suites (the BBOB suites do not contain it).
  *
  * @param x Pointer to the array of n parameter values
  * @param n Number of parameters (problem dimension)

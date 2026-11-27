@@ -177,14 +177,14 @@ private:
             if(not ind_ptr->is_processed()) {
                 continue; // an individual without results says nothing about the search yet
             }
-            auto const parameters = ind_ptr->parameterValues<double>();
+            auto const [x, y] = ind_ptr->parameters<double, 2>();
             const double fitness = ind_ptr->raw_fitness(0);
-            log_->append(points_, parameters[0], parameters[1], map_z_);
+            log_->append(points_, x, y, map_z_);
             ++n_recorded_;
 
             if(fitness < best_fitness_) {
                 best_fitness_ = fitness;
-                best_position_ = {parameters[0], parameters[1]};
+                best_position_ = {x, y};
             }
         }
 

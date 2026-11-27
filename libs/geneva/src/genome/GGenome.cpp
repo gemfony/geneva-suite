@@ -247,15 +247,15 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
     const auto &cp = dynamic_cast<const GGenome &>(cp_base);
     auto this_cp = this->clone<GGenome>();
 
-    auto this_d = this_cp->parameterValues<double>();
-    auto this_f = this_cp->parameterValues<float>();
-    auto this_b = this_cp->parameterValues<bool>();
-    auto this_i = this_cp->parameterValues<std::int32_t>();
+    auto this_d = this_cp->channelValues<double>();
+    auto this_f = this_cp->channelValues<float>();
+    auto this_b = this_cp->channelValues<bool>();
+    auto this_i = this_cp->channelValues<std::int32_t>();
 
-    auto const cp_d = cp.parameterValues<double>();
-    auto const cp_f = cp.parameterValues<float>();
-    auto const cp_b = cp.parameterValues<bool>();
-    auto const cp_i = cp.parameterValues<std::int32_t>();
+    auto const cp_d = cp.channelValues<double>();
+    auto const cp_f = cp.channelValues<float>();
+    auto const cp_b = cp.channelValues<bool>();
+    auto const cp_i = cp.channelValues<std::int32_t>();
 
     auto splice = [&](auto &this_vec, auto const &cp_vec) {
         // A cross-over position lies between two values: a channel with a single value has none
@@ -337,10 +337,10 @@ boost::json::object GGenome::toJSON() const {
     body["isValid"] = has_errors || dirty_flag ? false : this->isValid();
     body["type"] = "GGenome";
 
-    auto const d_data = this->parameterValues<double>();
-    auto const f_data = this->parameterValues<float>();
-    auto const i_data = this->parameterValues<std::int32_t>();
-    auto const b_data = this->parameterValues<bool>();
+    auto const d_data = this->channelValues<double>();
+    auto const f_data = this->channelValues<float>();
+    auto const i_data = this->channelValues<std::int32_t>();
+    auto const b_data = this->channelValues<bool>();
 
     const std::size_t n_vars = d_data.size() + f_data.size() + i_data.size() + b_data.size();
     body["nVars"] = n_vars;
@@ -395,10 +395,10 @@ std::string GGenome::toCSV(
     bool use_raw_fitness,
     bool show_validity
 ) const {
-    auto const d_data = this->parameterValues<double>();
-    auto const f_data = this->parameterValues<float>();
-    auto const i_data = this->parameterValues<std::int32_t>();
-    auto const b_data = this->parameterValues<bool>();
+    auto const d_data = this->channelValues<double>();
+    auto const f_data = this->channelValues<float>();
+    auto const i_data = this->channelValues<std::int32_t>();
+    auto const b_data = this->channelValues<bool>();
 
     std::vector<std::string> var_names;
     std::vector<std::string> var_types;
