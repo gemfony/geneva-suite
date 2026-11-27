@@ -144,7 +144,7 @@ class GMetaOptimizerIndividualT // NOLINT(cppcoreguidelines-special-member-funct
 
     template <class archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<Genome::GGenome>(ar, "gen::GGenome", *this);
+        Gem::Common::archive_named_base<Genome::GGenome>(ar, "GGenome", *this);
         Gem::Common::serialize_members(ar, this->localMembers_());
         Gem::Common::archive_named(ar, "ind_factory_", ind_factory_);
     }

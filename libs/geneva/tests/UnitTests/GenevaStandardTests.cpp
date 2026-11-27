@@ -509,7 +509,7 @@ TEST_CASE(
 // both modes, guarding against silently dropping a member.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (BINARY/JSON) for OA::GOptimizationAlgorithmBase's members
 TEST_CASE(
-    "oa::GOptimizationAlgorithmBase (via GEvolutionaryAlgorithm) round-trips its members incl. the "
+    "OA::GOptimizationAlgorithmBase (via GEvolutionaryAlgorithm) round-trips its members incl. the "
     "checkpoint path",
     "[geneva][serialization]"
 ) {
@@ -542,7 +542,7 @@ TEST_CASE(
         CHECK(restored.getMaxStallIteration() == 99);
 
         GEqualityPrinter const gep(
-            "oa::GOptimizationAlgorithmBase-roundtrip",
+            "OA::GOptimizationAlgorithmBase-roundtrip",
             pow(10, -7),
             Gem::Common::CE_WITH_MESSAGES
         );
@@ -612,7 +612,7 @@ TEST_CASE(
 // default-value masking that hides a dropped member.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (load() clone path + BINARY/JSON wire round-trip) for OA::GSwarmAlgorithm's tied members
 TEST_CASE(
-    "oa::GSwarmAlgorithm round-trips its members in BINARY/JSON and via load()",
+    "OA::GSwarmAlgorithm round-trips its members in BINARY/JSON and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -686,7 +686,7 @@ TEST_CASE(
 // about-to-be-tied plain members to NON-DEFAULT values and verifies they survive a
 // wire round-trip AND an in-memory load() (clone path).
 TEST_CASE(
-    "oa::GParameterScan round-trips its members in BINARY/JSON and via load()",
+    "OA::GParameterScan round-trips its members in BINARY/JSON and via load()",
     "[geneva][serialization]"
 ) {
     using Gem::Common::serializationMode;
@@ -747,7 +747,7 @@ TEST_CASE(
 // JSON) AND an in-memory load() (the generated clone_/load_ path), with their pre-computed grids intact.
 // The preceding test populates none of these vectors, so without this one the fold would be untested.
 TEST_CASE(
-    "oa::GParameterScan round-trips its concrete scan parameters (all four leaf types)",
+    "OA::GParameterScan round-trips its concrete scan parameters (all four leaf types)",
     "[geneva][serialization][ps]"
 ) {
     using Gem::Common::serializationMode;

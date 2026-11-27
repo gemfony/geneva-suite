@@ -690,6 +690,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `OA::GEvolutionaryAlgorithm`, `Genome::GGenomeBuilder`. The old names are gone; a program
   that used them replaces them. Under `using namespace Gem::Geneva;` the alias `Genome` and
   the namespace `Gem::Geneva::Genome` name the same namespace, so `Genome::` is not ambiguous.
+  The archive of `GMetaOptimizerIndividualT` tags its genome base `GGenome` (was `gen::GGenome`),
+  as every other class tags a base by its bare name; a checkpoint written before does not load.
 
 - **A parameter-scan or profile specification carries no label.** A variable is addressed by
   its index in the value channel of its type (`d(0, -1., 1., 10)`); a trailing label such as
