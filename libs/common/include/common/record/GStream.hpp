@@ -123,17 +123,17 @@ private:
     /** @brief Refuses rows once a sink failed to open; under mutex_ */
     void refuseAfterFailedOpen_() const;
 
-    mutable std::mutex mutex_; ///< Guards everything below
-    GStreamInfo info_;         ///< Name, columns, directory, resume
-    withTime time_;            ///< The time column
+    mutable std::mutex mutex_;                  ///< Guards everything below
+    GStreamInfo info_;                          ///< Name, columns, directory, resume
+    withTime time_;                             ///< The time column
     std::vector<std::shared_ptr<GSink>> sinks_; ///< Where the rows go
     std::size_t flush_every_;                   ///< Rows per flush
     std::source_location declarer_;             ///< Where the stream was declared
     std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now(); ///< Declared
-    std::vector<GRow> held_;   ///< Rows not yet handed to the sinks
+    std::vector<GRow> held_;      ///< Rows not yet handed to the sinks
     std::size_t sinks_begun_ = 0; ///< The sinks whose open() was called, in their order
     bool sinks_open_ = false;     ///< Every sink was opened
-    bool closed_ = false;      ///< The stream was closed
+    bool closed_ = false;         ///< The stream was closed
 };
 
 } /* namespace detail */

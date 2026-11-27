@@ -864,7 +864,10 @@ std::vector<std::string> linesOf(const std::filesystem::path &file) {
 
 } // namespace
 
-TEST_CASE("Launcher: --recordDir and the end-of-run report; the streams are closed at the end", "[launcher][record]") {
+TEST_CASE(
+    "Launcher: --recordDir and the end-of-run report; the streams are closed at the end",
+    "[launcher][record]"
+) {
     const RecordDirectory dir("normal");
     CommandLine cl({"--recordDir", dir.path().string()});
     launcher_type launcher(cl.argc(), cl.data());
@@ -900,7 +903,10 @@ TEST_CASE("Launcher: a consumer that counts records its end-of-run report", "[la
     );
 }
 
-TEST_CASE("Launcher: the streams are closed and the report recorded when produce() throws", "[launcher][record]") {
+TEST_CASE(
+    "Launcher: the streams are closed and the report recorded when produce() throws",
+    "[launcher][record]"
+) {
     const RecordDirectory dir("throws");
     CommandLine cl({"--recordDir", dir.path().string()});
     launcher_type launcher(cl.argc(), cl.data());

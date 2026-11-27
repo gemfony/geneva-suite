@@ -827,8 +827,9 @@ private:
             auto const not_worse = [this, value](double x) { return not this->isBetter(value, x); };
 
             // The items held that are not worse stand before the candidate, as do all taken ones
-            auto const held_before =
-                static_cast<std::size_t>(std::ranges::partition_point(held, not_worse) - held.begin());
+            auto const held_before = static_cast<std::size_t>(
+                std::ranges::partition_point(held, not_worse) - held.begin()
+            );
             if(0 != max_size_ && held_before + taken.size() >= max_size_) {
                 break; // no place for it, nor for any later (not better) candidate
             }
@@ -836,8 +837,9 @@ private:
             StoredType item = take(*it);
             auto const held_equal =
                 static_cast<std::size_t>(std::ranges::partition_point(held, better) - held.begin());
-            auto const taken_equal =
-                static_cast<std::size_t>(std::ranges::partition_point(taken, better) - taken.begin());
+            auto const taken_equal = static_cast<std::size_t>(
+                std::ranges::partition_point(taken, better) - taken.begin()
+            );
             if(holdsSameEntry_(item, held_equal, held_before) ||
                holdsSameEntry_(item, n_held + taken_equal, data_cnt_.size())) {
                 continue;
@@ -867,8 +869,8 @@ private:
      * @param end One past the position of the last item held to compare with
      * @return A boolean indicating whether item is the same entry as one of them
      */
-    [[nodiscard]] bool holdsSameEntry_(StoredType const &item, std::size_t begin, std::size_t end)
-        const {
+    [[nodiscard]] bool
+    holdsSameEntry_(StoredType const &item, std::size_t begin, std::size_t end) const {
         return std::ranges::any_of(
             std::span(data_cnt_).subspan(begin, end - begin),
             [this, &item](StoredType const &kept) { return this->isSameEntry(kept, item); }

@@ -444,7 +444,10 @@ bool holds(const std::string &text, const std::string &part) {
 
 } // namespace
 
-TEST_CASE("GJsonArchive: a malformed archive throws weft_exception with path and reason", "[common][archive][json]") {
+TEST_CASE(
+    "GJsonArchive: a malformed archive throws weft_exception with path and reason",
+    "[common][archive][json]"
+) {
     const std::string good =
         R"({"point":{"x":1,"y":"2.5","name":"p"},"three":[1,2,3],"values":["1","2"]})";
     {
@@ -465,9 +468,8 @@ TEST_CASE("GJsonArchive: a malformed archive throws weft_exception with path and
         CHECK(holds(m, "a number was expected"));
     }
     SECTION("an object where an array belongs") {
-        const std::string m = malformedMessage(
-            R"({"point":{"x":1,"y":"2.5","name":"p"},"three":{},"values":[]})"
-        );
+        const std::string m =
+            malformedMessage(R"({"point":{"x":1,"y":"2.5","name":"p"},"three":{},"values":[]})");
         CHECK(holds(m, "/three"));
         CHECK(holds(m, "an array was expected"));
     }
@@ -479,16 +481,14 @@ TEST_CASE("GJsonArchive: a malformed archive throws weft_exception with path and
         CHECK(holds(m, "floating-point"));
     }
     SECTION("a missing key") {
-        const std::string m = malformedMessage(
-            R"({"point":{"x":1,"y":"2.5"},"three":[1,2,3],"values":[]})"
-        );
+        const std::string m =
+            malformedMessage(R"({"point":{"x":1,"y":"2.5"},"three":[1,2,3],"values":[]})");
         CHECK(holds(m, "/point/name"));
         CHECK(holds(m, "missing"));
     }
     SECTION("a fixed-size array that is too short") {
-        const std::string m = malformedMessage(
-            R"({"point":{"x":1,"y":"2.5","name":"p"},"three":[1,2],"values":[]})"
-        );
+        const std::string m =
+            malformedMessage(R"({"point":{"x":1,"y":"2.5","name":"p"},"three":[1,2],"values":[]})");
         CHECK(holds(m, "/three"));
         CHECK(holds(m, "holds 2 elements"));
     }

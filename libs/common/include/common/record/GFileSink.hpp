@@ -90,8 +90,10 @@ protected:
     /** @brief Whether an existing file of this kind holds the given columns, so that a resuming
      *  stream may append to it @param existing The file @param columns The columns of the stream
      *  @return Whether they are the file's */
-    [[nodiscard]] virtual bool
-    holdsColumns_(std::filesystem::path const &existing, std::vector<GColumn> const &columns) const = 0;
+    [[nodiscard]] virtual bool holdsColumns_(
+        std::filesystem::path const &existing,
+        std::vector<GColumn> const &columns
+    ) const = 0;
     /** @brief The number of lines a file of this kind begins with before its rows (a header)
      *  @return The number */
     [[nodiscard]] virtual std::size_t startLines_() const = 0;
@@ -111,9 +113,9 @@ private:
     /** @brief Cuts the file back to the rows a resumed stream keeps */
     void cutBack_(GStreamInfo const &info) const;
 
-    std::filesystem::path path_;   ///< The file
+    std::filesystem::path path_;          ///< The file
     std::vector<GColumn> stream_columns_; ///< The columns of the stream
-    std::ofstream out_;            ///< The open file
+    std::ofstream out_;                   ///< The open file
 };
 
 /******************************************************************************/

@@ -57,11 +57,11 @@
 #include "common/concurrency/GMPMCQueueT.hpp"            // the list of parked callers
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp" // the per-session in-flight store (CheckoutLease)
 #include "courtier/GBaseConsumerT.hpp"
-#include "courtier/GCommandContainerT.hpp"       // the RESULT frame checkin() consumes
-#include "courtier/GCourtierEnums.hpp"           // CORRELATION_ID_TYPE, dispatchState
-#include "courtier/GProcessable.hpp"             // detail::lineageSalt (the foreign-return check)
-#include "courtier/GServerSessionLogic.hpp"      // GWakeFn, GCheckoutResult
-#include "courtier/GWireProtocolT.hpp"           // the library seam that interprets a return
+#include "courtier/GCommandContainerT.hpp"  // the RESULT frame checkin() consumes
+#include "courtier/GCourtierEnums.hpp"      // CORRELATION_ID_TYPE, dispatchState
+#include "courtier/GProcessable.hpp"        // detail::lineageSalt (the foreign-return check)
+#include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
+#include "courtier/GWireProtocolT.hpp"      // the library seam that interprets a return
 #include "courtier/consumers/GNetworkedTimeoutConfig.hpp" // the user's two time limits
 
 namespace Gem::Courtier {

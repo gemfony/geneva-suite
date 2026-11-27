@@ -91,8 +91,7 @@ public:
     StatusProbeContainer() = default; // deserialization only
 
 private:
-    void
-    process_([[maybe_unused]] const std::vector<double> &res_vec) final {
+    void process_([[maybe_unused]] const std::vector<double> &res_vec) final {
         switch(mode_) {
         case Mode::SUCCEED:
             this->registerResult(0, 42.);

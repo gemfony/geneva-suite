@@ -183,7 +183,10 @@ static_assert(requires(GConsoleLogger const &l) {
     l.logWithSource(std::string(), std::string(), logType::WARNING);
 });
 
-TEST_CASE("GConsoleLogger: the severity overloads log through the concrete type", "[common][logger]") {
+TEST_CASE(
+    "GConsoleLogger: the severity overloads log through the concrete type",
+    "[common][logger]"
+) {
     std::ostringstream captured;
     std::streambuf *const old_buffer = std::clog.rdbuf(captured.rdbuf());
     GConsoleLogger const l;

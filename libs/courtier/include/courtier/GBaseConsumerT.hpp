@@ -152,7 +152,9 @@ public:
         };
         Gem::Common::Record::GRow row{consumer};
         for(auto &[name, value] : figures) {
-            columns.push_back({.name = std::move(name), .type = Gem::Common::Record::columnType::UNSIGNED});
+            columns.push_back(
+                {.name = std::move(name), .type = Gem::Common::Record::columnType::UNSIGNED}
+            );
             row.emplace_back(value);
         }
         auto stream = Gem::Common::Record::recorder().stream("courtier", std::move(columns));

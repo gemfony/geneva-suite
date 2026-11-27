@@ -340,8 +340,8 @@ TEST_CASE(
     for(const auto &mine : uuids) {
         for(const auto &uuid : mine) {
             all.insert(uuid);
-            if(uuid.size() == 36 && uuid[14] == '4'
-               && std::string_view("89ab").find(uuid[19]) != std::string_view::npos) {
+            if(uuid.size() == 36 && uuid[14] == '4' &&
+               std::string_view("89ab").find(uuid[19]) != std::string_view::npos) {
                 ++well_formed;
             }
         }

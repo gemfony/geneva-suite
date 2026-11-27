@@ -54,9 +54,9 @@
 #include "common/GLogger.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GServerSessionLogic.hpp"      // GWakeFn, GCheckoutResult
-#include "courtier/GWireCodec.hpp"               // scope-wrapped (de)serialization, HELLO
-#include "courtier/GWireProtocolT.hpp"           // the WORK tag
+#include "courtier/GServerSessionLogic.hpp" // GWakeFn, GCheckoutResult
+#include "courtier/GWireCodec.hpp"          // scope-wrapped (de)serialization, HELLO
+#include "courtier/GWireProtocolT.hpp"      // the WORK tag
 #include "courtier/GWireSerializationContext.hpp"
 #include "courtier/transport/GPeerI.hpp" // the connection
 

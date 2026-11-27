@@ -303,9 +303,10 @@ oa_type newSetupOf(
 class GEvaluationCounter final : public Gem::Geneva::GFaultInjector {
 public:
     /** @brief Counts one evaluation @return No fault */
-    Fault
-    evaluate(Gem::Geneva::Genome::GGenome const & /*item*/, Gem::Hap::GRandomBase & /*gr*/)
-        override {
+    Fault evaluate(
+        Gem::Geneva::Genome::GGenome const & /*item*/,
+        Gem::Hap::GRandomBase & /*gr*/
+    ) override {
         count_.fetch_add(1);
         return Fault::NONE;
     }

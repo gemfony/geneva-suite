@@ -103,7 +103,8 @@ public:
     explicit RecordDirectory(const std::string &tag)
       : dir_(
             std::filesystem::temp_directory_path() / "geneva_monitor_tests" /
-            (tag + "_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))
+            (tag + "_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))
         ) {
         recorder().setDirectory(dir_);
     }
@@ -167,7 +168,10 @@ void runUnder(
 
 /******************************************************************************/
 
-TEST_CASE("GProgressPlotterT records its stream and draws a valid ROOT macro", "[monitor][plot][oa]") {
+TEST_CASE(
+    "GProgressPlotterT records its stream and draws a valid ROOT macro",
+    "[monitor][plot][oa]"
+) {
     RecordDirectory const dir("progress");
     // One profiled floating-point variable (parameter index 0) -> a 2D "fitness vs. parameter" graph.
     auto monitor = std::make_shared<Gem::Geneva::GProgressPlotterT<double>>();
@@ -281,10 +285,7 @@ TEST_CASE("GFitnessMonitor records the best fitness per rank", "[monitor][oa]") 
 
 /******************************************************************************/
 
-TEST_CASE(
-    "GFitnessMonitor survives a Pareto run (varying best count)",
-    "[monitor][oa][pareto]"
-) {
+TEST_CASE("GFitnessMonitor survives a Pareto run (varying best count)", "[monitor][oa][pareto]") {
     // A Pareto sorting scheme can vary the number of best individuals per iteration; the monitor
     // records as many ranks as there are, up to the number it monitors.
     RecordDirectory const dir("pareto");
@@ -300,7 +301,8 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE(
-    "GNAdpationsLogger records the adaptions and draws a histogram + fitness ROOT macro (all individuals)",
+    "GNAdpationsLogger records the adaptions and draws a histogram + fitness ROOT macro (all "
+    "individuals)",
     "[monitor][plot][oa]"
 ) {
     // Monitor all: the n-adaptions plot is a 2-d histogram, one bin per recorded iteration and per
@@ -392,7 +394,10 @@ TEST_CASE("GAllSolutionFileLogger records every candidate with its parameters", 
     runUnder(monitor);
 
     const auto rows = linesOf(dir / "all_solutions.csv");
-    CHECK(rows.at(0) == "algorithm,iteration,chain_iteration,individual,var0,var1,var2,fitness_0,valid");
+    CHECK(
+        rows.at(0) ==
+        "algorithm,iteration,chain_iteration,individual,var0,var1,var2,fitness_0,valid"
+    );
     // The initial population (unevaluated: fitness nan, not valid) and four iterations of twelve
     CHECK(rows.size() == 1 + 12 + 4 * 12);
     CHECK(rows.at(1).ends_with(",nan,false"));
@@ -472,7 +477,8 @@ TEST_CASE("A copy of a monitor's stream holder is empty", "[monitor][oa]") {
     oa::GEvolutionaryAlgorithm const ea;
     oa::GMonitorStream original;
     REQUIRE_FALSE(original.isOpen());
-    original.declare("copied", {{.name = "n", .type = Gem::Common::Record::columnType::UNSIGNED}}, ea);
+    original
+        .declare("copied", {{.name = "n", .type = Gem::Common::Record::columnType::UNSIGNED}}, ea);
     REQUIRE(original.isOpen());
     oa::GMonitorStream copy(original);
     CHECK_FALSE(copy.isOpen());

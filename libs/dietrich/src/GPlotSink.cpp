@@ -163,7 +163,8 @@ void GPlotSink::open(GStreamInfo const &info) {
     for(std::size_t id = 0; id < log_.nSeries(); ++id) {
         auto const &wanted = log_.spec(id).columns;
         for(auto const &name : wanted) {
-            const auto it = std::ranges::find(info.columns, name, &Gem::Common::Record::GColumn::name);
+            const auto it =
+                std::ranges::find(info.columns, name, &Gem::Common::Record::GColumn::name);
             if(it == info.columns.end()) {
                 continue;
             }

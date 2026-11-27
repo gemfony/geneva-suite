@@ -576,14 +576,20 @@ TEST_CASE("GHistogram1D reports a hist_1d GPlotSpec with n_bins_x", "[plotting]"
 // and passed control characters other than \n, \r, \t into the text, which then was no JSON.
 TEST_CASE("GPlotSpec toJson keeps small numbers and escapes control characters", "[plotting]") {
     GPlotSpec spec(plotKind::hist_1d);
-    spec.x_label = std::string("a\x01" "b");
+    spec.x_label = std::string(
+        "a\x01"
+        "b"
+    );
     spec.range_x = std::make_tuple(1e-7, 2e-7);
     spec.marker_size = std::make_tuple(0.123456789, 3e-9);
 
     boost::json::value parsed;
     REQUIRE_NOTHROW(parsed = parseJsonString(spec.toJson(), "GPlotSpec::toJson()"));
     auto const &obj = parsed.as_object();
-    CHECK(obj.at("x_label").as_string() == "a\x01" "b");
+    CHECK(
+        obj.at("x_label").as_string() == "a\x01"
+                                         "b"
+    );
     auto const &range = obj.at("range_x").as_array();
     CHECK(range.at(0).to_number<double>() == 1e-7);
     CHECK(range.at(1).to_number<double>() == 2e-7);
@@ -599,7 +605,14 @@ TEST_CASE("data backend (NPZ) writes a manifest that parses", "[plotting]") {
     auto h = std::make_shared<GHistogram1D>(7, 1e-7, 2e-7);
     (*h) & 1.5e-7;
 
-    GPlotDesigner gpd(std::string("canvas\x02" "label"), 1, 1);
+    GPlotDesigner gpd(
+        std::string(
+            "canvas\x02"
+            "label"
+        ),
+        1,
+        1
+    );
     gpd.setDataFormat(dataFormat::NPZ);
     gpd.registerPlotter(h);
     const std::string s = gpd.plot();
@@ -616,7 +629,10 @@ TEST_CASE("data backend (NPZ) writes a manifest that parses", "[plotting]") {
     boost::json::value parsed;
     REQUIRE_NOTHROW(parsed = parseJsonString(manifest, "manifest.json"));
     auto const &obj = parsed.as_object();
-    CHECK(obj.at("canvas").as_object().at("label").as_string() == "canvas\x02" "label");
+    CHECK(
+        obj.at("canvas").as_object().at("label").as_string() == "canvas\x02"
+                                                                "label"
+    );
     auto const &series = obj.at("series").as_array();
     REQUIRE(series.size() == 1);
     auto const &entry = series.at(0).as_object();

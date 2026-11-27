@@ -46,8 +46,8 @@
 #include <cstdint>
 #include <format>
 #include <iomanip>
-#include <limits>
 #include <ios>
+#include <limits>
 #include <memory>
 #include <string>
 #include <tuple>
@@ -196,8 +196,7 @@ void GFitnessMonitor::informationFunction_(
             oa::GOptimizationAlgorithmBase>::getBestGlobalIndividuals<gen::GGenome>();
         auto const iter_bests = goa->Interface::GOptimizerIT<
             oa::GOptimizationAlgorithmBase>::getBestIterationIndividuals<gen::GGenome>();
-        const std::size_t n =
-            std::min({n_monitor_inds_, global_bests.size(), iter_bests.size()});
+        const std::size_t n = std::min({n_monitor_inds_, global_bests.size(), iter_bests.size()});
         for(std::size_t rank = 0; rank < n; ++rank) {
             Gem::Common::Record::GRow row = stream_.row(*goa);
             row.emplace_back(static_cast<std::uint64_t>(rank));
@@ -573,7 +572,7 @@ void GAllSolutionFileLogger::recordPopulation_(oa::GOptimizationAlgorithmBase co
         const bool processed = ind->is_processed();
         for(std::size_t i = 0; i < ind->getNStoredResults(); ++i) {
             row.emplace_back(
-                not processed       ? std::numeric_limits<double>::quiet_NaN()
+                not processed      ? std::numeric_limits<double>::quiet_NaN()
                 : use_raw_fitness_ ? ind->raw_fitness(i)
                                    : ind->transformed_fitness(i)
             );
@@ -637,7 +636,9 @@ bool GNAdpationsLogger::getMonitorBestOnly() const {
  *
  * @param canvas_dimensions A tuple holding the canvas dimensions in x- and y-direction
  */
-void GNAdpationsLogger::setCanvasDimensions(std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions) {
+void GNAdpationsLogger::setCanvasDimensions(
+    std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions
+) {
     canvas_dimensions_ = canvas_dimensions;
 }
 
@@ -812,7 +813,9 @@ std::string GProcessingTimesLogger::getStreamName() const {
  *
  * @param canvas_dimensions A tuple holding the canvas dimensions in x- and y-direction
  */
-void GProcessingTimesLogger::setCanvasDimensions(std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions) {
+void GProcessingTimesLogger::setCanvasDimensions(
+    std::tuple<std::uint32_t, std::uint32_t> canvas_dimensions
+) {
     canvas_dimensions_ = canvas_dimensions;
 }
 

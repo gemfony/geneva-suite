@@ -306,8 +306,8 @@ public:
         const auto value = n.to_number<int_type>(ec);
         if(ec) {
             fail(
-                "the number " + boost::json::serialize(n) + " does not fit its type (" + ec.message() +
-                ")"
+                "the number " + boost::json::serialize(n) + " does not fit its type (" +
+                ec.message() + ")"
             );
         }
         v = value;
@@ -436,8 +436,8 @@ private:
         boost::json::value v = boost::json::parse(text, ec, {}, opts);
         if(ec) {
             throw weft_exception(
-                weft_error_streamer() << "In GJsonIArchive: the archive is no JSON: " << ec.message()
-                                      << '\n'
+                weft_error_streamer()
+                << "In GJsonIArchive: the archive is no JSON: " << ec.message() << '\n'
             );
         }
         return v;
@@ -501,9 +501,7 @@ private:
         where_ = c.where + "/" + std::to_string(c.idx);
         if(c.idx >= a.size()) {
             where_ = c.where;
-            fail(
-                "the array holds " + std::to_string(a.size()) + " elements, more were expected"
-            );
+            fail("the array holds " + std::to_string(a.size()) + " elements, more were expected");
         }
         return a[c.idx++];
     }

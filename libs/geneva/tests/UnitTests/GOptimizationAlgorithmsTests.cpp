@@ -743,7 +743,10 @@ TEST_CASE(
 // its first iteration, with a message that named the identity-only macro and a mangled type (U166
 // D4). A run that writes checkpoints now refuses it at its start, before anything is evaluated or
 // written, and the message names the macro and the class.
-TEST_CASE("a run that writes checkpoints refuses an unregistered problem class at its start", "[oa]") {
+TEST_CASE(
+    "a run that writes checkpoints refuses an unregistered problem class at its start",
+    "[oa]"
+) {
     namespace fs = std::filesystem;
     const fs::path cp_dir = fs::temp_directory_path() / "geneva-unregistered-class-test";
     fs::remove_all(cp_dir);
@@ -871,18 +874,17 @@ TEST_CASE(
             argv.data(),
             base / "GOptimizer.json"
         );
-        const int code =
-            launcher.run(geneva, {.produce = [&] {
-                             Gem::Geneva::GOptimizer go(geneva);
-                             go.registerAdaptionConfig("ea", adaption_config);
-                             job2->setPopulationSizes(4, 2);
-                             job2->setMaxIteration(6);
-                             job2->setReportIteration(0);
-                             job2->setCheckpointInterval(0);
-                             go & job2;
-                             REQUIRE_NOTHROW(go.optimize());
-                             return 0;
-                         }});
+        const int code = launcher.run(geneva, {.produce = [&] {
+                                          Gem::Geneva::GOptimizer go(geneva);
+                                          go.registerAdaptionConfig("ea", adaption_config);
+                                          job2->setPopulationSizes(4, 2);
+                                          job2->setMaxIteration(6);
+                                          job2->setReportIteration(0);
+                                          job2->setCheckpointInterval(0);
+                                          go & job2;
+                                          REQUIRE_NOTHROW(go.optimize());
+                                          return 0;
+                                      }});
         REQUIRE(code == 0);
     }
     CHECK(job2->getStartIteration() == 3); // the iteration after the checkpoint's
@@ -968,7 +970,7 @@ TEST_CASE(
     job1->setCheckpointInterval(1);
     job1->setCheckpointBaseName(base.string(), "monitors.cp");
     job1->optimize();
-    recorder.closeAll(); // the end of job 1, as its launcher would end it
+    recorder.closeAll();                  // the end of job 1, as its launcher would end it
     REQUIRE(data_rows().size() == 1 + 3); // the header and iterations 0, 1 and 2
     fs::path final_checkpoint;
     for(const auto &entry : fs::directory_iterator(base)) {
@@ -1027,10 +1029,12 @@ TEST_CASE(
     const std::vector<std::string> rows = data_rows();
     REQUIRE(rows.size() == 1 + 6);
     for(std::size_t iteration = 0; iteration < 6; ++iteration) {
-        CHECK(rows[1 + iteration].starts_with(
-            "Evolutionary Algorithm," + std::to_string(iteration) + "," + std::to_string(iteration) +
-            ",0,"
-        ));
+        CHECK(
+            rows[1 + iteration].starts_with(
+                "Evolutionary Algorithm," + std::to_string(iteration) + "," +
+                std::to_string(iteration) + ",0,"
+            )
+        );
     }
     std::size_t backups = 0;
     for(const auto &entry : fs::directory_iterator(base / "records")) {
@@ -1123,14 +1127,13 @@ TEST_CASE(
         iterations.push_back(line.substr(0, line.find(',', line.find(',') + 1)));
     }
     CHECK(
-        iterations ==
-        std::vector<std::string>{
-            "Evolutionary Algorithm,0",
-            "Evolutionary Algorithm,1",
-            "Evolutionary Algorithm,2",
-            "Evolutionary Algorithm,3",
-            "Evolutionary Algorithm,4"
-        }
+        iterations == std::vector<std::string>{
+                          "Evolutionary Algorithm,0",
+                          "Evolutionary Algorithm,1",
+                          "Evolutionary Algorithm,2",
+                          "Evolutionary Algorithm,3",
+                          "Evolutionary Algorithm,4"
+                      }
     );
 
     recorder.setDirectory(previous_directory);
@@ -2024,7 +2027,10 @@ TEST_CASE("Simulated annealing optimizes a flat individual", "[flat][oa]") {
 
 /******************************************************************************/
 
-TEST_CASE("Simulated annealing refuses a population with fewer children than parents", "[flat][oa][sa]") {
+TEST_CASE(
+    "Simulated annealing refuses a population with fewer children than parents",
+    "[flat][oa][sa]"
+) {
     // Regression: the selection pairs every parent with one of the n_parents best children, but the
     // size check only asked for one child. With 6 parents and 4 children the partial sort of the
     // children ran past the end of the population.

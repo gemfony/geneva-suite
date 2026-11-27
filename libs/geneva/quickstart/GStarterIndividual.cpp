@@ -316,7 +316,7 @@ void GStarterIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config
  */
 //! [quickstart-buildgenome#1]
 gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
-//! [quickstart-buildgenome#1]
+    //! [quickstart-buildgenome#1]
     Gem::Common::checkThat(
         not c.start_values.empty() && c.start_values.size() == c.lower_boundaries.size() &&
             c.start_values.size() == c.upper_boundaries.size(),

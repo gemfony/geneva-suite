@@ -162,7 +162,8 @@ private:
     void forget_(detail::GStreamCore const *core);
 
     mutable std::mutex mutex_; ///< Guards the three members below
-    std::filesystem::path directory_ = std::filesystem::path(".") / "records"; ///< See setDirectory()
+    std::filesystem::path directory_ =
+        std::filesystem::path(".") / "records"; ///< See setDirectory()
     std::map<std::string, std::shared_ptr<detail::GStreamCore>, std::less<>>
         streams_; ///< The open streams, by name
     std::map<std::string, std::vector<std::shared_ptr<GSink>>, std::less<>>
