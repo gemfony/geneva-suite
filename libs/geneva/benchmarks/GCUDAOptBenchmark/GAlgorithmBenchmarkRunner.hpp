@@ -93,13 +93,13 @@ struct BenchmarkConfig {
  * Registered per optimization run via algorithm->registerPluggableOM().
  * At INFOEND, extracts the algorithm's final state into public members.
  */
-class GBenchmarkTerminationMonitor final : public oa::GBasePluggableOM {
+class GBenchmarkTerminationMonitor final : public OA::GBasePluggableOM {
     ///////////////////////////////////////////////////////////////////////
 
     friend struct Gem::Weft::access;
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<oa::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
+        Gem::Common::archive_named_base<OA::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
     }
     ///////////////////////////////////////////////////////////////////////
 
@@ -115,11 +115,11 @@ public:
     bool targetReached{false};
 
 protected:
-    void load_(const oa::GBasePluggableOM *cp) override {
+    void load_(const OA::GBasePluggableOM *cp) override {
         const auto *p = dynamic_cast<const GBenchmarkTerminationMonitor *>(cp);
         if(!p)
             throw std::bad_cast{};
-        oa::GBasePluggableOM::load_(cp);
+        OA::GBasePluggableOM::load_(cp);
         finalFitness = p->finalFitness;
         finalIteration = p->finalIteration;
         terminationReason = p->terminationReason;
@@ -127,12 +127,12 @@ protected:
     }
 
 private:
-    oa::GBasePluggableOM *clone_() const override {
+    OA::GBasePluggableOM *clone_() const override {
         return new GBenchmarkTerminationMonitor(*this);
     }
 
     void
-    informationFunction_(infoMode mode, oa::GOptimizationAlgorithmBase const *const goa) override {
+    informationFunction_(infoMode mode, OA::GOptimizationAlgorithmBase const *const goa) override {
         if(mode != infoMode::INFOEND)
             return;
 
@@ -202,10 +202,10 @@ private:
     GBenchmarkRunResult runOne(
         const AlgorithmEntry &entry,
         std::uint32_t runIdx,
-        const gind::GFunctionIndividual::Config &indCfg
+        const Individuals::GFunctionIndividual::Config &indCfg
     );
 
-    static std::shared_ptr<oa::GOptimizationAlgorithmBase>
+    static std::shared_ptr<OA::GOptimizationAlgorithmBase>
     makeAlgorithm(const AlgorithmEntry &entry);
 
     static GAlgorithmBenchmarkResult aggregate(

@@ -135,7 +135,7 @@ std::ostream &operator<<(std::ostream &, const CircleTriangle &);
      * that most closely resembles a given picture. It was developed
      * for evaluation using CUDA on a GPU.
      */
-class GImageIndividual final : public gen::GGenomeT<GImageIndividual> {
+class GImageIndividual final : public Genome::GGenomeT<GImageIndividual> {
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
     // the private localMembers_() below (from which serialize/load_/compare_/clone_/name_ are generated).
@@ -214,13 +214,13 @@ public:
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /** @brief Builds the flat genome's labelled structure (per triangle: cx,cy,radius,3 angles,r,g,b,a,
      *  then 3 background colours), validating the configured ranges */
-    static gen::GenomeData buildGenome(const Config &c);
+    static Genome::GenomeData buildGenome(const Config &c);
     /** @brief Per-object post-config hook: sets the local members and random-inits the active parameters */
     static void applyConfig(GImageIndividual &ind, const Config &c);
     /** @brief The OA-owned main/location Gauss adaption config, authored from the labelled genome layout.
      *  Authored from the Config -- no adaptor data resides on the individual. */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
+    buildAdaptionConfig(const Genome::GGenome &sample, const Config &c);
 
     /** @brief Retrieves the number of triangles */
     std::size_t getNTriangles() const;

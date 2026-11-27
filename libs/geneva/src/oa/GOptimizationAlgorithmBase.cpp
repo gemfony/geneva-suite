@@ -595,7 +595,7 @@ GOptimizationAlgorithmBase &GOptimizationAlgorithmBase::optimize_(std::uint32_t 
     if(cp_interval_ != 0) {
         for(auto const &ind : *this) {
             static_cast<void>(
-                Gem::Weft::GPolymorphicRegistry<gen::GGenome::gemfony_common_root_t>::tagOf(*ind)
+                Gem::Weft::GPolymorphicRegistry<Genome::GGenome::gemfony_common_root_t>::tagOf(*ind)
             );
         }
     }
@@ -1478,7 +1478,7 @@ void GOptimizationAlgorithmBase::addConfigurationOptions_(Gem::Common::GParserBu
 	 * @param best_individuals The priority queue to which the current population's individuals are added (best ones are cloned in)
 	 */
 void GOptimizationAlgorithmBase::updateGlobalBestsPQ_(
-    gen::GGenomeFixedSizePriorityQueue &best_individuals
+    Genome::GGenomeFixedSizePriorityQueue &best_individuals
 ) {
     constexpr bool donotreplace = false;
 
@@ -1500,7 +1500,7 @@ void GOptimizationAlgorithmBase::updateGlobalBestsPQ_(
 	 * @param best_individuals The priority queue to which the current population's individuals are added (cloned in, replacing prior content)
 	 */
 void GOptimizationAlgorithmBase::updateIterationBestsPQ_(
-    gen::GGenomeFixedSizePriorityQueue &best_individuals
+    Genome::GGenomeFixedSizePriorityQueue &best_individuals
 ) {
     constexpr bool replace = true;
 
@@ -1521,7 +1521,7 @@ void GOptimizationAlgorithmBase::updateIterationBestsPQ_(
 	 * @param best_individuals The priority queue to which the already-processed (clean) individuals of this population are added
 	 */
 void GOptimizationAlgorithmBase::addCleanStoredBests(
-    gen::GGenomeFixedSizePriorityQueue &best_individuals
+    Genome::GGenomeFixedSizePriorityQueue &best_individuals
 ) {
     // We simply offer every individual of this population to the archive: it admits only the
     // processed ones (its own isValid() rule), keeps only the best, and stores independent copies --
@@ -1581,7 +1581,7 @@ bool GOptimizationAlgorithmBase::cp_mnemonic_fits(const std::filesystem::path &p
 	 * @return A struct which indicates whether all items have returned ("is_complete") and whether there were errors ("has_errors")
 	 */
 Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOn(
-    std::vector<std::unique_ptr<gen::GGenome>> &work_items,
+    std::vector<std::unique_ptr<Genome::GGenome>> &work_items,
     std::size_t start,
     std::size_t end
 ) {
@@ -1601,7 +1601,7 @@ void GOptimizationAlgorithmBase::discardUnusableItems_(
     const Gem::Courtier::submission_status_t &status
 ) {
     if(not status.is_complete) {
-        std::erase_if(data_cnt_, [](const std::unique_ptr<gen::GGenome> &p) -> bool {
+        std::erase_if(data_cnt_, [](const std::unique_ptr<Genome::GGenome> &p) -> bool {
             return (p->getProcessingStatus() == Gem::Courtier::processingStatus::DO_PROCESS);
         });
     }
@@ -1614,7 +1614,7 @@ void GOptimizationAlgorithmBase::discardUnusableItems_(
 /******************************************************************************/
 /**
  * Submits the population's [start, end) range for evaluation. The population element IS the work item
- * (a gen::GGenome carrying its own OA scratch), so the population vector is the submission
+ * (a Genome::GGenome carrying its own OA scratch), so the population vector is the submission
  * vector: workOn() submits a span over the live sub-range and reconciles it in place. No move-out /
  * move-back is needed -- the scratch rides along on each individual untouched.
  *
@@ -1643,7 +1643,7 @@ GOptimizationAlgorithmBase::workOnPopulation(std::size_t start, std::size_t end)
  * @return A struct indicating whether all items returned ("is_complete") and whether there were errors ("has_errors")
  */
 Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOnViaConsumer_(
-    std::vector<std::unique_ptr<gen::GGenome>> &work_items,
+    std::vector<std::unique_ptr<Genome::GGenome>> &work_items,
     std::size_t start,
     std::size_t end
 ) {
@@ -1658,7 +1658,7 @@ Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOnViaConsumer
     // transport-agnostic: it submits through the one process-wide consumer and gets back a fully
     // reconciled span. The submission policy is the algorithm's choice (clone-on-partial-return vs
     // full-success-or-fatal).
-    std::span<std::unique_ptr<gen::GGenome>> const sp(work_items.data() + start, end - start);
+    std::span<std::unique_ptr<Genome::GGenome>> const sp(work_items.data() + start, end - start);
     auto consumer = this->consumerForSubmission_();
     consumer->processBatch(sp, this->getSubmissionPolicy_());
 
@@ -1679,10 +1679,10 @@ Gem::Courtier::submission_status_t GOptimizationAlgorithmBase::workOnViaConsumer
  *
  * @return The shared consumer this algorithm submits through
  */
-std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>>
+std::shared_ptr<Gem::Courtier::GBaseConsumerT<Genome::GGenome>>
 GOptimizationAlgorithmBase::consumerForSubmission_() {
     auto consumer =
-        Gem::Courtier::ensureProcessConsumer<gen::GGenome>(Gem::Geneva::consumerModules());
+        Gem::Courtier::ensureProcessConsumer<Genome::GGenome>(Gem::Geneva::consumerModules());
     // Enable the late-return buffer -- but ONLY for algorithms that actually reap late returns
     // (reapsLateReturns()); a non-reaping algorithm (gradient descent, parameter scan, ...) passes cap 0
     // so nothing is retained on its behalf. For a reaper the cap scales with the live population
@@ -1707,11 +1707,11 @@ GOptimizationAlgorithmBase::consumerForSubmission_() {
  *
  * @return A vector of integrable (clean, de-duplicated) late-returned individuals the consumer buffered
  */
-std::vector<std::unique_ptr<gen::GGenome>> GOptimizationAlgorithmBase::getOldWorkItems() const {
+std::vector<std::unique_ptr<Genome::GGenome>> GOptimizationAlgorithmBase::getOldWorkItems() const {
     // Reap any LATE returns the consumer buffered -- results that came back after their batch had
     // already been reconciled in place (empty for a local consumer; a networked consumer hands back its
     // bounded late-return buffer). The OA folds the integrable individuals into the next selection.
-    auto consumer = Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().consumer();
+    auto consumer = Gem::Courtier::GConsumerRegistryT<Genome::GGenome>::instance().consumer();
     if(not consumer) {
         return {};
     }
@@ -1749,7 +1749,7 @@ std::vector<std::unique_ptr<gen::GGenome>> GOptimizationAlgorithmBase::getOldWor
  * @param seen The set of already-represented submission UUIDs (updated with survivors)
  */
 void GOptimizationAlgorithmBase::retainIntegrableLateReturns(
-    std::vector<std::unique_ptr<gen::GGenome>> &items,
+    std::vector<std::unique_ptr<Genome::GGenome>> &items,
     std::set<Gem::Courtier::SUBMISSION_UUID_TYPE> &seen
 ) {
     // VALIDITY: keep only clean successes. is_processed() and has_errors() are mutually exclusive states,
@@ -1811,10 +1811,10 @@ void GOptimizationAlgorithmBase::saveCheckpoint(std::filesystem::path const &out
  *
  * @return A sole-ownership pointer to a clone of the globally best individual found so far
  */
-std::unique_ptr<gen::GGenome> GOptimizationAlgorithmBase::getBestGlobalIndividual_() const {
+std::unique_ptr<Genome::GGenome> GOptimizationAlgorithmBase::getBestGlobalIndividual_() const {
     // best() throws on an empty archive and the archive never admits an empty handle, so the entry
     // is known to be there. Always clone: the archive solely owns its entries and callers get a copy.
-    return best_global_individuals_pq_.best()->clone<gen::GGenome>();
+    return best_global_individuals_pq_.best()->clone<Genome::GGenome>();
 }
 
 /******************************************************************************/
@@ -1824,13 +1824,13 @@ std::unique_ptr<gen::GGenome> GOptimizationAlgorithmBase::getBestGlobalIndividua
  *
  * @return A vector of sole-ownership pointers to clones of the globally best individuals found so far
  */
-std::vector<std::unique_ptr<gen::GGenome>>
+std::vector<std::unique_ptr<Genome::GGenome>>
 GOptimizationAlgorithmBase::getBestGlobalIndividuals_() const {
-    std::vector<std::unique_ptr<gen::GGenome>> best_individuals_vec;
+    std::vector<std::unique_ptr<Genome::GGenome>> best_individuals_vec;
     best_individuals_vec.reserve(best_global_individuals_pq_.size());
 
     for(const auto &ind_ptr : best_global_individuals_pq_) {
-        best_individuals_vec.push_back(ind_ptr->clone<gen::GGenome>());
+        best_individuals_vec.push_back(ind_ptr->clone<Genome::GGenome>());
     }
 
     return best_individuals_vec;
@@ -1843,9 +1843,9 @@ GOptimizationAlgorithmBase::getBestGlobalIndividuals_() const {
  *
  * @return A sole-ownership pointer to a clone of the best individual of the current iteration
  */
-std::unique_ptr<gen::GGenome> GOptimizationAlgorithmBase::getBestIterationIndividual_() const {
+std::unique_ptr<Genome::GGenome> GOptimizationAlgorithmBase::getBestIterationIndividual_() const {
     // See getBestGlobalIndividual_(): best() throws on an empty archive, and the caller gets a copy.
-    return best_iteration_individuals_pq_.best()->clone<gen::GGenome>();
+    return best_iteration_individuals_pq_.best()->clone<Genome::GGenome>();
 }
 
 /******************************************************************************/
@@ -1855,16 +1855,16 @@ std::unique_ptr<gen::GGenome> GOptimizationAlgorithmBase::getBestIterationIndivi
  *
  * @return A vector of sole-ownership pointers to clones of the current iteration's best individuals
  */
-std::vector<std::unique_ptr<gen::GGenome>>
+std::vector<std::unique_ptr<Genome::GGenome>>
 GOptimizationAlgorithmBase::getBestIterationIndividuals_() const {
-    std::vector<std::unique_ptr<gen::GGenome>> best_individuals_vec;
+    std::vector<std::unique_ptr<Genome::GGenome>> best_individuals_vec;
     best_individuals_vec.reserve(best_iteration_individuals_pq_.size());
 
     // Clone, exactly like the global-best accessor above: this used to hand out the archive's own
     // entries, which contradicted both the documented contract ("copies") and its own sibling. The
     // archive owns its individuals outright now, so the copy is no longer optional.
     for(const auto &ind_ptr : best_iteration_individuals_pq_) {
-        best_individuals_vec.push_back(ind_ptr->clone<gen::GGenome>());
+        best_individuals_vec.push_back(ind_ptr->clone<Genome::GGenome>());
     }
 
     return best_individuals_vec;
@@ -1891,7 +1891,8 @@ void GOptimizationAlgorithmBase::setIndividualPersonalities() {
         // (where the post-processor already lives) and is consulted by GGenome::postProcess_().
         auto pp = ind->postProcessor();
         if(pp) {
-            auto post_processor = std::dynamic_pointer_cast<GPostProcessorBaseT<gen::GGenome>>(pp);
+            auto post_processor =
+                std::dynamic_pointer_cast<GPostProcessorBaseT<Genome::GGenome>>(pp);
             const bool eligible =
                 post_processor and post_processor->postProcessingAllowedFor(oa_mnemonic);
             ind->vetoPostProcessing(not eligible);

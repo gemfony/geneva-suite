@@ -39,8 +39,8 @@
  * precision instead, so FP32 vs FP64 can be compared.
  *
  *   gimage_fp_t                  the scalar type used everywhere in the example.
- *   GIMAGE_CONSTRAINED_OBJECT    the constrained parameter object class (in namespace gen).
- *   GIMAGE_GAUSS_ADAPTOR         the Gauss adaptor class (in namespace gen).
+ *   GIMAGE_CONSTRAINED_OBJECT    the constrained parameter object class (in namespace Genome).
+ *   GIMAGE_GAUSS_ADAPTOR         the Gauss adaptor class (in namespace Genome).
  *   GIMAGE_DEFAULT_GPUCONFIG     the default GPU-consumer config (selects the matching kernel).
  */
 

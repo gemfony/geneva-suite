@@ -33,4 +33,4 @@
 
 // Make sure the instantiation with GGenome as template argument can be serialized through a GArchive
 // codec: GEM_REGISTER_ARCHIVABLE registers the concrete type, once, in this translation unit.
-GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GCheckCombinerT<gen::GGenome>) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Gem::Geneva::GCheckCombinerT<Genome::GGenome>) // NOLINT

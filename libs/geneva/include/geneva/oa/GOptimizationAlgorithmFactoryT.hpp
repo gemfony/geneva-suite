@@ -100,7 +100,7 @@ public:
      */
     GOptimizationAlgorithmFactoryT(
         std::filesystem::path const &config_file,
-        std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> content_creator_ptr
+        std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> content_creator_ptr
     )
       : GOAFactoryT<GOptimizationAlgorithmBase>(
             config_file,

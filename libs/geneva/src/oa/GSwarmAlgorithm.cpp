@@ -136,7 +136,7 @@ void GSwarmAlgorithm::resetToOptimizationStart_() {
 
     global_best_ptr_.reset(); // The globally best individual
 
-    neighborhood_bests_cnt_ = std::vector<std::shared_ptr<gen::GGenome>>(
+    neighborhood_bests_cnt_ = std::vector<std::shared_ptr<Genome::GGenome>>(
         n_neighborhoods_
     ); // The collection of best individuals from each neighborhood
 
@@ -266,7 +266,7 @@ std::size_t GSwarmAlgorithm::getLastNIPos(const std::size_t &neighborhood) const
  *
  * @param ind_ptr A reference to the unique_ptr-owned individual whose personal best should be (re)registered
  */
-void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &ind_ptr) {
+void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<Genome::GGenome> &ind_ptr) {
     checkThat(nullptr != ind_ptr, "Got empty ind_ptr");
     checkThat(
         not ind_ptr->is_due_for_processing() && not ind_ptr->has_errors(),
@@ -279,7 +279,7 @@ void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &in
     // The archive (personal_best_) keeps its own shared_ptr copy; the population owns the live
     // individual by unique_ptr, so we hand registerPersonalBest a clone across the ownership boundary.
     ind_ptr->getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()->registerPersonalBest(
-        ind_ptr->clone<gen::GGenome>()
+        ind_ptr->clone<Genome::GGenome>()
     );
 }
 
@@ -289,7 +289,7 @@ void GSwarmAlgorithm::updatePersonalBest(const std::unique_ptr<gen::GGenome> &in
  *
  * @param ind_ptr A reference to the unique_ptr-owned individual whose personal best should be updated when its current position is better
  */
-void GSwarmAlgorithm::updatePersonalBestIfBetter(const std::unique_ptr<gen::GGenome> &ind_ptr) {
+void GSwarmAlgorithm::updatePersonalBestIfBetter(const std::unique_ptr<Genome::GGenome> &ind_ptr) {
     checkThat(nullptr != ind_ptr, "Got empty ind_ptr");
     checkThat(
         not ind_ptr->is_due_for_processing() && not ind_ptr->has_errors(),
@@ -310,7 +310,7 @@ void GSwarmAlgorithm::updatePersonalBestIfBetter(const std::unique_ptr<gen::GGen
            m
        )) {
         ind_ptr->getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()->registerPersonalBest(
-            ind_ptr->clone<gen::GGenome>()
+            ind_ptr->clone<Genome::GGenome>()
         );
     }
 }
@@ -670,7 +670,7 @@ void GSwarmAlgorithm::updatePositions() {
             slot->scratch().installAuxBlock<double>(
                 AUXKEY_SWARM_VELOCITY,
                 n_fp_parms_,
-                gen::AuxScope::PerIndividual
+                Genome::AuxScope::PerIndividual
             );
             std::span<double> const vel =
                 slot->scratch().metaRecords<double>(AUXKEY_SWARM_VELOCITY);
@@ -687,7 +687,7 @@ void GSwarmAlgorithm::updatePositions() {
     if(afterFirstIteration()) {
         // Clone the individuals and copy them over
         for(const auto &ind_ptr : *this) {
-            last_iteration_individuals_cnt_.push_back(ind_ptr->clone<gen::GGenome>());
+            last_iteration_individuals_cnt_.push_back(ind_ptr->clone<Genome::GGenome>());
         }
     }
 
@@ -770,9 +770,9 @@ void GSwarmAlgorithm::updatePositions() {
 // NOLINTNEXTLINE(readability-function-size) -- single coherent numeric kernel: the classic PSO velocity/position update (personal/neighborhood/global attraction terms scaled by the update-rule switch, velocity scaling, pruning, then the repulsion/attraction position step), all operating on the same extracted vectors
 void GSwarmAlgorithm::updateIndividualPositions(
     [[maybe_unused]] const std::size_t &neighborhood,
-    const std::unique_ptr<gen::GGenome> &ind,
-    const std::shared_ptr<gen::GGenome> &neighborhood_best,
-    const std::shared_ptr<gen::GGenome> &global_best,
+    const std::unique_ptr<Genome::GGenome> &ind,
+    const std::shared_ptr<Genome::GGenome> &neighborhood_best,
+    const std::shared_ptr<Genome::GGenome> &global_best,
     std::tuple<double, double, double, double> constants
 ) {
     // Extract the constants from the tuple
@@ -784,7 +784,7 @@ void GSwarmAlgorithm::updateIndividualPositions(
     checkThat(nullptr != ind, "Found empty individual \"ind\"");
 
     // Extract the personal best
-    std::shared_ptr<gen::GGenome> const personal_best =
+    std::shared_ptr<Genome::GGenome> const personal_best =
         ind->getPersonalityTraits<GSwarmAlgorithm_PersonalityTraits>()->getPersonalBest();
 
     // Further error checks
@@ -1067,7 +1067,7 @@ void GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(maxMode m) {
         // the best individual found so far in this neighborhood
         if(inFirstIteration()) {
             neighborhood_bests_cnt_.at(n) =
-                (*(this->begin() + first_counter))->clone<gen::GGenome>();
+                (*(this->begin() + first_counter))->clone<Genome::GGenome>();
         }
         else {
             if(isBetter(
@@ -1111,7 +1111,7 @@ void GSwarmAlgorithm::updateGlobalBest(maxMode m) {
     // Compare the best neighborhood individual with the globally best individual and
     // update it, if necessary. Initialize it in the first generation.
     if(inFirstIteration()) {
-        global_best_ptr_ = (neighborhood_bests_cnt_.at(best_local_id))->clone<gen::GGenome>();
+        global_best_ptr_ = (neighborhood_bests_cnt_.at(best_local_id))->clone<Genome::GGenome>();
     }
     else {
         if(isBetter(

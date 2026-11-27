@@ -1192,7 +1192,7 @@ void GNeuralNetworkIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, 
  * @param c The Config providing the [min_var, max_var) init range / perimeter for each weight
  * @return The built flat genome (GenomeData) holding one double per network weight, layer-concatenated
  */
-gen::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
+Genome::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
     using namespace Gem::Hap;
 
     auto n_d = nnTrainingDataStore();
@@ -1208,7 +1208,7 @@ gen::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
     GRandom gr_l;
     std::uniform_real_distribution<double> uniform_real_distribution(c.min_var, c.max_var);
 
-    gen::GGenomeBuilder gb;
+    Genome::GGenomeBuilder gb;
     std::size_t layer_number = 0;
     std::size_t n_nodes_previous = 0;
     for(const auto &layer_n_nodes : *n_d) {
@@ -1245,9 +1245,9 @@ gen::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
  * @return A std::shared_ptr to the populated OA-owned adaption config
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GNeuralNetworkIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+GNeuralNetworkIndividual::buildAdaptionConfig(const Genome::GGenome &sample, const Config &c) {
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         cfg->groupDouble(i).gauss(
             c.sigma,

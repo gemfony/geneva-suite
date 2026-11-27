@@ -104,8 +104,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `std::vector<double> evaluate()` returning the raw vector.
 - **The genome is pure data; mutation lives on the algorithm.** Adaptors are no longer
   attached to parameters. Author them on an **OA-owned `GAdaptionConfig`** (via
-  `oa::makeAdaptionConfig<...>(genome)` and the fluent API) and distribute it
-  (`setAdaptionConfig`, `GOptimizer::registerAdaptionConfig`, or `oa::StandaloneAdapter`). An
+  `OA::makeAdaptionConfig<...>(genome)` and the fluent API) and distribute it
+  (`setAdaptionConfig`, `GOptimizer::registerAdaptionConfig`, or `OA::StandaloneAdapter`). An
   adapting algorithm with **no** config is a hard error — there is no auto-derivation.
 - **OA state removed from the individual.** The per-individual best-known-fitness and
   stall counters are gone (that bookkeeping lives only on the algorithm). The
@@ -683,6 +683,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GENEVA_DECLARE_INDIVIDUAL()`, install paths, image and package names, `genevaConfig.gcfg`
   and its keys, the keys of configuration files and the command-line options of programs, and
   everything of the geneva library (`Gem::Geneva`).
+
+- **geneva's namespace aliases are `OA`, `Genome`, `Individuals` and `Benchmarks`** (were
+  `oa`, `gen`, `gind` and `gbm`), declared in `geneva/GNamespaceAliases.hpp` for
+  `Gem::Geneva::OptimizationAlgorithms`, `::Genome`, `::Individuals` and `::Benchmarks`:
+  `OA::GEvolutionaryAlgorithm`, `Genome::GGenomeBuilder`. The old names are gone; a program
+  that used them replaces them. Under `using namespace Gem::Geneva;` the alias `Genome` and
+  the namespace `Gem::Geneva::Genome` name the same namespace, so `Genome::` is not ambiguous.
 
 - **A parameter-scan or profile specification carries no label.** A variable is addressed by
   its index in the value channel of its type (`d(0, -1., 1., 10)`); a trailing label such as

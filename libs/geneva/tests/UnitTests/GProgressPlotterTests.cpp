@@ -56,8 +56,8 @@
 #include "geneva/oa/GMonitorStream.hpp"
 #include "geneva/oa/GPluggableOptimizationMonitors.hpp"
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 using Gem::Common::Record::recorder;
 
 namespace {
@@ -67,20 +67,20 @@ namespace {
  * A tiny flat-genome sphere: three constrained doubles in [-5, 5), sharing one Gauss group, started at
  * 2.0. Enough to give the monitors a profileable parameter (index 0) and a real, evaluated fitness.
  */
-class Sphere3 : public gen::GGenomeT<Sphere3> {
+class Sphere3 : public Genome::GGenomeT<Sphere3> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     Sphere3() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(3, -5., 5.).init(2.0);
         this->setGenome(b.build());
     }
     Sphere3(const Sphere3 &) = default;
 
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.05, 0.8, 1e-9, 5., 1.);
         return cfg;
     }
@@ -146,12 +146,12 @@ std::vector<std::string> linesOf(const std::filesystem::path &file) {
  * streams as the launcher does at the end of a run
  */
 void runUnder(
-    const std::shared_ptr<oa::GBasePluggableOM> &monitor,
+    const std::shared_ptr<OA::GBasePluggableOM> &monitor,
     std::size_t population = 12,
     std::size_t parents = 4,
     Gem::Geneva::sortingMode sorting = Gem::Geneva::sortingMode::MUPLUSNU_SINGLEEVAL
 ) {
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(population, parents);
     p->setMaxIteration(4);
     p->setReportIteration(1);
@@ -425,7 +425,7 @@ TEST_CASE(
     transformed->setStreamName("transformed");
     CHECK(transformed->getFitnessOnly());
 
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(8, 2);
     p->setMaxIteration(2);
     p->setReportIteration(1);
@@ -450,7 +450,7 @@ TEST_CASE(
 
 TEST_CASE("Two monitors of one class need different stream names", "[monitor][oa]") {
     RecordDirectory const dir("twice");
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(8, 2);
     p->setMaxIteration(2);
     p->setReportIteration(1);
@@ -474,13 +474,13 @@ TEST_CASE("A copy of a monitor's stream holder is empty", "[monitor][oa]") {
     // The holder lets every monitor keep a defaulted copy constructor: copying a monitor copies its
     // configuration, never its stream, so a clone declares a stream of its own.
     RecordDirectory const dir("copy");
-    oa::GEvolutionaryAlgorithm const ea;
-    oa::GMonitorStream original;
+    OA::GEvolutionaryAlgorithm const ea;
+    OA::GMonitorStream original;
     REQUIRE_FALSE(original.isOpen());
     original
         .declare("copied", {{.name = "n", .type = Gem::Common::Record::columnType::UNSIGNED}}, ea);
     REQUIRE(original.isOpen());
-    oa::GMonitorStream copy(original);
+    OA::GMonitorStream copy(original);
     CHECK_FALSE(copy.isOpen());
     CHECK(original.isOpen());
     copy = original;

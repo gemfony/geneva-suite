@@ -56,26 +56,26 @@
 #include "geneva/oa/GMetaEvolutionaryAlgorithm.hpp"
 #include "hap/GRandomFactory.hpp"
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace {
 
 /** @brief A tiny flat sphere: 3 constrained doubles in [-5, 5), started at 3.0. The inner problem. */
-class InnerSphere : public gen::GGenomeT<InnerSphere> {
+class InnerSphere : public Genome::GGenomeT<InnerSphere> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     InnerSphere() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(3, -5., 5.).init(3.0);
         this->setGenome(b.build());
     }
     InnerSphere(const InnerSphere &) = default;
 
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         return cfg;
     }
@@ -96,27 +96,27 @@ protected:
  * (un-injected) submission path -- i.e. exactly the nesting the invariant targets. Its own genome is
  * one constrained double (so the outer EA has something to adapt); the value is unused.
  */
-class MetaSphere : public gen::GGenomeT<MetaSphere> {
+class MetaSphere : public Genome::GGenomeT<MetaSphere> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     MetaSphere() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(1, -5., 5.).init(3.0);
         this->setGenome(b.build());
     }
     MetaSphere(const MetaSphere &) = default;
 
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         return cfg;
     }
 
 protected:
     std::vector<double> evaluate() override {
-        auto inner = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto inner = std::make_shared<OA::GEvolutionaryAlgorithm>();
         inner->setPopulationSizes(4, 2);
         inner->setMaxIteration(2);
         inner->setReportIteration(100000);
@@ -142,8 +142,8 @@ protected:
 /******************************************************************************/
 
 TEST_CASE("Consumer registry holds one consumer", "[consumer][sharing][registry]") {
-    using Registry = Gem::Courtier::GConsumerRegistryT<gen::GGenome>;
-    using consumer_t = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
+    using Registry = Gem::Courtier::GConsumerRegistryT<Genome::GGenome>;
+    using consumer_t = Gem::Courtier::GStdThreadConsumerT<Genome::GGenome>;
 
     auto &reg = Registry::instance();
     reg.clear();
@@ -176,7 +176,7 @@ TEST_CASE(
     "Concurrent algorithms fan in to one shared thread-pool consumer",
     "[consumer][sharing][stress]"
 ) {
-    using StcConsumer = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
+    using StcConsumer = Gem::Courtier::GStdThreadConsumerT<Genome::GGenome>;
 
     // The shared thread-pool consumer is meant to serve several algorithms at once (the fan-in case):
     // each submitter waits on its OWN per-batch counter in dispatch_, not a global pool drain. Here K
@@ -186,7 +186,7 @@ TEST_CASE(
     // per-algorithm oversubscription). The submitting threads are NOT pool workers, so they block on
     // their batches while the pool drains them -- no pool-reentrancy (a nested EA-in-EA on the SAME pool
     // would instead be split across kinds; see the two-tier meta-optimization model).
-    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().clear();
+    Gem::Courtier::GConsumerRegistryT<Genome::GGenome>::instance().clear();
     StcConsumer::instances_constructed().store(0);
 
     constexpr int K = 4;
@@ -196,7 +196,7 @@ TEST_CASE(
     threads.reserve(K);
     for(int t = 0; t < K; ++t) {
         threads.emplace_back([t, &results]() {
-            auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+            auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
             ea->setPopulationSizes(12, 4);
             ea->setMaxIteration(40);
             ea->setReportIteration(100000);
@@ -225,7 +225,7 @@ TEST_CASE(
     }
     CHECK(StcConsumer::instances_constructed().load() == 1); // one shared pool for all K algorithms
 
-    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().clear();
+    Gem::Courtier::GConsumerRegistryT<Genome::GGenome>::instance().clear();
 }
 
 /******************************************************************************/
@@ -234,7 +234,7 @@ TEST_CASE(
     "Meta-EA evaluates umbrella-individuals on its own pool; sub-EAs share the one work consumer",
     "[consumer][sharing][metaea]"
 ) {
-    using StcConsumer = Gem::Courtier::GStdThreadConsumerT<gen::GGenome>;
+    using StcConsumer = Gem::Courtier::GStdThreadConsumerT<Genome::GGenome>;
 
     // The meta-EA evaluates its umbrella-individuals (MetaSphere -- each runs an inner EA) on its OWN
     // orchestration pool, NOT the work consumer. The inner EAs, un-injected, all converge on the one
@@ -242,10 +242,10 @@ TEST_CASE(
     // umbrella-individual blocking on its inner EA never starves the pool it runs on -- no deadlock. (A
     // plain EA here would instead evaluate the umbrellas on the work consumer, whose workers would then
     // block on inner work posted back to the same pool -- the deadlock the meta-EA exists to avoid.)
-    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().clear();
+    Gem::Courtier::GConsumerRegistryT<Genome::GGenome>::instance().clear();
     StcConsumer::instances_constructed().store(0);
 
-    auto meta = std::make_shared<oa::GMetaEvolutionaryAlgorithm>();
+    auto meta = std::make_shared<OA::GMetaEvolutionaryAlgorithm>();
     meta->setPopulationSizes(4, 2);
     meta->setMaxIteration(1);
     meta->setReportIteration(100000);
@@ -261,5 +261,5 @@ TEST_CASE(
     // pool is not a consumer, so it does not add to this count.
     CHECK(StcConsumer::instances_constructed().load() == 1);
 
-    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().clear();
+    Gem::Courtier::GConsumerRegistryT<Genome::GGenome>::instance().clear();
 }

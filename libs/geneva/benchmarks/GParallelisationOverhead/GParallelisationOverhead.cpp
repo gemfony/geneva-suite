@@ -84,11 +84,12 @@ int main(int argc, char **argv) {
          .produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
              //---------------------------------------------------------------------
              // Read the delay-individual configuration for reference measurements ...
-             auto delay_config_ref =
-                 gind::GDelayIndividual::readConfig("./config/GDelayIndividual-reference.json");
+             auto delay_config_ref = Individuals::GDelayIndividual::readConfig(
+                 "./config/GDelayIndividual-reference.json"
+             );
              // ... and for parallel measurements
              auto delay_config_par =
-                 gind::GDelayIndividual::readConfig("./config/GDelayIndividual.json");
+                 Individuals::GDelayIndividual::readConfig("./config/GDelayIndividual.json");
 
              // Add default optimization algorithms to the parallel GOptimizer object
              go.registerDefaultAlgorithm("ea");
@@ -103,13 +104,13 @@ int main(int argc, char **argv) {
              //---------------------------------------------------------------------
              // The reference run measures and stores the line; the parallel run reads it, measures and
              // writes the results.
-             const auto to_schedule = [](const gind::GDelayIndividual::Config &c) {
+             const auto to_schedule = [](const Individuals::GDelayIndividual::Config &c) {
                  SpeedupMeasurement::Schedule schedule{
                      .n_measurements = c.n_measurements,
                      .inter_measurement_delay = c.inter_measurement_delay
                  };
-                 for(const auto &delay : gind::GDelayIndividual::parseSleepTimes(c)) {
-                     schedule.delays.push_back(gind::GDelayIndividual::tupleToTime(delay));
+                 for(const auto &delay : Individuals::GDelayIndividual::parseSleepTimes(c)) {
+                     schedule.delays.push_back(Individuals::GDelayIndividual::tupleToTime(delay));
                  }
                  return schedule;
              };
@@ -121,8 +122,8 @@ int main(int argc, char **argv) {
                  to_schedule(delay_config_ref),
                  to_schedule(delay_config_par),
                  [&delay_config](const std::chrono::duration<double> &delay)
-                     -> std::shared_ptr<gen::GGenome> {
-                     return gind::GDelayIndividual::create(delay_config, delay);
+                     -> std::shared_ptr<Genome::GGenome> {
+                     return Individuals::GDelayIndividual::create(delay_config, delay);
                  },
                  delay_config_par.result_file,
                  delay_config_par.short_result_file

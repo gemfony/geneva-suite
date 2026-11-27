@@ -113,7 +113,7 @@ bool parseCommandLine(
     std::size_t &parDim,
     double &minVar,
     double &maxVar,
-    gind::solverFunction &df
+    Individuals::solverFunction &df
 ) {
     std::uint16_t evalFunction = 0;
 
@@ -284,11 +284,11 @@ bool parseCommandLine(
     }
 
     // Assign the demo function
-    if(evalFunction > static_cast<std::uint16_t>(gind::MAXDEMOFUNCTION)) {
+    if(evalFunction > static_cast<std::uint16_t>(Individuals::MAXDEMOFUNCTION)) {
         std::cout << "Error: Invalid evaluation function: " << evalFunction << std::endl;
         return false;
     }
-    df = (gind::solverFunction)evalFunction;
+    df = (Individuals::solverFunction)evalFunction;
 
     return true;
 }
@@ -304,7 +304,7 @@ int main(int argc, char **argv) {
     // factory's) from code defaults, then exit without running the benchmark.
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         Gem::Common::beginConfigEmission();
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
+        Individuals::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
         Gem::Common::finishConfigEmission();
         return 0;
     }
@@ -322,7 +322,7 @@ int main(int argc, char **argv) {
     double minVar = NAN;
     double maxVar = NAN;
     sortingMode smode;
-    gind::solverFunction df;
+    Individuals::solverFunction df;
     std::uint32_t adaptionThreshold = 0;
     double sigma = NAN;
     double sigmaSigma = NAN;
@@ -364,23 +364,23 @@ int main(int argc, char **argv) {
     //***************************************************************************
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    gind::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
+    Individuals::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
 
     // Create the first set of parent individuals. Initialization of parameters is done randomly.
-    std::vector<std::shared_ptr<gen::GGenome>> parentIndividuals;
+    std::vector<std::shared_ptr<Genome::GGenome>> parentIndividuals;
     for(std::size_t p = 0; p < nParents; p++) {
-        std::shared_ptr<gen::GGenome> const functionIndividual_ptr = gfi();
+        std::shared_ptr<Genome::GGenome> const functionIndividual_ptr = gfi();
 
         // Give the individual a genome of `parDim` unbounded doubles in [minVar, maxVar[, sharing one
         // Gauss adaptor (the flat-genome equivalent of a GDoubleCollection). This replaces the
         // factory-produced genome with the benchmark's command-line geometry.
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoublePlainGroup(
             parDim,
             minVar,
             maxVar
         ); // structure only; the adaptor lives on the OA config
-        dynamic_cast<gen::GGenome &>(*functionIndividual_ptr).setGenome(b.build());
+        dynamic_cast<Genome::GGenome &>(*functionIndividual_ptr).setGenome(b.build());
 
         parentIndividuals.push_back(functionIndividual_ptr);
     }
@@ -388,7 +388,7 @@ int main(int argc, char **argv) {
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // We can now start creating populations. Executors are registered for different execution modes
 
-    auto const pop_ptr = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto const pop_ptr = std::make_shared<OA::GEvolutionaryAlgorithm>();
 
     // Both modes are local: build and register the ONE process-wide consumer, stc with one thread
     // (serial) or with nEvaluationThreads (multi-threaded).
@@ -405,7 +405,7 @@ int main(int argc, char **argv) {
             config.nThreads = static_cast<unsigned int>(nEvaluationThreads);
             break;
         }
-        Gem::Courtier::buildConsumer<gen::GGenome>(config, Gem::Geneva::consumerModules());
+        Gem::Courtier::buildConsumer<Genome::GGenome>(config, Gem::Geneva::consumerModules());
     }
 
     // Add individuals to the population
@@ -416,8 +416,8 @@ int main(int argc, char **argv) {
     // The EA's Gauss adaptor now lives on the OA-owned config (authored here from the shared genome
     // geometry), not baked into the genome layout. Hand it to the population.
     {
-        const auto &flat0 = dynamic_cast<const gen::GGenome &>(*parentIndividuals[0]);
-        auto cfg = oa::makeAdaptionConfig<oa::GEAAdaptionConfig>(flat0);
+        const auto &flat0 = dynamic_cast<const Genome::GGenome &>(*parentIndividuals[0]);
+        auto cfg = OA::makeAdaptionConfig<OA::GEAAdaptionConfig>(flat0);
         cfg->groupDouble(0)
             .gauss(sigma, sigmaSigma, minSigma, maxSigma, adProb, 0., adaptionThreshold);
         pop_ptr->setAdaptionConfig(cfg);

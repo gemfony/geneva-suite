@@ -264,12 +264,12 @@ public:
 	  * The individual handed back is a fresh copy, solely owned by the caller — like every other
 	  * getBest* accessor, it cannot be used to modify the algorithm's own stored best.
 	  *
-	  * @tparam individual_type The target type to which the best individual is cast (must derive from gen::GGenome)
+	  * @tparam individual_type The target type to which the best individual is cast (must derive from Genome::GGenome)
 	  * @param neighborhood The neighborhood, whose best individual should be returned
 	  * @return A copy of the best individual of a given neighborhood, as sole owner
 	  */
     template <typename individual_type>
-        requires std::derived_from<individual_type, gen::GGenome>
+        requires std::derived_from<individual_type, Genome::GGenome>
     std::unique_ptr<individual_type> getBestNeighborhoodIndividual(std::size_t neighborhood) {
         Gem::Common::checkThat(
             neighborhood < n_neighborhoods_,
@@ -361,9 +361,9 @@ protected:
      */
     void updateIndividualPositions(
         const std::size_t &neighborhood,
-        const std::unique_ptr<gen::GGenome> &ind, // the population slot being moved (borrowed)
-        const std::shared_ptr<gen::GGenome> &neighborhood_best, // neighborhood best
-        const std::shared_ptr<gen::GGenome> &global_best,       // global best
+        const std::unique_ptr<Genome::GGenome> &ind, // the population slot being moved (borrowed)
+        const std::shared_ptr<Genome::GGenome> &neighborhood_best, // neighborhood best
+        const std::shared_ptr<Genome::GGenome> &global_best,       // global best
         std::tuple<double, double, double, double>
             constants // c_personal / c_neighborhood / c_global / c_velocity
     );                // (velocity now lives on the slot's OA scratch)
@@ -376,11 +376,11 @@ protected:
     /**
      * @brief Updates the personal best of an individual.
      */
-    static void updatePersonalBest(const std::unique_ptr<gen::GGenome> &ind_ptr);
+    static void updatePersonalBest(const std::unique_ptr<Genome::GGenome> &ind_ptr);
     /**
      * @brief Updates the personal best of an individual, if a better solution was found.
      */
-    void updatePersonalBestIfBetter(const std::unique_ptr<gen::GGenome> &ind_ptr);
+    void updatePersonalBestIfBetter(const std::unique_ptr<Genome::GGenome> &ind_ptr);
 
     std::size_t n_neighborhoods_ =
         (DEFAULTNNEIGHBORHOODS ? DEFAULTNNEIGHBORHOODS
@@ -394,10 +394,10 @@ protected:
         0
     ); ///< The current number of individuals belonging to each neighborhood
 
-    std::shared_ptr<gen::GGenome> global_best_ptr_; ///< The globally best individual
+    std::shared_ptr<Genome::GGenome> global_best_ptr_; ///< The globally best individual
 
-    std::vector<std::shared_ptr<gen::GGenome>> neighborhood_bests_cnt_ =
-        std::vector<std::shared_ptr<gen::GGenome>>(
+    std::vector<std::shared_ptr<Genome::GGenome>> neighborhood_bests_cnt_ =
+        std::vector<std::shared_ptr<Genome::GGenome>>(
             n_neighborhoods_
         ); ///< The collection of best individuals from each neighborhood
     // (Per-particle velocities now live on each individual's OA scratch as a POD double block --
@@ -427,7 +427,7 @@ protected:
         DEFAULTVELOCITYRANGEPERCENTAGE; ///< Indicates the percentage of a value range used for the initialization of the velocity
 
     /// transient: a copy of the last iteration's individuals, alive within one iteration
-    std::vector<std::shared_ptr<gen::GGenome>> last_iteration_individuals_cnt_;
+    std::vector<std::shared_ptr<Genome::GGenome>> last_iteration_individuals_cnt_;
 
 private:
     /***************************************************************************/

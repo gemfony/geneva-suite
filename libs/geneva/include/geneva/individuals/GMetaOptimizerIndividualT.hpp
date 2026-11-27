@@ -133,7 +133,7 @@ const std::string GMETAOPT_DEF_SUBEACONFIG =
  */
 template <typename ind_type = Gem::Geneva::Individuals::GFunctionIndividual>
 class GMetaOptimizerIndividualT // NOLINT(cppcoreguidelines-special-member-functions)
-  : public gen::GGenomeT<GMetaOptimizerIndividualT<ind_type>> {
+  : public Genome::GGenomeT<GMetaOptimizerIndividualT<ind_type>> {
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
     // the private localMembers_() below (load_/compare_/clone_/name_ are generated from it). serialize()
@@ -144,7 +144,7 @@ class GMetaOptimizerIndividualT // NOLINT(cppcoreguidelines-special-member-funct
 
     template <class archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<gen::GGenome>(ar, "gen::GGenome", *this);
+        Gem::Common::archive_named_base<Genome::GGenome>(ar, "gen::GGenome", *this);
         Gem::Common::serialize_members(ar, this->localMembers_());
         Gem::Common::archive_named(ar, "ind_factory_", ind_factory_);
     }
@@ -159,7 +159,7 @@ public:
      * The default constructor.
      */
     GMetaOptimizerIndividualT()
-      : gen::GGenomeT<GMetaOptimizerIndividualT<ind_type>>()
+      : Genome::GGenomeT<GMetaOptimizerIndividualT<ind_type>>()
       , n_runs_per_optimization_(GMETAOPT_DEF_NRUNSPEROPT)
       , fitness_target_(GMETAOPT_DEF_FITNESSTARGET)
       , iteration_threshold_(GMETAOPT_DEF_ITERATIONTHRESHOLD)
@@ -175,13 +175,13 @@ public:
      * @param cp A constant reference to another GMetaOptimizerIndividualT object
      */
     GMetaOptimizerIndividualT(const GMetaOptimizerIndividualT<ind_type> &cp)
-      : gen::GGenomeT<GMetaOptimizerIndividualT<ind_type>>(cp)
+      : Genome::GGenomeT<GMetaOptimizerIndividualT<ind_type>>(cp)
       , ind_factory_(
             // Not in the member list (load_() keeps the object's own factory). A copy deep-clones it
             // through GFactoryT's own clone(), which no member policy calls; a default-constructed
             // meta-optimizer has no factory yet, so only a present one is cloned.
             cp.ind_factory_ ? Gem::Common::g_ptr_conversion<
-                                  Gem::Common::GFactoryT<gen::GGenome>,
+                                  Gem::Common::GFactoryT<Genome::GGenome>,
                                   typename ind_type::FACTORYTYPE>((cp.ind_factory_)->clone())
                             : std::shared_ptr<typename ind_type::FACTORYTYPE>()
         ) {
@@ -313,7 +313,7 @@ public:
      * @return The number of parents currently encoded in the genome
      */
     std::size_t getNParents() const {
-        return static_cast<std::size_t>(readTuned().at(oa::ea_tunable::n_parents));
+        return static_cast<std::size_t>(readTuned().at(OA::ea_tunable::n_parents));
     }
 
     /***************************************************************************/
@@ -323,7 +323,7 @@ public:
      * @return The number of children currently encoded in the genome
      */
     std::size_t getNChildren() const {
-        return static_cast<std::size_t>(readTuned().at(oa::ea_tunable::n_children));
+        return static_cast<std::size_t>(readTuned().at(OA::ea_tunable::n_children));
     }
 
     /***************************************************************************/
@@ -334,8 +334,8 @@ public:
      */
     double getAdProb() const {
         const auto v = readTuned();
-        return v.at(oa::ea_tunable::min_ad_prob) +
-               (v.at(oa::ea_tunable::ad_prob_start_pct) * v.at(oa::ea_tunable::ad_prob_range));
+        return v.at(OA::ea_tunable::min_ad_prob) +
+               (v.at(OA::ea_tunable::ad_prob_start_pct) * v.at(OA::ea_tunable::ad_prob_range));
     }
 
     /***************************************************************************/
@@ -345,7 +345,7 @@ public:
      * @return The lower sigma boundary currently encoded in the genome
      */
     double getMinSigma() const {
-        return readTuned().at(oa::ea_tunable::min_sigma);
+        return readTuned().at(OA::ea_tunable::min_sigma);
     }
 
     /***************************************************************************/
@@ -355,7 +355,7 @@ public:
      * @return The sigma range currently encoded in the genome
      */
     double getSigmaRange() const {
-        return readTuned().at(oa::ea_tunable::sigma_range);
+        return readTuned().at(OA::ea_tunable::sigma_range);
     }
 
     /***************************************************************************/
@@ -365,7 +365,7 @@ public:
      * @return The sigma-sigma (sigma self-adaption strength) currently encoded in the genome
      */
     double getSigmaSigma() const {
-        return readTuned().at(oa::ea_tunable::sigma_sigma);
+        return readTuned().at(OA::ea_tunable::sigma_sigma);
     }
 
     /***************************************************************************/
@@ -383,9 +383,9 @@ public:
     //! [meta.addcontent]
     static void addContent(
         const std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> &p,
-        const std::vector<oa::TunableParam> &manifest
+        const std::vector<OA::TunableParam> &manifest
     ) {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
 
         // Integer knobs first (int32 channel), then the real knobs (double channel);
         // within each channel the order is the manifest order, which readTuned() walks
@@ -418,8 +418,8 @@ public:
      *
      * @return A shared pointer to the populated OA-owned adaption config
      */
-    std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> getAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupInt32(0).flip(1.);                             // n_parents
         cfg->groupInt32(1).intGauss(0.025, 0.2, 0.001, 0.5, 1.); // n_children
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
@@ -438,7 +438,7 @@ public:
     std::string print(bool with_fitness = true) const {
         std::ostringstream result;
         // Retrieve the parameters from the flat genome by name (see readTuned()).
-        namespace n = oa::ea_tunable;
+        namespace n = OA::ea_tunable;
         const auto v = readTuned();
         const auto npar = static_cast<std::int32_t>(v.at(n::n_parents));
         const auto nch = static_cast<std::int32_t>(v.at(n::n_children));
@@ -510,7 +510,7 @@ public:
         }
 
         ind_factory_ = Gem::Common::g_ptr_conversion<
-            Gem::Common::GFactoryT<gen::GGenome>,
+            Gem::Common::GFactoryT<Genome::GGenome>,
             typename ind_type::FACTORYTYPE>(factory->clone());
     }
 
@@ -523,7 +523,7 @@ public:
      */
     // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
     bool modifyForTest() {
-        gen::GGenome::modifyForTest();
+        Genome::GGenome::modifyForTest();
         if(this->template countParameters<std::int32_t>() +
                this->template countParameters<double>() >
            0) {
@@ -543,7 +543,7 @@ protected:
      */
     void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) override {
         // Call our parent class'es function
-        gen::GGenome::addConfigurationOptions_(gpb);
+        Genome::GGenome::addConfigurationOptions_(gpb);
 
         // Add local data
         gpb.registerFileParameter<std::size_t>(
@@ -631,11 +631,11 @@ protected:
     /** @brief Runs one sub-optimization (build population, drive adaption, optimize) and appends this
      *  run's solver-calls / iterations / best-evaluation to @p measurements. */
     void runOneSubOptimization(
-        oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm> &ea,
+        OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm> &ea,
         std::uint32_t pop_size,
         std::uint32_t n_parents,
         std::uint32_t n_children,
-        const std::shared_ptr<oa::GAdaptionConfigBase> &sub_adaption_config,
+        const std::shared_ptr<OA::GAdaptionConfigBase> &sub_adaption_config,
         double amalgamation_likelihood,
         SubRunMeasurements &measurements
     ) {
@@ -643,8 +643,8 @@ protected:
         // safe because this individual is evaluated by GMetaEvolutionaryAlgorithm on its own orchestration
         // pool -- distinct from that work consumer -- so the inner submission never starves the pool this
         // evaluation runs on.
-        std::shared_ptr<oa::GEvolutionaryAlgorithm> const ea_ptr =
-            ea.get<oa::GEvolutionaryAlgorithm>();
+        std::shared_ptr<OA::GEvolutionaryAlgorithm> const ea_ptr =
+            ea.get<OA::GEvolutionaryAlgorithm>();
 
         populateSubEA(*ea_ptr, pop_size, n_parents, sub_adaption_config, amalgamation_likelihood);
         configureSubEAStopCriteria(*ea_ptr);
@@ -654,7 +654,7 @@ protected:
         ea_ptr->optimize();
 
         // Book-keeping from the completed run.
-        auto const best_individual = ea_ptr->getBestGlobalIndividual<gen::GGenome>();
+        auto const best_individual = ea_ptr->getBestGlobalIndividual<Genome::GGenome>();
         const std::uint32_t iterations_consumed = ea_ptr->getIteration();
         measurements.solver_calls.push_back(
             static_cast<double>(((iterations_consumed + 1) * n_children) + n_parents)
@@ -671,16 +671,16 @@ protected:
      * factory, and hand it the OA-owned adaption config and the cross-over likelihood.
      */
     void populateSubEA(
-        oa::GEvolutionaryAlgorithm &ea,
+        OA::GEvolutionaryAlgorithm &ea,
         std::uint32_t pop_size,
         std::uint32_t n_parents,
-        const std::shared_ptr<oa::GAdaptionConfigBase> &sub_adaption_config,
+        const std::shared_ptr<OA::GAdaptionConfigBase> &sub_adaption_config,
         double amalgamation_likelihood
     ) {
         //! [meta.populatesubea]
         ea.setPopulationSizes(pop_size, n_parents);
         for(std::size_t ind = 0; ind < pop_size; ind++) {
-            std::shared_ptr<gen::GGenome> const gi_ptr = ind_factory_->get();
+            std::shared_ptr<Genome::GGenome> const gi_ptr = ind_factory_->get();
             ea.push_back(gi_ptr->clone());
         }
         // Drive the sub-individuals' adaption through the OA-owned config, and set the
@@ -698,7 +698,7 @@ protected:
      * the fitness / multi-criterion targets stop on max-iterations with a lenient stall threshold. Neither
      * emits a termination reason.
      */
-    void configureSubEAStopCriteria(oa::GEvolutionaryAlgorithm &ea) const {
+    void configureSubEAStopCriteria(OA::GEvolutionaryAlgorithm &ea) const {
         ea.setEmitTerminationReason(false);
         ea.setMaxIteration(iteration_threshold_);
         if(metaOptimizationTarget::MINSOLVERCALLS == mo_target_) {
@@ -712,7 +712,7 @@ protected:
 
     std::vector<double> evaluate() override {
         // Retrieve the parameters from the flat genome by name (see readTuned()).
-        namespace n = oa::ea_tunable;
+        namespace n = OA::ea_tunable;
         const auto v = readTuned();
 
         // Check that we have been given a factory. This guard runs in release builds too: without it the
@@ -729,7 +729,7 @@ protected:
         auto sub_adaption_config = buildSubAdaptionConfig(v);
 
         // Set up a population factory for serial execution
-        oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm> ea(sub_ea_config_);
+        OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm> ea(sub_ea_config_);
 
         // Run the required number of optimizations
         auto n_children = static_cast<std::uint32_t>(v.at(n::n_children));
@@ -769,7 +769,7 @@ protected:
      * @return An OA-owned single-Gauss adaption config for the sub-individuals
      */
     auto buildSubAdaptionConfig(const std::map<std::string, double> &v) {
-        namespace n = oa::ea_tunable;
+        namespace n = OA::ea_tunable;
         double const min_sigma = v.at(n::min_sigma);
         double const sigma_range = v.at(n::sigma_range);
         double const max_sigma = min_sigma + sigma_range;
@@ -785,8 +785,8 @@ protected:
 
         double const adapt_ad_prob = v.at(n::adapt_ad_prob);
 
-        auto sub_adaption_config = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(
-            dynamic_cast<const gen::GGenome &>(*ind_factory_->get())
+        auto sub_adaption_config = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(
+            dynamic_cast<const Genome::GGenome &>(*ind_factory_->get())
         );
         for(std::size_t i = 0; i < sub_adaption_config->doubleGroups().size(); i++) {
             sub_adaption_config->groupDouble(i).gauss(
@@ -857,7 +857,7 @@ private:
     /***************************************************************************/
     /**
      * @brief Reads the meta-optimised parameters from the flat genome into a name -> value map, keyed by
-     * the tunable-manifest names. The genome is built from oa::GEvolutionaryAlgorithm::tunableManifest()
+     * the tunable-manifest names. The genome is built from OA::GEvolutionaryAlgorithm::tunableManifest()
      * (one labelled group per knob, integer knobs first), so walking that manifest in the same order
      * recovers each value by name -- no positional index that could drift if a knob is added or reordered.
      *
@@ -870,7 +870,7 @@ private:
         std::map<std::string, double> out;
         std::size_t ii = 0;
         std::size_t di = 0;
-        for(const auto &tp : oa::GEvolutionaryAlgorithm::tunableManifest()) {
+        for(const auto &tp : OA::GEvolutionaryAlgorithm::tunableManifest()) {
             if(tp.is_integer) {
                 out[tp.name] = static_cast<double>(iv.at(ii++));
             }
@@ -918,7 +918,7 @@ std::ostream &operator<<(std::ostream &stream, const GMetaOptimizerIndividualT<i
 /**
  * Registers the configuration options of a tunable manifest, as the meta-optimizer's factory reads
  * them: per knob "init_KEY" for its start value and, unless its range is fixed, "KEY_lb" and
- * "KEY_ub" for its search range, where KEY is oa::TunableParam::configKey(). The defaults are the
+ * "KEY_ub" for its search range, where KEY is OA::TunableParam::configKey(). The defaults are the
  * values of @p manifest, the comments come from its descriptions, and integer knobs are read as
  * integers. A value read from the configuration goes to the knob at the same position in @p knobs.
  *
@@ -929,8 +929,8 @@ std::ostream &operator<<(std::ostream &stream, const GMetaOptimizerIndividualT<i
  */
 inline void registerTunableOptions(
     Gem::Common::GParserBuilder &gpb,
-    std::vector<oa::TunableParam> const &manifest,
-    std::vector<oa::TunableParam> &knobs
+    std::vector<OA::TunableParam> const &manifest,
+    std::vector<OA::TunableParam> &knobs
 ) {
     Gem::Common::checkThat(
         manifest.size() == knobs.size(),
@@ -938,7 +938,7 @@ inline void registerTunableOptions(
     );
 
     for(std::size_t i = 0; i < manifest.size(); ++i) {
-        oa::TunableParam const &knob = manifest[i];
+        OA::TunableParam const &knob = manifest[i];
         auto add_option = [&gpb, &knob](
                               std::string const &key,
                               double default_value,
@@ -1007,7 +1007,7 @@ inline void registerTunableOptions(
  * @tparam ind_type The type of sub-individual whose optimization is being tuned
  */
 template <typename ind_type>
-class GMetaOptimizerIndividualFactoryT : public Gem::Common::GFactoryT<gen::GGenome> {
+class GMetaOptimizerIndividualFactoryT : public Gem::Common::GFactoryT<Genome::GGenome> {
 public:
     /***************************************************************************/
     /**
@@ -1017,7 +1017,7 @@ public:
      * @param config_file The name of the configuration file
      */
     GMetaOptimizerIndividualFactoryT(std::filesystem::path const &config_file)
-      : Gem::Common::GFactoryT<gen::GGenome>(config_file) { /* nothing */
+      : Gem::Common::GFactoryT<Genome::GGenome>(config_file) { /* nothing */
     }
 
     /***************************************************************************/
@@ -1041,7 +1041,7 @@ public:
         }
 
         ind_factory_ = Gem::Common::g_ptr_conversion<
-            Gem::Common::GFactoryT<gen::GGenome>,
+            Gem::Common::GFactoryT<Genome::GGenome>,
             typename ind_type::FACTORYTYPE>(factory->clone());
     }
 
@@ -1054,10 +1054,10 @@ protected:
      */
     void describeLocalOptions_(Gem::Common::GParserBuilder &gpb) override {
         // The start value and the search range of every knob the evolutionary algorithm publishes
-        registerTunableOptions(gpb, oa::GEvolutionaryAlgorithm::tunableManifest(), knobs_);
+        registerTunableOptions(gpb, OA::GEvolutionaryAlgorithm::tunableManifest(), knobs_);
 
         // Allow our parent class to describe its options
-        Gem::Common::GFactoryT<gen::GGenome>::describeLocalOptions_(gpb);
+        Gem::Common::GFactoryT<Genome::GGenome>::describeLocalOptions_(gpb);
     }
 
     /***************************************************************************/
@@ -1069,10 +1069,10 @@ protected:
      *
      * @param p_base A smart-pointer to be acted on during post-processing
      */
-    void postProcess_(std::shared_ptr<gen::GGenome> &p_base) override {
+    void postProcess_(std::shared_ptr<Genome::GGenome> &p_base) override {
         // Convert the base pointer to our local type
         std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> const p =
-            Gem::Common::g_ptr_conversion<gen::GGenome, GMetaOptimizerIndividualT<ind_type>>(
+            Gem::Common::g_ptr_conversion<Genome::GGenome, GMetaOptimizerIndividualT<ind_type>>(
                 p_base
             );
 
@@ -1096,7 +1096,7 @@ private:
      * @param gpb The GParserBuilder to which the new object's configuration options are added
      * @return Items of the desired type
      */
-    std::shared_ptr<gen::GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
+    std::shared_ptr<Genome::GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
         // Will hold the result
         auto target = std::make_shared<GMetaOptimizerIndividualT<ind_type>>();
 
@@ -1110,7 +1110,7 @@ private:
     // Data
 
     /** @brief The evolutionary algorithm's knobs, with the configured start values and ranges */
-    std::vector<oa::TunableParam> knobs_ = oa::GEvolutionaryAlgorithm::tunableManifest();
+    std::vector<OA::TunableParam> knobs_ = OA::GEvolutionaryAlgorithm::tunableManifest();
 
     std::shared_ptr<typename ind_type::FACTORYTYPE>
         ind_factory_; ///< Holds a factory for our individuals. It will be added to the individuals when needed
@@ -1142,12 +1142,12 @@ constexpr std::size_t P_YDIM = 1400;
  */
 template <typename ind_type>
 class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
-  : public oa::GBasePluggableOM {
+  : public OA::GBasePluggableOM {
     // Make sure this class can only be instantiated if individual_type is an optimizable entity
     // (the monitor reads individuals only through the genome-agnostic interface, so any genome model
     // -- tree or flat -- qualifies).
     static_assert(
-        std::is_base_of_v<gen::GGenome, ind_type>,
+        std::is_base_of_v<Genome::GGenome, ind_type>,
         "GGenome is no base class of ind_type"
     );
 
@@ -1159,7 +1159,7 @@ class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
 
     template <typename archive_type>
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
-        Gem::Common::archive_named_base<oa::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
+        Gem::Common::archive_named_base<OA::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
         // All local members, derived from the single localMembers() declaration.
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
@@ -1245,17 +1245,17 @@ protected:
        *
        * @param cp A copy of another GOptOptMonitorT object, camouflaged as a GBasePluggableOM
        */
-    void load_(const oa::GBasePluggableOM *cp) override {
+    void load_(const OA::GBasePluggableOM *cp) override {
         // Check that we are dealing with a GOptOptMonitorT<ind_type> reference independent of this object and convert the pointer
         const GOptOptMonitorT<ind_type> *p_load =
-            Gem::Common::g_convert_and_compare<oa::GBasePluggableOM, GOptOptMonitorT<ind_type>>(
+            Gem::Common::g_convert_and_compare<OA::GBasePluggableOM, GOptOptMonitorT<ind_type>>(
                 cp,
                 this
             );
 
         // Trigger loading of our parent class'es data
         // Load the parent classes' data ...
-        oa::GBasePluggableOM::load_(cp);
+        OA::GBasePluggableOM::load_(cp);
 
         // Load local data, derived from the single localMembers() declaration (the cloneable plotter
         // pointers are deep-cloned, the plain members assigned).
@@ -1280,7 +1280,7 @@ protected:
      * @param limit The limit for allowed deviations of floating point types
      */
     void compare_(
-        const oa::GBasePluggableOM &cp,
+        const OA::GBasePluggableOM &cp,
         const Gem::Common::expectation &e,
         const double &limit
     ) const override {
@@ -1288,7 +1288,7 @@ protected:
 
         // Check that we are dealing with a GOptOptMonitorT<ind_type> reference independent of this object and convert the pointer
         const GOptOptMonitorT<ind_type> *p_load =
-            Gem::Common::g_convert_and_compare<oa::GBasePluggableOM, GOptOptMonitorT<ind_type>>(
+            Gem::Common::g_convert_and_compare<OA::GBasePluggableOM, GOptOptMonitorT<ind_type>>(
                 cp,
                 this
             );
@@ -1296,7 +1296,7 @@ protected:
         GToken token("GOptOptMonitorT", e, limit);
 
         // Compare our parent data ...
-        Gem::Common::compare_base_t<oa::GBasePluggableOM>(*this, *p_load, token);
+        Gem::Common::compare_base_t<OA::GBasePluggableOM>(*this, *p_load, token);
 
         // ... and then our local data, derived from the single localMembers() declaration
         Gem::Common::g_compare_members(this->localMembers_(), p_load->localMembers_(), token);
@@ -1324,7 +1324,7 @@ private:
        *
        * @return A deep clone of this object
        */
-    [[nodiscard]] oa::GBasePluggableOM *clone_() const override {
+    [[nodiscard]] OA::GBasePluggableOM *clone_() const override {
         return new GOptOptMonitorT<ind_type>(*this);
     }
 
@@ -1337,7 +1337,7 @@ private:
      * @param goa A pointer to the optimization algorithm the monitor is attached to
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT:
             if(not stream_.isOpen()) {
@@ -1347,7 +1347,7 @@ private:
 
         case Gem::Geneva::infoMode::INFOPROCESSING: {
             // The best individual is always in the first position with evolutionary algorithms
-            auto const *const ea = static_cast<oa::GEvolutionaryAlgorithm const *const>(
+            auto const *const ea = static_cast<OA::GEvolutionaryAlgorithm const *const>(
                 goa
             ); // NOLINT(cppcoreguidelines-init-variables)
             std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> const p =
@@ -1381,7 +1381,7 @@ private:
      *
      * @param goa The algorithm, for the resume of its run
      */
-    void declareStream_(oa::GOptimizationAlgorithmBase const &goa) {
+    void declareStream_(OA::GOptimizationAlgorithmBase const &goa) {
         using Gem::Dietrich::GPlotSpec;
         using Gem::Dietrich::plotKind;
 
@@ -1413,7 +1413,7 @@ private:
 
     std::string stream_name_ = "meta_optimization"; ///< The name of the stream
 
-    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
+    OA::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/

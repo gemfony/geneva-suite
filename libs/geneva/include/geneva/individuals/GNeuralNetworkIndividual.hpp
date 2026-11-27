@@ -375,7 +375,7 @@ constexpr transferFunction GNN_DEF_TRANSFER = transferFunction::SIGMOID;
  * The architecture computes only the structure (offsets / sizes); the forward pass + transfer function
  * live in GNeuralNetworkIndividual::evaluate(), which reads the weights through this view.
  */
-class GNeuralNetworkArchitecture : public gen::GGenomeArchitecture {
+class GNeuralNetworkArchitecture : public Genome::GGenomeArchitecture {
 public:
     /**
      * @brief Initialization from the per-layer node counts (input ... output).
@@ -547,7 +547,7 @@ inline std::shared_ptr<networkData> createNetworkData(
  * With this individual you can use Genevas optimization algorithms instead of the
  * standard back-propagation algorithm to train feed-forward neural networks.
  */
-class GNeuralNetworkIndividual : public gen::GGenomeT<GNeuralNetworkIndividual> {
+class GNeuralNetworkIndividual : public Genome::GGenomeT<GNeuralNetworkIndividual> {
     /////////////////////////////////////////////////////////////////////////////
 
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
@@ -979,12 +979,12 @@ public:
     /**
      * @brief Builds the flat weight genome (structure only) for the geometry in the global data store.
      */
-    static gen::GenomeData buildGenome(const Config &c);
+    static Genome::GenomeData buildGenome(const Config &c);
     /**
      * @brief The OA-owned Gauss adaption config: every weight group gets the configured Gauss adaptor.
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
+    buildAdaptionConfig(const Genome::GGenome &sample, const Config &c);
     /**
      * @brief Per-object post-config hook: applies the (non-genome) transfer function to a produced individual.
      */
@@ -1008,7 +1008,7 @@ public:
      */
     // NOLINTNEXTLINE(bugprone-derived-method-shadowing-base-method): it calls the base's
     bool modifyForTest() {
-        gen::GGenome::modifyForTest();
+        Genome::GGenome::modifyForTest();
         t_f_ =
             (t_f_ == transferFunction::SIGMOID) ? transferFunction::RBF : transferFunction::SIGMOID;
         return true;

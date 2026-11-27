@@ -85,7 +85,7 @@ using Timings = std::vector<std::tuple<double, double, double, double>>;
 
 /// Builds the individual that is measured, for one evaluation time
 using IndividualFactory =
-    std::function<std::shared_ptr<gen::GGenome>(const std::chrono::duration<double> &)>;
+    std::function<std::shared_ptr<Genome::GGenome>(const std::chrono::duration<double> &)>;
 
 /******************************************************************************/
 /** What is measured: the evaluation times, and how often and with which pause */
@@ -141,8 +141,8 @@ inline Line readReferenceLine(const std::string &file_name) {
  * @param sample An individual of the measurement
  * @return A Gauss adaptor for every double group of the genome
  */
-inline std::shared_ptr<oa::GAdaptionConfigBase> ballastAdaption(const gen::GGenome &sample) {
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+inline std::shared_ptr<OA::GAdaptionConfigBase> ballastAdaption(const Genome::GGenome &sample) {
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         cfg->groupDouble(i).gauss(0.025, 0.1, 0., 1., 1.);
     }
@@ -164,14 +164,14 @@ inline Line measureReference(const Schedule &schedule, const IndividualFactory &
     std::cout << "Starting reference measurement" << std::endl;
 
     std::vector<std::tuple<double, double>> reference_times;
-    oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm> ea_serial_factory(
+    OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm> ea_serial_factory(
         "./config/GEvolutionaryAlgorithm.json"
     );
-    auto ea_alg_master = ea_serial_factory.get<oa::GEvolutionaryAlgorithm>();
+    auto ea_alg_master = ea_serial_factory.get<OA::GEvolutionaryAlgorithm>();
 
     // The algorithm submits through the process-wide consumer. Make that the serial one, whatever
     // was asked for on the command line: the reference is the time one worker needs.
-    const auto serial_consumer = Gem::Courtier::buildConsumer<gen::GGenome>(
+    const auto serial_consumer = Gem::Courtier::buildConsumer<Genome::GGenome>(
         Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1},
         Gem::Geneva::consumerModules()
     );
@@ -181,7 +181,7 @@ inline Line measureReference(const Schedule &schedule, const IndividualFactory &
         const auto individual = make_individual(delay);
         for(std::uint32_t i = 0; i < schedule.n_measurements; i++) {
             std::cout << "Serial measurement " << i << " in iteration " << iter << std::endl;
-            auto ea_alg = ea_alg_master->clone<oa::GEvolutionaryAlgorithm>();
+            auto ea_alg = ea_alg_master->clone<OA::GEvolutionaryAlgorithm>();
             ea_alg->push_back(individual->clone());
             ea_alg->setAdaptionConfig(ballastAdaption(*individual));
 

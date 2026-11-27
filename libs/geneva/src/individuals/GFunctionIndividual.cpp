@@ -97,7 +97,7 @@ GDoubleSumConstraint::GDoubleSumConstraint(const double &c)
  */
 void GDoubleSumConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
     // Call our parent class'es function
-    gen::GGenomeConstraint::addConfigurationOptions_(gpb);
+    Genome::GGenomeConstraint::addConfigurationOptions_(gpb);
 }
 
 /******************************************************************************/
@@ -108,7 +108,7 @@ void GDoubleSumConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder 
  * @return 0 if the parameter sum is below the constant c_; otherwise sum/c_ as a penalty measure
  */
 //! [constraints:sum-check]
-double GDoubleSumConstraint::check_(const gen::GGenome *p) const {
+double GDoubleSumConstraint::check_(const Genome::GGenome *p) const {
     auto const par_vec = p->fpParameterValues();
 
     const double sum = std::ranges::fold_left(par_vec, 0., std::plus{});
@@ -146,7 +146,7 @@ GDoubleSumGapConstraint::GDoubleSumGapConstraint(const double &c, const double &
  */
 void GDoubleSumGapConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
     // Call our parent class'es function
-    gen::GGenomeConstraint::addConfigurationOptions_(gpb);
+    Genome::GGenomeConstraint::addConfigurationOptions_(gpb);
 }
 
 /******************************************************************************/
@@ -156,7 +156,7 @@ void GDoubleSumGapConstraint::addConfigurationOptions_(Gem::Common::GParserBuild
  * @param p A pointer to the individual whose floating-point parameters are summed and checked
  * @return 0 if the parameter sum is within [c_ - gap_, c_ + gap_]; otherwise 1 + |sum - c_| / c_ as a penalty measure
  */
-double GDoubleSumGapConstraint::check_(const gen::GGenome *p) const {
+double GDoubleSumGapConstraint::check_(const Genome::GGenome *p) const {
     auto const par_vec = p->fpParameterValues();
 
     const double sum = std::ranges::fold_left(par_vec, 0., std::plus{});
@@ -192,7 +192,7 @@ GSphereConstraint::GSphereConstraint(const double &diameter)
  */
 void GSphereConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
     // Call our parent class'es function
-    gen::GGenomeConstraint::addConfigurationOptions_(gpb);
+    Genome::GGenomeConstraint::addConfigurationOptions_(gpb);
 }
 
 /******************************************************************************/
@@ -202,7 +202,7 @@ void GSphereConstraint::addConfigurationOptions_(Gem::Common::GParserBuilder &gp
  * @param p A pointer to the individual whose floating-point parameters form the vector whose norm is checked
  * @return 0 if the Euclidean norm of the parameters is at most diameter_; otherwise (norm / diameter_) squared as a penalty measure
  */
-double GSphereConstraint::check_(const gen::GGenome *p) const {
+double GSphereConstraint::check_(const Genome::GGenome *p) const {
     auto const par_vec = p->fpParameterValues();
 
     const double sum = sqrt(
@@ -244,7 +244,7 @@ void GFunctionIndividual::addConfigurationOptions_(Gem::Common::GParserBuilder &
     // Call our parent class'es function. The demo_function option (and all other configurable values)
     // is registered by the static describeConfig() hook and applied via applyConfig(), so the generic
     // GIndividualFactory<GFunctionIndividual> handles all of this individual's configuration.
-    gen::GGenome::addConfigurationOptions_(gpb);
+    Genome::GGenome::addConfigurationOptions_(gpb);
 }
 
 /******************************************************************************/
@@ -294,7 +294,7 @@ std::size_t GFunctionIndividual::getParameterSize() const {
 std::vector<double> GFunctionIndividual::evaluate() {
     auto const par_vec = this->parameterValues<double>();
 
-    return {gbm::eval(
+    return {Benchmarks::eval(
         static_cast<int>(this->getDemoFunction()),
         par_vec.data(),
         static_cast<int>(par_vec.size())
@@ -569,12 +569,12 @@ void GFunctionIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Confi
  * @param c The Config supplying the parameter dimension (par_dim), the init range (min_var, max_var) and the parameter-object type (p_t)
  * @return The flat genome structure (GenomeData) for the selected parameter type
  */
-gen::GenomeData GFunctionIndividual::buildGenome(const Config &c) {
+Genome::GenomeData GFunctionIndividual::buildGenome(const Config &c) {
     const std::size_t n_data = c.par_dim;
     const double min_v = c.min_var;
     const double max_v = c.max_var;
 
-    gen::GGenomeBuilder b;
+    Genome::GGenomeBuilder b;
     switch(c.p_t) {
     case parameterType::UNBOUNDED_SHARED: { // unbounded, one shared group
         b.addDoublePlainGroup(n_data, min_v, max_v);
@@ -619,9 +619,9 @@ gen::GenomeData GFunctionIndividual::buildGenome(const Config &c) {
  */
 //! [adaptors-build-config]
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GFunctionIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+GFunctionIndividual::buildAdaptionConfig(const Genome::GGenome &sample, const Config &c) {
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         if(c.use_bi_gaussian) {
             cfg->groupDouble(i).biGauss(

@@ -66,7 +66,7 @@
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace Gem::Tests {
 
@@ -86,8 +86,8 @@ public:
     }
     NgBoxIndividual(const NgBoxIndividual &) = default;
 
-    std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> getAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
             cfg->groupDouble(i).gauss(0.1, 0.8, 1e-3, 0.5, 1.);
         }
@@ -125,8 +125,8 @@ public:
     }
     NgMixedIndividual(const NgMixedIndividual &) = default;
 
-    std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> getAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
             cfg->groupDouble(i).gauss(0.1, 0.8, 1e-3, 0.5, 1.);
         }

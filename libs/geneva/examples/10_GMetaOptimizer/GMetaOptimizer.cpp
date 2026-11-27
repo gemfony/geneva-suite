@@ -60,19 +60,22 @@ int optimize(GOptimizer &go) {
     //---------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    auto const gfi_ptr =
-        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+    auto const gfi_ptr = std::make_shared<Individuals::GFunctionIndividualFactory>(
+        "./config/GFunctionIndividual.json"
+    );
 
     // Create a factory for GMetaOptimizerIndividual objects and perform
     // any necessary initial work.
-    auto const gmoi_ptr =
-        std::make_shared<gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual>>(
-            "./config/GMetaOptimizerIndividual.json"
-        );
+    auto const gmoi_ptr = std::make_shared<
+        Individuals::GMetaOptimizerIndividualFactoryT<Individuals::GFunctionIndividual>>(
+        "./config/GMetaOptimizerIndividual.json"
+    );
 
     // Add a pluggable optimization monitor (targeted at evolutionary algorithms) and register
     // it with GOptimizer.
-    go.registerPluggableOM(std::make_shared<gind::GOptOptMonitorT<gind::GFunctionIndividual>>());
+    go.registerPluggableOM(
+        std::make_shared<Individuals::GOptOptMonitorT<Individuals::GFunctionIndividual>>()
+    );
 
     //! [meta.example-main#1]
     // Register the GFunctionIndividualFactory with the meta-optimizer,
@@ -88,10 +91,10 @@ int optimize(GOptimizer &go) {
     // individual config and the (sub-)evolutionary-algorithm config the umbrella individuals run.
     if(Gem::Common::GParserBuilder::updateInPlace()) {
         gfi_ptr->get();
-        oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>(
+        OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>(
             "./config/GSubEvolutionaryAlgorithm.json"
         )
-            .get<oa::GOptimizationAlgorithmBase>();
+            .get<OA::GOptimizationAlgorithmBase>();
     }
 
     // clang-format off
@@ -101,7 +104,7 @@ int optimize(GOptimizer &go) {
     // authors. Register it for the outer EA.
     {
         auto sample =
-            gmoi_ptr->get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
+            gmoi_ptr->get_as<Individuals::GMetaOptimizerIndividualT<Individuals::GFunctionIndividual>>();
         go.registerAdaptionConfig("ea", sample->getAdaptionConfig());
     }
     //! [meta.example-main#2]
@@ -114,13 +117,13 @@ int optimize(GOptimizer &go) {
     // the EA-targeted monitor apply unchanged.
     // clang-format off
     //! [meta.example-main#3]
-    go.registerDefaultAlgorithm(std::make_shared<oa::GMetaEvolutionaryAlgorithm>());
+    go.registerDefaultAlgorithm(std::make_shared<OA::GMetaEvolutionaryAlgorithm>());
 
     // Perform the actual optimization
     auto const bestIndividual_ptr =
         go.optimize()
             .getBestGlobalIndividual<
-                gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
+                Individuals::GMetaOptimizerIndividualT<Individuals::GFunctionIndividual>>();
     //! [meta.example-main#3]
     // clang-format on
 

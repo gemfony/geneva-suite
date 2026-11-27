@@ -79,7 +79,7 @@ namespace Gem::Geneva {
 // clang-format off
 //! [monitors:custom-decl]
 class GStandardMonitor // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GStandardMonitor, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GStandardMonitor, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base reach this class's
@@ -125,7 +125,7 @@ private:
      */
     void informationFunction_(
         infoMode im,
-        oa::GOptimizationAlgorithmBase const *const goa
+        OA::GOptimizationAlgorithmBase const *const goa
     ) override;
 };
 //! [monitors:custom-decl]
@@ -148,7 +148,7 @@ private:
  * it. Two monitors of one class in one process need different stream names.
  */
 class GFitnessMonitor // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GFitnessMonitor, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GFitnessMonitor, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -209,7 +209,7 @@ private:
      * @brief Declares the stream at the first INFOINIT and records the bests at INFOPROCESSING
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override;
 
     /************************************************************************/
 
@@ -217,7 +217,7 @@ private:
         DEFNMONITORINDS; ///< The number of individuals that should be monitored
     std::string stream_name_ = "best_fitness"; ///< The name of the stream
 
-    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
+    OA::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -228,7 +228,7 @@ private:
  * in sequence.
  */
 class GCollectiveMonitor // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GCollectiveMonitor, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GCollectiveMonitor, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base reach localMembers_() for the
@@ -284,7 +284,7 @@ public:
     /**
      * @brief Allows to register a new pluggable monitor
      */
-    void registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &om_ptr);
+    void registerPluggableOM(const std::shared_ptr<OA::GBasePluggableOM> &om_ptr);
     /**
      * @brief Checks if pluggable monitors are registered in the collective monitor
      */
@@ -302,9 +302,9 @@ private:
      * @brief Aggregates the work of all registered pluggable monitors
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override;
 
-    std::vector<std::shared_ptr<oa::GBasePluggableOM>>
+    std::vector<std::shared_ptr<OA::GBasePluggableOM>>
         pluggable_monitors_; ///< The collection of monitors
 };
 
@@ -381,7 +381,7 @@ private:
  */
 template <typename fp_type>
 class GProgressPlotterT // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     // Gem::Weft::access default-constructs this concrete type on load;
     // GReflectiveInterfaceAccess lets the GReflectiveInterfaceT base reach localMembers_().
@@ -451,7 +451,7 @@ public:
 	  * @param cp A constant reference to another GProgressPlotterT object whose data is deep-copied
 	  */
     GProgressPlotterT(const GProgressPlotterT<fp_type> &cp)
-      : Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, oa::GBasePluggableOM>(cp) {
+      : Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, OA::GBasePluggableOM>(cp) {
         Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
     }
 
@@ -466,7 +466,7 @@ public:
 	  */
     GProgressPlotterT &operator=(const GProgressPlotterT<fp_type> &cp) {
         if(this != &cp) {
-            Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, oa::GBasePluggableOM>::
+            Gem::Common::GReflectiveInterfaceT<GProgressPlotterT<fp_type>, OA::GBasePluggableOM>::
             operator=(cp);
             Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_());
         }
@@ -501,7 +501,7 @@ public:
         fp_prof_var_vec_.clear();
 
         // Parse the parameter string
-        gen::GParameterPropertyParser const ppp(par_str);
+        Genome::GParameterPropertyParser const ppp(par_str);
 
         //---------------------------------------------------------------------------
         // Retrieve the parameters
@@ -744,7 +744,7 @@ public:
 	  * @param s A parameter-property specification whose variable descriptor is turned into a label
 	  * @return A human-readable label string for the given variable
 	  */
-    [[nodiscard]] std::string getLabel(const gen::parPropSpec<fp_type> &s) const {
+    [[nodiscard]] std::string getLabel(const Genome::parPropSpec<fp_type> &s) const {
         // A name set with setVariableNames() wins; otherwise the variable is labelled by its
         // position.
         for(std::size_t i = 0; i < fp_prof_var_vec_.size() && i < variable_names_.size(); ++i) {
@@ -775,7 +775,7 @@ private:
      * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT:
             if(not stream_.isOpen()) {
@@ -786,7 +786,7 @@ private:
         case Gem::Geneva::infoMode::INFOPROCESSING:
             if(monitor_best_only_) { // Monitor the best individual only
                 auto const p = goa->Interface::GOptimizerIT<
-                    oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+                    OA::GOptimizationAlgorithmBase>::getBestGlobalIndividual<Genome::GGenome>();
                 this->logIndividual_(*goa, *p);
             }
             else { // Monitor all individuals
@@ -828,7 +828,7 @@ private:
      * @param goa The algorithm, for the resume of its run
      */
     // NOLINTNEXTLINE(readability-function-size) -- one plot layout per number of profiled variables
-    void declareStream_(oa::GOptimizationAlgorithmBase const &goa) {
+    void declareStream_(OA::GOptimizationAlgorithmBase const &goa) {
         using Gem::Common::Record::columnType;
         using Gem::Common::Record::GColumn;
         using Gem::Dietrich::GPlotSpec;
@@ -943,10 +943,10 @@ private:
      * @return The grid points (x, y, fitness); none if there is no best candidate yet
      */
     [[nodiscard]] std::vector<std::array<double, 3>>
-    scanLandscape_(oa::GOptimizationAlgorithmBase const &goa) const {
+    scanLandscape_(OA::GOptimizationAlgorithmBase const &goa) const {
         std::vector<std::array<double, 3>> grid;
         auto const best = goa.Interface::GOptimizerIT<
-            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+            OA::GOptimizationAlgorithmBase>::getBestGlobalIndividual<Genome::GGenome>();
         if(not best) {
             return grid;
         }
@@ -982,7 +982,7 @@ private:
                 values[iy] = static_cast<fp_type>(y);
                 probe->template assignValueVector<fp_type>(values);
                 probe->process();
-                const double f = oa::GBasePluggableOM::use_raw_evaluation_
+                const double f = OA::GBasePluggableOM::use_raw_evaluation_
                                    ? probe->raw_fitness(0)
                                    : probe->transformed_fitness(0);
                 grid.push_back({x, y, f});
@@ -999,7 +999,7 @@ private:
      * @param goa The algorithm, for the name and the iteration of the row
      * @param ind The individual whose profiled variables are recorded
      */
-    void logIndividual_(oa::GOptimizationAlgorithmBase const &goa, gen::GGenome &ind) {
+    void logIndividual_(OA::GOptimizationAlgorithmBase const &goa, Genome::GGenome &ind) {
         if(monitor_valid_only_ && not ind.isValid()) {
             return;
         }
@@ -1015,7 +1015,7 @@ private:
             row.emplace_back(static_cast<double>(v));
         }
         row.emplace_back(
-            oa::GBasePluggableOM::use_raw_evaluation_ ? ind.raw_fitness(0)
+            OA::GBasePluggableOM::use_raw_evaluation_ ? ind.raw_fitness(0)
                                                       : ind.transformed_fitness(0)
         );
         stream_.append(std::move(row));
@@ -1023,7 +1023,7 @@ private:
 
     /************************************************************************/
 
-    std::vector<gen::parPropSpec<fp_type>>
+    std::vector<Genome::parPropSpec<fp_type>>
         fp_prof_var_vec_; ///< Holds information about variables to be profiled
 
     std::string canvas_label_ = std::string("Progress information"); ///< The title of the plot
@@ -1046,7 +1046,7 @@ private:
     std::size_t landscape_resolution_ = 0; ///< grid points per axis of the 2-d landscape (0: none)
 
     /// transient: the stream, declared at the first INFOINIT; a copy has none
-    oa::GMonitorStream stream_;
+    OA::GMonitorStream stream_;
     /// transient: the plot sink that draws the landscape, if one is asked for; a copy has none
     std::shared_ptr<detail::GLandscapePlotSink> landscape_sink_;
 };
@@ -1073,7 +1073,7 @@ private:
  * it. Two monitors of one class in one process need different stream names.
  */
 class GAllSolutionFileLogger // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GAllSolutionFileLogger, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GAllSolutionFileLogger, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -1193,17 +1193,17 @@ private:
      * @brief Declares the stream at the first INFOINIT and records the population
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override;
 
     /**
      * @brief Declares the stream, its parameter columns taken from the first individual
      */
-    void declareStream_(oa::GOptimizationAlgorithmBase const &goa);
+    void declareStream_(OA::GOptimizationAlgorithmBase const &goa);
 
     /**
      * @brief Records the population of the algorithm
      */
-    void recordPopulation_(oa::GOptimizationAlgorithmBase const &goa);
+    void recordPopulation_(OA::GOptimizationAlgorithmBase const &goa);
 
     /***************************************************************************/
     // Data
@@ -1217,7 +1217,7 @@ private:
     bool print_initial_ = false; ///< Indicates whether the initial population should be recorded
     bool fitness_only_ = false;  ///< Records the individual and its fitness values only
 
-    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
+    OA::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -1240,7 +1240,7 @@ private:
  * checkpoint appends to it. Two monitors of one class in one process need different stream names.
  */
 class GNAdpationsLogger // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GNAdpationsLogger, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GNAdpationsLogger, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -1331,7 +1331,7 @@ private:
      * adaptions at INFOPROCESSING
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override;
 
     std::string stream_name_ = "n_adaptions"; ///< The name of the stream
 
@@ -1343,7 +1343,7 @@ private:
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
 
-    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
+    OA::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -1368,7 +1368,7 @@ private:
 template <typename num_type>
 class GAdaptorPropertyLoggerT // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::
-        GReflectiveInterfaceT<GAdaptorPropertyLoggerT<num_type>, oa::GBasePluggableOM> {
+        GReflectiveInterfaceT<GAdaptorPropertyLoggerT<num_type>, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -1575,7 +1575,7 @@ private:
      * @param goa A constant pointer to the optimization algorithm whose state is being monitored
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT:
             if(not stream_.isOpen()) {
@@ -1599,7 +1599,7 @@ private:
      *
      * @param goa The algorithm, for the resume of its run
      */
-    void declareStream_(oa::GOptimizationAlgorithmBase const &goa) {
+    void declareStream_(OA::GOptimizationAlgorithmBase const &goa) {
         using Gem::Common::Record::columnType;
         using Gem::Dietrich::GPlotSpec;
         using Gem::Dietrich::plotKind;
@@ -1651,11 +1651,11 @@ private:
      *
      * @param goa The algorithm
      */
-    void recordProperty_(oa::GOptimizationAlgorithmBase const &goa) {
+    void recordProperty_(OA::GOptimizationAlgorithmBase const &goa) {
         auto const best = goa.Interface::GOptimizerIT<
-            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
+            OA::GOptimizationAlgorithmBase>::getBestGlobalIndividual<Genome::GGenome>();
         const double best_fitness = best->raw_fitness(0);
-        std::shared_ptr<const oa::GAdaptionConfigBase> const cfg_ptr = goa.getAdaptionConfig();
+        std::shared_ptr<const OA::GAdaptionConfigBase> const cfg_ptr = goa.getAdaptionConfig();
         if(property_ != "sigma" || not cfg_ptr) {
             return;
         }
@@ -1666,17 +1666,17 @@ private:
             stream_.append(std::move(row));
         };
         if(monitor_best_only_) {
-            gen::GAuxiliaryStore seed_scratch;
+            Genome::GAuxiliaryStore seed_scratch;
             cfg_ptr->installInto(seed_scratch);
             for(double const sigma :
-                oa::readAdaptionSigmas(seed_scratch, *cfg_ptr, adaptor_name_)) {
+                OA::readAdaptionSigmas(seed_scratch, *cfg_ptr, adaptor_name_)) {
                 record(sigma);
             }
         }
         else {
             for(const auto &slot : goa) {
                 for(double const sigma :
-                    oa::readAdaptionSigmas(slot->scratch(), *cfg_ptr, adaptor_name_)) {
+                    OA::readAdaptionSigmas(slot->scratch(), *cfg_ptr, adaptor_name_)) {
                     record(sigma);
                 }
             }
@@ -1699,7 +1699,7 @@ private:
     bool add_print_command_ =
         false; ///< Asks the GPlotDesigner to add a print command to result files
 
-    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
+    OA::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/
@@ -1720,7 +1720,7 @@ private:
  * checkpoint appends to it. Two monitors of one class in one process need different stream names.
  */
 class GProcessingTimesLogger // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GProcessingTimesLogger, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GProcessingTimesLogger, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
 
     friend struct Gem::Common::GReflectiveInterfaceAccess;
@@ -1816,7 +1816,7 @@ private:
      * INFOPROCESSING
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override;
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override;
 
     /************************************************************************/
 
@@ -1829,7 +1829,7 @@ private:
     std::size_t n_bins_y_ =
         Gem::Dietrich::DEFAULTNBINSGPD; ///< The number of bins in the histograms in y-direction
 
-    oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
+    OA::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };
 
 /******************************************************************************/

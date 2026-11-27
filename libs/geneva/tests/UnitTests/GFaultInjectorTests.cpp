@@ -259,10 +259,10 @@ TEST_CASE("sep-CMA-ES keeps its lambda offspring when evaluations fail", "[fault
     // The consumer replaces a failed offspring by a clone of a successful one (the submission policy
     // of the tolerant algorithms), so the population keeps its lambda members and the run its
     // progress although a third of all evaluations fail.
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
     GFaultInjectorRegistry::set(std::make_unique<EveryNthInjector>(3));
 
-    auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+    auto pop = std::make_shared<OA::GSepCmaEvolutionStrategy>();
     pop->setLambda(12);
     pop->setMaxIteration(15);
     pop->setMaxStallIteration(0);
@@ -284,14 +284,14 @@ TEST_CASE("the swarm survives the failure of a whole neighborhood", "[faultinj][
     // Regression: with every member of a neighborhood gone after an evaluation, the search for
     // the neighborhood's best read the element at its (empty) start: for the last neighborhood the
     // one behind the population.
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
     SECTION("in a later iteration the neighborhood is refilled and the run goes on") {
         auto injector = std::make_unique<NeighborhoodInjector>(2, 2);
         const NeighborhoodInjector *const watch = injector.get();
         GFaultInjectorRegistry::set(std::move(injector));
 
-        auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+        auto pop = std::make_shared<OA::GSwarmAlgorithm>();
         pop->setSwarmSizes(3, 4); // 3 neighborhoods x 4 members
         pop->setMaxIteration(6);
         pop->setMaxStallIteration(0);
@@ -311,7 +311,7 @@ TEST_CASE("the swarm survives the failure of a whole neighborhood", "[faultinj][
     SECTION("in the first iteration there is nothing to seed its best with: an error says so") {
         GFaultInjectorRegistry::set(std::make_unique<NeighborhoodInjector>(2, 0));
 
-        auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+        auto pop = std::make_shared<OA::GSwarmAlgorithm>();
         pop->setSwarmSizes(3, 4);
         pop->setMaxIteration(3);
         pop->setReportIteration(100000);
@@ -329,12 +329,12 @@ TEST_CASE("the EA forbids a substitute for its parents only", "[faultinj][oa]") 
     // A failed evaluation of a parent may not be replaced by a copy of another individual: the EA
     // marks the parents it submits (in the first iteration) as not substitutable, every child as
     // substitutable.
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
     auto injector = std::make_unique<SubstitutableCounter>();
     const SubstitutableCounter *const watch = injector.get();
     GFaultInjectorRegistry::set(std::move(injector));
 
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(8, 2);
     pop->setMaxIteration(2); // iterations 0 and 1
     pop->setMaxStallIteration(0);
@@ -342,7 +342,7 @@ TEST_CASE("the EA forbids a substitute for its parents only", "[faultinj][oa]") 
     pop->setEmitTerminationReason(false);
     FISphere const src;
     pop->push_back(src.clone());
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(src);
     cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
     pop->setAdaptionConfig(cfg);
     CHECK_NOTHROW(pop->optimize());

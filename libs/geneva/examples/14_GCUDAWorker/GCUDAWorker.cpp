@@ -101,7 +101,7 @@
 
 using namespace Gem::Geneva;
 namespace gpu = Gem::Courtier::GPU;
-namespace gen = Gem::Geneva::Genome;
+namespace Genome = Gem::Geneva::Genome;
 
 namespace {
 
@@ -170,11 +170,11 @@ reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, doubl
 }
 
 int runParityCheck(
-    const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &factory,
+    const std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> &factory,
     int n,
     const std::string &consumerConfig
 ) {
-    using gen::GGenome;
+    using Genome::GGenome;
 
     // Generous RELATIVE tolerance: the device kernel accumulates in the selected scalar (float by default)
     // with a parallel/atomic reduction, while evaluate() sums sequentially, so even identical genomes differ
@@ -343,7 +343,7 @@ int main(int argc, char **argv) {
              // and the loaded individual's config, and ends the process.
              if(Gem::Common::GParserBuilder::updateInPlace()) {
                  auto marshaller = std::make_shared<MonaLisa::GMonaLisaGPUMarshaller>();
-                 gpu::GGPUConsumerT<gen::GGenome, gimage_fp_t>(consumerConfig, marshaller);
+                 gpu::GGPUConsumerT<Genome::GGenome, gimage_fp_t>(consumerConfig, marshaller);
                  go.optimize();
              }
 
@@ -375,9 +375,9 @@ int main(int argc, char **argv) {
              // so this program need not know the concrete type. Register it for the only adapting algorithm we may
              // select: the dimension-aware evolutionary algorithm (ea). The from-scratch sep-CMA strategy (sepcma)
              // manages its own search distribution and needs no adaption config.
-             auto oef = std::dynamic_pointer_cast<gen::GGenomeFactory>(factory);
+             auto oef = std::dynamic_pointer_cast<Genome::GGenomeFactory>(factory);
              auto sample = factory->get(); // a sample individual (also parses the factory's config)
-             const auto *flat = dynamic_cast<const gen::GGenome *>(sample.get());
+             const auto *flat = dynamic_cast<const Genome::GGenome *>(sample.get());
              if(oef && (flat != nullptr)) {
                  if(auto cfg = oef->getAdaptionConfig(*flat)) {
                      go.registerAdaptionConfig("ea", cfg);
@@ -391,7 +391,7 @@ int main(int argc, char **argv) {
 
              // Perform the optimization. The per-iteration picture (the useful output) is written by GImagePOM. The
              // best individual is read back through the flat-genome base, so this program stays problem-agnostic.
-             auto best = go.optimize().getBestGlobalIndividual<gen::GGenome>();
+             auto best = go.optimize().getBestGlobalIndividual<Genome::GGenome>();
 
              GEM_LOGGER << "Example 14 finished. Best fitness: " << best->raw_fitness(0) << '\n'
                         << GEM_LOGGING;

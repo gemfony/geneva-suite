@@ -106,7 +106,7 @@ const targetFunction GO_DEF_TARGETFUNCTION = targetFunction::PARABOLA;
  * of processing their input in multiple dimensions.
  */
 //! [quickstart-individual-decl#1]
-class GStarterIndividual : public gen::GGenomeT<GStarterIndividual> {
+class GStarterIndividual : public Genome::GGenomeT<GStarterIndividual> {
     //! [quickstart-individual-decl#1]
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin
@@ -197,14 +197,14 @@ public:
     /** @brief Registers the config-file options, binding them to the passed Config */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /** @brief Builds the flat genome's structure: one constrained double per start value */
-    static gen::GenomeData buildGenome(const Config &c);
+    static Genome::GenomeData buildGenome(const Config &c);
     /** @brief Per-object post-config hook: stamps the (non-genome) target function */
     static void applyConfig(GStarterIndividual &ind, const Config &c);
     /** @brief The OA-owned Gauss adaption config: every parameter group gets the
      *  configured adaptor. Authored from the Config -- no adaptor data resides on the
      *  individual. */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
+    buildAdaptionConfig(const Genome::GGenome &sample, const Config &c);
     //! [problem-factory-hooks#2]
 
     /***************************************************************************/
@@ -244,7 +244,7 @@ public:
 
         // Build the flat genome's STRUCTURE: one constrained double per parameter. The Gauss adaptor lives
         // solely on the OA-owned config (buildAdaptionConfig()); none of its parameters reside here.
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         for(std::size_t i = 0; i < startValues.size(); i++) {
             b.addDouble(startValues.at(i), lowerBoundaries.at(i), upperBoundaries.at(i));
         }

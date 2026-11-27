@@ -123,7 +123,7 @@ constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
  * (see the shipped evaluator.py reference implementation for the schema). Hence the external
  * program needs to read and write this JSON format.
  */
-class GExternalEvaluatorIndividual : public gen::GGenomeT<GExternalEvaluatorIndividual> {
+class GExternalEvaluatorIndividual : public Genome::GGenomeT<GExternalEvaluatorIndividual> {
     ///////////////////////////////////////////////////////////////////////
 
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin
@@ -257,12 +257,12 @@ public:
      * @brief Queries the external evaluator for the individual structure and builds the flat genome;
      *  also records the discovered run_id / n_results_expected back into @p c.
      */
-    static gen::GenomeData buildGenome(Config &c);
+    static Genome::GenomeData buildGenome(Config &c);
     /**
      * @brief The OA-owned adaption config: the configured Gauss/bi-Gauss adaptor on every ACTIVE group
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
+    buildAdaptionConfig(const Genome::GGenome &sample, const Config &c);
     /**
      * @brief Per-object post-config hook: applies the external-program parameters + discovered metadata
      */

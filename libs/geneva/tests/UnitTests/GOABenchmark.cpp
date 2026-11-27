@@ -67,8 +67,8 @@
 #include "geneva/oa/GStandardPSO2011.hpp"
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 using Gem::Geneva::activityMode;
 
 namespace {
@@ -132,13 +132,13 @@ double objective(BenchFn fn, const std::vector<double> &x) {
  * The start value is offset from the optimum so the run has somewhere to go.
  */
 template <std::size_t N, BenchFn FN>
-class BenchIndividual : public gen::GGenomeT<BenchIndividual<N, FN>> {
+class BenchIndividual : public Genome::GGenomeT<BenchIndividual<N, FN>> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     BenchIndividual() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         if constexpr(FN == BenchFn::Rosenbrock) {
             b.addDoubleGroup(N, -5., 10.).init(-1.0);
         }
@@ -150,8 +150,8 @@ public:
     BenchIndividual(const BenchIndividual &) = default;
 
     /** @brief A Gauss adaption config (only the EA and classic SA consume one; the others own their update). */
-    [[nodiscard]] std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    [[nodiscard]] std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         return cfg;
     }
@@ -217,7 +217,7 @@ void runMatrix(double budget_s) {
 
     // --- Existing algorithms ---
     if(want("ea")) {
-        auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
         pop->setPopulationSizes(256, 64); // (total, nParents)
         pop->push_back(proto.clone());
         pop->setAdaptionConfig(proto.buildAdaptionConfig());
@@ -225,18 +225,18 @@ void runMatrix(double budget_s) {
     }
     if(want("sepcma")) {
         auto pop =
-            std::make_shared<oa::GSepCmaEvolutionStrategy>(); // owns its distribution; auto lambda
+            std::make_shared<OA::GSepCmaEvolutionStrategy>(); // owns its distribution; auto lambda
         pop->push_back(proto.clone());
         record("sep-CMA-ES", pop);
     }
     if(want("swarm")) {
-        auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+        auto pop = std::make_shared<OA::GSwarmAlgorithm>();
         pop->setSwarmSizes(8, 32); // 8 neighborhoods x 32 members
         pop->push_back(proto.clone());
         record("swarm (classic)", pop);
     }
     if(want("sa")) {
-        auto pop = std::make_shared<oa::GSimulatedAnnealing>();
+        auto pop = std::make_shared<OA::GSimulatedAnnealing>();
         pop->setPopulationSizes(256, 64); // (total, nParents)
         pop->push_back(proto.clone());
         pop->setAdaptionConfig(proto.buildAdaptionConfig());
@@ -244,20 +244,20 @@ void runMatrix(double budget_s) {
     }
     // --- New clean-room algorithms ---
     if(want("spso")) {
-        auto pop = std::make_shared<oa::GStandardPSO2011>();
+        auto pop = std::make_shared<OA::GStandardPSO2011>();
         pop->setSwarmSize(128);
         pop->push_back(proto.clone());
         record("SPSO-2011", pop);
     }
     if(want("acor")) {
-        auto pop = std::make_shared<oa::GAntColonyOptimization>();
+        auto pop = std::make_shared<OA::GAntColonyOptimization>();
         pop->setArchiveSize(100);
         pop->setNAnts(20);
         pop->push_back(proto.clone());
         record("ACOR", pop);
     }
     if(want("gsa")) {
-        auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+        auto pop = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
         pop->setNChains(64);
         // Stretch the Tsallis cooling so the chains keep making useful moves across a long,
         // high-dimensional, time-bounded run instead of freezing within the first ~100 steps.

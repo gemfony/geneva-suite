@@ -458,7 +458,8 @@ void GParChild::copyParentsIntoChildrenParallel(const std::vector<std::size_t> &
         const std::size_t child_idx = n_parents_ + c;
         const std::size_t pp = parent_pos[c];
         futures_cnt.push_back(tp->async_schedule([this, child_idx, pp]() {
-            std::unique_ptr<gen::GGenome> &child = GOptimizationAlgorithmBase::data_cnt_[child_idx];
+            std::unique_ptr<Genome::GGenome> &child =
+                GOptimizationAlgorithmBase::data_cnt_[child_idx];
             child->load(GOptimizationAlgorithmBase::data_cnt_[pp]);
             child->template getPersonalityTraits<GBaseParChildPersonalityTraits>()->setParentId(pp);
         }));
@@ -484,7 +485,7 @@ void GParChild::recombineSerial(const std::vector<double> &threshold) {
         amalgamation_likelihood_
     ); // true with a likelihood of amalgamation_likelihood_
 
-    std::vector<std::unique_ptr<gen::GGenome>>::iterator it;
+    std::vector<std::unique_ptr<Genome::GGenome>>::iterator it;
     for(it = GOptimizationAlgorithmBase::data_cnt_.begin() + n_parents_;
         it != GOptimizationAlgorithmBase::data_cnt_.end();
         ++it) {
@@ -502,7 +503,7 @@ void GParChild::recombineSerial(const std::vector<double> &threshold) {
  * @param amalgamation_wanted The per-child cross-over decision distribution (drawn once per call)
  */
 void GParChild::recombineOneSerial(
-    const std::unique_ptr<gen::GGenome> &child,
+    const std::unique_ptr<Genome::GGenome> &child,
     const std::vector<double> &threshold,
     std::bernoulli_distribution &amalgamation_wanted
 ) {
@@ -510,8 +511,8 @@ void GParChild::recombineOneSerial(
     // If we do perform cross-over, we always cross the best individual with another random parent
     if(n_parents_ > 1 &&
        amalgamation_wanted(this->gr_)) { // Create individuals using a cross-over scheme
-        const gen::GGenome &best_parent = (*this->front());
-        const gen::GGenome &combiner =
+        const Genome::GGenome &best_parent = (*this->front());
+        const Genome::GGenome &combiner =
             (n_parents_ > 2)
                 ? (*(*(
                       this->begin() +
@@ -538,7 +539,7 @@ void GParChild::recombineOneSerial(
  * @param threshold The value-duplication weight vector (see buildRecombinationThresholds())
  */
 void GParChild::duplicateForChild(
-    const std::unique_ptr<gen::GGenome> &child,
+    const std::unique_ptr<Genome::GGenome> &child,
     const std::vector<double> &threshold
 ) {
     switch(recombination_method_) {
@@ -609,7 +610,7 @@ void GParChild::adaptChildren_() {
             // Drive the data-oriented adaption from the OA-owned config instead of the
             // individual's own adapt(). The config is read-only here, so the schedule stays lock-free.
             [it, cfg = adaption_config_.get()]() {
-                auto &flat = dynamic_cast<gen::GGenome &>((*(*it)));
+                auto &flat = dynamic_cast<Genome::GGenome &>((*(*it)));
                 return adaptIndividual(flat, (*it)->scratch(), *cfg);
             } // Returns the number of adaptions
         ));
@@ -776,7 +777,7 @@ std::tuple<std::size_t, std::size_t> GParChild::getAdaptionRange() const {
  * @brief This helper function marks the first n_parents_ individuals in the population as parents.
  */
 void GParChild::markParents() {
-    typename std::vector<std::unique_ptr<gen::GGenome>>::iterator it;
+    typename std::vector<std::unique_ptr<Genome::GGenome>>::iterator it;
     for(it = GOptimizationAlgorithmBase::data_cnt_.begin();
         it != GOptimizationAlgorithmBase::data_cnt_.begin() + n_parents_;
         ++it) {
@@ -919,7 +920,7 @@ void GParChild::adjustPopulation_() {
     }
 
     // Do the smart pointers actually point to any objects ?
-    typename std::vector<std::unique_ptr<gen::GGenome>>::iterator it;
+    typename std::vector<std::unique_ptr<Genome::GGenome>>::iterator it;
     for(const auto &individual : GOptimizationAlgorithmBase::data_cnt_) {
         if(not individual) { // unique_ptr can be implicitly converted to bool
             throw Gem::Common::gem_exception(
@@ -948,7 +949,7 @@ void GParChild::adjustPopulation_() {
     // individual's own adapt(). It is transient run scratch, adopted anew at every start of a run.
     adaption_config_.reset();
     if(not this->empty()) {
-        if(const auto *flat = dynamic_cast<const gen::GGenome *>(&(*this->at(0)))) {
+        if(const auto *flat = dynamic_cast<const Genome::GGenome *>(&(*this->at(0)))) {
             // The genome carries only structure -- the adaptors live on an OA-owned GAdaptionConfig that
             // MUST be provided explicitly (via setAdaptionConfig(), e.g.
             // GOptimizer::registerAdaptionConfig() for this algorithm's personality type). Adaption
@@ -1004,7 +1005,7 @@ void GParChild::performScheduledPopulationGrowth() {
  *
  * @param child The child slot into which the randomly chosen parent's slot is loaded
  */
-void GParChild::randomRecombine(const std::unique_ptr<gen::GGenome> &child) {
+void GParChild::randomRecombine(const std::unique_ptr<Genome::GGenome> &child) {
     std::size_t parent_pos = 0;
 
     if(n_parents_ == 1) {
@@ -1043,7 +1044,7 @@ void GParChild::randomRecombine(const std::unique_ptr<gen::GGenome> &child) {
  * @param threshold A std::vector<double> holding the cumulative recombination likelihoods for each parent
  */
 void GParChild::valueRecombine(
-    const std::unique_ptr<gen::GGenome> &child,
+    const std::unique_ptr<Genome::GGenome> &child,
     const std::vector<double> &threshold
 ) {
     bool done = false;

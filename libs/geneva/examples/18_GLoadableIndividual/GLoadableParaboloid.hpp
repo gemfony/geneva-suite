@@ -134,8 +134,8 @@ public:
      *  through GGenomeFactory::getAdaptionConfig(), so a generic optimizer program need not know this type. */
     static std::shared_ptr<Gem::Geneva::OptimizationAlgorithms::GAdaptionConfigBase>
     buildAdaptionConfig(const Gem::Geneva::Genome::GGenome &sample, const Config &c) {
-        namespace oa = Gem::Geneva::OptimizationAlgorithms;
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+        namespace OA = Gem::Geneva::OptimizationAlgorithms;
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); ++i) {
             cfg->groupDouble(i).gauss(c.sigma, 0.8, 1e-3, 2., 1.);
         }

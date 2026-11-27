@@ -363,7 +363,7 @@ GDelayIndividual::create(const Config &c, const std::chrono::duration<double> &s
         std::tuple<double, double>(c.lower_rand_sleep_boundary, c.upper_rand_sleep_boundary)
     );
 
-    gen::GGenomeBuilder gb;
+    Genome::GGenomeBuilder gb;
     for(std::size_t var = 0; var < c.n_variables; var++) {
         gb.addDouble(0.5);
     }

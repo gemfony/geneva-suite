@@ -57,7 +57,7 @@
 #include "geneva/oa/GAdaption.hpp"
 
 using namespace Gem::Geneva;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 /******************************************************************************/
 /**
@@ -66,7 +66,7 @@ namespace oa = Gem::Geneva::OptimizationAlgorithms;
  * supplies clone_(); only a constructor (which authors the genome) and a trivial
  * evaluate() remain.
  */
-class GDemoIndividual : public gen::GGenomeT<GDemoIndividual> {
+class GDemoIndividual : public Genome::GGenomeT<GDemoIndividual> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
@@ -74,7 +74,7 @@ public:
     GDemoIndividual() {
         // The builder declares only the genome's STRUCTURE; the adaptors live on an OA-owned config
         // (getAdaptionConfig()), authored from the same parameters.
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(2, -10., 10.); // two constrained doubles sharing one adaption group
         b.addInt32(0, 0, 5);            // one constrained int32
         this->setGenome(b.build());
@@ -83,8 +83,8 @@ public:
 
     /** @brief The OA-owned adaption config: a Gauss adaptor on the double group, a flip adaptor on the int. */
     //! [adaptors-mixed-channels]
-    std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> getAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         cfg->groupInt32(0).flip(1.);
         return cfg;
@@ -109,7 +109,7 @@ GEM_REGISTER_ARCHIVABLE(GDemoIndividual) // NOLINT
  * Prints the shape of a freshly built genome: the per-channel value arrays and
  * the number of adaption groups registered for each channel.
  */
-void printGenome(const std::string &title, const gen::GenomeData &g) {
+void printGenome(const std::string &title, const Genome::GenomeData &g) {
     std::cout << title << '\n';
     std::cout << "  double values (" << g.dv.size() << "): ";
     for(double const v : g.dv) {
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
     // creates/rewrites ./config/GFunctionIndividual.json from code defaults.
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         Gem::Common::beginConfigEmission();
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
+        Individuals::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
         Gem::Common::finishConfigEmission();
         return 0;
     }
@@ -159,10 +159,11 @@ int main(int argc, char **argv) {
     //    config; toJSON() serialises that genome's parameters.
 
     {
-        auto const gfi_ptr =
-            std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+        auto const gfi_ptr = std::make_shared<Individuals::GFunctionIndividualFactory>(
+            "./config/GFunctionIndividual.json"
+        );
 
-        std::shared_ptr<gen::GGenome> const gfi_test = gfi_ptr->get();
+        std::shared_ptr<Genome::GGenome> const gfi_test = gfi_ptr->get();
 
         // Make sure the individual is "clean", i.e. the processed flag is set
         gfi_test->set_processing_status(Gem::Courtier::processingStatus::DO_PROCESS);
@@ -191,12 +192,12 @@ int main(int argc, char **argv) {
     //   addXArray(n[,min,max])    -- n parameters, each its own adaption group
 
     { // Constrained doubles: a single scalar (group 0), a shared-sigma group (1), and an array (2 & 3).
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDouble(1., -10., 10.);
         b.addDoubleGroup(3, -5., 5.);
         b.addDoubleArray(2, -1., 1.);
         auto genome = b.build();
-        auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
+        auto cfg = std::make_shared<OA::GAdaptionConfigBase>(*genome.layout);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
             cfg->groupDouble(i)
                 .gauss(0.5, 0.8, 1e-3, 2., 1.); // the same Gauss config on each group
@@ -206,29 +207,29 @@ int main(int argc, char **argv) {
 
     { // Unbounded ("plain") double collection: min/max set the random-init perimeter and the Gauss step
         // range, but are NOT constraints (no folding takes place).
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDouble(0.5); // a bare unbounded scalar (init perimeter [0,1]) -- left un-adapted here
         b.addDoublePlainGroup(4, -10., 10.);
         auto genome = b.build();
-        auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
+        auto cfg = std::make_shared<OA::GAdaptionConfigBase>(*genome.layout);
         cfg->groupDouble(1).gauss(0.025, 0.1, 0., 1., 1.); // group 1 is the plain collection
         printGenome("Unbounded (plain) doubles:", genome);
     }
 
     { // Floats behave exactly like doubles, on their own value channel.
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addFloat(0.f, -2.f, 2.f);
         auto genome = b.build();
-        auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
+        auto cfg = std::make_shared<OA::GAdaptionConfigBase>(*genome.layout);
         cfg->groupFloat(0).gauss(0.5f, 0.8f, 1e-3f, 2.f, 1.f);
         printGenome("Constrained floats:", genome);
     }
 
     { // A bi-gaussian adaptor (two superimposed gaussians) on a constrained double.
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDouble(0., -10., 10.);
         auto genome = b.build();
-        auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
+        auto cfg = std::make_shared<OA::GAdaptionConfigBase>(*genome.layout);
         cfg->groupDouble(0).biGauss(
             0.5,
             0.8,
@@ -248,22 +249,22 @@ int main(int argc, char **argv) {
     }
 
     { // Integer parameters: an integer Gauss adaptor and a flip adaptor.
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addInt32(0, -100, 100);
         b.addInt32Group(3, 0, 9);
         auto genome = b.build();
-        auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
+        auto cfg = std::make_shared<OA::GAdaptionConfigBase>(*genome.layout);
         cfg->groupInt32(0).intGauss(2., 0.8, 1., 5., 1.);
         cfg->groupInt32(1).flip(1.);
         printGenome("Constrained int32 (gauss + flip):", genome);
     }
 
     { // Boolean parameters: a single switch and a group, both flip-adapted.
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addBool(true);
         b.addBoolGroup(4);
         auto genome = b.build();
-        auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
+        auto cfg = std::make_shared<OA::GAdaptionConfigBase>(*genome.layout);
         cfg->groupBool(0).flip(1.);
         cfg->groupBool(1).flip(0.5);
         printGenome("Booleans (single + group):", genome);
@@ -272,7 +273,7 @@ int main(int argc, char **argv) {
     { // Per-group tuning: the structural policy (.init / .perimeter / adaptionMode(NEVER) -- a frozen,
         // "inactive" group) stays on the builder; the adaptor is authored on the config for the active groups.
         //! [problem-handle-tuning#1]
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(2, -10., 10.).init(3.);
         b.addDoubleGroup(2, -10., 10.).perimeter(-1., 1.);
         b.addDoubleGroup(2, -10., 10.).adaptionMode(adaptionMode::NEVER); // frozen parameters
@@ -280,7 +281,7 @@ int main(int argc, char **argv) {
         //! [problem-handle-tuning#3]
         auto genome = b.build();
         //! [problem-handle-tuning#3]
-        auto cfg = std::make_shared<oa::GAdaptionConfigBase>(*genome.layout);
+        auto cfg = std::make_shared<OA::GAdaptionConfigBase>(*genome.layout);
         // Author the Gauss adaptor on every group; the frozen group (built adaptionMode::NEVER) is
         // inactive, so the adaption kernel skips it regardless.
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
@@ -321,7 +322,7 @@ int main(int argc, char **argv) {
         // Mutate the parameters. The adaption state + logic are OA-owned; a standalone
         // individual drives them via a self-owned scratch + the config it authors (StandaloneAdapter).
         // We expect changes.
-        oa::StandaloneAdapter(ind, ind.getAdaptionConfig()).adapt(ind);
+        OA::StandaloneAdapter(ind, ind.getAdaptionConfig()).adapt(ind);
         auto const after = ind.parameterValues<double>();
         std::cout << "GDemoIndividual double values after adapt(): ";
         for(double const v : after) {

@@ -735,7 +735,7 @@ void GParameterScan::setParameterSpecs(const std::string &par_str) {
     b_cnt_.clear();
 
     // Parse the parameter string
-    gen::GParameterPropertyParser const ppp(par_str);
+    Genome::GParameterPropertyParser const ppp(par_str);
 
     //---------------------------------------------------------------------------
     // Assign the parameter definitions to our internal parameter vectors.
@@ -745,8 +745,8 @@ void GParameterScan::setParameterSpecs(const std::string &par_str) {
     if(0 == simple_scan_items_) { // Only act if no "simple scan" was requested
         // Retrieve double parameters
         std::tuple<
-            std::vector<gen::parPropSpec<double>>::const_iterator,
-            std::vector<gen::parPropSpec<double>>::const_iterator>
+            std::vector<Genome::parPropSpec<double>>::const_iterator,
+            std::vector<Genome::parPropSpec<double>>::const_iterator>
             t_d = ppp.getIterators<double>();
 
         auto d_cit = std::get<0>(t_d);
@@ -758,8 +758,8 @@ void GParameterScan::setParameterSpecs(const std::string &par_str) {
 
         // Retrieve float parameters
         std::tuple<
-            std::vector<gen::parPropSpec<float>>::const_iterator,
-            std::vector<gen::parPropSpec<float>>::const_iterator>
+            std::vector<Genome::parPropSpec<float>>::const_iterator,
+            std::vector<Genome::parPropSpec<float>>::const_iterator>
             t_f = ppp.getIterators<float>();
 
         auto f_cit = std::get<0>(t_f);
@@ -771,8 +771,8 @@ void GParameterScan::setParameterSpecs(const std::string &par_str) {
 
         // Retrieve integer parameters
         std::tuple<
-            std::vector<gen::parPropSpec<std::int32_t>>::const_iterator,
-            std::vector<gen::parPropSpec<std::int32_t>>::const_iterator>
+            std::vector<Genome::parPropSpec<std::int32_t>>::const_iterator,
+            std::vector<Genome::parPropSpec<std::int32_t>>::const_iterator>
             t_i = ppp.getIterators<std::int32_t>();
 
         auto i_cit = std::get<0>(t_i);
@@ -784,8 +784,8 @@ void GParameterScan::setParameterSpecs(const std::string &par_str) {
 
         // Retrieve boolean parameters
         std::tuple<
-            std::vector<gen::parPropSpec<bool>>::const_iterator,
-            std::vector<gen::parPropSpec<bool>>::const_iterator>
+            std::vector<Genome::parPropSpec<bool>>::const_iterator,
+            std::vector<Genome::parPropSpec<bool>>::const_iterator>
             t_b = ppp.getIterators<bool>();
 
         auto b_cit = std::get<0>(t_b);

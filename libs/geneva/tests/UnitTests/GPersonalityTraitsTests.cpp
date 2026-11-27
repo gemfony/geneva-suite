@@ -41,7 +41,7 @@
 #include "geneva/oa/GBaseParChildPersonalityTraits.hpp"
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 /******************************************************************************/
 
@@ -49,7 +49,7 @@ TEST_CASE(
     "GBaseParChildPersonalityTraits: an object can be marked as parent or child",
     "[geneva][traits]"
 ) {
-    oa::GBaseParChildPersonalityTraits p_test;
+    OA::GBaseParChildPersonalityTraits p_test;
 
     CHECK_NOTHROW(p_test.setIsParent());
     CHECK(p_test.isParent() == true);
@@ -62,7 +62,7 @@ TEST_CASE(
     "GBaseParChildPersonalityTraits: the parent counter is incremented and reset",
     "[geneva][traits]"
 ) {
-    oa::GBaseParChildPersonalityTraits p_test;
+    OA::GBaseParChildPersonalityTraits p_test;
 
     CHECK_NOTHROW(p_test.setIsChild());
     CHECK(p_test.isParent() == false);
@@ -82,7 +82,7 @@ TEST_CASE(
     "GBaseParChildPersonalityTraits: the population position can be set and read",
     "[geneva][traits]"
 ) {
-    oa::GBaseParChildPersonalityTraits p_test;
+    OA::GBaseParChildPersonalityTraits p_test;
 
     for(std::size_t i = 0; i < 10; i++) {
         CHECK_NOTHROW(p_test.setPopulationPosition(i));
@@ -94,7 +94,7 @@ TEST_CASE(
     "GBaseParChildPersonalityTraits: parent ids can be set read and unset",
     "[geneva][traits]"
 ) {
-    oa::GBaseParChildPersonalityTraits p_test;
+    OA::GBaseParChildPersonalityTraits p_test;
 
     for(std::size_t i = 0; i < 10; i++) {
         CHECK_NOTHROW(p_test.setParentId(i));
@@ -106,7 +106,7 @@ TEST_CASE(
 }
 
 TEST_CASE("GBaseParChildPersonalityTraits: reading an unset parent id throws", "[geneva][traits]") {
-    oa::GBaseParChildPersonalityTraits p_test;
+    OA::GBaseParChildPersonalityTraits p_test;
 
     CHECK_NOTHROW(p_test.unsetParentId());
     CHECK_THROWS_AS(p_test.getParentId(), Gem::Common::gem_exception);
@@ -118,7 +118,7 @@ TEST_CASE(
     "GSwarmAlgorithm_PersonalityTraits: the no-position-update flag is set and reset",
     "[geneva][traits]"
 ) {
-    oa::GSwarmAlgorithm_PersonalityTraits p_test;
+    OA::GSwarmAlgorithm_PersonalityTraits p_test;
 
     CHECK_NOTHROW(p_test.setNoPositionUpdate());
     CHECK(p_test.noPositionUpdate() == true);
@@ -136,7 +136,7 @@ TEST_CASE(
     "GSwarmAlgorithm_PersonalityTraits: the neighborhood can be set and read",
     "[geneva][traits]"
 ) {
-    oa::GSwarmAlgorithm_PersonalityTraits p_test;
+    OA::GSwarmAlgorithm_PersonalityTraits p_test;
 
     for(std::size_t i = 0; i < 10; i++) {
         CHECK_NOTHROW(p_test.setNeighborhood(i));

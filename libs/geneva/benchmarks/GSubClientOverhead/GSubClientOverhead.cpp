@@ -196,7 +196,7 @@ int measure(GOptimizer &go, const Settings &settings) {
         settings.referenceFile,
         to_schedule(config_ref),
         to_schedule(config_par),
-        [&config](const std::chrono::duration<double> &delay) -> std::shared_ptr<gen::GGenome> {
+        [&config](const std::chrono::duration<double> &delay) -> std::shared_ptr<Genome::GGenome> {
             return GSleepGroupIndividual::create(config, delay);
         },
         config_par.result_file,
@@ -258,7 +258,7 @@ Gem::Courtier::GMPICascadeConfig cascadeConfig(unsigned int group, GMPICascadeLa
  * @return The exit code
  */
 int runOnLauncher(
-    Gem::Courtier::GLauncherT<gen::GGenome> &launcher,
+    Gem::Courtier::GLauncherT<Genome::GGenome> &launcher,
     GOptimizationDescription &geneva,
     Settings &settings,
     std::move_only_function<std::optional<int>(processRole)> prepare = {}
@@ -291,7 +291,7 @@ int runOnLauncher(
  * @return The exit code
  */
 int runGroupProcess(
-    Gem::Courtier::GLauncherT<gen::GGenome> &launcher,
+    Gem::Courtier::GLauncherT<Genome::GGenome> &launcher,
     GOptimizationDescription &geneva,
     const Role &role,
     Settings &settings,
@@ -316,24 +316,27 @@ int runGroupProcess(
     // ends this process, and with it the job, whose leads wait for this process's greeting.
     // A lead's client evaluates every item in a round of the group; process() keeps the item's
     // lifecycle (status, timing, an exception flags the item).
-    launcher.registerItemProcessor([&cascade, &lead_log, pause_min, pause_max](gen::GGenome &item) {
-        std::ignore = item.process([&](const gen::GGenome &candidate) -> std::vector<double> {
-            const auto &individual = dynamic_cast<const GSleepGroupIndividual &>(candidate);
-            auto const parameters = individual.parameterValues<double>();
-            const double fitness = cascade.round([&](MPI_Comm group) {
-                return SubClientOverhead::leadHalf(
-                    group,
-                    std::chrono::duration<double>(individual.evaluationTime()),
-                    individual.split(),
-                    parameters,
-                    pause_min,
-                    pause_max
-                );
-            });
-            lead_log.countRound();
-            return {fitness};
-        });
-    });
+    launcher.registerItemProcessor(
+        [&cascade, &lead_log, pause_min, pause_max](Genome::GGenome &item) {
+            std::ignore =
+                item.process([&](const Genome::GGenome &candidate) -> std::vector<double> {
+                    const auto &individual = dynamic_cast<const GSleepGroupIndividual &>(candidate);
+                    auto const parameters = individual.parameterValues<double>();
+                    const double fitness = cascade.round([&](MPI_Comm group) {
+                        return SubClientOverhead::leadHalf(
+                            group,
+                            std::chrono::duration<double>(individual.evaluationTime()),
+                            individual.split(),
+                            parameters,
+                            pause_min,
+                            pause_max
+                        );
+                    });
+                    lead_log.countRound();
+                    return {fitness};
+                });
+        }
+    );
     const int rc = runOnLauncher(launcher, geneva, settings, [&](processRole consumer_role) {
         cascade.requireRole(consumer_role); // the consumer's role must be the cascade's
         if(consumer_role == processRole::CLIENT) {
@@ -364,7 +367,7 @@ int main(int argc, char **argv) {
     // Built before a cascade, so that a request for the help text is answered before the cascade
     // would start MPI
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
+    Gem::Courtier::GLauncherT<Genome::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
     if(not role.updateConfigs and not launcher.helpRequested() and role.group > 1) {
         if(role.consumer == "mpi") {
             return runGroupProcess(

@@ -56,7 +56,7 @@ namespace Gem::Geneva {
  * @return The fitness expressed as a quantity to be minimized
  */
 double minOnly_transformed_fitness(
-    const gen::GGenome &item,
+    const Genome::GGenome &item,
     const std::size_t id // NOLINT(misc-unused-parameters)
 ) {
     const double f = item.transformed_fitness(id); // NOLINT(cppcoreguidelines-init-variables)
@@ -88,8 +88,8 @@ double minOnly_transformed_fitness(
  * @return true if x_ptr is better than y_ptr, false otherwise
  */
 bool isBetter(
-    const std::shared_ptr<gen::GGenome> &x_ptr,
-    const std::shared_ptr<gen::GGenome> &y_ptr
+    const std::shared_ptr<Genome::GGenome> &x_ptr,
+    const std::shared_ptr<Genome::GGenome> &y_ptr
 ) {
     Gem::Common::checkThat(
         x_ptr->getMaxMode() == y_ptr->getMaxMode(),
@@ -118,8 +118,8 @@ bool isBetter(
  * @return true if x_ptr is worse than (or not better than) y_ptr, false otherwise
  */
 bool isWorse(
-    const std::shared_ptr<gen::GGenome> &x_ptr,
-    const std::shared_ptr<gen::GGenome> &y_ptr
+    const std::shared_ptr<Genome::GGenome> &x_ptr,
+    const std::shared_ptr<Genome::GGenome> &y_ptr
 ) {
     return not isBetter(x_ptr, y_ptr);
 }

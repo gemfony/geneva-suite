@@ -596,44 +596,44 @@ void GConjugateGradientDescent::updateParentIndividuals() {
  *
  * @param cg_scratch The central slot's scratch store the blocks are installed on
  */
-void GConjugateGradientDescent::ensureGradientScratch_(gen::GAuxiliaryStore &cg_scratch) const {
+void GConjugateGradientDescent::ensureGradientScratch_(Genome::GAuxiliaryStore &cg_scratch) const {
     if(not cg_scratch.hasAux(AUXKEY_CGD_HISTORY_VALID)) {
         cg_scratch.installAuxBlock<double>(
             AUXKEY_CGD_PREV_GRADIENT,
             n_fp_parms_first_,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         cg_scratch.installAuxBlock<double>(
             AUXKEY_CGD_PREV_DIRECTION,
             n_fp_parms_first_,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         cg_scratch.installAuxBlock<std::uint8_t>(
             AUXKEY_CGD_HISTORY_VALID,
             1,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
     }
     if(gradient_method_ == gradientMethod::LBFGS && not cg_scratch.hasAux(AUXKEY_CGD_LBFGS_COUNT)) {
         cg_scratch.installAuxBlock<double>(
             AUXKEY_CGD_LBFGS_S,
             lbfgs_memory_ * n_fp_parms_first_,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         cg_scratch.installAuxBlock<double>(
             AUXKEY_CGD_LBFGS_Y,
             lbfgs_memory_ * n_fp_parms_first_,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         cg_scratch.installAuxBlock<double>(
             AUXKEY_CGD_LBFGS_PREV_X,
             n_fp_parms_first_,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         cg_scratch.installAuxBlock<std::uint32_t>(
             AUXKEY_CGD_LBFGS_COUNT,
             1,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
     }
 }
@@ -698,7 +698,7 @@ std::vector<double> GConjugateGradientDescent::computeProxyGradient_(
  */
 // NOLINTNEXTLINE(readability-function-size) -- single coherent numeric kernel implementing the textbook L-BFGS two-loop recursion (Nocedal & Wright, Algorithm 7.4/7.5); the curvature update and the two loops operate on the same ring-buffer history and splitting them would scatter one numeric algorithm
 std::vector<double> GConjugateGradientDescent::lbfgsDirection_(
-    gen::GAuxiliaryStore &cg_scratch,
+    Genome::GAuxiliaryStore &cg_scratch,
     const std::vector<double> &parm_vec,
     const std::vector<double> &gradient,
     bool history_valid,
@@ -914,7 +914,7 @@ std::vector<double> GConjugateGradientDescent::evaluateProbes(
     std::size_t starting_point,
     std::vector<std::vector<double>> const &points
 ) {
-    std::vector<std::unique_ptr<gen::GGenome>> probes;
+    std::vector<std::unique_ptr<Genome::GGenome>> probes;
     probes.reserve(points.size());
     for(auto const &pt : points) {
         auto probe = this->at(starting_point)->clone();
@@ -1131,17 +1131,17 @@ void GConjugateGradientDescent::resetCGState() {
         scratch.installAuxBlock<double>(
             AUXKEY_CGD_PREV_GRADIENT,
             n_fp_parms_first_,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         scratch.installAuxBlock<double>(
             AUXKEY_CGD_PREV_DIRECTION,
             n_fp_parms_first_,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         scratch.installAuxBlock<std::uint8_t>(
             AUXKEY_CGD_HISTORY_VALID,
             1,
-            gen::AuxScope::PerIndividual
+            Genome::AuxScope::PerIndividual
         );
         // installAuxBlock zero-initialises, so the gradient/direction are 0 and the flag is false.
         if(gradient_method_ == gradientMethod::LBFGS) {
@@ -1149,22 +1149,22 @@ void GConjugateGradientDescent::resetCGState() {
             scratch.installAuxBlock<double>(
                 AUXKEY_CGD_LBFGS_S,
                 lbfgs_memory_ * n_fp_parms_first_,
-                gen::AuxScope::PerIndividual
+                Genome::AuxScope::PerIndividual
             );
             scratch.installAuxBlock<double>(
                 AUXKEY_CGD_LBFGS_Y,
                 lbfgs_memory_ * n_fp_parms_first_,
-                gen::AuxScope::PerIndividual
+                Genome::AuxScope::PerIndividual
             );
             scratch.installAuxBlock<double>(
                 AUXKEY_CGD_LBFGS_PREV_X,
                 n_fp_parms_first_,
-                gen::AuxScope::PerIndividual
+                Genome::AuxScope::PerIndividual
             );
             scratch.installAuxBlock<std::uint32_t>(
                 AUXKEY_CGD_LBFGS_COUNT,
                 1,
-                gen::AuxScope::PerIndividual
+                Genome::AuxScope::PerIndividual
             );
         }
     }

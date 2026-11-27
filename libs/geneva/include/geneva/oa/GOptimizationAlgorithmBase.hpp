@@ -103,7 +103,7 @@ class GOptimizationAlgorithmBase // NOLINT(cppcoreguidelines-special-member-func
   : public Gem::Common::GReflectiveInterfaceBaseT<
         GOptimizationAlgorithmBase,
         Gem::Common::GCommonInterfaceT<GOptimizationAlgorithmBase>>
-  , public Gem::Common::GUniquePtrContainerT<gen::GGenome>
+  , public Gem::Common::GUniquePtrContainerT<Genome::GGenome>
   , public Interface::GOptimizerIT<GOptimizationAlgorithmBase> {
 private:
     ///////////////////////////////////////////////////////////////////////
@@ -273,10 +273,10 @@ public:
     using Gem::Common::GCommonInterfaceT<GOptimizationAlgorithmBase>::load;
 
     /***************************************************************************/
-    // The population element IS the work item (gen::GGenome), which carries its own OA
+    // The population element IS the work item (Genome::GGenome), which carries its own OA
     // scratch. A user adds bare individuals straight into the population; the inherited push_back
     // overloads are re-exposed so callers can grow the population directly.
-    using Gem::Common::GUniquePtrContainerT<gen::GGenome>::push_back;
+    using Gem::Common::GUniquePtrContainerT<Genome::GGenome>::push_back;
 
     /**
      * @brief The copy constructor.
@@ -582,7 +582,7 @@ public:
      * live population's UUIDs to also reject lineages that are still present.
      */
     static void retainIntegrableLateReturns(
-        std::vector<std::unique_ptr<gen::GGenome>> &items,
+        std::vector<std::unique_ptr<Genome::GGenome>> &items,
         std::set<Gem::Courtier::SUBMISSION_UUID_TYPE> &seen
     );
 
@@ -628,8 +628,8 @@ public:
         // individual transiently, so hand back a NON-OWNING shared_ptr view (no-op deleter) of the live
         // individual rather than co-owning or cloning it -- the population element outlives the call.
         // Does error checks on the conversion internally.
-        std::shared_ptr<gen::GGenome> const view(&(*this->at(pos)), [](gen::GGenome *) {});
-        return Gem::Common::g_ptr_conversion<gen::GGenome, target_type>(view);
+        std::shared_ptr<Genome::GGenome> const view(&(*this->at(pos)), [](Genome::GGenome *) {});
+        return Gem::Common::g_ptr_conversion<Genome::GGenome, target_type>(view);
     }
 
     /***************************************************************************/
@@ -642,7 +642,7 @@ public:
     /**
      * @brief If individuals have been stored in this population, they are added to the priority queue.
      */
-    void addCleanStoredBests(gen::GGenomeFixedSizePriorityQueue &best_individuals);
+    void addCleanStoredBests(Genome::GGenomeFixedSizePriorityQueue &best_individuals);
 
     /**
      * @brief Whether this is the first iteration of the run as a whole (never in a run resumed from
@@ -748,7 +748,7 @@ protected:
      *  flagging needed); the consumer marks and reconciles exactly that span in place.
      */
     Gem::Courtier::submission_status_t workOn(
-        std::vector<std::unique_ptr<gen::GGenome>> &work_items,
+        std::vector<std::unique_ptr<Genome::GGenome>> &work_items,
         std::size_t start,
         std::size_t end
     );
@@ -787,7 +787,7 @@ protected:
      * the virtual lateReturnMaxAge() (default: no window). The remaining reaping policy (personality
      * re-stamping, neighborhood handling) stays in the calling algorithm.
      */
-    std::vector<std::unique_ptr<gen::GGenome>> getOldWorkItems() const;
+    std::vector<std::unique_ptr<Genome::GGenome>> getOldWorkItems() const;
 
     /**
      * @brief Whether this algorithm reuses late returns -- results that arrived after their submission
@@ -840,11 +840,11 @@ protected:
     /**
      * @brief Adds the individuals of this iteration to the global-best priority queue.
      */
-    virtual void updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals);
+    virtual void updateGlobalBestsPQ_(Genome::GGenomeFixedSizePriorityQueue &best_individuals);
     /**
      * @brief Adds the individuals of this iteration to the iteration-best priority queue.
      */
-    virtual void updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals);
+    virtual void updateIterationBestsPQ_(Genome::GGenomeFixedSizePriorityQueue &best_individuals);
 
     /** @brief Allows derived classes to reset the stall counter. */
     void resetStallCounter();
@@ -908,20 +908,20 @@ private:
     /**
      * @brief Retrieves the best individual found up to now.
      */
-    std::unique_ptr<gen::GGenome> getBestGlobalIndividual_() const final;
+    std::unique_ptr<Genome::GGenome> getBestGlobalIndividual_() const final;
     /**
      * @brief Retrieves a list of the best individuals found.
      */
-    std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const final;
+    std::vector<std::unique_ptr<Genome::GGenome>> getBestGlobalIndividuals_() const final;
 
     /**
      * @brief Retrieves the best individual found in the iteration.
      */
-    std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const final;
+    std::unique_ptr<Genome::GGenome> getBestIterationIndividual_() const final;
     /**
      * @brief Retrieves a list of the best individuals found in the current iteration.
      */
-    std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const final;
+    std::vector<std::unique_ptr<Genome::GGenome>> getBestIterationIndividuals_() const final;
 
     /**
      * @brief Retrieve the number of processable items in the current iteration.
@@ -1062,10 +1062,10 @@ private:
 
     std::size_t n_recordbest_global_individuals_ =
         DEFNRECORDBESTINDIVIDUALS; ///< Indicates the number of best individuals to be recorded/updated in each iteration
-    gen::GGenomeFixedSizePriorityQueue best_global_individuals_pq_{
+    Genome::GGenomeFixedSizePriorityQueue best_global_individuals_pq_{
         n_recordbest_global_individuals_
     }; ///< A priority queue with the best individuals found so far
-    gen::GGenomeFixedSizePriorityQueue best_iteration_individuals_pq_{
+    Genome::GGenomeFixedSizePriorityQueue best_iteration_individuals_pq_{
         n_recordbest_global_individuals_
     }; ///< A priority queue with the best individuals of a given iteration; capped at n_recordbest_global_individuals_ (same capacity as the global-best queue)
 
@@ -1131,14 +1131,14 @@ private:
      * never given one.
      */
     Gem::Courtier::submission_status_t workOnViaConsumer_(
-        std::vector<std::unique_ptr<gen::GGenome>> &work_items,
+        std::vector<std::unique_ptr<Genome::GGenome>> &work_items,
         std::size_t start,
         std::size_t end
     );
 
     /** @brief Returns the one process-wide consumer (the default one, from Geneva's module, if the
      *  process was never given one) with this algorithm's late-return budget applied. */
-    std::shared_ptr<Gem::Courtier::GBaseConsumerT<gen::GGenome>> consumerForSubmission_();
+    std::shared_ptr<Gem::Courtier::GBaseConsumerT<Genome::GGenome>> consumerForSubmission_();
 };
 
 /*******************************************************************************/

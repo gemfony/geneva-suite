@@ -94,7 +94,7 @@ GStarterIndividual::GStarterIndividual(
  * @param cp A copy of another GStarterIndividual
  */
 GStarterIndividual::GStarterIndividual(const GStarterIndividual &cp)
-  : gen::GGenomeT<GStarterIndividual>(cp)
+  : Genome::GGenomeT<GStarterIndividual>(cp)
   , targetFunction_(cp.targetFunction_) { /* nothing */
 }
 
@@ -136,8 +136,8 @@ targetFunction GStarterIndividual::getTargetFunction() const {
  * @return A shared pointer to the populated OA-owned adaption config
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GStarterIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+GStarterIndividual::buildAdaptionConfig(const Genome::GGenome &sample, const Config &c) {
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         cfg->groupDouble(i).gauss(c.sigma, c.sigma_sigma, c.min_sigma, c.max_sigma, c.ad_prob);
     }
@@ -237,7 +237,7 @@ double GStarterIndividual::noisyParabola(const std::vector<double> &parVec) cons
  * @return Whether the individual was changed (always true)
  */
 bool GStarterIndividual::modifyForTest() {
-    gen::GGenome::modifyForTest();
+    Genome::GGenome::modifyForTest();
     targetFunction_ = (targetFunction_ == targetFunction::PARABOLA) ? targetFunction::NOISYPARABOLA
                                                                     : targetFunction::PARABOLA;
     return true;
@@ -315,7 +315,7 @@ void GStarterIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config
  * OA-owned config (see getAdaptionConfig()), stamped onto the individual by applyConfig().
  */
 //! [quickstart-buildgenome#1]
-gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
+Genome::GenomeData GStarterIndividual::buildGenome(const Config &c) {
     //! [quickstart-buildgenome#1]
     Gem::Common::checkThat(
         not c.start_values.empty() && c.start_values.size() == c.lower_boundaries.size() &&
@@ -330,7 +330,7 @@ gen::GenomeData GStarterIndividual::buildGenome(const Config &c) {
 
     // clang-format off
     //! [quickstart-buildgenome#2]
-    gen::GGenomeBuilder b;
+    Genome::GGenomeBuilder b;
     for(std::size_t i = 0; i < c.start_values.size(); i++) {
         b.addDouble(
             c.start_values.at(i),

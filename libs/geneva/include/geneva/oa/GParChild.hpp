@@ -159,7 +159,7 @@ public:
      * @return A converted shared_ptr to the parent
      */
     template <typename parent_type>
-        requires std::derived_from<parent_type, gen::GGenome>
+        requires std::derived_from<parent_type, Genome::GGenome>
     std::shared_ptr<parent_type> getParentIndividual(std::size_t parent_id) {
         Gem::Common::checkThat(
             parent_id < this->getNParents(),
@@ -170,7 +170,7 @@ public:
         );
 
         // Does error checks on the conversion internally
-        return Gem::Common::g_ptr_conversion<gen::GGenome, parent_type>(
+        return Gem::Common::g_ptr_conversion<Genome::GGenome, parent_type>(
             *(this->begin() + parent_id)
         );
     }
@@ -265,10 +265,10 @@ protected:
     void performScheduledPopulationGrowth();
 
     /** @brief This function implements the RANDOMDUPLICATIONSCHEME scheme */
-    void randomRecombine(const std::unique_ptr<gen::GGenome> &child);
+    void randomRecombine(const std::unique_ptr<Genome::GGenome> &child);
     /** @brief This function implements the VALUEDUPLICATIONSCHEME scheme */
     void valueRecombine(
-        const std::unique_ptr<gen::GGenome> &child,
+        const std::unique_ptr<Genome::GGenome> &child,
         const std::vector<double> &threshold
     );
 
@@ -361,13 +361,13 @@ private:
     void recombineSerial(const std::vector<double> &threshold);
     /** @brief recombineSerial() body for a single child slot: cross-over (amalgamation) or duplication. */
     void recombineOneSerial(
-        const std::unique_ptr<gen::GGenome> &child,
+        const std::unique_ptr<Genome::GGenome> &child,
         const std::vector<double> &threshold,
         std::bernoulli_distribution &amalgamation_wanted
     );
     /** @brief recombineOneSerial() duplication path: apply the recombination scheme to one child slot. */
     void duplicateForChild(
-        const std::unique_ptr<gen::GGenome> &child,
+        const std::unique_ptr<Genome::GGenome> &child,
         const std::vector<double> &threshold
     );
 

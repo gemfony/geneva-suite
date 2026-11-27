@@ -60,7 +60,7 @@ GFMinIndividual::GFMinIndividual() { /* nothing */
  * @param cp A copy of another GFMinIndividual
  */
 GFMinIndividual::GFMinIndividual(const GFMinIndividual &cp)
-  : gen::GGenomeT<GFMinIndividual>(cp)
+  : Genome::GGenomeT<GFMinIndividual>(cp)
   , targetFunction_(cp.targetFunction_)
   , seed_sigma_(cp.seed_sigma_) { /* nothing */
 }
@@ -271,8 +271,8 @@ void GFMinIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &c
  * single sigma. The adaptor settings live on the OA-owned config (see buildAdaptionConfig()), not in
  * the structure-only genome.
  */
-gen::GenomeData GFMinIndividual::buildGenome(const Config &c) {
-    gen::GGenomeBuilder b;
+Genome::GenomeData GFMinIndividual::buildGenome(const Config &c) {
+    Genome::GGenomeBuilder b;
     b.addDoubleGroup(
         c.par_dim,
         c.min_var,
@@ -287,9 +287,9 @@ gen::GenomeData GFMinIndividual::buildGenome(const Config &c) {
  * double group gets a Gauss adaptor with the configured parameters.
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GFMinIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+GFMinIndividual::buildAdaptionConfig(const Genome::GGenome &sample, const Config &c) {
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         cfg->groupDouble(i).gauss(c.sigma, c.sigma_sigma, c.min_sigma, c.max_sigma, c.ad_prob);
     }

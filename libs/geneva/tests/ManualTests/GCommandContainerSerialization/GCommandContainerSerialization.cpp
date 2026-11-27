@@ -74,7 +74,7 @@ int main(int argc, char **argv) {
     // from code defaults, then exit without running the serialization test.
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         Gem::Common::beginConfigEmission();
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
+        Individuals::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
         Gem::Common::finishConfigEmission();
         return 0;
     }
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
     //-----------------------------------------------------------------------------
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    gind::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
+    Individuals::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
 
     // Loop the specified number of times
     for(std::size_t i = 0; i < nTests; i++) {
@@ -134,19 +134,19 @@ int main(int argc, char **argv) {
         }
 
         // Retrieve a new work item from the factory
-        auto fi_ptr = gfi.get_as<gind::GFunctionIndividual>();
+        auto fi_ptr = gfi.get_as<Individuals::GFunctionIndividual>();
 
         // Randomly initialize the object
         fi_ptr->randomInit(activityMode::ALLPARAMETERS);
 
         // Add the object to a new WORK frame
-        Gem::Courtier::GCommandContainerT<gen::GGenome> gcc1(
+        Gem::Courtier::GCommandContainerT<Genome::GGenome> gcc1(
             Gem::Courtier::GFrameKind::WORK,
             fi_ptr->clone()
         );
 
         // Prepare a frame for de-serialization
-        Gem::Courtier::GCommandContainerT<gen::GGenome> gcc2(Gem::Courtier::GFrameKind::NONE);
+        Gem::Courtier::GCommandContainerT<Genome::GGenome> gcc2(Gem::Courtier::GFrameKind::NONE);
 
         // Serialize and de-serialize the object
         Gem::Courtier::container_from_string(
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
         }
 
         // Prepare a frame for de-serialization
-        Gem::Courtier::GCommandContainerT<gen::GGenome> gcc3(Gem::Courtier::GFrameKind::NONE);
+        Gem::Courtier::GCommandContainerT<Genome::GGenome> gcc3(Gem::Courtier::GFrameKind::NONE);
 
         // Serialize and de-serialize the object
         Gem::Courtier::container_from_string(

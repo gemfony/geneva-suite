@@ -65,7 +65,7 @@ GTestIndividual1::GTestIndividual1() {
     // the "fitness changes after every customAdaptions()" unit test below reliable. With
     // min_sigma == 0 the shared sigma can collapse toward zero, the value steps fall back to a
     // one-ULP nudge, and 100 such nudges can round away in the sum-of-squares fitness.
-    gen::GGenomeBuilder b;
+    Genome::GGenomeBuilder b;
     b.addDoublePlainGroup(100, -10., 10.); // structure only; the adaptor lives on the OA config
     this->setGenome(b.build());
 
@@ -83,8 +83,8 @@ GTestIndividual1::GTestIndividual1() {
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GTestIndividual1::getAdaptionConfig() const {
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         cfg->groupDouble(i).gauss(0.025, 0.1, 1e-3, 1., 1.);
     }
@@ -118,7 +118,7 @@ std::vector<double> GTestIndividual1::evaluate() {
  * @return Whether the individual was changed (always true)
  */
 bool GTestIndividual1::modifyForTest() {
-    gen::GGenome::modifyForTest();
+    Genome::GGenome::modifyForTest();
     Gem::Geneva::OptimizationAlgorithms::StandaloneAdapter(*this, getAdaptionConfig()).adapt(*this);
     return true;
 }

@@ -14,9 +14,9 @@ Canonical examples: `quickstart/` (minimal), `examples/03_GParameterObjectUsageP
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 
-namespace gen = Gem::Geneva::Genome;
+namespace Genome = Gem::Geneva::Genome;
 
-class MyProblem : public gen::GGenomeT<MyProblem> {       // CRTP: pass yourself
+class MyProblem : public Genome::GGenomeT<MyProblem> {    // CRTP: pass yourself
 public:
     MyProblem() { buildGenome(); }                                 // build the STRUCTURE in the ctor
     MyProblem(const MyProblem &) = default;
@@ -31,7 +31,7 @@ protected:
 
 private:
     void buildGenome() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(5, -10., 10.).init(1.0);                  // STRUCTURE only -- no adaptor here
         this->setGenome(b.build());
     }
@@ -48,7 +48,7 @@ The builder defines parameters and their **structure only** (count, init value, 
 optional label). It does **not** attach adaptors.
 
 ```cpp
-gen::GGenomeBuilder b;
+Genome::GGenomeBuilder b;
 b.addDouble(0., -1., 1.);              // one constrained double in [-1, 1)
 b.addDoubleGroup(4, -2., 2.);          // ONE group of 4 constrained doubles (shared adaptor later)
 b.addDoubleArray(3, -3., 3.);          // 3 independent groups of 1
@@ -89,10 +89,10 @@ Adaptors are configured **per optimization algorithm**, on a `GAdaptionConfig` b
 genome's structure. Use the fluent API to attach a kernel to a group (by index or label):
 
 ```cpp
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 MyProblem proto;                                                   // a prototype to read the structure
-auto cfg = oa::makeAdaptionConfig<oa::GEAAdaptionConfig>(proto);   // or GAdaptionConfigBase
+auto cfg = OA::makeAdaptionConfig<OA::GEAAdaptionConfig>(proto);   // or GAdaptionConfigBase
 cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);                 // sigma, sigma_sigma, min, max, ad_prob
 cfg->groupInt32(0).intGauss(0.5, 0.8, 1e-3, 2., 1.);              // integer Gaussian
 cfg->groupBool(0).flip(1.);                                        // bit-flip
@@ -113,7 +113,7 @@ There are three ways to give an algorithm its adaption config:
   ```
 - **Self-driven adaption (no OA)** — to adapt a genome outside an algorithm:
   ```cpp
-  oa::StandaloneAdapter adapter(genome, cfg);
+  OA::StandaloneAdapter adapter(genome, cfg);
   adapter.adapt(genome);                              // mutates in place
   ```
 

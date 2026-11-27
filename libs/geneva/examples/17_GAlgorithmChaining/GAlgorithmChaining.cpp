@@ -55,14 +55,15 @@ int optimize(GOptimizer &go) {
     // Register a content creator so GOptimizer can populate the algorithms with
     // GFunctionIndividual objects (no problem-specific individual or factory has
     // to be written for this example -- both come from the Geneva library).
-    auto const gfi_ptr =
-        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+    auto const gfi_ptr = std::make_shared<Individuals::GFunctionIndividualFactory>(
+        "./config/GFunctionIndividual.json"
+    );
     go.registerContentCreator(gfi_ptr);
 
     // The genome carries only structure; the configured Gauss adaptor lives on an OA-owned config the
     // factory authors. Register it for the evolutionary algorithm (gradient descent does not adapt).
     {
-        auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+        auto sample = gfi_ptr->get_as<Individuals::GFunctionIndividual>();
         go.registerAdaptionConfig("ea", gfi_ptr->getAdaptionConfig(*sample));
     }
 
@@ -81,7 +82,7 @@ int optimize(GOptimizer &go) {
     // Perform the actual (chained) optimization
     //! [algo-overview-chaining#2]
     //! [goptimizer-chain#2]
-    auto const p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = go.optimize().getBestGlobalIndividual<Individuals::GFunctionIndividual>();
     //! [algo-overview-chaining#2]
     //! [goptimizer-chain#2]
 

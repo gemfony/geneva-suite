@@ -105,7 +105,7 @@ int main(int argc, char **argv) {
     // help text is answered before the cascade would start MPI (the long form of a main(), as the
     // launcher is given the leads' item processor below)
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
+    Gem::Courtier::GLauncherT<Genome::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
     if(launcher.helpRequested()) {
         return launcher.run(geneva, {});
     }
@@ -134,8 +134,8 @@ int main(int argc, char **argv) {
     // process() keeps the item's lifecycle (status, timing; an exception flags the item)
     const auto pause_min = cascade.config().pauseMin;
     const auto pause_max = cascade.config().pauseMax;
-    launcher.registerItemProcessor([&cascade, pause_min, pause_max](gen::GGenome &item) {
-        std::ignore = item.process([&](const gen::GGenome &candidate) -> std::vector<double> {
+    launcher.registerItemProcessor([&cascade, pause_min, pause_max](Genome::GGenome &item) {
+        std::ignore = item.process([&](const Genome::GGenome &candidate) -> std::vector<double> {
             auto const parameters = candidate.parameterValues<double>();
             return {cascade.round([&](MPI_Comm group) {
                 return leadHalf(

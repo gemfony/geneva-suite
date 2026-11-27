@@ -60,7 +60,7 @@ int main(int argc, char **argv) {
         {.produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
             //---------------------------------------------------------------------------
             // Supply the (compiled-in) optimization individual: the standard benchmark-function individual.
-            auto const gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
+            auto const gfi_ptr = std::make_shared<Individuals::GFunctionIndividualFactory>(
                 "./config/GFunctionIndividual.json"
             );
 
@@ -71,7 +71,7 @@ int main(int argc, char **argv) {
             // (EA / SA) so this binary also works with a built-in --optimizationAlgorithms ea/sa. The loaded random
             // search does not adapt, so it simply ignores this.
             {
-                auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+                auto sample = gfi_ptr->get_as<Individuals::GFunctionIndividual>();
                 auto cfg = gfi_ptr->getAdaptionConfig(*sample);
                 go.registerAdaptionConfig("ea", cfg);
                 go.registerAdaptionConfig("sa", cfg);
@@ -79,7 +79,8 @@ int main(int argc, char **argv) {
 
             //---------------------------------------------------------------------------
             // Run the optimization with the algorithm chosen on the command line (e.g. the loaded "rsearch").
-            auto const best = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
+            auto const best =
+                go.optimize().getBestGlobalIndividual<Individuals::GFunctionIndividual>();
 
             std::cout << "Best result found:" << '\n' << best << '\n';
             return 0;

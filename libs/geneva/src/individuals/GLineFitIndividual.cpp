@@ -116,8 +116,8 @@ void GLineFitIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config
  * @param c The configuration (unused for the genome structure; the data path drives applyConfig instead)
  * @return The structure-only genome data
  */
-gen::GenomeData GLineFitIndividual::buildGenome([[maybe_unused]] const Config &c) {
-    gen::GGenomeBuilder b;
+Genome::GenomeData GLineFitIndividual::buildGenome([[maybe_unused]] const Config &c) {
+    Genome::GGenomeBuilder b;
     for(std::size_t i = 0; i < 2; i++) {
         b.addDouble(0.);
     }
@@ -136,7 +136,7 @@ gen::GenomeData GLineFitIndividual::buildGenome([[maybe_unused]] const Config &c
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GLineFitIndividual::buildAdaptionConfig(
-    const gen::GGenome &sample,
+    const Genome::GGenome &sample,
     [[maybe_unused]] const Config &c
 ) {
     auto cfg =

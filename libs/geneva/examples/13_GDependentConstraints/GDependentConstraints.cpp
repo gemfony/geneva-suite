@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
              //---------------------------------------------------------------------------
              // Create a factory for GFunctionIndividual objects and perform
              // any necessary initial work.
-             auto const gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
+             auto const gfi_ptr = std::make_shared<Individuals::GFunctionIndividualFactory>(
                  "./config/GFunctionIndividual.json"
              );
 
@@ -128,14 +128,15 @@ int main(int argc, char **argv) {
              //---------------------------------------------------------------------------
              // Add a number of start values to the go object. We also add some constraint definitions here.
              for(std::size_t i = 0; i < 10; i++) {
-                 std::shared_ptr<gind::GFunctionIndividual> const p =
-                     gfi_ptr->get_as<gind::GFunctionIndividual>();
+                 std::shared_ptr<Individuals::GFunctionIndividual> const p =
+                     gfi_ptr->get_as<Individuals::GFunctionIndividual>();
 
                  // Create the constraint objects
                  auto const doublesum_constraint_ptr =
-                     std::make_shared<gind::GDoubleSumConstraint>(1.);
-                 auto const sphere_constraint_ptr = std::make_shared<gind::GSphereConstraint>(3.);
-                 auto const gap_constraint = std::make_shared<gind::GDoubleSumGapConstraint>(
+                     std::make_shared<Individuals::GDoubleSumConstraint>(1.);
+                 auto const sphere_constraint_ptr =
+                     std::make_shared<Individuals::GSphereConstraint>(3.);
+                 auto const gap_constraint = std::make_shared<Individuals::GDoubleSumGapConstraint>(
                      1.,
                      0.05
                  ); // The sum of all variables must be 1 +/- 0.05
@@ -143,7 +144,7 @@ int main(int argc, char **argv) {
                  // Create a check combiner and add the constraint objects to it. Constraints are
                  // expressed directly as C++ constraint objects (subclasses of GGenomeConstraint),
                  // which is the general, type-safe way to formulate arbitrary dependent constraints.
-                 auto const combiner_ptr = std::make_shared<GCheckCombinerT<gen::GGenome>>();
+                 auto const combiner_ptr = std::make_shared<GCheckCombinerT<Genome::GGenome>>();
                  combiner_ptr->setCombinerPolicy(
                      Gem::Geneva::validityCheckCombinerPolicy::MULTIPLYINVALID
                  );
@@ -169,14 +170,15 @@ int main(int argc, char **argv) {
              // authors. Register it for the adapting algorithms (EA / SA) so GOptimizer hands it
              // over before they run.
              {
-                 auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+                 auto sample = gfi_ptr->get_as<Individuals::GFunctionIndividual>();
                  auto cfg = gfi_ptr->getAdaptionConfig(*sample);
                  go.registerAdaptionConfig("ea", cfg);
                  go.registerAdaptionConfig("sa", cfg);
              }
 
              // Perform the actual optimization
-             auto const p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
+             auto const p =
+                 go.optimize().getBestGlobalIndividual<Individuals::GFunctionIndividual>();
 
              // Here you can do something with the best individual ("p") found.
              // We simply print its content here, by means of an operator<< implemented

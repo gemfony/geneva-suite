@@ -41,7 +41,7 @@
 #include "GMonaLisaProblem.hpp"
 #include "geneva/genome/GBaseGPUMarshallerT.hpp" // generic flatten/scatter/itemDimension scaffolding
 
-namespace gen = Gem::Geneva::Genome;
+namespace Genome = Gem::Geneva::Genome;
 
 namespace Gem::Geneva::MonaLisa {
 

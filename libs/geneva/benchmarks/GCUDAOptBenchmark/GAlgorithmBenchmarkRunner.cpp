@@ -57,17 +57,17 @@ namespace {
  * identifiers, and the Gem::Geneva::Benchmarks::FUNC_* ids, 0..14), in any case. A plain integer id
  * is also accepted. An unrecognised value is a fatal config error.
  */
-gind::solverFunction parseBenchmarkFunction(const std::string &name) {
+Individuals::solverFunction parseBenchmarkFunction(const std::string &name) {
     std::string up = name;
     std::transform(up.begin(), up.end(), up.begin(), [](unsigned char c) {
         return static_cast<char>(std::toupper(c));
     });
-    if(const auto function = Gem::Common::enumFromName<gind::solverFunction>(up)) {
+    if(const auto function = Gem::Common::enumFromName<Individuals::solverFunction>(up)) {
         return *function;
     }
     // Integer fallback: accept the numbers of the functions as well.
     std::istringstream number(name);
-    gind::solverFunction function{};
+    Individuals::solverFunction function{};
     if(number >> function && number.peek() == std::char_traits<char>::eof()) {
         return function;
     }
@@ -101,8 +101,8 @@ std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
     // by the generic GIndividualFactory; this benchmark needs a specific genome DIMENSION, so it builds
     // individuals directly through the static hooks rather than through the factory (whose par_dim is fixed
     // by the config file).
-    gind::GFunctionIndividual::Config indCfg =
-        gind::GFunctionIndividual::readConfig(cfg_.individualConfigFile);
+    Individuals::GFunctionIndividual::Config indCfg =
+        Individuals::GFunctionIndividual::readConfig(cfg_.individualConfigFile);
     indCfg.par_dim = cfg_.nDimensions;
 
     std::vector<GAlgorithmBenchmarkResult> allResults;
@@ -138,7 +138,7 @@ std::vector<GAlgorithmBenchmarkResult> GAlgorithmBenchmarkRunner::run() {
  */
 void GAlgorithmBenchmarkRunner::emitConfigs() {
     // The shared individual configuration (create-if-absent / rewritten in update-in-place mode).
-    (void)gind::GFunctionIndividual::readConfig(cfg_.individualConfigFile);
+    (void)Individuals::GFunctionIndividual::readConfig(cfg_.individualConfigFile);
 
     // Each configured algorithm's configuration, materialized by constructing its factory -- the same
     // call runOne() makes, minus the optimization run.
@@ -154,7 +154,7 @@ void GAlgorithmBenchmarkRunner::emitConfigs() {
 GBenchmarkRunResult GAlgorithmBenchmarkRunner::runOne(
     const AlgorithmEntry &entry,
     std::uint32_t runIdx,
-    const gind::GFunctionIndividual::Config &indCfg
+    const Individuals::GFunctionIndividual::Config &indCfg
 ) {
     // Create algorithm from factory + config file
     auto alg = makeAlgorithm(entry);
@@ -170,14 +170,14 @@ GBenchmarkRunResult GAlgorithmBenchmarkRunner::runOne(
     // from the config file), with the benchmark's genome dimension, then set its demo function.
     // benchmarkFunction overrides whatever GFunctionIndividual.json specifies;
     // an unrecognised name is a fatal config error, not a silent fallback.
-    auto ind = gind::GFunctionIndividual::buildConfigured(indCfg, cfg_.individualConfigFile);
+    auto ind = Individuals::GFunctionIndividual::buildConfigured(indCfg, cfg_.individualConfigFile);
     ind->setDemoFunction(parseBenchmarkFunction(cfg_.functionName));
     alg->push_back(ind->clone());
 
     // The genome carries only structure; its Gauss / bi-Gauss adaptor lives on an OA-owned config built
     // from the same parameters. Hand it to the algorithm (a no-op for non-adapting algorithms like swarm /
     // CGD; adopted by EA / SA, which otherwise hard-error at init() for want of an explicit config).
-    alg->setAdaptionConfig(gind::GFunctionIndividual::buildAdaptionConfig(*ind, indCfg));
+    alg->setAdaptionConfig(Individuals::GFunctionIndividual::buildAdaptionConfig(*ind, indCfg));
 
     // Time the optimization
     const auto t0 = std::chrono::steady_clock::now();
@@ -205,28 +205,28 @@ GBenchmarkRunResult GAlgorithmBenchmarkRunner::runOne(
  * in the AlgorithmEntry. The algorithm submits through the process consumer
  * registered via GConsumerRegistryT::setConsumer().
  */
-std::shared_ptr<oa::GOptimizationAlgorithmBase>
+std::shared_ptr<OA::GOptimizationAlgorithmBase>
 GAlgorithmBenchmarkRunner::makeAlgorithm(const AlgorithmEntry &entry) {
     if(entry.mnemonic == "ea") {
-        return oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>(entry.configFile)
-            .get<oa::GOptimizationAlgorithmBase>();
+        return OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>(entry.configFile)
+            .get<OA::GOptimizationAlgorithmBase>();
     }
     if(entry.mnemonic == "sa") {
-        return oa::GOptimizationAlgorithmFactoryT<oa::GSimulatedAnnealing>(entry.configFile)
-            .get<oa::GOptimizationAlgorithmBase>();
+        return OA::GOptimizationAlgorithmFactoryT<OA::GSimulatedAnnealing>(entry.configFile)
+            .get<OA::GOptimizationAlgorithmBase>();
     }
     if(entry.mnemonic == "swarm") {
-        return oa::GOptimizationAlgorithmFactoryT<oa::GSwarmAlgorithm>(entry.configFile)
-            .get<oa::GOptimizationAlgorithmBase>();
+        return OA::GOptimizationAlgorithmFactoryT<OA::GSwarmAlgorithm>(entry.configFile)
+            .get<OA::GOptimizationAlgorithmBase>();
     }
     if(entry.mnemonic == "gd" || entry.mnemonic == "cgd") {
         // "gd" was retired as a separate algorithm; it is the steepest-descent mode of the conjugate
         // gradient descent. Produce a CGD and, for the legacy "gd" tag, force steepest descent.
-        auto p = oa::GOptimizationAlgorithmFactoryT<oa::GConjugateGradientDescent>(entry.configFile)
-                     .get<oa::GOptimizationAlgorithmBase>();
+        auto p = OA::GOptimizationAlgorithmFactoryT<OA::GConjugateGradientDescent>(entry.configFile)
+                     .get<OA::GOptimizationAlgorithmBase>();
         if(entry.mnemonic == "gd") {
-            if(auto cgd = std::dynamic_pointer_cast<oa::GConjugateGradientDescent>(p)) {
-                cgd->setGradientMethod(oa::gradientMethod::STEEPEST_DESCENT);
+            if(auto cgd = std::dynamic_pointer_cast<OA::GConjugateGradientDescent>(p)) {
+                cgd->setGradientMethod(OA::gradientMethod::STEEPEST_DESCENT);
             }
         }
         return p;

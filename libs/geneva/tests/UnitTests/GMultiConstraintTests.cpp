@@ -40,7 +40,7 @@
 #include "geneva/genome/GMultiConstraintT.hpp"
 #include "geneva/individuals/GFunctionIndividual.hpp"
 
-namespace gen = Gem::Geneva::Genome;
+namespace Genome = Gem::Geneva::Genome;
 
 /******************************************************************************/
 /**
@@ -62,7 +62,7 @@ TEST_CASE(
     using Gem::Geneva::Individuals::GDoubleSumConstraint;
     using Gem::Geneva::Individuals::GSphereConstraint;
 
-    GCheckCombinerT<gen::GGenome> original;
+    GCheckCombinerT<Genome::GGenome> original;
     original.setCombinerPolicy(
         validityCheckCombinerPolicy::ADDINVALID
     ); // non-default, to also pin the policy
@@ -73,7 +73,7 @@ TEST_CASE(
         {Gem::Common::serializationMode::GEM_BINARY, Gem::Common::serializationMode::GEM_JSON}) {
         const std::string archived = original.toString(mode);
 
-        GCheckCombinerT<gen::GGenome> restored;
+        GCheckCombinerT<Genome::GGenome> restored;
         restored.fromString(archived, mode);
 
         // The restored combiner must equal the original -- including the two contained

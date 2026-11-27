@@ -96,8 +96,8 @@
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (the counting monitor)
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 using Gem::Geneva::activityMode;
 
@@ -111,13 +111,13 @@ constexpr std::size_t N_DIM = 5;
  * started at 3.0 (so the initial fitness is N_DIM * 9 = 45). Authored entirely through the builder;
  * clone/load/compare come from the CRTP base + GGenome.
  */
-class SphereOA : public gen::GGenomeT<SphereOA> {
+class SphereOA : public Genome::GGenomeT<SphereOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N_DIM, -5., 5.)
             .init(3.0); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
@@ -125,8 +125,8 @@ public:
     SphereOA(const SphereOA &) = default;
 
     /** @brief The OA-owned Gauss adaption config for this genome's single double group. */
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         return cfg;
     }
@@ -152,13 +152,13 @@ protected:
  * constrained fold never distorts a line-search probe (the same setup real CGD usage employs, e.g. the
  * GFunctionMinimizer example over GConstrainedDoubleObject).
  */
-class SphereWideOA : public gen::GGenomeT<SphereWideOA> {
+class SphereWideOA : public Genome::GGenomeT<SphereWideOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereWideOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N_DIM, -25., 25.).init(3.0);
         this->setGenome(b.build());
     }
@@ -180,13 +180,13 @@ protected:
  * A continuous flat sphere driven by a BI-GAUSSIAN adaptor (instead of the single gaussian): N_DIM
  * constrained doubles in [-5, 5), started at 3.0. Demonstrates the bi-gauss kernel end-to-end.
  */
-class BiGaussSphereOA : public gen::GGenomeT<BiGaussSphereOA> {
+class BiGaussSphereOA : public Genome::GGenomeT<BiGaussSphereOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     BiGaussSphereOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         // sigma1, sigmaSigma1, minSigma1, maxSigma1, sigma2, sigmaSigma2, minSigma2, maxSigma2,
         // delta, sigmaDelta, minDelta, maxDelta, adProb
         b.addDoubleGroup(N_DIM, -5., 5.)
@@ -196,8 +196,8 @@ public:
     BiGaussSphereOA(const BiGaussSphereOA &) = default;
 
     /** @brief The OA-owned bi-gaussian adaption config for this genome's single double group. */
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         // sigma1, sigmaSigma1, minSigma1, maxSigma1, sigma2, sigmaSigma2, minSigma2, maxSigma2,
         // delta, sigmaDelta, minDelta, maxDelta, adProb
         cfg->groupDouble(0).biGauss(0.5, 0.8, 1e-3, 2., 0.5, 0.8, 1e-3, 2., 0.5, 0.8, 0., 2., 1.);
@@ -222,13 +222,13 @@ protected:
  */
 constexpr std::size_t N_INT = 5;
 
-class IntSphereOA : public gen::GGenomeT<IntSphereOA> {
+class IntSphereOA : public Genome::GGenomeT<IntSphereOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     IntSphereOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addInt32Group(N_INT, -10, 10)
             .init(7); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
@@ -236,8 +236,8 @@ public:
     IntSphereOA(const IntSphereOA &) = default;
 
     /** @brief The OA-owned flip adaption config for this genome's single int32 group. */
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupInt32(0).flip(1.0);
         return cfg;
     }
@@ -260,21 +260,21 @@ protected:
  */
 constexpr std::size_t N_BOOL = 16;
 
-class OneMaxOA : public gen::GGenomeT<OneMaxOA> {
+class OneMaxOA : public Genome::GGenomeT<OneMaxOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     OneMaxOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addBoolGroup(N_BOOL).init(false); // structure only; the adaptor lives on the OA config
         this->setGenome(b.build());
     }
     OneMaxOA(const OneMaxOA &) = default;
 
     /** @brief The OA-owned flip adaption config for this genome's single bool group. */
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupBool(0).flip(0.25);
         return cfg;
     }
@@ -298,13 +298,13 @@ protected:
  * per-dimension velocity range is l*(upper-lower) == 0 for the frozen dim) tolerates a fixed parameter
  * rather than crashing.
  */
-class FrozenOA : public gen::GGenomeT<FrozenOA> {
+class FrozenOA : public Genome::GGenomeT<FrozenOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     FrozenOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(2, -5., 5.).init(3.0);
         b.addDouble(4., 4., 4.); // a parameter frozen at 4 (lower == upper)
         this->setGenome(b.build());
@@ -336,13 +336,13 @@ std::vector<std::pair<bool, double>>
     g_scan_bool_double_samples; ///< every (b, x) the bool-and-double probe was evaluated at
 
 /** @brief A single-int32 probe (genome bound [-10, 10]) recording each evaluated int value. */
-class ScanIntProbe : public gen::GGenomeT<ScanIntProbe> {
+class ScanIntProbe : public Genome::GGenomeT<ScanIntProbe> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     ScanIntProbe() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addInt32Group(1, -10, 10).init(0);
         this->setGenome(b.build());
     }
@@ -360,12 +360,12 @@ protected:
 };
 
 /** @brief A single-boolean probe recording each evaluated boolean value. */
-class ScanBoolProbe : public gen::GGenomeT<ScanBoolProbe> {
+class ScanBoolProbe : public Genome::GGenomeT<ScanBoolProbe> {
 public:
     using genome_only = void; // genome-only flat leaf: GGenomeT's empty localMembers_()
 public:
     ScanBoolProbe() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addBoolGroup(1).init(false);
         this->setGenome(b.build());
     }
@@ -383,12 +383,12 @@ protected:
 };
 
 /** @brief A probe with one boolean and one double (bounds [-5, 5)) recording each evaluated pair. */
-class ScanBoolDoubleProbe : public gen::GGenomeT<ScanBoolDoubleProbe> {
+class ScanBoolDoubleProbe : public Genome::GGenomeT<ScanBoolDoubleProbe> {
 public:
     using genome_only = void; // genome-only flat leaf: GGenomeT's empty localMembers_()
 public:
     ScanBoolDoubleProbe() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addBoolGroup(1).init(false);
         b.addDoubleGroup(1, -5., 5.).init(0.0);
         this->setGenome(b.build());
@@ -408,13 +408,13 @@ protected:
 };
 
 /** @brief A two-double probe (genome bounds [-5, 5)) recording each evaluated (x, y) pair. */
-class ScanPairProbe : public gen::GGenomeT<ScanPairProbe> {
+class ScanPairProbe : public Genome::GGenomeT<ScanPairProbe> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     ScanPairProbe() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(2, -5., 5.).init(0.0);
         this->setGenome(b.build());
     }
@@ -437,13 +437,13 @@ protected:
 
 /** @brief A ONE-dimensional flat sphere: a single constrained double in [-5, 5), started at 3.0. Used to
  *  exercise the n_vert == 2 (1-D) Nelder-Mead simplex path. */
-class Sphere1D : public gen::GGenomeT<Sphere1D> {
+class Sphere1D : public Genome::GGenomeT<Sphere1D> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     Sphere1D() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(1, -5., 5.).init(3.0);
         this->setGenome(b.build());
     }
@@ -459,13 +459,13 @@ protected:
 /** @brief A flat individual with INVERTED bounds (lower > upper): three constrained doubles declared as
  *  [5, -5]. The genome builder does not reject this, so it is used to confirm the swarm rejects the
  *  resulting negative velocity range with a clear error instead of hitting undefined behaviour. */
-class InvertedBoundsOA : public gen::GGenomeT<InvertedBoundsOA> {
+class InvertedBoundsOA : public Genome::GGenomeT<InvertedBoundsOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     InvertedBoundsOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(3, 5., -5.); // lower = 5 > upper = -5 (intentionally inverted)
         this->setGenome(b.build());
     }
@@ -485,13 +485,13 @@ protected:
 /** @brief A MIXED flat individual: 3 constrained doubles in [-5, 5) plus 2 constrained int32 in [-10, 10].
  *  Used to confirm sep-CMA-ES (an FP-only evolution strategy) optimizes the doubles, leaves the integers
  *  at their start values, and warns rather than crashing on the non-FP parameters. */
-class MixedOA : public gen::GGenomeT<MixedOA> {
+class MixedOA : public Genome::GGenomeT<MixedOA> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     MixedOA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(3, -5., 5.).init(3.0);
         b.addInt32Group(2, -10, 10).init(7);
         this->setGenome(b.build());
@@ -530,7 +530,7 @@ double bestSphere(const SphereOA &best) {
 /******************************************************************************/
 
 TEST_CASE("Evolutionary algorithm optimizes a flat individual", "[flat][oa]") {
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(120);
     pop->setReportIteration(100000);
@@ -550,7 +550,7 @@ TEST_CASE("EA in a PARETO mode degenerates safely on a single-objective individu
     // B-4: selecting a PARETO sorting mode with a single-criterion individual makes Pareto selection
     // degenerate. The EA must fall back to the corresponding single-eval sort (it warns once) and still
     // optimize correctly rather than mis-selecting or crashing.
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(120);
     pop->setReportIteration(100000);
@@ -572,7 +572,7 @@ TEST_CASE("EA in a PARETO mode degenerates safely on a single-objective individu
 TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratch", "[flat][oa]") {
     using Gem::Geneva::Genome::AUXKEY_GAUSS_DOUBLE;
     using Gem::Geneva::Genome::GaussState;
-    using gen::GGenome;
+    using Genome::GGenome;
 
     // The per-individual OA scratch (adaption sigma/state) lives on the individual itself (in its GAuxiliaryStore) and is
     // serialized for check-pointing, so a resumed algorithm keeps its evolved state. Here we seed an individual's
@@ -580,15 +580,15 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
     // through the exact checkpoint path (saveCheckpoint -> loadCheckpoint) and confirm the scratch survives. A
     // fully serialization-registered individual (GLineFitIndividual) is used so the algorithm can be
     // serialized to a file.
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
 
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
-    pop->push_back(gind::GLineFitIndividual(data_points).clone());
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
+    pop->push_back(Individuals::GLineFitIndividual(data_points).clone());
 
     auto &ind0 = pop->at(0);
     // The Gauss adaptor lives on the OA-owned config the individual authors (the genome is structure-only).
-    auto cfg = dynamic_cast<gind::GLineFitIndividual &>((*ind0)).getAdaptionConfig();
+    auto cfg = dynamic_cast<Individuals::GLineFitIndividual &>((*ind0)).getAdaptionConfig();
     cfg->installInto(ind0->scratch());
     auto states = ind0->scratch().metaRecords<GaussState<double>>(AUXKEY_GAUSS_DOUBLE);
     REQUIRE(not states.empty());
@@ -600,7 +600,7 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
         std::filesystem::temp_directory_path() / "checkpoint-ea-scratchtest.cp";
     pop->saveCheckpoint(cp);
 
-    auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto resumed = std::make_shared<OA::GEvolutionaryAlgorithm>();
     resumed->loadCheckpoint(cp);
 
     REQUIRE(resumed->size() == pop->size());
@@ -620,11 +620,11 @@ TEST_CASE("EA checkpoint round-trip preserves the per-individual adaption scratc
     // The resumed algorithm adapts through the OA-owned config (the genome is structure-only); the
     // restored per-individual scratch is preserved, not re-seeded, by the resume path.
     resumed->setAdaptionConfig(
-        dynamic_cast<gind::GLineFitIndividual &>((*resumed->at(0))).getAdaptionConfig()
+        dynamic_cast<Individuals::GLineFitIndividual &>((*resumed->at(0))).getAdaptionConfig()
     );
     resumed->optimize();
 
-    auto best = resumed->getBestGlobalIndividual<gind::GLineFitIndividual>();
+    auto best = resumed->getBestGlobalIndividual<Individuals::GLineFitIndividual>();
     REQUIRE(best);
     const auto [a, b] = best->getLine();
     CHECK(std::abs(a - 0.) < 0.5); // resumed run reaches the y = x fit (offset ~0, slope ~1)
@@ -642,11 +642,11 @@ TEST_CASE(
     // In memory all individuals of a population share one GProblemPolicy; a checkpoint stores a copy with
     // every individual. After loadCheckpoint() the restored population must share one policy again, carry
     // the settings that were saved, and a setter called on one individual must reach every candidate.
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
 
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
-    gind::GLineFitIndividual const proto(data_points);
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
+    Individuals::GLineFitIndividual const proto(data_points);
     for(int i = 0; i < 4; ++i) {
         pop->push_back(proto.clone());
     }
@@ -661,7 +661,7 @@ TEST_CASE(
         std::filesystem::temp_directory_path() / "checkpoint-ea-policytest.cp";
     pop->saveCheckpoint(cp);
 
-    auto resumed = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto resumed = std::make_shared<OA::GEvolutionaryAlgorithm>();
     resumed->loadCheckpoint(cp);
     std::filesystem::remove(cp);
 
@@ -686,20 +686,20 @@ TEST_CASE(
     "[flat][oa]"
 ) {
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
 
     const fs::path cp_dir = fs::temp_directory_path() / "geneva-lazy-checkpoint-dir-test";
     fs::remove_all(cp_dir);
 
     auto makeRun = [&](std::int32_t cp_interval) {
-        auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
-        pop->push_back(gind::GLineFitIndividual(data_points).clone());
+        auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
+        pop->push_back(Individuals::GLineFitIndividual(data_points).clone());
         pop->setPopulationSizes(18, 6);
         pop->setMaxIteration(5);
         pop->setReportIteration(100000);
         pop->setAdaptionConfig(
-            dynamic_cast<gind::GLineFitIndividual &>((*pop->at(0))).getAdaptionConfig()
+            dynamic_cast<Individuals::GLineFitIndividual &>((*pop->at(0))).getAdaptionConfig()
         );
         pop->setCheckpointInterval(cp_interval);
         pop->setCheckpointBaseName(cp_dir.string(), "lazy.cp");
@@ -751,7 +751,7 @@ TEST_CASE(
     const fs::path cp_dir = fs::temp_directory_path() / "geneva-unregistered-class-test";
     fs::remove_all(cp_dir);
 
-    oa::GEvolutionaryAlgorithm ea;
+    OA::GEvolutionaryAlgorithm ea;
     ea.push_back(SphereOA().clone()); // SphereOA is not registered for archives
     ea.setPopulationSizes(6, 2);
     ea.setMaxIteration(2);
@@ -776,18 +776,18 @@ TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
     // (2026-11-20): the final checkpoint was written after the loop had counted on, so it held the
     // iteration that would have come next, and a run resumed from it skipped one iteration.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
     const fs::path cp_dir = fs::temp_directory_path() / "geneva-final-checkpoint-iteration-test";
     fs::remove_all(cp_dir);
 
-    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
-    ea->push_back(gind::GLineFitIndividual(data_points).clone());
+    auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
+    ea->push_back(Individuals::GLineFitIndividual(data_points).clone());
     ea->setPopulationSizes(4, 2);
     ea->setMaxIteration(3); // iterations 0, 1 and 2
     ea->setReportIteration(0);
     ea->setAdaptionConfig(
-        dynamic_cast<gind::GLineFitIndividual &>((*ea->at(0))).getAdaptionConfig()
+        dynamic_cast<Individuals::GLineFitIndividual &>((*ea->at(0))).getAdaptionConfig()
     );
     ea->setCheckpointInterval(1);
     ea->setRemoveCheckpointFiles(false); // keep the numbered checkpoints beside the final one
@@ -809,9 +809,9 @@ TEST_CASE("a final checkpoint holds the last iteration that ran", "[oa]") {
     REQUIRE(not numbered.empty());
     REQUIRE(not final_checkpoint.empty());
 
-    oa::GEvolutionaryAlgorithm from_numbered;
+    OA::GEvolutionaryAlgorithm from_numbered;
     from_numbered.loadCheckpoint(numbered);
-    oa::GEvolutionaryAlgorithm from_final;
+    OA::GEvolutionaryAlgorithm from_final;
     from_final.loadCheckpoint(final_checkpoint);
     CHECK(from_numbered.getIteration() == 2);
     CHECK(from_final.getIteration() == 2);
@@ -831,15 +831,15 @@ TEST_CASE(
     // from the checkpoint, so a run ended by its iteration limit could not be continued -- job 2 ran
     // one iteration past job 1's limit, whatever limit it was given.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
     const fs::path base = fs::temp_directory_path() / "geneva-job-settings-resume-test";
     fs::remove_all(base);
 
     // Job 1: iterations 0 to 2, a checkpoint every iteration; the final one holds iteration 2
-    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job1 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     job1->push_back(proto.clone());
     job1->setPopulationSizes(4, 2);
     job1->setMaxIteration(3);
@@ -866,10 +866,10 @@ TEST_CASE(
     std::string arg4 = final_checkpoint.string();
     std::vector<char *>
         argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
-    auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job2 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     {
         Gem::Geneva::GOptimizationDescription geneva;
-        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+        Gem::Courtier::GLauncherT<Genome::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
             base / "GOptimizer.json"
@@ -904,7 +904,7 @@ std::size_t resume_monitor_calls = 0;
 
 /** A pluggable monitor that counts the iterations it is called for. */
 class GResumeCountingMonitor final
-  : public Gem::Common::GReflectiveInterfaceT<GResumeCountingMonitor, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GResumeCountingMonitor, OA::GBasePluggableOM> {
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -919,7 +919,7 @@ public:
 private:
     void informationFunction_(
         Gem::Geneva::infoMode im,
-        oa::GOptimizationAlgorithmBase const *const /*goa*/
+        OA::GOptimizationAlgorithmBase const *const /*goa*/
     ) override {
         if(im == Gem::Geneva::infoMode::INFOPROCESSING) {
             ++resume_monitor_calls;
@@ -938,9 +938,9 @@ TEST_CASE(
     // 2026-11-21). Regression: the checkpoint brought job 1's monitors back and GOptimizer
     // registered job 2's beside them, so a monitor ran twice in every iteration of the resumed run.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
     const fs::path base = fs::temp_directory_path() / "geneva-monitors-resume-test";
     fs::remove_all(base);
@@ -959,7 +959,7 @@ TEST_CASE(
     };
 
     // Job 1: iterations 0 to 2 under a monitor; the final checkpoint holds iteration 2
-    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job1 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     job1->push_back(proto.clone());
     job1->setPopulationSizes(4, 2);
     job1->setMaxIteration(3);
@@ -981,7 +981,7 @@ TEST_CASE(
     REQUIRE(not final_checkpoint.empty());
 
     // The algorithm keeps the monitors it held before the load and takes none from the checkpoint
-    oa::GEvolutionaryAlgorithm loaded;
+    OA::GEvolutionaryAlgorithm loaded;
     loaded.loadCheckpoint(final_checkpoint);
     CHECK(not loaded.hasPluggableOptimizationMonitors());
 
@@ -995,10 +995,10 @@ TEST_CASE(
     std::string arg4 = final_checkpoint.string();
     std::vector<char *>
         argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
-    auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job2 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     {
         Gem::Geneva::GOptimizationDescription geneva;
-        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+        Gem::Courtier::GLauncherT<Genome::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
             base / "GOptimizer.json"
@@ -1057,9 +1057,9 @@ TEST_CASE(
     // the checkpoint and the end of the earlier run -- after a crash, those since the last
     // checkpoint -- appeared twice.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
     const fs::path base = fs::temp_directory_path() / "geneva-monitors-older-checkpoint-test";
     fs::remove_all(base);
@@ -1068,7 +1068,7 @@ TEST_CASE(
     recorder.setDirectory(base / "records");
 
     // Job 1: iterations 0 to 4, a checkpoint after each, all kept
-    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job1 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     job1->push_back(proto.clone());
     job1->setPopulationSizes(4, 2);
     job1->setMaxIteration(5);
@@ -1098,7 +1098,7 @@ TEST_CASE(
         argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
     {
         Gem::Geneva::GOptimizationDescription geneva;
-        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+        Gem::Courtier::GLauncherT<Genome::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
             base / "GOptimizer.json"
@@ -1109,7 +1109,7 @@ TEST_CASE(
                                  go.registerPluggableOM(
                                      std::make_shared<Gem::Geneva::GFitnessMonitor>()
                                  );
-                                 auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+                                 auto job2 = std::make_shared<OA::GEvolutionaryAlgorithm>();
                                  job2->setPopulationSizes(4, 2);
                                  job2->setMaxIteration(5);
                                  job2->setReportIteration(1);
@@ -1148,9 +1148,9 @@ TEST_CASE("a monitor's stream holds every algorithm of a GOptimizer chain", "[oa
     // plot shows them all. Regression: the progress plotter began a new plot at every INFOINIT, so
     // only the last algorithm's data were written.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
     const fs::path base = fs::temp_directory_path() / "geneva-monitors-chain-test";
     fs::remove_all(base);
@@ -1164,7 +1164,7 @@ TEST_CASE("a monitor's stream holds every algorithm of a GOptimizer chain", "[oa
     std::vector<char *> argv{arg0.data(), arg1.data(), arg2.data(), nullptr};
     {
         Gem::Geneva::GOptimizationDescription geneva;
-        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+        Gem::Courtier::GLauncherT<Genome::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
             base / "GOptimizer.json"
@@ -1178,11 +1178,11 @@ TEST_CASE("a monitor's stream holds every algorithm of a GOptimizer chain", "[oa
                                               std::make_shared<Gem::Geneva::GProgressPlotter>();
                                           plotter->setProfileSpec("d(0, -10, 10)");
                                           go.registerPluggableOM(plotter);
-                                          auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+                                          auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
                                           ea->setPopulationSizes(4, 2);
                                           ea->setMaxIteration(2);
                                           ea->setReportIteration(1);
-                                          auto sa = std::make_shared<oa::GSimulatedAnnealing>();
+                                          auto sa = std::make_shared<OA::GSimulatedAnnealing>();
                                           sa->setPopulationSizes(4, 2);
                                           sa->setMaxIteration(2);
                                           sa->setReportIteration(1);
@@ -1247,9 +1247,9 @@ TEST_CASE(
     // algorithm of a chain was cut back at that algorithm's own iteration, which dropped rows of
     // the first algorithm, and the resumed rows counted the chain from there.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
     const fs::path base = fs::temp_directory_path() / "geneva-chain-resume-test";
     fs::remove_all(base);
@@ -1260,7 +1260,7 @@ TEST_CASE(
     // One job of GOptimizer: the algorithms of the chain, a monitor, and (if given) a checkpoint
     // to resume
     const auto run_job =
-        [&](std::vector<std::shared_ptr<oa::GOptimizationAlgorithmBase>> const &chain,
+        [&](std::vector<std::shared_ptr<OA::GOptimizationAlgorithmBase>> const &chain,
             std::string const &cp_file) {
             std::vector<std::string> args{"unit-test", "--consumer", "stc"};
             if(not cp_file.empty()) {
@@ -1272,7 +1272,7 @@ TEST_CASE(
             }
             argv.push_back(nullptr);
             Gem::Geneva::GOptimizationDescription geneva;
-            Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+            Gem::Courtier::GLauncherT<Genome::GGenome> launcher(
                 static_cast<int>(argv.size() - 1),
                 argv.data(),
                 base / "GOptimizer.json"
@@ -1302,11 +1302,11 @@ TEST_CASE(
     };
 
     // Job 1: EA (iterations 0-2 = chain 0-2), then SA (0-3 = chain 3-6) with a checkpoint each
-    auto sa1 = algorithm(std::make_shared<oa::GSimulatedAnnealing>(), 4);
+    auto sa1 = algorithm(std::make_shared<OA::GSimulatedAnnealing>(), 4);
     sa1->setCheckpointInterval(1);
     sa1->setCheckpointBaseName(base.string(), "chain.cp");
     sa1->setRemoveCheckpointFiles(false);
-    REQUIRE(run_job({algorithm(std::make_shared<oa::GEvolutionaryAlgorithm>(), 3), sa1}, "") == 0);
+    REQUIRE(run_job({algorithm(std::make_shared<OA::GEvolutionaryAlgorithm>(), 3), sa1}, "") == 0);
     fs::path sa_checkpoint; // the one of SA's iteration 1 = chain iteration 4
     for(const auto &entry : fs::directory_iterator(base)) {
         if(entry.path().filename().string().starts_with("checkpoint-sa-1-")) {
@@ -1318,8 +1318,8 @@ TEST_CASE(
     // Job 2, a new process: SA resumed from it (iterations 2-3 = chain 5-6), then SA (0-1 = 7-8)
     REQUIRE(
         run_job(
-            {algorithm(std::make_shared<oa::GSimulatedAnnealing>(), 4),
-             algorithm(std::make_shared<oa::GSimulatedAnnealing>(), 2)},
+            {algorithm(std::make_shared<OA::GSimulatedAnnealing>(), 4),
+             algorithm(std::make_shared<OA::GSimulatedAnnealing>(), 2)},
             sa_checkpoint.string()
         ) == 0
     );
@@ -1362,25 +1362,25 @@ TEST_CASE(
     // its population size. The EA evaluates them all in its first iteration and selects down to its
     // size, as SA does. Regression: the EA of a Debug build demanded its exact population size
     // before the evaluation and threw.
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     Gem::Geneva::GOptimizer go;
     go.push_back(proto.clone());
     go.registerAdaptionConfig("ea", proto.getAdaptionConfig());
     go.registerAdaptionConfig("sa", proto.getAdaptionConfig());
-    auto sa = std::make_shared<oa::GSimulatedAnnealing>();
+    auto sa = std::make_shared<OA::GSimulatedAnnealing>();
     sa->setPopulationSizes(4, 2);
     sa->setMaxIteration(3);
     sa->setReportIteration(0);
-    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
     ea->setPopulationSizes(4, 2);
     ea->setMaxIteration(2);
     ea->setReportIteration(0);
     go & sa & ea;
     REQUIRE_NOTHROW(go.optimize());
     // The EA was handed more individuals than its population size, and ran to its end
-    CHECK(sa->getBestGlobalIndividuals<gen::GGenome>().size() > ea->getDefaultPopulationSize());
+    CHECK(sa->getBestGlobalIndividuals<Genome::GGenome>().size() > ea->getDefaultPopulationSize());
     CHECK(ea->getIteration() == 2);
 }
 
@@ -1391,8 +1391,8 @@ namespace {
  * A comma-selection EA for SphereOA (see largeFixedStep()): its last iteration is often worse
  * than the best it found, which tells "the best found" apart from "the best at the end".
  */
-std::shared_ptr<oa::GEvolutionaryAlgorithm> makeCommaEA() {
-    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+std::shared_ptr<OA::GEvolutionaryAlgorithm> makeCommaEA() {
+    auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
     ea->setPopulationSizes(5, 1);
     ea->setMaxIteration(6);
     ea->setMaxStallIteration(0);
@@ -1402,14 +1402,14 @@ std::shared_ptr<oa::GEvolutionaryAlgorithm> makeCommaEA() {
 }
 
 /** @brief An adaption config for SphereOA with a large step that does not adapt */
-std::shared_ptr<oa::GAdaptionConfigBase> largeFixedStep(SphereOA const &src) {
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+std::shared_ptr<OA::GAdaptionConfigBase> largeFixedStep(SphereOA const &src) {
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(src);
     cfg->groupDouble(0).gauss(0.3, 0., 1e-3, 1., 1.);
     return cfg;
 }
 
 /** @brief The fitness by which the archives order individuals */
-double fitnessOf(gen::GGenome const &ind) {
+double fitnessOf(Genome::GGenome const &ind) {
     return Gem::Geneva::minOnly_transformed_fitness(ind);
 }
 } // namespace
@@ -1460,8 +1460,8 @@ TEST_CASE(
     // in the same expression. Regression: the algorithms returned a pointer to a const object, and
     // GOptimizer hid the interface's optimize() with one of its own.
     static_assert(std::is_same_v<
-                  decltype(std::declval<oa::GEvolutionaryAlgorithm &>().optimize()),
-                  oa::GOptimizationAlgorithmBase &>);
+                  decltype(std::declval<OA::GEvolutionaryAlgorithm &>().optimize()),
+                  OA::GOptimizationAlgorithmBase &>);
     static_assert(std::is_same_v<
                   decltype(std::declval<Gem::Geneva::GOptimizer &>().optimize()),
                   Gem::Geneva::GOptimizer &>);
@@ -1586,11 +1586,11 @@ TEST_CASE("the iteration archive takes the number of best individuals to record"
     // Regression: setNRecordBestIndividuals() resized the global archive only, and the iteration
     // archive kept the default of 10; a checkpoint did not hold it, so a resume had 10 as well.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     constexpr std::size_t n_record = Gem::Geneva::DEFNRECORDBESTINDIVIDUALS + 2;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual src(data_points);
-    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    const Individuals::GLineFitIndividual src(data_points);
+    auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
     ea->push_back(src.clone());
     ea->setPopulationSizes(30, 15);
     ea->setMaxIteration(2);
@@ -1602,19 +1602,19 @@ TEST_CASE("the iteration archive takes the number of best individuals to record"
     ea->setCheckpointInterval(1);
     ea->setCheckpointBaseName(cp_dir.string(), "capacity.cp");
     ea->optimize();
-    CHECK(ea->getBestIterationIndividuals<gen::GGenome>().size() == n_record);
-    CHECK(ea->getBestGlobalIndividuals<gen::GGenome>().size() == n_record);
+    CHECK(ea->getBestIterationIndividuals<Genome::GGenome>().size() == n_record);
+    CHECK(ea->getBestGlobalIndividuals<Genome::GGenome>().size() == n_record);
 
     // One more iteration of an algorithm that continues the run
-    auto const one_more_iteration = [&src](oa::GEvolutionaryAlgorithm &alg) {
+    auto const one_more_iteration = [&src](OA::GEvolutionaryAlgorithm &alg) {
         alg.setCheckpointInterval(0);
         alg.setMaxIteration(alg.getIteration() + 2);
         alg.setAdaptionConfig(src.getAdaptionConfig());
         alg.optimize(alg.getIteration() + 1);
-        return alg.getBestIterationIndividuals<gen::GGenome>().size();
+        return alg.getBestIterationIndividuals<Genome::GGenome>().size();
     };
 
-    oa::GEvolutionaryAlgorithm copy(*ea);
+    OA::GEvolutionaryAlgorithm copy(*ea);
     CHECK(one_more_iteration(copy) == n_record);
 
     fs::path cp;
@@ -1624,7 +1624,7 @@ TEST_CASE("the iteration archive takes the number of best individuals to record"
         }
     }
     REQUIRE(not cp.empty());
-    oa::GEvolutionaryAlgorithm resumed;
+    OA::GEvolutionaryAlgorithm resumed;
     resumed.loadCheckpoint(cp);
     fs::remove_all(cp_dir);
     CHECK(one_more_iteration(resumed) == n_record);
@@ -1640,12 +1640,12 @@ TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[
     // The checkpoint is edited to hold a record no fitness can reach (a squared error is >= 0) and a
     // stall counter of 7, so that the outcome is certain.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
 
-    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job1 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     job1->push_back(proto.clone());
     job1->setPopulationSizes(4, 2);
     job1->setMaxIteration(2);
@@ -1678,7 +1678,7 @@ TEST_CASE("a resumed run keeps the best-so-far record and the stall counter", "[
         out << content;
     }
 
-    oa::GEvolutionaryAlgorithm job2;
+    OA::GEvolutionaryAlgorithm job2;
     job2.loadCheckpoint(cp);
     fs::remove_all(cp_dir);
     job2.setCheckpointInterval(0);
@@ -1699,12 +1699,14 @@ TEST_CASE("a reset after a loaded checkpoint starts a run of its own", "[oa]") {
     // best fitness known: no fitness of a minimized, positive function is better, so the record
     // never followed the run and every iteration counted as a stall.
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 1.}, {1., 3.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points); // no line fits: the squared error is > 0
+    const Individuals::GLineFitIndividual proto(
+        data_points
+    ); // no line fits: the squared error is > 0
     const auto adaption_config = proto.getAdaptionConfig();
 
-    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job1 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     job1->push_back(proto.clone());
     job1->setPopulationSizes(4, 2);
     job1->setMaxIteration(2);
@@ -1723,7 +1725,7 @@ TEST_CASE("a reset after a loaded checkpoint starts a run of its own", "[oa]") {
     }
     REQUIRE(not cp.empty());
 
-    oa::GEvolutionaryAlgorithm job2;
+    OA::GEvolutionaryAlgorithm job2;
     job2.loadCheckpoint(cp);
     fs::remove_all(cp_dir);
     REQUIRE(job2.resumedFromCheckpoint());
@@ -1740,7 +1742,7 @@ TEST_CASE("a reset after a loaded checkpoint starts a run of its own", "[oa]") {
 
     const double record = std::get<0>(job2.getBestKnownPrimaryFitness());
     CHECK(record > 0.); // a fitness of this run, not the reset value
-    const auto best = job2.getBestGlobalIndividual<gind::GLineFitIndividual>();
+    const auto best = job2.getBestGlobalIndividual<Individuals::GLineFitIndividual>();
     REQUIRE(best);
     CHECK(record == best->raw_fitness(0));
 }
@@ -1751,29 +1753,29 @@ TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
     // Regression: the algorithm of a checkpoint was read from the second hyphen-separated token of
     // its file name, so a renamed checkpoint could not be loaded, and a file named after another
     // algorithm was taken for one of it. The algorithm's mnemonic is now the file's first field.
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
     auto const dir = std::filesystem::temp_directory_path();
 
-    oa::GEvolutionaryAlgorithm ea;
-    ea.push_back(gind::GLineFitIndividual(data_points).clone());
-    ea.push_back(gind::GLineFitIndividual(data_points).clone());
+    OA::GEvolutionaryAlgorithm ea;
+    ea.push_back(Individuals::GLineFitIndividual(data_points).clone());
+    ea.push_back(Individuals::GLineFitIndividual(data_points).clone());
 
     // A checkpoint under a name of the user's choice loads
     auto const renamed = dir / "my-run-of-today.cp";
     ea.saveCheckpoint(renamed);
-    oa::GEvolutionaryAlgorithm from_renamed;
+    OA::GEvolutionaryAlgorithm from_renamed;
     CHECK(from_renamed.cp_mnemonic_fits(renamed));
     REQUIRE_NOTHROW(from_renamed.loadCheckpoint(renamed));
     CHECK(from_renamed.size() == ea.size());
     std::filesystem::remove(renamed);
 
     // A checkpoint of another algorithm is refused, whatever its name says
-    oa::GSimulatedAnnealing sa;
-    sa.push_back(gind::GLineFitIndividual(data_points).clone());
+    OA::GSimulatedAnnealing sa;
+    sa.push_back(Individuals::GLineFitIndividual(data_points).clone());
     auto const misnamed = dir / "checkpoint-ea-0-0-misnamed.cp";
     sa.saveCheckpoint(misnamed);
-    oa::GEvolutionaryAlgorithm into_ea;
+    OA::GEvolutionaryAlgorithm into_ea;
     CHECK_FALSE(into_ea.cp_mnemonic_fits(misnamed));
     CHECK_THROWS_WITH(
         into_ea.loadCheckpoint(misnamed),
@@ -1788,22 +1790,22 @@ TEST_CASE("a checkpoint names its algorithm inside the file", "[oa]") {
 TEST_CASE("an algorithm states its identity once and on itself", "[oa]") {
     // The mnemonic lives on the algorithm (oa_mnemonic); its factory, the store key and the
     // algorithm object all report that one string.
-    oa::GNelderMead const nm;
+    OA::GNelderMead const nm;
     CHECK(nm.getAlgorithmMnemonic() == "nm");
     CHECK(nm.getAlgorithmName() == "Nelder-Mead Simplex");
-    CHECK(oa::GOptimizationAlgorithmFactoryT<oa::GNelderMead>{}.getMnemonic() == "nm");
-    std::shared_ptr<Gem::Common::GProviderT<oa::GOptimizationAlgorithmBase>> stored;
+    CHECK(OA::GOptimizationAlgorithmFactoryT<OA::GNelderMead>{}.getMnemonic() == "nm");
+    std::shared_ptr<Gem::Common::GProviderT<OA::GOptimizationAlgorithmBase>> stored;
     REQUIRE(oaFactoryStore()->get("nm", stored));
     REQUIRE(stored);
     CHECK(stored->getMnemonic() == "nm");
 
-    oa::GEvolutionaryAlgorithm const ea;
+    OA::GEvolutionaryAlgorithm const ea;
     CHECK(ea.getAlgorithmMnemonic() == "ea");
 
     // Regression: the meta-EA derived from the EA without the identity scaffold, so the name it
     // states was never read and it reported itself as "Evolutionary Algorithm". It inherits the
     // EA's mnemonic, which it does not restate.
-    oa::GMetaEvolutionaryAlgorithm const meta;
+    OA::GMetaEvolutionaryAlgorithm const meta;
     CHECK(meta.getAlgorithmName() == "Meta Evolutionary Algorithm");
     CHECK(meta.getAlgorithmMnemonic() == "ea");
 }
@@ -1814,13 +1816,13 @@ TEST_CASE("a Nelder-Mead checkpoint keeps its individuals' position personalitie
     // Nelder-Mead installs the shared GPositionPersonalityTraits rather than a traits class of its own.
     // A checkpoint restores that personality with its position, and the check that a checkpoint belongs
     // to this algorithm reads the algorithm named in the file, not the personality type of its individuals.
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
 
-    oa::GNelderMead nm;
+    OA::GNelderMead nm;
     for(std::size_t i = 0; i < 3; ++i) {
-        nm.push_back(gind::GLineFitIndividual(data_points).clone());
-        auto personality = std::make_shared<oa::GPositionPersonalityTraits>();
+        nm.push_back(Individuals::GLineFitIndividual(data_points).clone());
+        auto personality = std::make_shared<OA::GPositionPersonalityTraits>();
         personality->setPopulationPosition(i + 7);
         nm.at(i)->setPersonality(personality);
     }
@@ -1828,20 +1830,20 @@ TEST_CASE("a Nelder-Mead checkpoint keeps its individuals' position personalitie
     auto const cp = std::filesystem::temp_directory_path() / "nm-position-personality.cp";
     nm.saveCheckpoint(cp);
 
-    oa::GNelderMead resumed;
+    OA::GNelderMead resumed;
     CHECK(resumed.cp_mnemonic_fits(cp));
     REQUIRE_NOTHROW(resumed.loadCheckpoint(cp));
     REQUIRE(resumed.size() == 3);
     for(std::size_t i = 0; i < 3; ++i) {
         auto const personality =
-            resumed.at(i)->getPersonalityTraits<oa::GPositionPersonalityTraits>();
+            resumed.at(i)->getPersonalityTraits<OA::GPositionPersonalityTraits>();
         REQUIRE(personality);
         CHECK(personality->name() == "GPositionPersonalityTraits");
         CHECK(personality->getPopulationPosition() == i + 7);
     }
 
     // Another algorithm refuses the file
-    oa::GConjugateGradientDescent cgd;
+    OA::GConjugateGradientDescent cgd;
     CHECK_FALSE(cgd.cp_mnemonic_fits(cp));
     CHECK_THROWS_WITH(
         cgd.loadCheckpoint(cp),
@@ -1861,7 +1863,7 @@ TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
         std::ofstream const create(cp, std::ofstream::trunc);
     }
 
-    oa::GEvolutionaryAlgorithm ea;
+    OA::GEvolutionaryAlgorithm ea;
     CHECK_THROWS_WITH(
         ea.loadCheckpoint(cp),
         Catch::Matchers::ContainsSubstring("The file is empty") &&
@@ -1881,16 +1883,16 @@ TEST_CASE(
     // Regression (2026-11-20): GOptimizer added its own individuals to the restored population as
     // well, and the algorithm stopped with "Size of data vector (5) should be 4".
     namespace fs = std::filesystem;
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
     const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
-    const gind::GLineFitIndividual proto(data_points);
+    const Individuals::GLineFitIndividual proto(data_points);
     const auto adaption_config = proto.getAdaptionConfig();
 
     const fs::path base = fs::temp_directory_path() / "geneva-goptimizer-resume-test";
     fs::remove_all(base);
 
     // Job 1: a short run whose last checkpoint is the final one
-    auto job1 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto job1 = std::make_shared<OA::GEvolutionaryAlgorithm>();
     job1->push_back(proto.clone());
     job1->setPopulationSizes(4, 2);
     job1->setMaxIteration(2);
@@ -1917,7 +1919,7 @@ TEST_CASE(
         argv{arg0.data(), arg1.data(), arg2.data(), arg3.data(), arg4.data(), nullptr};
     {
         Gem::Geneva::GOptimizationDescription geneva;
-        Gem::Courtier::GLauncherT<gen::GGenome> launcher(
+        Gem::Courtier::GLauncherT<Genome::GGenome> launcher(
             static_cast<int>(argv.size() - 1),
             argv.data(),
             base / "GOptimizer.json"
@@ -1927,7 +1929,7 @@ TEST_CASE(
                              Gem::Geneva::GOptimizer go(geneva);
                              go.push_back(proto.clone());
                              go.registerAdaptionConfig("ea", adaption_config);
-                             auto job2 = std::make_shared<oa::GEvolutionaryAlgorithm>();
+                             auto job2 = std::make_shared<OA::GEvolutionaryAlgorithm>();
                              job2->setPopulationSizes(4, 2);
                              job2->setMaxIteration(
                                  3
@@ -1935,7 +1937,7 @@ TEST_CASE(
                              job2->setReportIteration(0);
                              go & job2;
                              REQUIRE_NOTHROW(go.optimize());
-                             CHECK(go.getBestGlobalIndividual<gind::GLineFitIndividual>());
+                             CHECK(go.getBestGlobalIndividual<Individuals::GLineFitIndividual>());
                              return 0;
                          }});
         REQUIRE(code == 0);
@@ -1953,14 +1955,14 @@ TEST_CASE("EA adopts an externally-provided adaption config", "[flat][oa]") {
     // the provided config -- not just any default -- is actually consumed is proven by the companion
     // "rejects an adaption config built for a different genome" test, where a mismatched provided config
     // is validated against the genome and rejected.)
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(120);
     pop->setReportIteration(100000);
 
     auto ind = SphereOA().clone();
-    auto &flat = dynamic_cast<gen::GGenome &>(*ind);
-    auto cfg = std::make_shared<oa::GEAAdaptionConfig>(flat);
+    auto &flat = dynamic_cast<Genome::GGenome &>(*ind);
+    auto cfg = std::make_shared<OA::GEAAdaptionConfig>(flat);
     cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.); // author the Gauss settings explicitly
 
     pop->push_back(std::move(ind));
@@ -1977,9 +1979,9 @@ TEST_CASE("EA adopts an externally-provided adaption config", "[flat][oa]") {
 /******************************************************************************/
 
 TEST_CASE("EA rejects an adaption config built for a different genome", "[flat][oa]") {
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
 
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(6, 2);
     pop->setMaxIteration(2);
     pop->setReportIteration(100000);
@@ -1987,9 +1989,11 @@ TEST_CASE("EA rejects an adaption config built for a different genome", "[flat][
 
     // A config built from a structurally DIFFERENT genome (a line fit: 2 doubles) must be rejected when
     // the algorithm validates it against its population's genome at setup.
-    gind::GLineFitIndividual other(std::vector<std::tuple<double, double>>{{0., 0.}, {1., 1.}});
-    auto &oflat = dynamic_cast<gen::GGenome &>(other);
-    auto cfg = std::make_shared<oa::GEAAdaptionConfig>(oflat);
+    Individuals::GLineFitIndividual other(
+        std::vector<std::tuple<double, double>>{{0., 0.}, {1., 1.}}
+    );
+    auto &oflat = dynamic_cast<Genome::GGenome &>(other);
+    auto cfg = std::make_shared<OA::GEAAdaptionConfig>(oflat);
 
     pop->setAdaptionConfig(cfg);
     CHECK_THROWS(pop->optimize()); // checkConsistency rejects the mismatched config at init()
@@ -2000,7 +2004,7 @@ TEST_CASE("EA rejects an adaption config built for a different genome", "[flat][
 TEST_CASE("EA with no adaption config is a hard error", "[flat][oa]") {
     // The genome carries only structure; adaption intent is never inferred from it. An adapting algorithm
     // that is given no OA-owned config must fail loudly at setup rather than silently not adapting.
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(6, 2);
     pop->setMaxIteration(2);
     pop->setReportIteration(100000);
@@ -2011,7 +2015,7 @@ TEST_CASE("EA with no adaption config is a hard error", "[flat][oa]") {
 /******************************************************************************/
 
 TEST_CASE("Simulated annealing optimizes a flat individual", "[flat][oa]") {
-    auto pop = std::make_shared<oa::GSimulatedAnnealing>();
+    auto pop = std::make_shared<OA::GSimulatedAnnealing>();
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(120);
     pop->setReportIteration(100000);
@@ -2034,7 +2038,7 @@ TEST_CASE(
     // Regression: the selection pairs every parent with one of the n_parents best children, but the
     // size check only asked for one child. With 6 parents and 4 children the partial sort of the
     // children ran past the end of the population.
-    auto pop = std::make_shared<oa::GSimulatedAnnealing>();
+    auto pop = std::make_shared<OA::GSimulatedAnnealing>();
     pop->setPopulationSizes(10, 6);
     pop->setMaxIteration(3);
     pop->setReportIteration(100000);
@@ -2047,7 +2051,7 @@ TEST_CASE(
     );
 
     // As many children as parents is the smallest population that works
-    auto smallest = std::make_shared<oa::GSimulatedAnnealing>();
+    auto smallest = std::make_shared<OA::GSimulatedAnnealing>();
     smallest->setPopulationSizes(12, 6);
     smallest->setMaxIteration(3);
     smallest->setReportIteration(100000);
@@ -2059,7 +2063,7 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("Simulated annealing parameter validation and round-trip", "[flat][oa][sa]") {
-    auto sa = std::make_shared<oa::GSimulatedAnnealing>();
+    auto sa = std::make_shared<OA::GSimulatedAnnealing>();
 
     // Valid values round-trip
     sa->setT0(5.0);
@@ -2086,7 +2090,7 @@ TEST_CASE("Simulated annealing cools geometrically and floors above zero", "[fla
     // strictly decreasing and still positive. A strictly-positive floor matters because saProb()
     // divides by the temperature -- a temperature of exactly 0 would yield a 0/0 NaN.
     {
-        auto pop = std::make_shared<oa::GSimulatedAnnealing>();
+        auto pop = std::make_shared<OA::GSimulatedAnnealing>();
         pop->setPopulationSizes(18, 6);
         pop->setT0(10.0);
         pop->setTDegradationStrength(0.5);
@@ -2108,7 +2112,7 @@ TEST_CASE("Simulated annealing cools geometrically and floors above zero", "[fla
     // Drive the temperature hard into the subnormal range: it must clamp to a positive floor and
     // never become 0 or non-finite.
     {
-        auto pop = std::make_shared<oa::GSimulatedAnnealing>();
+        auto pop = std::make_shared<OA::GSimulatedAnnealing>();
         pop->setPopulationSizes(18, 6);
         pop->setT0(1.0e-305);
         pop->setTDegradationStrength(0.1);
@@ -2129,7 +2133,7 @@ TEST_CASE("Simulated annealing cools geometrically and floors above zero", "[fla
 /******************************************************************************/
 
 TEST_CASE("Swarm optimization optimizes a flat individual", "[flat][oa]") {
-    auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+    auto pop = std::make_shared<OA::GSwarmAlgorithm>();
     pop->setSwarmSizes(3, 6); // 3 neighborhoods x 6 members
     pop->setMaxIteration(120);
     pop->setReportIteration(100000);
@@ -2151,7 +2155,7 @@ TEST_CASE(
     // handle to the algorithm's own stored best, mutable behind its back. It now clones like its
     // siblings. Pin both halves: the caller owns a fresh copy, and mutating it leaves the algorithm's
     // stored best untouched (a second retrieval still shows the original values).
-    auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+    auto pop = std::make_shared<OA::GSwarmAlgorithm>();
     pop->setSwarmSizes(2, 4);
     pop->setMaxIteration(10);
     pop->setReportIteration(100000);
@@ -2188,7 +2192,7 @@ TEST_CASE(
     // populated (afterFirstIteration, non-null), then pin that load() into a fresh swarm reproduces the whole
     // state and compares EQUAL -- exercising exactly the conditional reconstruction the fold removed. A fresh
     // swarm (null bests) is already covered by the [serialization] safety-net; this covers the populated path.
-    auto original = std::make_shared<oa::GSwarmAlgorithm>();
+    auto original = std::make_shared<OA::GSwarmAlgorithm>();
     original->setSwarmSizes(3, 6);
     original->setMaxIteration(20);
     original->setReportIteration(100000);
@@ -2198,7 +2202,7 @@ TEST_CASE(
         original->getBestGlobalIndividual<SphereOA>()
     ); // it ran -> the bests are populated, non-null
 
-    oa::GSwarmAlgorithm restored;
+    OA::GSwarmAlgorithm restored;
     REQUIRE_NOTHROW(restored.load(*original)); // folded load_: clones the bests
     CHECK_NOTHROW(
         restored.compare(*original, Gem::Common::expectation::EQUALITY, 0.)
@@ -2213,12 +2217,14 @@ TEST_CASE("Swarm: a stored personal best carries no personality of its own", "[f
     // personal best, so each improvement nested the previous best one level deeper and every copy of
     // the particle grew for the rest of the run. The stored best must be a bare individual.
     SphereOA particle;
-    particle.setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>());
+    particle.setPersonality(std::make_shared<OA::GSwarmAlgorithm_PersonalityTraits>());
     particle.process();
-    auto traits = particle.getPersonalityTraits<oa::GSwarmAlgorithm_PersonalityTraits>();
+    auto traits = particle.getPersonalityTraits<OA::GSwarmAlgorithm_PersonalityTraits>();
 
     for(std::size_t k = 0; k < 5; k++) {
-        traits->registerPersonalBest(particle.clone<gen::GGenome>()); // what each improvement does
+        traits->registerPersonalBest(
+            particle.clone<Genome::GGenome>()
+        ); // what each improvement does
         REQUIRE(traits->getPersonalBest());
         CHECK(traits->getPersonalBest()->getPersonality() == "PERSONALITY_NONE");
     }
@@ -2229,7 +2235,7 @@ TEST_CASE("Swarm: a stored personal best carries no personality of its own", "[f
 TEST_CASE("Swarm: the stored neighborhood bests carry no personality", "[flat][oa]") {
     // The neighborhood bests (and the global best cloned from them) are copies of particles; they too
     // must not carry a particle's personality with its personal best into every copy and checkpoint.
-    auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+    auto pop = std::make_shared<OA::GSwarmAlgorithm>();
     pop->setSwarmSizes(2, 4);
     pop->setMaxIteration(20);
     pop->setReportIteration(100000);
@@ -2249,7 +2255,7 @@ TEST_CASE("Swarm tolerates a frozen (equal-bound) parameter", "[flat][oa]") {
     // Regression for the PSO crash on a fixed parameter: a dimension with upper == lower has a velocity
     // range of l*(upper-lower) == 0; pruneVelocity() must clamp it to zero instead of throwing, and the
     // constrained fold must map the frozen value to its single point instead of dividing by a zero range.
-    auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+    auto pop = std::make_shared<OA::GSwarmAlgorithm>();
     pop->setSwarmSizes(3, 6);
     pop->setMaxIteration(60);
     pop->setReportIteration(100000);
@@ -2276,7 +2282,7 @@ TEST_CASE("Swarm normalizes a non-canonical user population at setup", "[flat][o
     constexpr std::size_t default_pop_size = n_neighborhoods * n_members; // 18
 
     SECTION("between n_neighborhoods and default_pop_size -> clone-fill up") {
-        auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+        auto pop = std::make_shared<OA::GSwarmAlgorithm>();
         pop->setSwarmSizes(n_neighborhoods, n_members);
         pop->setMaxIteration(40);
         pop->setReportIteration(100000);
@@ -2291,7 +2297,7 @@ TEST_CASE("Swarm normalizes a non-canonical user population at setup", "[flat][o
     }
 
     SECTION("above default_pop_size -> trim surplus to capacity") {
-        auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+        auto pop = std::make_shared<OA::GSwarmAlgorithm>();
         pop->setSwarmSizes(n_neighborhoods, n_members);
         pop->setMaxIteration(40);
         pop->setReportIteration(100000);
@@ -2327,7 +2333,7 @@ TEST_CASE("Swarm with many neighborhoods does not overflow its bookkeeping", "[f
     // small) vector by neighborhood and wrote past its end. setSwarmSizes() now resizes the per-
     // neighborhood vectors in lockstep. Using more neighborhoods than the default (5) triggers the old
     // overflow (deterministically caught under AddressSanitizer; here it must simply run and converge).
-    auto pop = std::make_shared<oa::GSwarmAlgorithm>();
+    auto pop = std::make_shared<OA::GSwarmAlgorithm>();
     pop->setSwarmSizes(8, 8); // 8 neighborhoods (> the default), 64 particles
     pop->setMaxIteration(40);
     pop->setReportIteration(100000);
@@ -2342,7 +2348,7 @@ TEST_CASE("Swarm with many neighborhoods does not overflow its bookkeeping", "[f
 /******************************************************************************/
 
 TEST_CASE("Conjugate gradient descent optimizes a flat individual", "[flat][oa]") {
-    auto pop = std::make_shared<oa::GConjugateGradientDescent>();
+    auto pop = std::make_shared<OA::GConjugateGradientDescent>();
     pop->setNStartingPoints(1);
     pop->setMaxIteration(500);
     pop->setReportIteration(100000);
@@ -2364,10 +2370,10 @@ TEST_CASE("Conjugate gradient descent optimizes a flat individual", "[flat][oa]"
 /******************************************************************************/
 
 TEST_CASE("Conjugate gradient descent: every beta formula converges", "[flat][oa]") {
-    using gm = oa::gradientMethod;
+    using gm = OA::gradientMethod;
     for(gm const method :
         {gm::CONJUGATE_PR_PLUS, gm::CONJUGATE_FR, gm::CONJUGATE_HS, gm::CONJUGATE_DY}) {
-        auto pop = std::make_shared<oa::GConjugateGradientDescent>();
+        auto pop = std::make_shared<OA::GConjugateGradientDescent>();
         pop->setNStartingPoints(1);
         pop->setGradientMethod(method);
         pop->setMaxIteration(500);
@@ -2389,7 +2395,7 @@ TEST_CASE("Conjugate gradient descent: every beta formula converges", "[flat][oa
 /******************************************************************************/
 
 TEST_CASE("Conjugate gradient descent: central-difference gradient converges", "[flat][oa]") {
-    auto pop = std::make_shared<oa::GConjugateGradientDescent>();
+    auto pop = std::make_shared<OA::GConjugateGradientDescent>();
     pop->setNStartingPoints(1);
     pop->setCentralDifferences(true); // O(h^2) gradient: two probe children per direction
     pop->setMaxIteration(500);
@@ -2413,9 +2419,9 @@ TEST_CASE("Conjugate gradient descent: central-difference gradient converges", "
 TEST_CASE("Conjugate gradient descent: L-BFGS converges", "[flat][oa]") {
     for(std::size_t const m :
         {std::size_t(3), std::size_t(10)}) { // small and default history sizes
-        auto pop = std::make_shared<oa::GConjugateGradientDescent>();
+        auto pop = std::make_shared<OA::GConjugateGradientDescent>();
         pop->setNStartingPoints(1);
-        pop->setGradientMethod(oa::gradientMethod::LBFGS);
+        pop->setGradientMethod(OA::gradientMethod::LBFGS);
         pop->setLBFGSMemory(m);
         pop->setMaxIteration(500);
         pop->setReportIteration(100000);
@@ -2437,7 +2443,7 @@ TEST_CASE("Conjugate gradient descent: L-BFGS converges", "[flat][oa]") {
 /******************************************************************************/
 
 TEST_CASE("Nelder-Mead optimizes a flat individual", "[flat][oa]") {
-    auto pop = std::make_shared<oa::GNelderMead>();
+    auto pop = std::make_shared<OA::GNelderMead>();
     pop->setMaxIteration(200);
     pop->setReportIteration(100000);
     pop->push_back(SphereOA().clone());
@@ -2453,7 +2459,7 @@ TEST_CASE("Nelder-Mead optimizes a flat individual", "[flat][oa]") {
 TEST_CASE("Nelder-Mead with oriented restart still converges", "[flat][oa]") {
     // Enabling the oriented restart must not break convergence: on a unimodal sphere a
     // restart re-explores around the best vertex and re-converges to the same optimum.
-    auto pop = std::make_shared<oa::GNelderMead>();
+    auto pop = std::make_shared<OA::GNelderMead>();
     pop->setMaxIteration(300);
     pop->setReportIteration(100000);
     pop->setRestartThreshold(5); // restart every 5 stalled iterations
@@ -2473,7 +2479,7 @@ TEST_CASE("Nelder-Mead optimizes a 1-D individual", "[flat][oa][nm]") {
     // the best vertex (f_second == f_best) and the "accept reflection between best and second-worst"
     // branch correctly collapses. This exercises that degenerate path end-to-end and confirms it still
     // converges (rather than stalling).
-    auto pop = std::make_shared<oa::GNelderMead>();
+    auto pop = std::make_shared<OA::GNelderMead>();
     pop->setMaxIteration(200);
     pop->setReportIteration(100000);
     pop->push_back(Sphere1D().clone());
@@ -2489,7 +2495,7 @@ TEST_CASE("Nelder-Mead optimizes a 1-D individual", "[flat][oa][nm]") {
 /******************************************************************************/
 
 TEST_CASE("Parameter scan sweeps a flat individual", "[flat][oa]") {
-    auto pop = std::make_shared<oa::GParameterScan>();
+    auto pop = std::make_shared<OA::GParameterScan>();
     // A 5-step grid per dimension over [-5, 5] includes 0, so the sphere optimum is on the grid.
     pop->setParameterSpecs(
         "d(0, -5., 5., 5), d(1, -5., 5., 5), d(2, -5., 5., 5), d(3, -5., 5., 5), d(4, -5., 5., 5)"
@@ -2517,7 +2523,7 @@ TEST_CASE("Parameter scan grid clone round-trip preserves the grid", "[flat][oa]
     // clone: it must sweep the intact grid and find the origin (which is on a 3-step [-5, 5] grid).
     // clang-format off
     //! [ps-direct-construction]
-    auto pop = std::make_shared<oa::GParameterScan>();
+    auto pop = std::make_shared<OA::GParameterScan>();
     pop->setScanRandomly(false); // GRID scan: pre-computed grid points must survive a clone
     pop->setParameterSpecs(
         "d(0, -5., 5., 3), d(1, -5., 5., 3), d(2, -5., 5., 3), "
@@ -2531,7 +2537,7 @@ TEST_CASE("Parameter scan grid clone round-trip preserves the grid", "[flat][oa]
     // clang-format on
 
     // Deep-copy through the copy constructor (exactly what clone() / load_() use).
-    auto clone = std::make_shared<oa::GParameterScan>(*pop);
+    auto clone = std::make_shared<OA::GParameterScan>(*pop);
     CHECK_NOTHROW(
         clone->optimize()
     ); // would throw before the fix (empty grid -> at(step_) out of range)
@@ -2552,7 +2558,7 @@ TEST_CASE("Parameter scan random int stays within the inclusive bounds", "[flat]
         g_scan_int_samples.clear();
     }
 
-    auto pop = std::make_shared<oa::GParameterScan>();
+    auto pop = std::make_shared<OA::GParameterScan>();
     pop->setScanRandomly(true);               // random scan -> getRandomItem (inclusive bounds)
     pop->setParameterSpecs("i(0, 3, 5, 60)"); // 60 random draws in the inclusive range [3, 5]
     pop->setMaxIteration(100000);
@@ -2585,7 +2591,7 @@ TEST_CASE(
         g_scan_pair_samples.clear();
     }
 
-    auto pop = std::make_shared<oa::GParameterScan>();
+    auto pop = std::make_shared<OA::GParameterScan>();
     pop->setScanRandomly(false);                                  // grid scan
     pop->setParameterSpecs("d(0, -1., 1., 3), d(1, -1., 1., 3)"); // 3 steps each -> {-1, 0, 1}
     pop->setMaxIteration(100000);
@@ -2624,7 +2630,7 @@ TEST_CASE("Parameter scan over a boolean visits each of its two values once", "[
             g_scan_bool_samples.clear();
         }
 
-        auto pop = std::make_shared<oa::GParameterScan>();
+        auto pop = std::make_shared<OA::GParameterScan>();
         pop->setScanRandomly(false); // grid scan
         pop->setParameterSpecs(spec);
         pop->setMaxIteration(100000);
@@ -2653,7 +2659,7 @@ TEST_CASE(
         g_scan_bool_double_samples.clear();
     }
 
-    auto pop = std::make_shared<oa::GParameterScan>();
+    auto pop = std::make_shared<OA::GParameterScan>();
     pop->setScanRandomly(false); // grid scan
     pop->setParameterSpecs("b(0), d(0, -1., 1., 3)");
     pop->setMaxIteration(100000);
@@ -2686,7 +2692,7 @@ TEST_CASE(
     // that moment. A configuration file applies parameter_options before scan_randomly, so
     // "scan_randomly": false came too late and the scan drew random values; the same happened on
     // the API with setScanRandomly() after setParameterSpecs().
-    const auto run_and_count = [](const std::shared_ptr<oa::GParameterScan> &pop) {
+    const auto run_and_count = [](const std::shared_ptr<OA::GParameterScan> &pop) {
         {
             std::lock_guard<std::mutex> const lock(g_scan_probe_mutex);
             g_scan_bool_samples.clear();
@@ -2714,7 +2720,7 @@ TEST_CASE(
             })json"
                 << '\n';
         }
-        auto pop = std::make_shared<oa::GParameterScan>();
+        auto pop = std::make_shared<OA::GParameterScan>();
         Gem::Common::GParserBuilder gpb;
         pop->addConfigurationOptions(gpb);
         REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
@@ -2724,7 +2730,7 @@ TEST_CASE(
     }
 
     SECTION("on the API, the mode set after the specification") {
-        auto pop = std::make_shared<oa::GParameterScan>();
+        auto pop = std::make_shared<OA::GParameterScan>();
         pop->setParameterSpecs("b(0)");
         pop->setScanRandomly(false);
         run_and_count(pop);
@@ -2748,18 +2754,18 @@ TEST_CASE(
          "b(0, false, true, 5, x)"}) {
         CAPTURE(spec);
         CHECK_THROWS_WITH(
-            gen::GParameterPropertyParser(spec),
+            Genome::GParameterPropertyParser(spec),
             Catch::Matchers::ContainsSubstring("\"x\"") &&
                 Catch::Matchers::ContainsSubstring("is not a step count")
         );
     }
     CHECK_THROWS_AS(
-        oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"),
+        OA::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"),
         Gem::Common::gem_exception
     );
 
     // An empty field is refused, not skipped: read without it, "d(0,,-1.,1.)" would be a valid spec
-    CHECK_THROWS_AS(gen::GParameterPropertyParser("d(0,,-1.,1.)"), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(Genome::GParameterPropertyParser("d(0,,-1.,1.)"), Gem::Common::gem_exception);
 
     // A number is read as a whole and refused with the parser's message otherwise. Defects: std::stod
     // read "1.x" as 1, std::stoi read "2.5" as 2, and text or a number out of range escaped as
@@ -2773,13 +2779,13 @@ TEST_CASE(
          "b(0, false, yes)"}) {
         CAPTURE(spec);
         CHECK_THROWS_WITH(
-            gen::GParameterPropertyParser(spec),
+            Genome::GParameterPropertyParser(spec),
             Catch::Matchers::ContainsSubstring("Could not parse parameter-property fragment")
         );
     }
 
     // The forms without a label are read as before
-    gen::GParameterPropertyParser const ppp("d(3, -1., 1., 10), b(2), b(4, 7), i(1, 0, 5)");
+    Genome::GParameterPropertyParser const ppp("d(3, -1., 1., 10), b(2), b(4, 7), i(1, 0, 5)");
     auto [d_it, d_end] = ppp.getIterators<double>();
     REQUIRE(std::distance(d_it, d_end) == 1);
     CHECK(d_it->index == 3);
@@ -2807,7 +2813,7 @@ TEST_CASE("Parameter scan simple-scan evaluates exactly N random items", "[flat]
         g_scan_pair_samples.clear();
     }
 
-    auto pop = std::make_shared<oa::GParameterScan>();
+    auto pop = std::make_shared<OA::GParameterScan>();
     pop->setNSimpleScans(k); // simple-scan mode: randomly (re-)initialize whole individuals
     pop->setMaxIteration(100000);
     pop->setMaxStallIteration(0);
@@ -2828,11 +2834,11 @@ TEST_CASE("Parameter scan compare detects scan-state differences", "[flat][oa][p
 
     // Two grid scans that differ ONLY in their parameter specs (same everything else) must compare
     // unequal -- which is only detectable if compare_ actually compares the scan-parameter vectors.
-    auto a = std::make_shared<oa::GParameterScan>();
+    auto a = std::make_shared<OA::GParameterScan>();
     a->setScanRandomly(false);
     a->setParameterSpecs("d(0, -5., 5., 3)");
 
-    auto b = std::make_shared<oa::GParameterScan>();
+    auto b = std::make_shared<OA::GParameterScan>();
     b->setScanRandomly(false);
     b->setParameterSpecs(
         "d(0, -3., 3., 3)"
@@ -2841,7 +2847,7 @@ TEST_CASE("Parameter scan compare detects scan-state differences", "[flat][oa][p
     CHECK_THROWS(a->compare(*b, expectation::EQUALITY, 0.)); // grids differ -> not equal
 
     // A clone compares equal (the grid and all scan state round-trip through the copy ctor).
-    auto a_clone = std::make_shared<oa::GParameterScan>(*a);
+    auto a_clone = std::make_shared<OA::GParameterScan>(*a);
     CHECK_NOTHROW(a->compare(*a_clone, expectation::EQUALITY, 0.));
 }
 
@@ -2854,7 +2860,7 @@ TEST_CASE("Parameter scan survives a serialization round-trip", "[flat][oa][ps]"
     // The scan-parameter vectors are now folded into the single-source localMembers() route (they carry
     // the Gemfony common interface). This pins that serialize_members() (de)serializes them: a grid scan
     // written to a string and read back must compare EQUAL -- including its pre-computed grid points.
-    auto a = std::make_shared<oa::GParameterScan>();
+    auto a = std::make_shared<OA::GParameterScan>();
     a->setScanRandomly(false);
     a->setParameterSpecs(
         "d(0, -5., 5., 3), i(1, 0, 4, 5), b(2)"
@@ -2862,7 +2868,7 @@ TEST_CASE("Parameter scan survives a serialization round-trip", "[flat][oa][ps]"
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         const std::string archived = a->toString(mode);
-        auto restored = std::make_shared<oa::GParameterScan>();
+        auto restored = std::make_shared<OA::GParameterScan>();
         restored->fromString(archived, mode);
         // Equal on every scan parameter (the grids included) only if the vectors round-tripped.
         CHECK_NOTHROW(a->compare(*restored, expectation::EQUALITY, 0.));
@@ -2875,7 +2881,7 @@ TEST_CASE("Parameter scan with no scanned parameters does not crash", "[flat][oa
     // Regression for the empty-vector deref in switchToNextParameterSet(): with no scanned parameters
     // (and not in simple-scan mode) the central parameter vector is empty; advancing it must halt
     // cleanly instead of dereferencing all_par_cnt_.begin() on an empty container.
-    auto pop = std::make_shared<oa::GParameterScan>();
+    auto pop = std::make_shared<OA::GParameterScan>();
     pop->setMaxIteration(10);
     pop->setMaxStallIteration(0);
     pop->setReportIteration(100000);
@@ -2888,7 +2894,7 @@ TEST_CASE("Parameter scan with no scanned parameters does not crash", "[flat][oa
 /******************************************************************************/
 
 TEST_CASE("EA optimizes a flat individual with a BI-GAUSSIAN adaptor", "[flat][oa][bigauss]") {
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(150);
     pop->setReportIteration(100000);
@@ -2912,7 +2918,7 @@ TEST_CASE("EA optimizes a flat individual with a BI-GAUSSIAN adaptor", "[flat][o
 /******************************************************************************/
 
 TEST_CASE("EA optimizes a flat INTEGER individual with a FLIP adaptor", "[flat][oa][flip]") {
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(200);
     pop->setReportIteration(100000);
@@ -2938,7 +2944,7 @@ TEST_CASE("EA optimizes a flat INTEGER individual with a FLIP adaptor", "[flat][
 TEST_CASE("EA optimizes a flat BOOLEAN OneMax with a FLIP adaptor", "[flat][oa][flip]") {
     // The number of bits still false after one run
     auto run = [] {
-        auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
         pop->setPopulationSizes(18, 6);
         pop->setMaxIteration(400);
         pop->setReportIteration(100000);
@@ -2971,22 +2977,22 @@ TEST_CASE("EA optimizes a flat BOOLEAN OneMax with a FLIP adaptor", "[flat][oa][
 /******************************************************************************/
 
 TEST_CASE("EA fits a line with the migrated (flat) GLineFitIndividual", "[flat][oa][linefit]") {
-    namespace gind = Gem::Geneva::Individuals;
+    namespace Individuals = Gem::Geneva::Individuals;
 
     // Sample points on the line y = x -> the optimum is offset a = 0, slope b = 1, residual 0.
     const std::vector<std::tuple<double, double>>
         data_points{{0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}, {4., 4.}};
 
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(18, 6);
     pop->setMaxIteration(400);
     pop->setReportIteration(100000);
-    gind::GLineFitIndividual const src(data_points);
+    Individuals::GLineFitIndividual const src(data_points);
     pop->push_back(src.clone());
     pop->setAdaptionConfig(src.getAdaptionConfig());
     pop->optimize();
 
-    auto best = pop->getBestGlobalIndividual<gind::GLineFitIndividual>();
+    auto best = pop->getBestGlobalIndividual<Individuals::GLineFitIndividual>();
     REQUIRE(best);
 
     const auto [a, b] = best->getLine();
@@ -3004,21 +3010,21 @@ namespace {
 
 /** @brief A high-dimensional flat sphere: N constrained doubles in [-5, 5), started at 3.0. */
 template <std::size_t N>
-class HighDimSphere : public gen::GGenomeT<HighDimSphere<N>> {
+class HighDimSphere : public Genome::GGenomeT<HighDimSphere<N>> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     HighDimSphere() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N, -5., 5.).init(3.0);
         this->setGenome(b.build());
     }
     HighDimSphere(const HighDimSphere &) = default;
 
     /** @brief Gauss adaption config for the stock EA (sepcma needs none -- it owns its own distribution). */
-    [[nodiscard]] std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    [[nodiscard]] std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         return cfg;
     }
@@ -3035,7 +3041,7 @@ protected:
 };
 
 /** @brief Sum of squares of a flat individual's double parameters (its sphere value). */
-double sphereValue(const gen::GGenome &best) {
+double sphereValue(const Genome::GGenome &best) {
     auto const v = best.parameterValues<double>();
     double s = 0.;
     for(double const x : v) {
@@ -3049,13 +3055,13 @@ double sphereValue(const gen::GGenome &best) {
  * constrained doubles in [-5, 5). The Pareto front is the segment x_i in [0, 2]; used for the NSGA-II
  * selection smoke test.
  */
-class BiObjective : public gen::GGenomeT<BiObjective> {
+class BiObjective : public Genome::GGenomeT<BiObjective> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     BiObjective() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N_DIM, -5., 5.).init(3.0);
         this->setGenome(b.build());
         this->setNStoredResults(2); // two evaluation criteria
@@ -3063,8 +3069,8 @@ public:
     BiObjective(const BiObjective &) = default;
 
     /** @brief A Gauss adaption config for the EA (sep-CMA needs none). */
-    std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         return cfg;
     }
@@ -3087,7 +3093,7 @@ protected:
 /******************************************************************************/
 
 TEST_CASE("Separable CMA-ES optimizes a flat individual", "[flat][oa][sepcma]") {
-    auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+    auto pop = std::make_shared<OA::GSepCmaEvolutionStrategy>();
     pop->setMaxIteration(200);
     pop->setReportIteration(100000);
     pop->push_back(SphereOA().clone());
@@ -3104,7 +3110,7 @@ TEST_CASE(
     "Pure CSA-ES (no diagonal covariance) optimizes a flat individual",
     "[flat][oa][sepcma]"
 ) {
-    auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+    auto pop = std::make_shared<OA::GSepCmaEvolutionStrategy>();
     pop->setUseDiagonalCMA(false); // step-size control only
     pop->setMaxIteration(300);
     pop->setReportIteration(100000);
@@ -3129,7 +3135,7 @@ TEST_CASE("Separable CMA-ES out-converges the stock EA at high dimension", "[fla
     // (generation 0 evaluates the full population; later generations only the 24 children).
     double ea_best = 0.;
     {
-        auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
         pop->setPopulationSizes(30, 6);
         pop->setMaxIteration(120);
         pop->setMaxStallIteration(0);
@@ -3146,7 +3152,7 @@ TEST_CASE("Separable CMA-ES out-converges the stock EA at high dimension", "[fla
     // sepcma: auto lambda (4 + floor(3 ln 200) = 19) over the same kind of budget (~150 gens), no config.
     double eab_best = 0.;
     {
-        auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+        auto pop = std::make_shared<OA::GSepCmaEvolutionStrategy>();
         pop->setMaxIteration(150);
         pop->setMaxStallIteration(0);
         pop->setReportIteration(100000);
@@ -3171,7 +3177,7 @@ TEST_CASE("Separable CMA-ES tolerates (and warns about) non-FP parameters", "[fl
     // sep-CMA-ES optimizes only the floating-point parameters. On a mixed individual (doubles + int32) it
     // must not crash: it warns at setup, optimizes the doubles, and leaves the integers at their start
     // value (7). This exercises the non-FP guard path end-to-end.
-    auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+    auto pop = std::make_shared<OA::GSepCmaEvolutionStrategy>();
     pop->setMaxIteration(150);
     pop->setReportIteration(100000);
     pop->push_back(MixedOA().clone());
@@ -3197,7 +3203,7 @@ TEST_CASE(
     "Separable CMA-ES Pareto mode runs on a two-objective individual",
     "[flat][oa][sepcma][pareto]"
 ) {
-    auto pop = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+    auto pop = std::make_shared<OA::GSepCmaEvolutionStrategy>();
     pop->setParetoMode(true); // NSGA-II non-dominated sort + crowding distance as the ranking key
     pop->setMaxIteration(120);
     pop->setReportIteration(100000);
@@ -3260,7 +3266,7 @@ TEST_CASE(
 
     // One full optimization run; returns (spread, hypervolume) of the mu surviving parents.
     auto run = [&hypervolume]() {
-        auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
         pop->setPopulationSizes(3 * MU, MU);
         pop->setMaxIteration(200);
         pop->setMaxStallIteration(0);
@@ -3333,10 +3339,10 @@ TEST_CASE("OA setNThreads(0) means the assigned hardware threads", "[flat][oa]")
     // Regression: setNThreads(0) replaced the 0 by 2 (DEFAULTNSTDTHREADS) with a warning, although
     // the option says "0 means automatic". The 0 is now kept; init() builds the pool with as many
     // threads as the process has hardware threads assigned (GThreadPool's rule for 0).
-    auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
     ea->setNThreads(0);
     CHECK(ea->getNThreads() == 0);
-    auto copy = std::make_shared<oa::GEvolutionaryAlgorithm>(*ea);
+    auto copy = std::make_shared<OA::GEvolutionaryAlgorithm>(*ea);
     CHECK(copy->getNThreads() == 0);
 }
 
@@ -3352,13 +3358,13 @@ TEST_CASE(
     // algorithm cloned into a run reverted those knobs to defaults). The ctor now copies THROUGH
     // localMembers_(), so any future member joins the copy automatically. Pin non-default values
     // across a copy.
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setNThreads(7);
     pop->setLateReturnTTL(1234);
     pop->setLateReturnCapFactor(2.5);
     pop->setMaxIteration(999);
 
-    auto copy = std::make_shared<oa::GEvolutionaryAlgorithm>(*pop);
+    auto copy = std::make_shared<OA::GEvolutionaryAlgorithm>(*pop);
 
     // The formerly-dropped knobs travel with the copy ...
     CHECK(copy->getNThreads() == 7);
@@ -3406,21 +3412,21 @@ TEST_CASE(
     // run state. A configured meta-EA lost the knob across a serialization round-trip, and two metas
     // differing only in it compared EQUAL. It is now full config state routed through localMembers_()
     // on all four paths (only the orchestration pool itself stays transient).
-    auto meta = std::make_shared<oa::GMetaEvolutionaryAlgorithm>();
+    auto meta = std::make_shared<OA::GMetaEvolutionaryAlgorithm>();
     meta->setNOrchestrationThreads(5);
 
     // Copy path
-    auto copy = std::make_shared<oa::GMetaEvolutionaryAlgorithm>(*meta);
+    auto copy = std::make_shared<OA::GMetaEvolutionaryAlgorithm>(*meta);
     CHECK(copy->getNOrchestrationThreads() == 5);
     CHECK_NOTHROW(meta->compare(*copy, expectation::EQUALITY, 0.));
 
     // Serialization round-trip
-    auto restored = std::make_shared<oa::GMetaEvolutionaryAlgorithm>();
+    auto restored = std::make_shared<OA::GMetaEvolutionaryAlgorithm>();
     restored->fromString(meta->toString(serializationMode::GEM_JSON), serializationMode::GEM_JSON);
     CHECK(restored->getNOrchestrationThreads() == 5);
 
     // compare_ detects a difference in the knob
-    auto other = std::make_shared<oa::GMetaEvolutionaryAlgorithm>();
+    auto other = std::make_shared<OA::GMetaEvolutionaryAlgorithm>();
     other->setNOrchestrationThreads(9);
     CHECK_THROWS(meta->compare(*other, expectation::EQUALITY, 0.));
 }
@@ -3430,8 +3436,8 @@ TEST_CASE(
 
 namespace {
 
-using EAFactory = oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>;
-using AlgorithmPtr = std::shared_ptr<oa::GOptimizationAlgorithmBase>;
+using EAFactory = OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>;
+using AlgorithmPtr = std::shared_ptr<OA::GOptimizationAlgorithmBase>;
 
 // get() without a template argument compiles through the concrete factory and gives what it gives
 // through the GFactoryT base. While GOAFactoryT's get<target_type>() had no default, the member
@@ -3439,17 +3445,17 @@ using AlgorithmPtr = std::shared_ptr<oa::GOptimizationAlgorithmBase>;
 static_assert(requires(EAFactory &f) {
     { f.get() } -> std::same_as<AlgorithmPtr>;
 });
-static_assert(requires(Gem::Common::GFactoryT<oa::GOptimizationAlgorithmBase> &f) {
+static_assert(requires(Gem::Common::GFactoryT<OA::GOptimizationAlgorithmBase> &f) {
     { f.get() } -> std::same_as<AlgorithmPtr>;
 });
 
 /**
  * An algorithm factory whose getObject_() produces nothing, as a faulty user factory might.
  */
-class EmptyProductFactory : public oa::GOAFactoryT<oa::GOptimizationAlgorithmBase> {
+class EmptyProductFactory : public OA::GOAFactoryT<OA::GOptimizationAlgorithmBase> {
 public:
     explicit EmptyProductFactory(std::filesystem::path const &config_file)
-      : oa::GOAFactoryT<oa::GOptimizationAlgorithmBase>(config_file) { /* nothing */
+      : OA::GOAFactoryT<OA::GOptimizationAlgorithmBase>(config_file) { /* nothing */
     }
 
     [[nodiscard]] std::string getMnemonic() const override {
@@ -3483,15 +3489,15 @@ TEST_CASE("an algorithm factory's get() returns the algorithm on every path", "[
 
     AlgorithmPtr const direct = factory.get();
     REQUIRE(direct);
-    CHECK(std::dynamic_pointer_cast<oa::GEvolutionaryAlgorithm>(direct));
+    CHECK(std::dynamic_pointer_cast<OA::GEvolutionaryAlgorithm>(direct));
 
-    Gem::Common::GFactoryT<oa::GOptimizationAlgorithmBase> &as_base = factory;
+    Gem::Common::GFactoryT<OA::GOptimizationAlgorithmBase> &as_base = factory;
     AlgorithmPtr const through_base = as_base.get();
     REQUIRE(through_base);
-    CHECK(std::dynamic_pointer_cast<oa::GEvolutionaryAlgorithm>(through_base));
+    CHECK(std::dynamic_pointer_cast<OA::GEvolutionaryAlgorithm>(through_base));
 
-    CHECK(factory.get<oa::GEvolutionaryAlgorithm>());
-    CHECK(std::dynamic_pointer_cast<oa::GEvolutionaryAlgorithm>(factory.provide()));
+    CHECK(factory.get<OA::GEvolutionaryAlgorithm>());
+    CHECK(std::dynamic_pointer_cast<OA::GEvolutionaryAlgorithm>(factory.provide()));
 }
 
 TEST_CASE("an algorithm factory refuses an empty product on every path", "[oa][factory]") {
@@ -3504,7 +3510,7 @@ TEST_CASE("an algorithm factory refuses an empty product on every path", "[oa][f
 
     CHECK_THROWS_AS(factory.provide(), Gem::Common::gem_exception);
     CHECK_THROWS_AS(factory.get(), Gem::Common::gem_exception);
-    CHECK_THROWS_AS(factory.get<oa::GEvolutionaryAlgorithm>(), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(factory.get<OA::GEvolutionaryAlgorithm>(), Gem::Common::gem_exception);
 }
 
 TEST_CASE("isBetter under a maxMode follows the direction and orders NaN last", "[helpers]") {

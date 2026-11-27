@@ -53,7 +53,7 @@ int main(int argc, char **argv) {
     GOptimizationDescription geneva;
     // courtier's launcher owns the command line, the consumer and the role of this
     // process
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
+    Gem::Courtier::GLauncherT<Genome::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
 
     // The producing function runs on the submitter only: a client or an MPI rank
     // other than 0 never runs it

@@ -65,7 +65,7 @@ int main(int argc, char **argv) {
     // The program's own options, in the launcher's command line and help text
     // clang-format off
     //! [goptimizer-user-options#2]
-    gind::trainingDataType tdt = gind::trainingDataType::TDTNONE;
+    Individuals::trainingDataType tdt = Individuals::trainingDataType::TDTNONE;
     std::string trainingDataFile = "./DataSets/hyper_sphere.dat";
     // two input nodes, one output node, two hidden layers with 4 nodes each
     std::string architecture = "2-4-4-1";
@@ -74,8 +74,8 @@ int main(int argc, char **argv) {
     std::string visualizationFile = "visualization.C";
 
     auto user_options = [&](GParserBuilder &gpb) {
-        gpb.registerCLParameter<gind::trainingDataType>(
-            "trainingDataType", tdt, gind::trainingDataType::TDTNONE,
+        gpb.registerCLParameter<Individuals::trainingDataType>(
+            "trainingDataType", tdt, Individuals::trainingDataType::TDTNONE,
             "Specify training data to be produced: HYPERCUBE=1, HYPERSPHERE=2, "
             "AXISCENTRIC=3, SINUS=4"
         );
@@ -107,8 +107,8 @@ int main(int argc, char **argv) {
     // produce them (then the program ends), and the global options the individuals read --
     // a client evaluates individuals too
     auto prepare = [&](Gem::Courtier::processRole) -> std::optional<int> {
-        if(tdt != gind::trainingDataType::TDTNONE) {
-            gind::GNeuralNetworkIndividual::createNetworkData(
+        if(tdt != Individuals::trainingDataType::TDTNONE) {
+            Individuals::GNeuralNetworkIndividual::createNetworkData(
                 tdt,
                 trainingDataFile,
                 architecture,
@@ -125,8 +125,8 @@ int main(int argc, char **argv) {
         if(Gem::Common::GParserBuilder::updateInPlace()) {
             auto const tmp_data =
                 std::filesystem::temp_directory_path() / "geneva_nn_config_data.dat";
-            gind::GNeuralNetworkIndividual::createNetworkData(
-                gind::trainingDataType::HYPERSPHERE,
+            Individuals::GNeuralNetworkIndividual::createNetworkData(
+                Individuals::trainingDataType::HYPERSPHERE,
                 tmp_data.string(),
                 architecture,
                 20
@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
     auto produce = [&](GOptimizer &go, const GOptimizationDescription &) -> int {
         // Create a factory for GNeuralNetworkIndividual objects and perform
         // any necessary initial work.
-        auto const gnn_ptr = std::make_shared<gind::GNeuralNetworkIndividualFactory>(
+        auto const gnn_ptr = std::make_shared<Individuals::GNeuralNetworkIndividualFactory>(
             "./config/GNeuralNetworkIndividual.json"
         );
 
@@ -161,14 +161,15 @@ int main(int argc, char **argv) {
         // time). GOptimizer still refreshes the individual's config via the content creator
         // registered above.
         if(not Gem::Common::GParserBuilder::updateInPlace()) {
-            auto sample = gnn_ptr->get_as<gind::GNeuralNetworkIndividual>();
+            auto sample = gnn_ptr->get_as<Individuals::GNeuralNetworkIndividual>();
             auto cfg = gnn_ptr->getAdaptionConfig(*sample);
             go.registerAdaptionConfig("ea", cfg);
             go.registerAdaptionConfig("sa", cfg);
         }
 
         // Perform the actual optimization and retrieve the best individual
-        auto const p = go.optimize().getBestGlobalIndividual<gind::GNeuralNetworkIndividual>();
+        auto const p =
+            go.optimize().getBestGlobalIndividual<Individuals::GNeuralNetworkIndividual>();
 
         //-----------------------------------------------------------------------
         // Write the trained network as a C++ header, and the figure of its output over the

@@ -47,7 +47,7 @@
 // config-file-driven factory (GOAFactoryT implements Gem::Common::GProviderT), so every provide() call
 // produces a freshly configured algorithm. This is the optimization-algorithm instantiation of the shared
 // common/ provider-store template.
-using GOAStore = Gem::Common::GProviderStoreT<oa::GOptimizationAlgorithmBase>;
+using GOAStore = Gem::Common::GProviderStoreT<OA::GOptimizationAlgorithmBase>;
 /**
  * @brief Returns the global optimization-algorithm-provider store singleton.
  *
@@ -66,7 +66,7 @@ namespace Gem::Geneva {
  * algorithm base. Every GOAFactoryT<GOptimizationAlgorithmBase> subclass IS one, so a module hands the
  * loader its factory and the loader never learns the concrete algorithm type.
  */
-using GOAProviderPtr = std::shared_ptr<Gem::Common::GProviderT<oa::GOptimizationAlgorithmBase>>;
+using GOAProviderPtr = std::shared_ptr<Gem::Common::GProviderT<OA::GOptimizationAlgorithmBase>>;
 
 /******************************************************************************/
 /**

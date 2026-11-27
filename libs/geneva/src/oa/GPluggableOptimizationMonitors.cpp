@@ -86,7 +86,7 @@ namespace Gem::Geneva {
 //! [monitors:custom-body]
 void GStandardMonitor::informationFunction_(
     infoMode im,
-    oa::GOptimizationAlgorithmBase const *const goa
+    OA::GOptimizationAlgorithmBase const *const goa
 ) {
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT: {
@@ -176,7 +176,7 @@ std::size_t GFitnessMonitor::getNMonitorIndividuals() const {
 //! [monitors:record-body]
 void GFitnessMonitor::informationFunction_(
     infoMode im,
-    oa::GOptimizationAlgorithmBase const *const goa
+    OA::GOptimizationAlgorithmBase const *const goa
 ) {
     using Gem::Common::Record::columnType;
 
@@ -193,9 +193,9 @@ void GFitnessMonitor::informationFunction_(
 
     case Gem::Geneva::infoMode::INFOPROCESSING: {
         auto const global_bests = goa->Interface::GOptimizerIT<
-            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividuals<gen::GGenome>();
+            OA::GOptimizationAlgorithmBase>::getBestGlobalIndividuals<Genome::GGenome>();
         auto const iter_bests = goa->Interface::GOptimizerIT<
-            oa::GOptimizationAlgorithmBase>::getBestIterationIndividuals<gen::GGenome>();
+            OA::GOptimizationAlgorithmBase>::getBestIterationIndividuals<Genome::GGenome>();
         const std::size_t n = std::min({n_monitor_inds_, global_bests.size(), iter_bests.size()});
         for(std::size_t rank = 0; rank < n; ++rank) {
             Gem::Common::Record::GRow row = stream_.row(*goa);
@@ -226,7 +226,7 @@ void GFitnessMonitor::informationFunction_(
  * @param cp A constant reference to another GCollectiveMonitor object to be copied
  */
 GCollectiveMonitor::GCollectiveMonitor(const GCollectiveMonitor &cp)
-  : Gem::Common::GReflectiveInterfaceT<GCollectiveMonitor, oa::GBasePluggableOM>(cp) {
+  : Gem::Common::GReflectiveInterfaceT<GCollectiveMonitor, OA::GBasePluggableOM>(cp) {
     Gem::Common::g_load_members(this->localMembers_(), cp.localMembers_()); // monitors deep-cloned
 }
 
@@ -256,7 +256,7 @@ GCollectiveMonitor &GCollectiveMonitor::operator=(const GCollectiveMonitor &cp) 
  */
 void GCollectiveMonitor::informationFunction_(
     infoMode im,
-    oa::GOptimizationAlgorithmBase const *const goa
+    OA::GOptimizationAlgorithmBase const *const goa
 ) {
     for(auto const &pm_ptr : pluggable_monitors_) {
         pm_ptr->informationFunction(im, goa);
@@ -269,7 +269,7 @@ void GCollectiveMonitor::informationFunction_(
  *
  * @param om_ptr A shared pointer to the pluggable monitor to be added; must not be empty (an empty pointer triggers an exception)
  */
-void GCollectiveMonitor::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &om_ptr) {
+void GCollectiveMonitor::registerPluggableOM(const std::shared_ptr<OA::GBasePluggableOM> &om_ptr) {
     if(om_ptr) {
         pluggable_monitors_.push_back(om_ptr);
     }
@@ -466,7 +466,7 @@ bool GAllSolutionFileLogger::getFitnessOnly() const {
  */
 void GAllSolutionFileLogger::informationFunction_(
     infoMode im,
-    oa::GOptimizationAlgorithmBase const *const goa
+    OA::GOptimizationAlgorithmBase const *const goa
 ) {
     switch(im) {
     case Gem::Geneva::infoMode::INFOINIT:
@@ -494,11 +494,11 @@ void GAllSolutionFileLogger::informationFunction_(
  *
  * @param goa The algorithm
  */
-void GAllSolutionFileLogger::declareStream_(oa::GOptimizationAlgorithmBase const &goa) {
+void GAllSolutionFileLogger::declareStream_(OA::GOptimizationAlgorithmBase const &goa) {
     using Gem::Common::Record::columnType;
     std::vector<Gem::Common::Record::GColumn> columns;
     columns.push_back({.name = "individual", .type = columnType::UNSIGNED});
-    auto const first = goa.individual_cast<gen::GGenome>(0);
+    auto const first = goa.individual_cast<Genome::GGenome>(0);
     std::size_t k = 0;
     // The values are read as recordPopulation_() reads them, so the columns are theirs
     auto const add = [&columns, &k, &first]<typename T>(std::type_identity<T>, columnType type) {
@@ -535,9 +535,9 @@ void GAllSolutionFileLogger::declareStream_(oa::GOptimizationAlgorithmBase const
  *
  * @param goa The algorithm
  */
-void GAllSolutionFileLogger::recordPopulation_(oa::GOptimizationAlgorithmBase const &goa) {
+void GAllSolutionFileLogger::recordPopulation_(OA::GOptimizationAlgorithmBase const &goa) {
     for(std::size_t pos = 0; pos < goa.size(); pos++) {
-        std::shared_ptr<gen::GGenome> const ind = goa.individual_cast<gen::GGenome>(pos);
+        std::shared_ptr<Genome::GGenome> const ind = goa.individual_cast<Genome::GGenome>(pos);
 
         // Note that isGoodEnough may throw if it acts on an individual that was not evaluated
         if(boundaries_active_ && not ind->isGoodEnough(boundaries_)) {
@@ -694,7 +694,7 @@ bool GNAdpationsLogger::getAddPrintCommand() const {
  */
 void GNAdpationsLogger::informationFunction_(
     infoMode im,
-    oa::GOptimizationAlgorithmBase const *const goa
+    OA::GOptimizationAlgorithmBase const *const goa
 ) {
     using Gem::Common::Record::columnType;
     using Gem::Dietrich::GPlotSpec;
@@ -744,8 +744,8 @@ void GNAdpationsLogger::informationFunction_(
 
     case Gem::Geneva::infoMode::INFOPROCESSING: {
         auto const best = goa->Interface::GOptimizerIT<
-            oa::GOptimizationAlgorithmBase>::getBestGlobalIndividual<gen::GGenome>();
-        auto const record = [&](std::size_t individual, gen::GGenome const &ind) {
+            OA::GOptimizationAlgorithmBase>::getBestGlobalIndividual<Genome::GGenome>();
+        auto const record = [&](std::size_t individual, Genome::GGenome const &ind) {
             Gem::Common::Record::GRow row = stream_.row(*goa);
             row.emplace_back(static_cast<std::uint64_t>(individual));
             row.emplace_back(static_cast<std::uint64_t>(ind.getNAdaptions()));
@@ -757,7 +757,7 @@ void GNAdpationsLogger::informationFunction_(
         }
         else {
             for(std::size_t pos = 0; pos < goa->size(); pos++) {
-                record(pos, *goa->individual_cast<gen::GGenome>(pos));
+                record(pos, *goa->individual_cast<Genome::GGenome>(pos));
             }
         }
     } break;
@@ -901,7 +901,7 @@ std::size_t GProcessingTimesLogger::getNBinsY() const {
  */
 void GProcessingTimesLogger::informationFunction_(
     infoMode im,
-    oa::GOptimizationAlgorithmBase const *const goa
+    OA::GOptimizationAlgorithmBase const *const goa
 ) {
     using Gem::Common::Record::columnType;
     using Gem::Dietrich::GPlotSpec;
@@ -966,7 +966,7 @@ void GProcessingTimesLogger::informationFunction_(
     case Gem::Geneva::infoMode::INFOPROCESSING:
         for(std::size_t pos = 0; pos < goa->size(); pos++) {
             auto const [pre, main, post] =
-                goa->individual_cast<gen::GGenome>(pos)->getProcessingTimes();
+                goa->individual_cast<Genome::GGenome>(pos)->getProcessingTimes();
             Gem::Common::Record::GRow row = stream_.row(*goa);
             row.emplace_back(static_cast<std::uint64_t>(pos));
             row.emplace_back(pre);

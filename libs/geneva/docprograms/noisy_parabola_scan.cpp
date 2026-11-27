@@ -124,7 +124,7 @@ double logFitness(double fitness) {
  * in full. It is also the shortest honest answer to "what does a custom monitor look like?".
  */
 class GSearchPathMonitor final
-  : public Gem::Common::GReflectiveInterfaceT<GSearchPathMonitor, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GSearchPathMonitor, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -183,7 +183,7 @@ private:
     //! [dietrich-search-monitor]
     void informationFunction_(
         infoMode im,
-        oa::GOptimizationAlgorithmBase const *const goa
+        OA::GOptimizationAlgorithmBase const *const goa
     ) override {
         if(im != infoMode::INFOPROCESSING) {
             return; // nothing to record before the first iteration or after the last
@@ -228,11 +228,11 @@ private:
  * @param c The problem configuration (dimension, bounds, demo function)
  * @return A freshly built individual with randomly initialized parameters
  */
-std::unique_ptr<gind::GFunctionIndividual>
-makeIndividual(const gind::GFunctionIndividual::Config &c) {
-    auto ind = std::make_unique<gind::GFunctionIndividual>();
-    ind->setGenome(gind::GFunctionIndividual::buildGenome(c));
-    gind::GFunctionIndividual::applyConfig(*ind, c);
+std::unique_ptr<Individuals::GFunctionIndividual>
+makeIndividual(const Individuals::GFunctionIndividual::Config &c) {
+    auto ind = std::make_unique<Individuals::GFunctionIndividual>();
+    ind->setGenome(Individuals::GFunctionIndividual::buildGenome(c));
+    Individuals::GFunctionIndividual::applyConfig(*ind, c);
     ind->randomInit(activityMode::ALLPARAMETERS);
     return ind;
 }
@@ -246,11 +246,11 @@ int main() {
 
     // ---------------------------------------------------------------------------------------
     // The problem: the Berlich noisy parabola, f(x) = (cos(|x|^2) + 2) |x|^2, in two dimensions.
-    gind::GFunctionIndividual::Config problem;
+    Individuals::GFunctionIndividual::Config problem;
     problem.par_dim = 2;
     problem.min_var = -SCAN_RANGE;
     problem.max_var = SCAN_RANGE;
-    problem.demo_function = gind::solverFunction::NOISYPARABOLA;
+    problem.demo_function = Individuals::solverFunction::NOISYPARABOLA;
 
     //! [dietrich-scan-overlay#1]
     // ---------------------------------------------------------------------------------------
@@ -289,7 +289,7 @@ int main() {
     for(std::size_t i = 0; i < SCAN_NODES; ++i) {
         for(std::size_t j = 0; j < SCAN_NODES; ++j) {
             const std::array<double, 2> point{gridNode(i), gridNode(j)};
-            const double fitness = gbm::eval(function, point.data(), 2);
+            const double fitness = Benchmarks::eval(function, point.data(), 2);
 
             scan_log.append(landscape_id, point[0], point[1], fitness);
             scan_sum += fitness;
@@ -335,7 +335,7 @@ int main() {
 
     auto parent = makeIndividual(problem);
 
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(POPULATION_SIZE, N_PARENTS);
     pop->setMaxIteration(MAX_ITERATIONS);
     pop->setMaxStallIteration(MAX_ITERATIONS); // the figure wants the whole run, stalls included
@@ -346,11 +346,11 @@ int main() {
     for(std::size_t p = 1; p < N_PARENTS; ++p) {
         pop->push_back(makeIndividual(problem));
     }
-    pop->setAdaptionConfig(gind::GFunctionIndividual::buildAdaptionConfig(*parent, problem));
+    pop->setAdaptionConfig(Individuals::GFunctionIndividual::buildAdaptionConfig(*parent, problem));
     pop->registerPluggableOM(monitor);
 
     // One consumer per process (Invariant 5); a single thread is plenty for 720 evaluations.
-    Gem::Courtier::buildConsumer<gen::GGenome>(
+    Gem::Courtier::buildConsumer<Genome::GGenome>(
         Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1},
         consumerModules()
     );

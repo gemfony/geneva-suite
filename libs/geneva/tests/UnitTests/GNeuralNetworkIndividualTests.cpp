@@ -58,24 +58,24 @@
 #include "geneva/individuals/GNeuralNetworkIndividual.hpp"
 
 using Gem::Geneva::Individuals::GNeuralNetworkIndividual;
-namespace gind = Gem::Geneva::Individuals;
+namespace Individuals = Gem::Geneva::Individuals;
 
 namespace {
 
 /** @brief A network individual over the test's training data, with the default settings. */
 GNeuralNetworkIndividual makeIndividual() {
-    gind::Testing::provideNeuralNetworkTrainingData();
+    Individuals::Testing::provideNeuralNetworkTrainingData();
     return {
-        gind::GNN_DEF_MINVAR,
-        gind::GNN_DEF_MAXVAR,
-        gind::GNN_DEF_SIGMA,
-        gind::GNN_DEF_SIGMASIGMA,
-        gind::GNN_DEF_MINSIGMA,
-        gind::GNN_DEF_MAXSIGMA,
-        gind::GNN_DEF_ADPROB,
-        gind::GNN_DEF_ADAPTADPROB,
-        gind::GNN_DEF_MINADPROB,
-        gind::GNN_DEF_MAXADPROB
+        Individuals::GNN_DEF_MINVAR,
+        Individuals::GNN_DEF_MAXVAR,
+        Individuals::GNN_DEF_SIGMA,
+        Individuals::GNN_DEF_SIGMASIGMA,
+        Individuals::GNN_DEF_MINSIGMA,
+        Individuals::GNN_DEF_MAXSIGMA,
+        Individuals::GNN_DEF_ADPROB,
+        Individuals::GNN_DEF_ADAPTADPROB,
+        Individuals::GNN_DEF_MINADPROB,
+        Individuals::GNN_DEF_MAXADPROB
     };
 }
 
@@ -113,7 +113,7 @@ TEST_CASE(
     "[individuals][nn]"
 ) {
     const GNeuralNetworkIndividual ind = makeIndividual();
-    const auto series = gind::Testing::seriesOf(ind.outputPlot());
+    const auto series = Individuals::Testing::seriesOf(ind.outputPlot());
 
     REQUIRE(series.size() == 1);
     CHECK(series[0].header.contains("plotkind=graph_3d"));
@@ -136,7 +136,7 @@ TEST_CASE(
         CHECK(row[2] >= 0.); // a sigmoid network's output
         CHECK(row[2] <= 1.);
     }
-    const auto range = gind::nnTrainingDataStore()->getInitRange();
+    const auto range = Individuals::nnTrainingDataStore()->getInitRange();
     REQUIRE(range.size() == 2);
     CHECK(xs.size() == N);
     CHECK(ys.size() == N);

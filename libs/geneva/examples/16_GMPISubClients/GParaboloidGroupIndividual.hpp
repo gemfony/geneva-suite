@@ -62,7 +62,7 @@ class GAdaptionConfigBase;
  * (GParaboloidGroup.hpp, GMPISubClients.cpp). The individual itself knows nothing of MPI.
  */
 class GParaboloidGroupIndividual // NOLINT(cppcoreguidelines-special-member-functions)
-  : public gen::GGenomeT<GParaboloidGroupIndividual> {
+  : public Genome::GGenomeT<GParaboloidGroupIndividual> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     /** @brief No state of its own beyond the genome */
@@ -88,7 +88,7 @@ public:
 
     /** @brief The adaption configuration of the algorithms: one Gauss group per parameter */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome &);
+    buildAdaptionConfig(const Genome::GGenome &);
 
 protected:
     /** @brief The sum of the squares of the parameter values, computed in this process alone */

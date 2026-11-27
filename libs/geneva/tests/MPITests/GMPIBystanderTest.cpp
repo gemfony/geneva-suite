@@ -76,13 +76,14 @@ constexpr std::chrono::seconds SHUTDOWNLIMIT{5};
 /** @brief The submitter's part: one iteration of a small population.
  *  @param go The GOptimizer of the run */
 void optimize(GOptimizer &go) {
-    const auto factory =
-        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+    const auto factory = std::make_shared<Individuals::GFunctionIndividualFactory>(
+        "./config/GFunctionIndividual.json"
+    );
     go.registerContentCreator(factory);
-    const auto sample = factory->get_as<gind::GFunctionIndividual>();
+    const auto sample = factory->get_as<Individuals::GFunctionIndividual>();
     go.registerAdaptionConfig("ea", factory->getAdaptionConfig(*sample));
 
-    const auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    const auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
     ea->setPopulationSizes(4, 2);
     ea->setMaxIteration(1);
     go & ea;
@@ -101,7 +102,7 @@ int runAsGenevaProgram(int argc, char **argv, int world_rank) {
     processRole role = processRole::SUBMITTER;
     {
         GOptimizationDescription geneva;
-        Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
+        Gem::Courtier::GLauncherT<Genome::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
         const auto start = std::chrono::steady_clock::now();
         const int rc = launcher.run(geneva, {.produce = [&] {
                                         GOptimizer go(geneva);
@@ -168,7 +169,7 @@ int runTest(int argc, char **argv) {
             processRole::BYSTANDER
         };
         const processRole role =
-            Gem::Courtier::consumerProvider<gen::GGenome>("mpi", consumerModules())
+            Gem::Courtier::consumerProvider<Genome::GGenome>("mpi", consumerModules())
                 ->role(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"}, false);
         if(world_rank > 2 || role != EXPECTED.at(static_cast<std::size_t>(world_rank))) {
             std::println("FAIL: rank {} has the role {}", world_rank, static_cast<int>(role));

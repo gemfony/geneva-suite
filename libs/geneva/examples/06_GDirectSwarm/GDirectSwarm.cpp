@@ -291,7 +291,7 @@ int main(int argc, char **argv) {
     // one individual (with GParserBuilder in update-in-place mode) creates/rewrites it canonically.
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         Gem::Common::beginConfigEmission();
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
+        Individuals::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
         Gem::Common::finishConfigEmission();
         return 0;
     }
@@ -335,7 +335,7 @@ int main(int argc, char **argv) {
         // Build the networked client through courtier's function, from Geneva's consumer module.
         // The configuration struct names the consumer and drives both this client and the server
         // below.
-        auto client = buildConsumerClient<gen::GGenome>(
+        auto client = buildConsumerClient<Genome::GGenome>(
             GWebsocketConsumerConfig{
                 .ip = ip,
                 .port = port,
@@ -356,7 +356,7 @@ int main(int argc, char **argv) {
     //! [swarm-direct-setup#1]
     // This smart pointer will hold the different population types
     auto const pop_ptr =
-        std::make_shared<oa::GSwarmAlgorithm>(nNeighborhoods, nNeighborhoodMembers);
+        std::make_shared<OA::GSwarmAlgorithm>(nNeighborhoods, nNeighborhoodMembers);
     //! [swarm-direct-setup#1]
 
     // Build and register the ONE process-wide consumer, depending on the requested consumer type.
@@ -364,12 +364,12 @@ int main(int argc, char **argv) {
     switch(cType) {
     //---------------------------------------------------------------------------
     case consumerType::SERIAL: // Serial (single-threaded) execution
-        buildConsumer<gen::GGenome>(GStdThreadConsumerConfig{.nThreads = 1}, consumerModules());
+        buildConsumer<Genome::GGenome>(GStdThreadConsumerConfig{.nThreads = 1}, consumerModules());
         break;
 
         //---------------------------------------------------------------------------
     case consumerType::MULTITHREADED: // Multi-threaded local execution
-        buildConsumer<gen::GGenome>(
+        buildConsumer<Genome::GGenome>(
             GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)},
             consumerModules()
         );
@@ -379,7 +379,7 @@ int main(int argc, char **argv) {
     case consumerType::NETWORKED: // Networked execution (server-side)
         // Build a courtier websocket server via the shared factory; the clients started above
         // connect.
-        buildConsumer<gen::GGenome>(
+        buildConsumer<Genome::GGenome>(
             GWebsocketConsumerConfig{.port = port, .serializationMode = serMode},
             consumerModules()
         );
@@ -391,27 +391,27 @@ int main(int argc, char **argv) {
     /****************************************************************************/
     // Create a factory for GFunctionIndividual objects. It performs
     // all necessary initial work related to the individual (i.e. the optimization problem)
-    gind::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
+    Individuals::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
 
     // Create the first set of parent individuals
-    std::vector<std::shared_ptr<gind::GFunctionIndividual>> parentIndividuals;
+    std::vector<std::shared_ptr<Individuals::GFunctionIndividual>> parentIndividuals;
 
     // Create initial individuals for the population
     if(allRandomInit) { // Random initialization of all individuals in the population
         for(std::size_t p = 0; p < pop_ptr->getDefaultPopulationSize(); p++) {
-            parentIndividuals.push_back(gfi.get_as<gind::GFunctionIndividual>());
+            parentIndividuals.push_back(gfi.get_as<Individuals::GFunctionIndividual>());
         }
     }
     else { // Individuals of the same neighborhood start from the same location
         for(std::size_t n = 0; n < nNeighborhoods; n++) {
             // Initialize the first individual of the neighborhood
-            std::shared_ptr<gind::GFunctionIndividual> const functionIndividual_ptr =
-                gfi.get_as<gind::GFunctionIndividual>();
+            std::shared_ptr<Individuals::GFunctionIndividual> const functionIndividual_ptr =
+                gfi.get_as<Individuals::GFunctionIndividual>();
 
             // Now add the required number of clones to the neighborhood
             for(std::size_t p = 1; p < nNeighborhoodMembers; p++) {
                 parentIndividuals.push_back(
-                    functionIndividual_ptr->clone<gind::GFunctionIndividual>()
+                    functionIndividual_ptr->clone<Individuals::GFunctionIndividual>()
                 );
             }
             parentIndividuals.push_back(functionIndividual_ptr);
@@ -446,7 +446,7 @@ int main(int argc, char **argv) {
 
     /****************************************************************************/
     // Do something with the best individual found
-    auto const p = pop_ptr->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto const p = pop_ptr->getBestGlobalIndividual<Individuals::GFunctionIndividual>();
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented

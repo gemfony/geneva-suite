@@ -145,7 +145,7 @@ std::shared_ptr<GSleepGroupIndividual> GSleepGroupIndividual::create(
     auto p = std::make_shared<GSleepGroupIndividual>();
     p->evaluation_time_ = evaluation_time.count();
     p->split_ = c.split_evaluation;
-    gen::GGenomeBuilder gb;
+    Genome::GGenomeBuilder gb;
     for(std::size_t var = 0; var < c.n_variables; var++) {
         gb.addDouble(0.5);
     }

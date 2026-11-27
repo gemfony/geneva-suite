@@ -48,7 +48,7 @@
 #include "geneva/oa/GAdaption.hpp"
 
 using namespace Gem::Geneva;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 /******************************************************************************/
 /**
@@ -82,8 +82,8 @@ int main(int argc, char **argv) {
              // Read the delay-individual configuration (the individual owns its own config
              // parsing and construction; there is no bespoke factory anymore).
              auto delay_config =
-                 gind::GDelayIndividual::readConfig("./config/GDelayIndividual.json");
-             auto sleep_times = gind::GDelayIndividual::parseSleepTimes(delay_config);
+                 Individuals::GDelayIndividual::readConfig("./config/GDelayIndividual.json");
+             auto sleep_times = Individuals::GDelayIndividual::parseSleepTimes(delay_config);
 
              //---------------------------------------------------------------------------
              // Register pluggable optimization monitors, if requested by the user
@@ -103,9 +103,9 @@ int main(int argc, char **argv) {
              //---------------------------------------------------------------------------
 
              // Add a content creator so GOptimizer can generate its own individuals, if necessary
-             auto firstInd = gind::GDelayIndividual::create(
+             auto firstInd = Individuals::GDelayIndividual::create(
                  delay_config,
-                 gind::GDelayIndividual::tupleToTime(sleep_times.at(0))
+                 Individuals::GDelayIndividual::tupleToTime(sleep_times.at(0))
              );
              go.push_back(firstInd);
 
@@ -113,7 +113,7 @@ int main(int argc, char **argv) {
              // still mutates + re-evaluates it every generation -- that mutate/evaluate cycle IS the workload being
              // measured. So author a real Gauss adaptor on its OA-owned config and register it for the EA.
              {
-                 auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*firstInd);
+                 auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*firstInd);
                  for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
                      cfg->groupDouble(i).gauss(0.025, 0.1, 0., 1., 1.);
                  }
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
              go.registerDefaultAlgorithm("ea");
 
              // Perform the actual optimization
-             auto const p = go.optimize().getBestGlobalIndividual<gind::GDelayIndividual>();
+             auto const p = go.optimize().getBestGlobalIndividual<Individuals::GDelayIndividual>();
              return 0;
          }}
     );

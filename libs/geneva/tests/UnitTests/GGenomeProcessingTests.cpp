@@ -228,7 +228,7 @@ TEST_CASE(
     "GFunctionIndividual: operator<< writes to the stream it is given",
     "[candidate][print]"
 ) {
-    gind::GFunctionIndividual ind; // the default demo function, the parabola
+    Individuals::GFunctionIndividual ind; // the default demo function, the parabola
     GGenomeBuilder b;
     b.addDoubleGroup(2, -10., 10.).init(1.0);
     ind.setGenome(b.build());
@@ -241,7 +241,7 @@ TEST_CASE(
     CHECK_THAT(direct.str(), Catch::Matchers::ContainsSubstring("1: 1"));
 
     std::ostringstream via_pointer;
-    via_pointer << std::make_unique<gind::GFunctionIndividual>(ind);
+    via_pointer << std::make_unique<Individuals::GFunctionIndividual>(ind);
     CHECK(via_pointer.str() == direct.str());
 }
 
@@ -253,7 +253,7 @@ TEST_CASE(
     "GFunctionIndividual: operator<< prints an empty pointer as (null)",
     "[candidate][print]"
 ) {
-    const std::unique_ptr<gind::GFunctionIndividual> empty;
+    const std::unique_ptr<Individuals::GFunctionIndividual> empty;
     std::ostringstream out;
     out << empty;
     CHECK(out.str() == "(null)\n");

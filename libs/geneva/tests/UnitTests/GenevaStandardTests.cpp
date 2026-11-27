@@ -89,39 +89,41 @@ using Gem::Common::Testing::GEqualityPrinter;
 
 namespace Gem::Common::Testing {
 
-/** @brief gind::GTestIndividual2 -- public constructor (size, PERFOBJECTTYPE). */
+/** @brief Individuals::GTestIndividual2 -- public constructor (size, PERFOBJECTTYPE). */
 template <>
-inline std::shared_ptr<gind::GTestIndividual2> makeTestObject<gind::GTestIndividual2>() {
-    return std::make_shared<gind::GTestIndividual2>(
+inline std::shared_ptr<Individuals::GTestIndividual2>
+makeTestObject<Individuals::GTestIndividual2>() {
+    return std::make_shared<Individuals::GTestIndividual2>(
         std::size_t(100),
-        gind::PERFOBJECTTYPE::PERFGDOUBLEOBJECT
+        Individuals::PERFOBJECTTYPE::PERFGDOUBLEOBJECT
     );
 }
 
-/** @brief gind::GLineFitIndividual -- public constructor taking a vector of {x,y} sample points. */
+/** @brief Individuals::GLineFitIndividual -- public constructor taking a vector of {x,y} sample points. */
 template <>
-inline std::shared_ptr<gind::GLineFitIndividual> makeTestObject<gind::GLineFitIndividual>() {
+inline std::shared_ptr<Individuals::GLineFitIndividual>
+makeTestObject<Individuals::GLineFitIndividual>() {
     std::vector<std::tuple<double, double>> const
         data_points{{0., 0.}, {1., 1.}, {2., 2.}, {3., 3.}};
-    return std::make_shared<gind::GLineFitIndividual>(data_points);
+    return std::make_shared<Individuals::GLineFitIndividual>(data_points);
 }
 
-/** @brief gind::GNeuralNetworkIndividual -- its default constructor is private; the parameterized one
+/** @brief Individuals::GNeuralNetworkIndividual -- its default constructor is private; the parameterized one
  *  is used with the default settings. */
 template <>
-inline std::shared_ptr<gind::GNeuralNetworkIndividual>
-makeTestObject<gind::GNeuralNetworkIndividual>() {
-    return std::make_shared<gind::GNeuralNetworkIndividual>(
-        gind::GNN_DEF_MINVAR,
-        gind::GNN_DEF_MAXVAR,
-        gind::GNN_DEF_SIGMA,
-        gind::GNN_DEF_SIGMASIGMA,
-        gind::GNN_DEF_MINSIGMA,
-        gind::GNN_DEF_MAXSIGMA,
-        gind::GNN_DEF_ADPROB,
-        gind::GNN_DEF_ADAPTADPROB,
-        gind::GNN_DEF_MINADPROB,
-        gind::GNN_DEF_MAXADPROB
+inline std::shared_ptr<Individuals::GNeuralNetworkIndividual>
+makeTestObject<Individuals::GNeuralNetworkIndividual>() {
+    return std::make_shared<Individuals::GNeuralNetworkIndividual>(
+        Individuals::GNN_DEF_MINVAR,
+        Individuals::GNN_DEF_MAXVAR,
+        Individuals::GNN_DEF_SIGMA,
+        Individuals::GNN_DEF_SIGMASIGMA,
+        Individuals::GNN_DEF_MINSIGMA,
+        Individuals::GNN_DEF_MAXSIGMA,
+        Individuals::GNN_DEF_ADPROB,
+        Individuals::GNN_DEF_ADAPTADPROB,
+        Individuals::GNN_DEF_MINADPROB,
+        Individuals::GNN_DEF_MAXADPROB
     );
 }
 
@@ -137,16 +139,16 @@ namespace {
 
 /** @brief Every built-in algorithm that registers a factory in oaFactoryStore() (GBuiltinAlgorithms.cpp). */
 using registered_algorithm_types = std::tuple<
-    oa::GAntColonyOptimization,
-    oa::GConjugateGradientDescent,
-    oa::GEvolutionaryAlgorithm,
-    oa::GGeneralizedSimulatedAnnealing,
-    oa::GNelderMead,
-    oa::GParameterScan,
-    oa::GSepCmaEvolutionStrategy,
-    oa::GSimulatedAnnealing,
-    oa::GStandardPSO2011,
-    oa::GSwarmAlgorithm>;
+    OA::GAntColonyOptimization,
+    OA::GConjugateGradientDescent,
+    OA::GEvolutionaryAlgorithm,
+    OA::GGeneralizedSimulatedAnnealing,
+    OA::GNelderMead,
+    OA::GParameterScan,
+    OA::GSepCmaEvolutionStrategy,
+    OA::GSimulatedAnnealing,
+    OA::GStandardPSO2011,
+    OA::GSwarmAlgorithm>;
 
 /** @brief A list of types with every type once, in the order of first appearance. */
 template <typename result_type, typename... types>
@@ -179,7 +181,7 @@ struct personality_traits_of<std::tuple<algorithm_types...>> {
  *  factory store -- the store comparison below cannot see it. */
 using algorithm_types = decltype(std::tuple_cat(
     std::declval<registered_algorithm_types>(),
-    std::declval<std::tuple<oa::GMetaEvolutionaryAlgorithm>>()
+    std::declval<std::tuple<OA::GMetaEvolutionaryAlgorithm>>()
 ));
 
 /** @brief The personality traits of all registered algorithms (MetaEA's are the EA's). */
@@ -187,21 +189,23 @@ using trait_types = personality_traits_of<registered_algorithm_types>::type;
 
 /** @brief The individuals under the standard tests. */
 using individual_types = std::tuple<
-    gind::GTestIndividual1,
-    gind::GTestIndividual2,
-    gind::GTestIndividual3,
-    gind::GLineFitIndividual,
-    gind::GFunctionIndividual,
-    gind::GDelayIndividual,
-    gind::GExternalEvaluatorIndividual,
-    gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>,
-    gind::GNeuralNetworkIndividual>;
+    Individuals::GTestIndividual1,
+    Individuals::GTestIndividual2,
+    Individuals::GTestIndividual3,
+    Individuals::GLineFitIndividual,
+    Individuals::GFunctionIndividual,
+    Individuals::GDelayIndividual,
+    Individuals::GExternalEvaluatorIndividual,
+    Individuals::GMetaOptimizerIndividualT<Individuals::GFunctionIndividual>,
+    Individuals::GNeuralNetworkIndividual>;
 
 /** @brief The concrete GGenomeConstraint subclasses defined in GFunctionIndividual.hpp. Their own
  *  members (the constants) are not changed by modifyForTest(), which they inherit from their root; the
  *  focused round-trip TEST_CASEs below cover those members. */
-using constraint_types =
-    std::tuple<gind::GDoubleSumConstraint, gind::GSphereConstraint, gind::GDoubleSumGapConstraint>;
+using constraint_types = std::tuple<
+    Individuals::GDoubleSumConstraint,
+    Individuals::GSphereConstraint,
+    Individuals::GDoubleSumGapConstraint>;
 
 /** @brief The pluggable optimization monitors under the standard tests. */
 using monitor_types = std::tuple<
@@ -213,7 +217,7 @@ using monitor_types = std::tuple<
     GNAdpationsLogger,
     GAdaptorPropertyLogger<double>,
     GProcessingTimesLogger,
-    gind::GOptOptMonitorT<gind::GFunctionIndividual>>;
+    Individuals::GOptOptMonitorT<Individuals::GFunctionIndividual>>;
 
 /** @brief The mnemonics of the registered algorithms, sorted.
  *  @return One mnemonic per algorithm of registered_algorithm_types */
@@ -284,8 +288,8 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard]",
     individual_types
 ) {
-    if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
-        gind::Testing::provideNeuralNetworkTrainingData();
+    if constexpr(std::same_as<TestType, Individuals::GNeuralNetworkIndividual>) {
+        Individuals::Testing::provideNeuralNetworkTrainingData();
     }
     Gem::Common::Testing::checkRoundTrips<TestType>();
 }
@@ -327,8 +331,8 @@ TEMPLATE_LIST_TEST_CASE(
     "[geneva][standard][failures-expected]",
     individual_types
 ) {
-    if constexpr(std::same_as<TestType, gind::GNeuralNetworkIndividual>) {
-        gind::Testing::provideNeuralNetworkTrainingData();
+    if constexpr(std::same_as<TestType, Individuals::GNeuralNetworkIndividual>) {
+        Individuals::Testing::provideNeuralNetworkTrainingData();
     }
     Gem::Common::Testing::checkMisuse<TestType>();
 }
@@ -369,8 +373,8 @@ TEST_CASE("GDoubleSumConstraint round-trips in BINARY/JSON", "[geneva][serializa
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         // Non-default value so the round-trip actually exercises the member
         // (the default is 1.0; a serialize that dropped it would still pass at 1.0).
-        gind::GDoubleSumConstraint const original(3.5);
-        gind::GDoubleSumConstraint restored(2.0);
+        Individuals::GDoubleSumConstraint const original(3.5);
+        Individuals::GDoubleSumConstraint restored(2.0);
 
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
@@ -389,8 +393,8 @@ TEST_CASE("GSphereConstraint round-trips in BINARY/JSON", "[geneva][serializatio
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         // Non-default value (default 1.0): catches the previously-latent bug where
         // GSphereConstraint::serialize() did not store diameter_ at all.
-        gind::GSphereConstraint const original(3.5);
-        gind::GSphereConstraint restored(2.0);
+        Individuals::GSphereConstraint const original(3.5);
+        Individuals::GSphereConstraint restored(2.0);
 
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
@@ -408,8 +412,8 @@ TEST_CASE("GDoubleSumGapConstraint round-trips in BINARY/JSON", "[geneva][serial
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
         // Non-default values (defaults 1.0 / 0.5) so both members are exercised.
-        gind::GDoubleSumGapConstraint const original(3.5, 1.25);
-        gind::GDoubleSumGapConstraint restored(2.0, 0.25);
+        Individuals::GDoubleSumGapConstraint const original(3.5, 1.25);
+        Individuals::GDoubleSumGapConstraint restored(2.0, 0.25);
 
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
@@ -432,9 +436,9 @@ TEST_CASE(
     using Gem::Common::serializationMode;
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
-        gind::GExternalEvaluatorIndividual original;
+        Individuals::GExternalEvaluatorIndividual original;
         original.setRunId("custom-run-id-xyz");
-        gind::GExternalEvaluatorIndividual restored;
+        Individuals::GExternalEvaluatorIndividual restored;
         restored.setRunId("other-run-id");
 
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
@@ -464,7 +468,7 @@ TEST_CASE(
 
     std::vector<std::string> names;
     {
-        gind::GExternalEvaluatorIndividual ind;
+        Individuals::GExternalEvaluatorIndividual ind;
         ind.setProgramName("false");
         ind.setExchangeBaseName("params");
         ind.setRemoveExecTemporaries(false);
@@ -496,14 +500,14 @@ TEST_CASE(
     CHECK(names[0] != names[1]);
 }
 
-// Safety net for the oa::GOptimizationAlgorithmBase serialize() refactor: oa::GOptimizationAlgorithmBase is the central
+// Safety net for the OA::GOptimizationAlgorithmBase serialize() refactor: OA::GOptimizationAlgorithmBase is the central
 // serialised class for all optimization algorithms (checkpoints + network
 // transport). Its split save()/load() was collapsed into a single serialize()
 // after std::filesystem::path gained a free serialization. This test sets several
-// oa::GOptimizationAlgorithmBase members -- in particular cp_directory_path_ (the path that forced the
+// OA::GOptimizationAlgorithmBase members -- in particular cp_directory_path_ (the path that forced the
 // former split) -- to NON-DEFAULT values and verifies they survive a round-trip in
 // both modes, guarding against silently dropping a member.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (BINARY/JSON) for oa::GOptimizationAlgorithmBase's members
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (BINARY/JSON) for OA::GOptimizationAlgorithmBase's members
 TEST_CASE(
     "oa::GOptimizationAlgorithmBase (via GEvolutionaryAlgorithm) round-trips its members incl. the "
     "checkpoint path",
@@ -512,8 +516,8 @@ TEST_CASE(
     using Gem::Common::serializationMode;
 
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
-        oa::GEvolutionaryAlgorithm original;
-        // Set several oa::GOptimizationAlgorithmBase members to non-default values via public setters.
+        OA::GEvolutionaryAlgorithm original;
+        // Set several OA::GOptimizationAlgorithmBase members to non-default values via public setters.
         // "." is an always-existing directory, so setCheckpointBaseName creates nothing.
         original.setCheckpointBaseName(".", "custom_checkpoint_base");
         original.setCheckpointInterval(7);
@@ -521,7 +525,7 @@ TEST_CASE(
         original.setReportIteration(13);
         original.setMaxStallIteration(99);
 
-        oa::GEvolutionaryAlgorithm restored;
+        OA::GEvolutionaryAlgorithm restored;
         // Deliberately different starting values, so the round-trip has to overwrite them.
         restored.setMaxIteration(1);
         restored.setReportIteration(1);
@@ -561,7 +565,7 @@ TEST_CASE(
     using Gem::Common::serializationMode;
 
     auto make_original = []() {
-        gind::GTestIndividual1 ind;
+        Individuals::GTestIndividual1 ind;
         ind.setAssignedIteration(7);
         ind.setMaxMode(maxMode::MAXIMIZE);
         return ind;
@@ -569,8 +573,8 @@ TEST_CASE(
 
     // --- in-memory load() (clone path) ---
     {
-        gind::GTestIndividual1 const original = make_original();
-        gind::GTestIndividual1 restored; // defaults
+        Individuals::GTestIndividual1 const original = make_original();
+        Individuals::GTestIndividual1 restored; // defaults
 
         REQUIRE_NOTHROW(restored.load(original));
 
@@ -587,8 +591,8 @@ TEST_CASE(
 
     // --- wire round-trip in both modes ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
-        gind::GTestIndividual1 const original = make_original();
-        gind::GTestIndividual1 restored; // defaults
+        Individuals::GTestIndividual1 const original = make_original();
+        Individuals::GTestIndividual1 restored; // defaults
 
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
 
@@ -600,13 +604,13 @@ TEST_CASE(
     }
 }
 
-// Safety net for the oa::GSwarmAlgorithm serialize()/load_()/compare_() unification
+// Safety net for the OA::GSwarmAlgorithm serialize()/load_()/compare_() unification
 // onto a single localMembers() declaration (the unconditional members) plus a manual
 // tail for the conditionally-reconstructed neighborhood/global-best members. This test
 // sets several of the about-to-be-tied members to NON-DEFAULT values and verifies they
 // survive a wire round-trip AND an in-memory load() (clone path), guarding against the
 // default-value masking that hides a dropped member.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (load() clone path + BINARY/JSON wire round-trip) for oa::GSwarmAlgorithm's tied members
+// NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent serialization sweep (load() clone path + BINARY/JSON wire round-trip) for OA::GSwarmAlgorithm's tied members
 TEST_CASE(
     "oa::GSwarmAlgorithm round-trips its members in BINARY/JSON and via load()",
     "[geneva][serialization]"
@@ -614,7 +618,7 @@ TEST_CASE(
     using Gem::Common::serializationMode;
 
     auto makeOriginal = []() {
-        oa::GSwarmAlgorithm a;
+        OA::GSwarmAlgorithm a;
         // Non-default values for several of the localMembers()-tied members.
         a.setCPersonal(1.75);
         a.setCNeighborhood(2.25);
@@ -627,7 +631,7 @@ TEST_CASE(
         return a;
     };
 
-    auto checkGetters = [](const oa::GSwarmAlgorithm &restored) {
+    auto checkGetters = [](const OA::GSwarmAlgorithm &restored) {
         CHECK(restored.getCPersonal() == 1.75);
         CHECK(restored.getCNeighborhood() == 2.25);
         CHECK(restored.getCGlobal() == 3.5);
@@ -640,8 +644,8 @@ TEST_CASE(
 
     // --- in-memory load() (clone path) ---
     {
-        oa::GSwarmAlgorithm const original = makeOriginal();
-        oa::GSwarmAlgorithm restored;
+        OA::GSwarmAlgorithm const original = makeOriginal();
+        OA::GSwarmAlgorithm restored;
         restored.setCPersonal(0.1);
         restored.setNeighborhoodsRandomFillUp(true);
 
@@ -658,8 +662,8 @@ TEST_CASE(
 
     // --- wire round-trip in both modes ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
-        oa::GSwarmAlgorithm const original = makeOriginal();
-        oa::GSwarmAlgorithm restored;
+        OA::GSwarmAlgorithm const original = makeOriginal();
+        OA::GSwarmAlgorithm restored;
         restored.setCPersonal(0.1);
         restored.setNeighborhoodsRandomFillUp(true);
 
@@ -675,7 +679,7 @@ TEST_CASE(
     }
 }
 
-// Safety net for the oa::GParameterScan serialize()/load_()/compare_() unification
+// Safety net for the OA::GParameterScan serialize()/load_()/compare_() unification
 // onto a single localMembers() declaration (the plain members) plus a manual tail
 // (the scan-parameter vectors, whose element type lacks the Gemfony common interface,
 // and the load-only transient cycle_logic_halt_). This test sets several of the
@@ -688,22 +692,22 @@ TEST_CASE(
     using Gem::Common::serializationMode;
 
     auto makeOriginal = []() {
-        oa::GParameterScan a;
+        OA::GParameterScan a;
         // Non-default values for the localMembers()-tied plain members.
         a.setScanRandomly(false); // default is true
         a.setNSimpleScans(7);     // sets simple_scan_items_ (default 0)
         return a;
     };
 
-    auto checkGetters = [](const oa::GParameterScan &restored) {
+    auto checkGetters = [](const OA::GParameterScan &restored) {
         CHECK(restored.getScanRandomly() == false);
         CHECK(restored.getNSimpleScans() == 7);
     };
 
     // --- in-memory load() (clone path) ---
     {
-        oa::GParameterScan const original = makeOriginal();
-        oa::GParameterScan restored;
+        OA::GParameterScan const original = makeOriginal();
+        OA::GParameterScan restored;
         restored.setScanRandomly(true);
 
         REQUIRE_NOTHROW(restored.load(original));
@@ -719,8 +723,8 @@ TEST_CASE(
 
     // --- wire round-trip in both modes ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
-        oa::GParameterScan const original = makeOriginal();
-        oa::GParameterScan restored;
+        OA::GParameterScan const original = makeOriginal();
+        OA::GParameterScan restored;
         restored.setScanRandomly(true);
 
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
@@ -749,7 +753,7 @@ TEST_CASE(
     using Gem::Common::serializationMode;
 
     auto makeOriginal = []() {
-        oa::GParameterScan a;
+        OA::GParameterScan a;
         a.setScanRandomly(
             false
         ); // GRID scan -> each leaf pre-computes a data grid that must survive too
@@ -760,8 +764,8 @@ TEST_CASE(
 
     // --- in-memory load() (clone path: the mixin-generated clone_/load_ over each leaf) ---
     {
-        oa::GParameterScan const original = makeOriginal();
-        oa::GParameterScan restored;
+        OA::GParameterScan const original = makeOriginal();
+        OA::GParameterScan restored;
         REQUIRE_NOTHROW(restored.load(original));
         GEqualityPrinter const gep(
             "GParameterScan-scanpar-load",
@@ -773,8 +777,8 @@ TEST_CASE(
 
     // --- wire round-trip in both modes (polymorphic serialize of every leaf) ---
     for(auto mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
-        oa::GParameterScan const original = makeOriginal();
-        oa::GParameterScan restored;
+        OA::GParameterScan const original = makeOriginal();
+        OA::GParameterScan restored;
         REQUIRE_NOTHROW(restored.fromString(original.toString(mode), mode));
         GEqualityPrinter const gep(
             "GParameterScan-scanpar-roundtrip",
@@ -967,13 +971,13 @@ TEST_CASE(
     "GSwarmAlgorithm_PersonalityTraits: an assigned copy does not share the personal best",
     "[geneva][copy]"
 ) {
-    auto best = std::make_shared<gind::GTestIndividual1>();
+    auto best = std::make_shared<Individuals::GTestIndividual1>();
     best->process(); // registerPersonalBest() wants a processed individual
 
-    oa::GSwarmAlgorithm_PersonalityTraits source;
+    OA::GSwarmAlgorithm_PersonalityTraits source;
     source.registerPersonalBest(best);
 
-    oa::GSwarmAlgorithm_PersonalityTraits assigned;
+    OA::GSwarmAlgorithm_PersonalityTraits assigned;
     assigned = source;
 
     REQUIRE(assigned.getPersonalBest());
@@ -1003,17 +1007,17 @@ TEST_CASE(
 
 namespace {
 /** @brief An EA factory that shows the test the two objects it deep-copies */
-class GEAFactoryProbe : public oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm> {
+class GEAFactoryProbe : public OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm> {
 public:
-    using oa::GOptimizationAlgorithmFactoryT<
-        oa::GEvolutionaryAlgorithm>::GOptimizationAlgorithmFactoryT;
+    using OA::GOptimizationAlgorithmFactoryT<
+        OA::GEvolutionaryAlgorithm>::GOptimizationAlgorithmFactoryT;
 
     /** @return The registered monitor, not owned */
-    [[nodiscard]] oa::GBasePluggableOM const *monitor() const {
+    [[nodiscard]] OA::GBasePluggableOM const *monitor() const {
         return this->pluggable_om_.get();
     }
     /** @return The registered content creator, not owned */
-    [[nodiscard]] Gem::Common::GFactoryT<gen::GGenome> const *contentCreator() const {
+    [[nodiscard]] Gem::Common::GFactoryT<Genome::GGenome> const *contentCreator() const {
         return this->content_creator_ptr_.get();
     }
 };
@@ -1026,7 +1030,7 @@ TEST_CASE(
     GEAFactoryProbe source(std::filesystem::path("./config/source.json"));
     source.registerPluggableOM(std::make_shared<GFitnessMonitor>());
     source.registerContentCreator(
-        std::make_shared<gen::GIndividualFactory<gind::GFunctionIndividual>>(
+        std::make_shared<Genome::GIndividualFactory<Individuals::GFunctionIndividual>>(
             "./config/creator.json"
         )
     );
@@ -1052,11 +1056,11 @@ TEST_CASE(
     "Meta-optimizer genome is built from the tunable manifest and read by name",
     "[geneva][meta]"
 ) {
-    using Meta = gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>;
-    namespace n = oa::ea_tunable;
+    using Meta = Individuals::GMetaOptimizerIndividualT<Individuals::GFunctionIndividual>;
+    namespace n = OA::ea_tunable;
 
     auto p = std::make_shared<Meta>();
-    const auto manifest = oa::GEvolutionaryAlgorithm::tunableManifest();
+    const auto manifest = OA::GEvolutionaryAlgorithm::tunableManifest();
     Meta::addContent(p, manifest);
 
     // The defaults come straight from the manifest, addressed by name.
@@ -1108,12 +1112,15 @@ struct MetaSearchSpace {
 
 /** @brief Produces one meta individual from the configuration file @p config_file */
 MetaSearchSpace producedSearchSpace(std::filesystem::path const &config_file) {
-    auto sub_factory = std::make_shared<gind::GFunctionIndividualFactory>(
+    auto sub_factory = std::make_shared<Individuals::GFunctionIndividualFactory>(
         config_file.parent_path() / "GFunctionIndividual.json"
     );
-    gind::GMetaOptimizerIndividualFactoryT<gind::GFunctionIndividual> factory(config_file);
+    Individuals::GMetaOptimizerIndividualFactoryT<Individuals::GFunctionIndividual> factory(
+        config_file
+    );
     factory.registerIndividualFactory(sub_factory);
-    auto p = factory.get_as<gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>>();
+    auto p =
+        factory.get_as<Individuals::GMetaOptimizerIndividualT<Individuals::GFunctionIndividual>>();
 
     MetaSearchSpace s;
     s.int_values = p->parameterValues<std::int32_t>();
@@ -1147,7 +1154,7 @@ TEST_CASE(
     const MetaSearchSpace s = producedSearchSpace(config_file);
 
     MetaSearchSpace expected;
-    for(const auto &tp : oa::GEvolutionaryAlgorithm::tunableManifest()) {
+    for(const auto &tp : OA::GEvolutionaryAlgorithm::tunableManifest()) {
         if(tp.is_integer) {
             expected.int_values.push_back(static_cast<std::int32_t>(tp.init));
             expected.int_lower.push_back(static_cast<std::int32_t>(tp.lower));
@@ -1264,7 +1271,7 @@ TEST_CASE(
     "[geneva][meta]"
 ) {
     const auto dir = freshConfigDirectory("geneva-meta-tunable-options");
-    std::vector<oa::TunableParam> manifest{
+    std::vector<OA::TunableParam> manifest{
         {"count", true, 3., 1., 9., "number of things", "", false},
         {"rate", false, 0.5, 0.1, 0.9, "rate of things", "speed", false},
         {"share", false, 0.25, 0., 1., "share of things", "", true}
@@ -1276,7 +1283,7 @@ TEST_CASE(
     {
         auto knobs = manifest;
         Gem::Common::GParserBuilder gpb;
-        gind::registerTunableOptions(gpb, manifest, knobs);
+        Individuals::registerTunableOptions(gpb, manifest, knobs);
         CHECK(gpb.numberOfFileOptions() == 3 + 3 + 1 + 3);
         gpb.writeConfigFile(dir / "defaults.json");
     }
@@ -1314,10 +1321,10 @@ TEST_CASE(
             "init_weight": { "value": 3 }, "weight_lb": { "value": 2.5 }, "weight_ub": { "value": 3.5 }
         })";
     }
-    std::vector<oa::TunableParam> knobs = manifest;
+    std::vector<OA::TunableParam> knobs = manifest;
     {
         Gem::Common::GParserBuilder gpb;
-        gind::registerTunableOptions(gpb, manifest, knobs);
+        Individuals::registerTunableOptions(gpb, manifest, knobs);
         gpb.parseConfigFile(dir / "values.json");
     }
     const std::vector<std::array<double, 3>>
@@ -1343,14 +1350,14 @@ TEST_CASE("geneva's enums: every value has its name", "[geneva][names]") {
          {evaluationPolicy::USEWORSTCASEFORINVALID, "USEWORSTCASEFORINVALID"},
          {evaluationPolicy::USESIGMOID, "USESIGMOID"}}
     );
-    using gind::metaOptimizationTarget;
+    using Individuals::metaOptimizationTarget;
     checkEnumNames<metaOptimizationTarget>(
         {{metaOptimizationTarget::BESTFITNESS, "best fitness"},
          {metaOptimizationTarget::MINSOLVERCALLS, "minimum number of solver calls"},
          {metaOptimizationTarget::MC_MINSOLVER_BESTFITNESS,
           "multi-criterion target with best fitness, minimum number of solver calls"}}
     );
-    using gind::solverFunction;
+    using Individuals::solverFunction;
     checkEnumNames<solverFunction>(
         {{solverFunction::PARABOLA, "PARABOLA"},
          {solverFunction::NOISYPARABOLA, "NOISYPARABOLA"},
@@ -1370,9 +1377,9 @@ TEST_CASE("geneva's enums: every value has its name", "[geneva][names]") {
     );
 
     // The meta-optimizer's report and an individual's JSON carry the names
-    using Meta = gind::GMetaOptimizerIndividualT<gind::GFunctionIndividual>;
+    using Meta = Individuals::GMetaOptimizerIndividualT<Individuals::GFunctionIndividual>;
     auto p = std::make_shared<Meta>();
-    Meta::addContent(p, oa::GEvolutionaryAlgorithm::tunableManifest());
+    Meta::addContent(p, OA::GEvolutionaryAlgorithm::tunableManifest());
     CHECK(p->print(false).contains("Optimization target: \"best fitness\""));
     CHECK(p->toJSON().at("transformationPolicy").as_string() == "USESIMPLEEVALUATION");
 }

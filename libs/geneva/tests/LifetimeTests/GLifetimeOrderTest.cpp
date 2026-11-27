@@ -111,13 +111,14 @@ void registerTheEndCheck(int /* argc */, char ** /* argv */, char ** /* envp */)
  *  @param go The GOptimizer of the run
  *  @return 0 */
 int optimize(GOptimizer &go) {
-    const auto factory =
-        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+    const auto factory = std::make_shared<Individuals::GFunctionIndividualFactory>(
+        "./config/GFunctionIndividual.json"
+    );
     go.registerContentCreator(factory);
-    const auto sample = factory->get_as<gind::GFunctionIndividual>();
+    const auto sample = factory->get_as<Individuals::GFunctionIndividual>();
     go.registerAdaptionConfig("ea", factory->getAdaptionConfig(*sample));
 
-    const auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    const auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
     ea->setPopulationSizes(8, 2);
     ea->setMaxIteration(2);
     go & ea;
@@ -139,7 +140,7 @@ int runTest(int argc, char **argv) {
         std::println(stderr, "FAIL: runOptimization() returned {}", rc);
         return 1;
     }
-    if(Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().consumer()) {
+    if(Gem::Courtier::GConsumerRegistryT<Genome::GGenome>::instance().consumer()) {
         std::println(stderr, "FAIL: the consumer is still registered after the run");
         return 1;
     }
