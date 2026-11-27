@@ -44,6 +44,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GCommandLineParser.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "hap/GRandomDistributionsT.hpp"

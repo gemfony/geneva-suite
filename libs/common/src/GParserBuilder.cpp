@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "common/GParserBuilder.hpp"
+#include "common/GCommandLineParser.hpp"
 
 // Standard library headers used directly in this translation unit
 #include <algorithm>

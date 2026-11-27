@@ -54,6 +54,7 @@
 
 #include <boost/json.hpp>
 
+#include "common/GCommandLineParser.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp" // loadTextDataFromFile()
 #include "common/GExceptions.hpp"

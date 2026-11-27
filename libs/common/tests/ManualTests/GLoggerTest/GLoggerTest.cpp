@@ -39,6 +39,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GCommandLineParser.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"

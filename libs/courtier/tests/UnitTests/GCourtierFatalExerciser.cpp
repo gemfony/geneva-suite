@@ -54,6 +54,7 @@
 #include <vector>
 
 #include "GDemoProcessingContainers.hpp"
+#include "common/GCommandLineParser.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GSubmissionPolicy.hpp"

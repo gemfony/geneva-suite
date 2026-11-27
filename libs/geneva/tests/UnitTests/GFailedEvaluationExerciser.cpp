@@ -49,6 +49,7 @@
 #include <string>
 #include <vector>
 
+#include "common/GCommandLineParser.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "geneva/GFaultInjector.hpp"

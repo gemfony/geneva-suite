@@ -62,6 +62,7 @@
 #include <vector>
 
 // Geneva header files go here
+#include "common/GCommandLineParser.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "dietrich/GPlotDesigner.hpp"

@@ -66,6 +66,7 @@
 
 #include "GInProcessTestSupport.hpp"
 #include "GPeerTestRole.hpp"
+#include "common/GCommandLineParser.hpp"
 #include "common/GParserBuilder.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GCourtierEnums.hpp"

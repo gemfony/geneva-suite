@@ -46,6 +46,7 @@
 #include <boost/core/demangle.hpp>
 
 // Geneva header files go here
+#include "common/GCommandLineParser.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GGlobalOptionsT.hpp"

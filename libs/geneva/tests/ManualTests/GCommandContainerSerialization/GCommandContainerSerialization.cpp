@@ -52,6 +52,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GCommandLineParser.hpp"
 #include "common/GConfigEmission.hpp"
 #include "common/GFatalReport.hpp"
 #include "courtier/GCommandContainerT.hpp"

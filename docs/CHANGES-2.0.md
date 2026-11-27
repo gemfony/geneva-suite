@@ -1122,6 +1122,18 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (source-breaking). Only plotting used them; they are now `Gem::Dietrich::dimensions` and
   `Gem::Dietrich::DEFAULTNBINSGPD` in `dietrich/plotting/GPlotEnums.hpp` (were
   `Gem::Common::...` in `common/GCommonEnums.hpp`); values and streaming are unchanged.
+- **common: the command-line part of the parser builder has a header of its own,
+  `common/GCommandLineParser.hpp`** (source-breaking for programs that register command-line
+  options). It holds the command-line proxies (`GCLParsableI` and its two derived classes) and
+  Boost.ProgramOptions; `GParserBuilder.hpp`, which every class of the common interface includes
+  for its configuration files, no longer brings in Boost.ProgramOptions, nor the whole of
+  Boost.JSON. A program that calls `registerCLParameter()`, `registerCLFlag()` or
+  `registerCLRepeatableParameter()` includes `common/GCommandLineParser.hpp`; without it the
+  compiler reports an incomplete `GCLParsableI` (or the linker a missing
+  `registerCLRepeatableParameter()`). `courtier/GLauncherT.hpp` includes it, so a program whose
+  options are registered through the launcher needs nothing new. `GLogger.hpp` no longer includes
+  eight standard headers and `common/GTupleIO.hpp` that it did not use; a file that relied on
+  them includes them itself.
 - **common: `condnotset()` was removed.** It raised an error when a function was called although a
   compile-time switch was not set; its callers left with the self-test mechanism.
 
