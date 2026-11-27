@@ -42,6 +42,10 @@
  * A type that has a public member `bool modifyForTest()` is changed with it before the comparisons, so
  * that a copy, clone or round-trip that loses a member shows. A type without one is tested unchanged;
  * the round-trip blocks that need a changed object are then skipped, with a notice.
+ *
+ * A type that has a public member `useForTest()` is used with it after each copy, clone, load,
+ * assignment and round-trip, and before them where an object's state could linger (see UsableForTest),
+ * so that a member outside the compared ones -- a cache -- that a copy forgot to renew shows.
  */
 
 #pragma once
@@ -284,6 +288,51 @@ bool modifyForTestIfAvailable(T &t) {
 
 /******************************************************************************/
 /**
+ * @brief A type whose objects the standard tests can use: it has a public member `useForTest()` whose
+ * result can be compared with ==.
+ *
+ * The function does with the object what a user of the type does -- a factory produces, a cache is read
+ * -- and returns what came out. A copy or a loaded object must give what its original gives. A member
+ * kept outside the compared and serialized ones (a parse cache, an admission bar) that a copy, a load or
+ * a deserialization forgot to renew shows here, although the two objects compare equal.
+ */
+template <typename T>
+concept UsableForTest = requires(T &t) {
+    { t.useForTest() } -> std::equality_comparable;
+};
+
+/**
+ * @brief Uses an object for the standard tests, if its type allows it, so that state derived from its
+ * members (a cache) exists before it is overwritten by a load or an assignment.
+ *
+ * @param t The object to use
+ */
+template <typename T>
+void useForTestIfAvailable(T &t) {
+    if constexpr(UsableForTest<T>) {
+        static_cast<void>(t.useForTest());
+    }
+}
+
+/**
+ * @brief Tells whether a copy and its original give the same result when they are used.
+ *
+ * @param copy The copy (a clone, a loaded, an assigned or a restored object)
+ * @param original The object it was made from
+ * @return Whether both give the same result (always true for a type without `useForTest()`)
+ */
+template <typename T>
+[[nodiscard]] bool usesAgree(T &copy, T &original) {
+    if constexpr(UsableForTest<T>) {
+        return copy.useForTest() == original.useForTest();
+    }
+    else {
+        return true;
+    }
+}
+
+/******************************************************************************/
+/**
  * @brief The category root of a tested type T.
  *
  * There is no single common base to name: each category of types has its own root (in a user such
@@ -302,7 +351,7 @@ using category_root_t = decltype(std::declval<const T &>().clone())::element_typ
  */
 
 /**
- * @brief Creates an object for the standard tests and changes it, if its type allows it.
+ * @brief Creates an object for the standard tests, changes it and uses it, if its type allows it.
  * @return The (changed) object
  */
 template <typename T>
@@ -311,6 +360,21 @@ std::shared_ptr<T> makeChangedForTest() {
     REQUIRE_NOTHROW(t_ptr = makeTestObject<T>());
     REQUIRE(t_ptr);
     REQUIRE_NOTHROW(modifyForTestIfAvailable(*t_ptr));
+    REQUIRE_NOTHROW(useForTestIfAvailable(*t_ptr));
+    return t_ptr;
+}
+
+/**
+ * @brief Creates an object that a load, an assignment or a deserialization will overwrite, and uses
+ * it first, if its type allows it, so that state it derived from its old members exists.
+ * @return The (used) object
+ */
+template <typename T>
+std::shared_ptr<T> makeUsedTarget() {
+    std::shared_ptr<T> t_ptr;
+    REQUIRE_NOTHROW(t_ptr = makeTestObject<T>());
+    REQUIRE(t_ptr);
+    REQUIRE_NOTHROW(useForTestIfAvailable(*t_ptr));
     return t_ptr;
 }
 
@@ -339,6 +403,7 @@ void testCopyConstruction(GEqualityPrinter const &gep) {
     std::shared_ptr<T> copy;
     REQUIRE_NOTHROW(copy = std::make_shared<T>(*original));
     checkCopyOf(gep, copy, original);
+    CHECK(usesAgree(*copy, *original));
 }
 
 /**
@@ -352,6 +417,7 @@ void testCloneToCategoryRoot(GEqualityPrinter const &gep) {
     std::shared_ptr<category_root_t<T>> clone;
     REQUIRE_NOTHROW(clone = original->clone());
     checkCopyOf(gep, clone, original);
+    CHECK(usesAgree(dynamic_cast<T &>(*clone), dynamic_cast<T &>(*original)));
 }
 
 /** @brief Cloning to T gives an equal object. @param gep The comparator */
@@ -361,26 +427,27 @@ void testCloneToTarget(GEqualityPrinter const &gep) {
     std::shared_ptr<T> clone;
     REQUIRE_NOTHROW(clone = original->template clone<T>());
     checkCopyOf(gep, clone, original);
+    CHECK(usesAgree(*clone, *original));
 }
 
 /** @brief Loading through a std::shared_ptr gives an equal object. @param gep The comparator */
 template <typename T>
 void testLoadThroughPointer(GEqualityPrinter const &gep) {
     std::shared_ptr<T> const original = makeChangedForTest<T>();
-    std::shared_ptr<T> const loaded = makeTestObject<T>();
-    REQUIRE(loaded);
+    std::shared_ptr<T> const loaded = makeUsedTarget<T>();
     REQUIRE_NOTHROW(loaded->load(original));
     checkCopyOf(gep, loaded, original);
+    CHECK(usesAgree(*loaded, *original));
 }
 
 /** @brief Loading through a reference gives an equal object. @param gep The comparator */
 template <typename T>
 void testLoadThroughReference(GEqualityPrinter const &gep) {
     std::shared_ptr<T> const original = makeChangedForTest<T>();
-    std::shared_ptr<T> const loaded = makeTestObject<T>();
-    REQUIRE(loaded);
+    std::shared_ptr<T> const loaded = makeUsedTarget<T>();
     REQUIRE_NOTHROW(loaded->load(*original));
     checkCopyOf(gep, loaded, original);
+    CHECK(usesAgree(*loaded, *original));
 }
 
 /**
@@ -393,10 +460,10 @@ template <typename T>
 void testCopyAssignment(GEqualityPrinter const &gep) {
     if constexpr(std::is_copy_assignable_v<T>) {
         std::shared_ptr<T> const original = makeChangedForTest<T>();
-        std::shared_ptr<T> const assigned = makeTestObject<T>();
-        REQUIRE(assigned);
+        std::shared_ptr<T> const assigned = makeUsedTarget<T>();
         REQUIRE_NOTHROW(*assigned = *original);
         checkCopyOf(gep, assigned, original);
+        CHECK(usesAgree(*assigned, *original));
     }
 }
 
@@ -422,8 +489,7 @@ template <typename T>
 void testOwnRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMode mode) {
     std::shared_ptr<T> const original = makeTestObject<T>();
     REQUIRE(original);
-    std::shared_ptr<T> const restored = makeTestObject<T>();
-    REQUIRE(restored);
+    std::shared_ptr<T> const restored = makeUsedTarget<T>();
 
     if(not modifyForTestIfAvailable(*original)) {
         reportSkippedRoundTrip<T>("Internal", mode);
@@ -432,6 +498,7 @@ void testOwnRoundTrip(GEqualityPrinter const &gep, Gem::Common::serializationMod
     CHECK(not gep.isEqual(*original, *restored));
     REQUIRE_NOTHROW(restored->fromString(original->toString(mode), mode));
     CHECK(gep.isSimilar(*original, *restored));
+    CHECK(usesAgree(*restored, *original));
 }
 
 /**
@@ -456,6 +523,7 @@ void testHelperRoundTrip(GEqualityPrinter const &gep, Gem::Common::serialization
         Gem::Common::sharedPtrFromString<T>(serialized_object, mode);
     REQUIRE(restored);
     CHECK(gep.isSimilar(*original, *restored));
+    CHECK(usesAgree(*restored, *original));
 }
 
 /******************************************************************************/
@@ -465,7 +533,8 @@ void testHelperRoundTrip(GEqualityPrinter const &gep, Gem::Common::serialization
  * Construction, copy construction, cloning (to the category root and to T), loading (through a pointer
  * and a reference), copy assignment and (de-)serialization round-trips in both modes (GEM_BINARY,
  * GEM_JSON), through the object's own functions and through the Gem::Common helpers. The round-trips
- * run only when the object could be changed (see ModifiableForTest).
+ * run only when the object could be changed (see ModifiableForTest). After each step the copy is used
+ * and must give what its original gives, where the type allows it (see UsableForTest).
  *
  * @tparam T The tested type
  */

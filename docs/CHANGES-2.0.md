@@ -1008,6 +1008,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   were false for every class of the common interface (it overloads `clone()` and `load()`), and
   nothing in the collection used any of them. A type is tested with the concept
   `gemfony_common_interface<T>` (was `has_gemfony_common_interface<T>::value`).
+- **common: the standard tests use an object after each copy.** A type with a public member
+  `useForTest()` (its result compared with `==`, concept `UsableForTest`) is used by
+  `checkRoundTrips()` before and after each copy, clone, load, assignment and round trip; copy and
+  original must give the same result. It finds a member kept outside the compared ones (a cache)
+  that a load forgot to renew, as `GFactoryT::load()` once kept its parse cache.
 
 ## 8. Checkpointing
 

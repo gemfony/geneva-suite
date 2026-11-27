@@ -36,6 +36,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -189,6 +190,65 @@ protected:
 };
 
 /******************************************************************************/
+// Types with a cache outside their compared members, used by useForTest(): Cached renews it whenever
+// its members are replaced; StaleCache forgets to in load_(), as GFactoryT::load() once forgot its
+// parse cache.
+
+template <bool RENEWS_CACHE>
+class CacheHolder : public GCommonInterfaceT<CacheHolder<RENEWS_CACHE>> {
+public:
+    /** @brief Changes this object for the standard tests @return true */
+    bool modifyForTest() {
+        ++v_;
+        cache_.reset();
+        return true;
+    }
+
+    /** @brief Reads the cache, which is filled from v_ on first use @return The cached value */
+    int useForTest() {
+        if(not cache_) {
+            cache_ = 10 * v_;
+        }
+        return *cache_;
+    }
+
+protected:
+    void load_(const CacheHolder *cp) override {
+        ptrDifferenceCheck(cp, this);
+        v_ = cp->v_;
+        if constexpr(RENEWS_CACHE) {
+            cache_.reset();
+        }
+    }
+
+    void compare_(const CacheHolder &cp, const expectation &e, const double &limit) const override {
+        GToken token("CacheHolder", e, limit);
+        compare_base_t<GCommonInterfaceT<CacheHolder>>(*this, cp, token);
+        compare_t(getIdentity(v_, cp.v_, "v_", "cp.v_"), token);
+        token.evaluate();
+    }
+
+private:
+    [[nodiscard]] CacheHolder *clone_() const override {
+        return new CacheHolder(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+    }
+
+    friend struct Gem::Weft::access;
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
+        Gem::Common::archive_named(ar, "v_", v_);
+    }
+
+    int v_ = 0;
+    std::optional<int> cache_; ///< transient: derived from v_ on first use
+};
+
+using Cached = CacheHolder<true>;
+using StaleCache = CacheHolder<false>;
+
+/******************************************************************************/
 // A reflective type with a floating point member, for the limit of GEqualityPrinter
 
 class WithDouble : public GReflectiveInterfaceT<WithDouble, GCommonInterfaceT<WithDouble>> {
@@ -229,6 +289,7 @@ struct ThrowsOther {
 GEM_REGISTER_ARCHIVABLE(Root)         // NOLINT
 GEM_REGISTER_ARCHIVABLE(Derived)      // NOLINT
 GEM_REGISTER_ARCHIVABLE(Unchangeable) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Cached)       // NOLINT
 
 /******************************************************************************/
 
@@ -319,3 +380,32 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+
+TEST_CASE(
+    "GStandardTests: useForTest() is found and a copy is used after each step",
+    "[common][standard-tests][use]"
+) {
+    STATIC_REQUIRE(UsableForTest<Cached>);
+    STATIC_REQUIRE_FALSE(UsableForTest<Root>);
+    checkRoundTrips<Cached>();
+
+    Root r;
+    useForTestIfAvailable(r); // a type without useForTest() is left alone
+    CHECK(r.value() == 0);
+    Root r_copy(r);
+    CHECK(usesAgree(r_copy, r));
+}
+
+TEST_CASE(
+    "GStandardTests: a cache that a load forgot to renew is found by its use",
+    "[common][standard-tests][use]"
+) {
+    StaleCache original;
+    original.modifyForTest();
+    StaleCache stale;
+    useForTestIfAvailable(stale); // fills the cache from the old value
+    stale.load(original);
+    CHECK(GEqualityPrinter("stale", CE_DEF_SIMILARITY_DIFFERENCE, not CE_WITH_MESSAGES)
+              .isEqual(stale, original));
+    CHECK_FALSE(usesAgree(stale, original));
+}
