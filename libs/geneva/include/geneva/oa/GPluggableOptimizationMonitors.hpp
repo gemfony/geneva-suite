@@ -947,6 +947,9 @@ private:
             return grid;
         }
         auto probe = best->clone();
+        if(probe->template countParameters<fp_type>() == 0) {
+            return grid; // the genome has no parameters of the profiled type
+        }
 
         auto values = probe->template parameterValues<fp_type>();
         const std::size_t ix = fp_prof_var_vec_[0].index;

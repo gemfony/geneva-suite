@@ -34,6 +34,7 @@
 #include "geneva/GNamespaceAliases.hpp" // gen, for the authors of a problem who start here
 
 // Standard header files go here
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <functional>
@@ -789,6 +790,28 @@ private:
     // The channel of a value type, chosen at compile time (normalized-genome architecture, §2). The bool
     // channel is stored as bytes, so the public templates treat it in a branch of its own.
 
+    /** @brief The values of the channel of type T, empty if the genome has none (the generic readers over
+     *  all channels use it; the public parameterValues() refuses an absent channel).
+     *  @tparam T The parameter value type. @param am The activity mode. @return The values */
+    template <typename T>
+    [[nodiscard]] std::vector<T>
+    channelValues(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+        if constexpr(std::is_same_v<T, bool>) {
+            return boolParameterValues(am);
+        }
+        else {
+            return parameterValuesImpl<T>(channelLayout<T>(), channelStore<T>(), am);
+        }
+    }
+
+    /** @brief The name of a channel's value type, for messages. */
+    template <typename T>
+    static constexpr std::string_view CHANNEL_NAME =
+        std::is_same_v<T, double>         ? "double"
+        : std::is_same_v<T, float>        ? "float"
+        : std::is_same_v<T, std::int32_t> ? "std::int32_t"
+                                          : "bool";
+
     /** @brief The cache column of a channel (0 double, 1 float, 2 int32, 3 bool; 4 for no channel). */
     template <typename T>
     static constexpr std::size_t CHANNEL_INDEX = std::is_same_v<T, double>       ? 0
@@ -1191,23 +1214,61 @@ public:
 
     /**
      * @brief The external values (in their declared units) of all parameters of type par_type.
+     * A genome without parameters of this type is refused: reading such a channel is a mistake of
+     * the caller (e.g. float on a genome of doubles), which an empty vector would hide.
      * @tparam par_type The parameter value type (double, float, std::int32_t or bool)
      * @param am The activity mode controlling which parameters are included
      * @return The values, in the order of the parameters in the genome
+     * @throws gem_exception if the genome has no parameter of type par_type
      */
     template <typename par_type>
     [[nodiscard]] std::vector<par_type>
     parameterValues(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
-        if constexpr(std::is_same_v<par_type, bool>) {
-            return boolParameterValues(am);
-        }
-        else {
-            return parameterValuesImpl<par_type>(
-                channelLayout<par_type>(),
-                channelStore<par_type>(),
-                am
-            );
-        }
+        Gem::Common::checkThat(
+            countParameters<par_type>(activityMode::ALLPARAMETERS) > 0,
+            "parameterValues<",
+            CHANNEL_NAME<par_type>,
+            ">(): the genome has no ",
+            CHANNEL_NAME<par_type>,
+            " parameters; it has ",
+            countParameters<double>(activityMode::ALLPARAMETERS),
+            " double, ",
+            countParameters<float>(activityMode::ALLPARAMETERS),
+            " float, ",
+            countParameters<std::int32_t>(activityMode::ALLPARAMETERS),
+            " std::int32_t and ",
+            countParameters<bool>(activityMode::ALLPARAMETERS),
+            " bool parameter(s)"
+        );
+        return channelValues<par_type>(am);
+    }
+
+    /**
+     * @brief The external values of exactly N parameters of type par_type, for a genome of fixed size
+     * (read into a structured binding, such as the two doubles x and y of a problem in the plane).
+     * @tparam par_type The parameter value type (double, float, std::int32_t or bool)
+     * @tparam N The number of parameters of this type the caller expects
+     * @param am The activity mode controlling which parameters are included
+     * @return The values, in the order of the parameters in the genome
+     * @throws gem_exception if the genome has no parameter of type par_type, or not N of them
+     */
+    template <typename par_type, std::size_t N>
+    [[nodiscard]] std::array<par_type, N>
+    parameters(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
+        auto const values = parameterValues<par_type>(am);
+        Gem::Common::checkThat(
+            values.size() == N,
+            "the genome has ",
+            values.size(),
+            " ",
+            CHANNEL_NAME<par_type>,
+            " parameter(s), ",
+            N,
+            " were asked for"
+        );
+        std::array<par_type, N> out{};
+        std::ranges::copy(values, out.begin());
+        return out;
     }
 
     /**
@@ -1287,9 +1348,9 @@ public:
      *  the float-typed widened to double. @param am The activity mode. @return The values */
     [[nodiscard]] std::vector<double>
     fpParameterValues(activityMode const &am = activityMode::DEFAULTACTIVITYMODE) const {
-        std::vector<double> par_vec = this->parameterValues<double>(am);
+        std::vector<double> par_vec = this->channelValues<double>(am);
         // each float implicitly widened to double
-        par_vec.append_range(this->parameterValues<float>(am));
+        par_vec.append_range(this->channelValues<float>(am));
         return par_vec;
     }
 

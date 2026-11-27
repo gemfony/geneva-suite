@@ -306,7 +306,7 @@ private:
             // Snapshot everything the output needs into by-value data (cheap), so the actual work --
             // the CPU rasterise (renderToRGB) and the PNG encode/write -- can run off the optimization
             // thread. The genome scalar type is selected at compile time (gimage_fp_t), so read
-            // the matching channel -- parameterValues<float>() on a double genome collects nothing.
+            // the matching channel -- parameterValues<float>() on a double genome is refused.
             auto parVec = best_ptr->parameterValues<gimage_fp_t>();
             const MonaLisa::Target &tgt = MonaLisa::target();
             const int width = tgt.width;

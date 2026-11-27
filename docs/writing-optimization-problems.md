@@ -39,8 +39,8 @@ private:
 ```
 
 `GGenomeT<derived_type>` supplies the clone/load/compare/serialize machinery. Your genome is a
-flat set of value channels (double / float / int32 / bool); read it with `parameterValues<T>()`,
-`fpParameterValues()`, or — for a structured genome — a `GGenomeArchitecture` decoder (see ex09).
+flat set of value channels (double / float / int32 / bool); read it with `parameters<T, N>()` (a
+fixed number of values), `parameterValues<T>()`, `fpParameterValues()`, or — for a structured genome — a `GGenomeArchitecture` decoder (see ex09).
 
 ## 2. Build the genome STRUCTURE with `GGenomeBuilder`
 

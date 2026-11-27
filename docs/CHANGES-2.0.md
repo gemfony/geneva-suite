@@ -84,6 +84,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `countParameters*_`, `boundaries_`, `getVarVal_*_`, `streamlineInternal_`,
   `assignValueVectorInternal_`) are gone: the public templates choose the channel at compile
   time, so an individual cannot override how values are read or written.
+- **A channel the genome does not have is refused.** `parameterValues<T>()` for a type of which
+  the genome has no parameter (e.g. `float` on a genome of doubles) throws, naming the counts of
+  the four channels, instead of returning an empty vector that `evaluate()` then indexed.
+  *Migration:* code that reads every channel generically asks `countParameters<T>()` first. For a
+  genome of fixed size the checked accessor `parameters<T, N>()` returns a `std::array<T, N>`
+  (`auto const [x, y] = this->parameters<double, 2>();`) and throws if the genome does not have
+  exactly N parameters of type T.
 - **Fitness hook changed: override `std::vector<double> evaluate()`** — a virtual member
   returning the raw fitness values (size 1 for a single-criterion problem, one entry per
   criterion otherwise) — **in place of `double fitnessCalculation()`**, which has been

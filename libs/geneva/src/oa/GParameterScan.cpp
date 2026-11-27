@@ -50,6 +50,7 @@
 #include <memory>
 #include <ostream>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -365,11 +366,14 @@ void GParameterScan::updateSelectedParameters() {
             // Read/write the parameter values through the genome-agnostic value channels.
             auto &ind = (*this->at(ind_pos));
 
-            // Retrieve the parameter vectors
-            auto b_data = ind.parameterValues<bool>();
-            auto i_data = ind.parameterValues<std::int32_t>();
-            auto f_data = ind.parameterValues<float>();
-            auto d_data = ind.parameterValues<double>();
+            // Retrieve the parameter vectors (empty for a type the genome does not have)
+            auto const values = [&ind]<typename T>(std::type_identity<T>) {
+                return ind.countParameters<T>() > 0 ? ind.parameterValues<T>() : std::vector<T>{};
+            };
+            auto b_data = values(std::type_identity<bool>{});
+            auto i_data = values(std::type_identity<std::int32_t>{});
+            auto f_data = values(std::type_identity<float>{});
+            auto d_data = values(std::type_identity<double>{});
 
             // Add the data items from the parSet object to the vectors
 

@@ -190,10 +190,10 @@ private:
         }
 
         for(const auto &ind_ptr : *goa) {
-            auto const parameters = ind_ptr->parameterValues<double>(); // the genome's doubles, in order
+            auto const [x, y] = ind_ptr->parameters<double, 2>(); // the genome's two doubles
             const double fitness = ind_ptr->raw_fitness(0);
 
-            path_log_->append(path_, parameters[0], parameters[1], fitness);
+            path_log_->append(path_, x, y, fitness);
             progress_log_
                 ->append(spread_, double(goa->getIteration()), logFitness(fitness));
             ++n_recorded_;
