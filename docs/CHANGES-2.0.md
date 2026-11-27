@@ -1089,7 +1089,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   file is backed up at the first write; a run resumed from a checkpoint appends to the files of
   its monitors when their columns are the same, after cutting them back to the checkpoint: the
   rows the earlier run recorded after it -- after a crash, those since the last checkpoint, and a
-  row cut in the middle -- are dropped (`GStreamOptions::resumeColumn`, `resumeAfter`); the plot
+  row cut in the middle -- are dropped (`GStreamOptions::resumeColumn`, `resumeAfter`; without a
+  `resumeColumn` only a last row cut by a crash is dropped, and the drop is logged); the plot
   of a resumed stream reads the earlier rows from the stream's CSV file and draws the whole run.
   Each row is flushed to its file. Courtier's launcher closes all streams when `run()` ends -- also after
   an exception or a stop request; a program without the launcher calls `recorder().closeAll()`
@@ -1124,6 +1125,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   this change that holds such a monitor is not meant to load.
 - **Corrected on the way.** The progress plotter of a GOptimizer chain kept only the last algorithm's
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
+  A CSV row whose text holds a line break spans several lines of the file; it is now read as one
+  row, so it survives the cut-back of a resumed file and reaches `GCsvSink::readRows()` and the
+  plot of a resumed stream. A stream one of whose sinks fails to open takes no further row
+  (before, the next rows went to sinks that were never opened), and the end of a handle and
+  `closeAll()` report a failure of a sink of any type through the log.
 - **The log file is a stream.** `GRecordLogTarget` (columns time, severity, source, text; plain
   text with `GTextSink`) replaces `GFileLogger`; a target may override `log(message, logType)`.
 - **courtier's end-of-run report.** When the launcher releases a consumer that counts something,

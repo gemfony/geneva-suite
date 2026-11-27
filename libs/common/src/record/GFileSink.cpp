@@ -32,6 +32,7 @@
 // Standard header files go here
 #include <algorithm>
 #include <fstream>
+#include <istream>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -40,6 +41,7 @@
 #include "common/GCommonHelperFunctions.hpp" // backupExistingFile()
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
 
 namespace Gem::Common::Record {
 
@@ -76,7 +78,7 @@ void GFileSink::open(GStreamInfo const &info) {
         );
     }
 
-    if(append && not info.resumeColumn.empty()) {
+    if(append) {
         this->cutBack_(info);
     }
     out_.open(path_, append ? std::ios::app : std::ios::trunc);
@@ -94,10 +96,13 @@ void GFileSink::open(GStreamInfo const &info) {
 
 /******************************************************************************/
 /**
- * Cuts the file of a resumed stream back to its checkpoint: keeps the lines a file begins with
- * and every row whose value in the resume column is at most the resume value, drops the rest --
- * the rows written after the checkpoint, and a row cut by a crash -- and rewrites the file as a
- * whole, so that a crash in the middle leaves the old file or the new one.
+ * Cuts the file of a resumed stream back before it appends. A last row without its final line
+ * break (a row cut by a crash) is never data: it is dropped, and the drop is logged. With a
+ * resume column, the file is also cut back to its checkpoint: the lines a file begins with and
+ * every row whose value in that column is at most the resume value are kept, the rows written
+ * after the checkpoint and a row that cannot be read are dropped. The file is rewritten as a
+ * whole, so that a crash in the middle leaves the old file or the new one; without a resume
+ * column, only if a cut row was dropped.
  *
  * @param info The stream, with its resume column and value
  */
@@ -105,11 +110,11 @@ void GFileSink::cutBack_(GStreamInfo const &info) const {
     const auto at = std::ranges::find(stream_columns_, info.resumeColumn, &GColumn::name);
     const auto column = static_cast<std::size_t>(at - stream_columns_.begin());
     std::vector<std::string> kept;
+    std::string line;
     {
         std::ifstream in(path_);
-        std::size_t n = 0;
-        for(std::string line; std::getline(in, line); ++n) {
-            if(n < this->startLines_()) {
+        for(std::size_t n = 0; this->readRecord_(in, line); ++n) {
+            if(n < this->startLines_() || info.resumeColumn.empty()) {
                 kept.push_back(line);
                 continue;
             }
@@ -119,15 +124,39 @@ void GFileSink::cutBack_(GStreamInfo const &info) const {
             }
         }
     }
+    // readRecord_() leaves a last row that was cut before its end in line
+    if(not line.empty()) {
+        glogger << "The stream \"" << info.name << "\" resumes: the last row of " << path_.string()
+                << " was cut before its end and is dropped:" << '\n'
+                << line << '\n'
+                << GWARNING;
+    }
+    else if(info.resumeColumn.empty()) {
+        return;
+    }
     Gem::Common::replaceFileAtomically(
         path_,
         [&kept](std::ostream &out) {
-            for(auto const &line : kept) {
-                out << line << '\n';
+            for(auto const &row : kept) {
+                out << row << '\n';
             }
         },
         "GFileSink::open() of the stream \"" + info.name + "\""
     );
+}
+
+/******************************************************************************/
+/**
+ * Reads the next row of the file, or a line it begins with: by default one line. A kind of file
+ * whose rows may span several lines (GCsvSink) reads such a row as a whole.
+ *
+ * @param in The file
+ * @param record The text read, without its last line break
+ * @return Whether a complete one was read; false at the end of the file, where record is then
+ *         empty or holds a last row that was cut before its end
+ */
+bool GFileSink::readRecord_(std::istream &in, std::string &record) const {
+    return std::getline(in, record) && not in.eof();
 }
 
 /******************************************************************************/

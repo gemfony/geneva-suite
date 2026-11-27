@@ -30,8 +30,10 @@
 #include "common/record/GCsvSink.hpp"
 
 // Standard header files go here
+#include <algorithm>
 #include <format>
 #include <fstream>
+#include <istream>
 #include <sstream>
 #include <string_view>
 #include <type_traits>
@@ -85,8 +87,30 @@ std::string headerLine(std::vector<GColumn> const &columns) {
 
 /******************************************************************************/
 /**
- * @brief The fields of a CSV line, by RFC 4180 (no line break inside a field)
- * @param line The line
+ * @brief Reads one CSV record (RFC 4180): a line, and while a quoted field of it is open, the
+ * lines that follow, joined by their line breaks. The one reader of a record of a CSV file.
+ * @param in The file
+ * @param record The record, without its last line break
+ * @return Whether a complete record was read; false at the end of the file, and for a last record
+ *         that ends before its line break (a row cut by a crash)
+ */
+bool readCsvRecord(std::istream &in, std::string &record) {
+    if(not std::getline(in, record)) {
+        return false;
+    }
+    auto quotes = std::ranges::count(record, '"');
+    for(std::string more; quotes % 2 != 0 && not in.eof() && std::getline(in, more);) {
+        quotes += std::ranges::count(more, '"');
+        record += '\n';
+        record += more;
+    }
+    return not in.eof() && quotes % 2 == 0;
+}
+
+/******************************************************************************/
+/**
+ * @brief The fields of a CSV record, by RFC 4180
+ * @param line The record (readCsvRecord())
  * @return Its fields, unquoted
  */
 std::vector<std::string> fieldsOf(std::string_view line) {
@@ -115,8 +139,10 @@ std::vector<std::string> fieldsOf(std::string_view line) {
 
 /******************************************************************************/
 /**
- * The rows of a CSV file that a GCsvSink wrote for the given columns: its header line must be
- * theirs. A line with another number of fields (a row cut by a crash) is left out.
+ * The rows of a CSV file that a GCsvSink wrote for the given columns: its header must be
+ * theirs. A row is read as a whole, also where a text of it spans several lines; a row with
+ * another number of fields, and a last row without its line break (a row cut by a crash), is
+ * left out.
  *
  * @param file The file
  * @param columns The columns of the stream
@@ -126,11 +152,11 @@ std::optional<std::vector<std::vector<std::string>>>
 GCsvSink::readRows(std::filesystem::path const &file, std::vector<GColumn> const &columns) {
     std::ifstream in(file);
     std::string line;
-    if(not std::getline(in, line) || line != headerLine(columns)) {
+    if(not readCsvRecord(in, line) || line != headerLine(columns)) {
         return std::nullopt;
     }
     std::vector<std::vector<std::string>> rows;
-    while(std::getline(in, line)) {
+    while(readCsvRecord(in, line)) {
         std::vector<std::string> fields = fieldsOf(line);
         if(fields.size() == columns.size()) {
             rows.push_back(std::move(fields));
@@ -209,10 +235,22 @@ bool GCsvSink::holdsColumns_(
 ) const {
     std::ifstream in(existing);
     std::string first;
-    if(not std::getline(in, first)) {
+    if(not readCsvRecord(in, first)) {
         return false;
     }
     return first == headerLine(columns);
+}
+
+/******************************************************************************/
+/**
+ * Reads the next CSV record, also one whose quoted text spans several lines (readCsvRecord()).
+ *
+ * @param in The file
+ * @param record The record, without its last line break
+ * @return Whether a complete one was read
+ */
+bool GCsvSink::readRecord_(std::istream &in, std::string &record) const {
+    return readCsvRecord(in, record);
 }
 
 /******************************************************************************/
@@ -229,9 +267,9 @@ std::size_t GCsvSink::startLines_() const {
 /**
  * The value of one column of a CSV row, as a number.
  *
- * @param line The line of the row
+ * @param line The row (readRecord_())
  * @param column The position of the column
- * @return The value; none if the line has another number of fields than the stream has columns
+ * @return The value; none if the row has another number of fields than the stream has columns
  *         (a row cut by a crash) or the field is no number
  */
 std::optional<double> GCsvSink::numberIn_(std::string const &line, std::size_t column) const {

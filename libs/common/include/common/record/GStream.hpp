@@ -60,12 +60,13 @@ struct GStreamOptions {
     std::vector<std::shared_ptr<GSink>> sinks;
     /** The stream continues a run that was resumed from a checkpoint: a file sink appends to an
      *  existing file whose columns are the stream's, and backs it up and begins a new one otherwise.
-     *  Before it appends, it cuts the file back to the checkpoint if resumeColumn names a column */
+     *  Before it appends, it drops a last row cut by a crash (one without its final line break),
+     *  and cuts the file back to the checkpoint if resumeColumn names a column */
     bool resume = false;
     /** With resume: a numeric column by which the file is cut back -- every row whose value in it
      *  is greater than resumeAfter (the rows the earlier run wrote after its checkpoint; after a
-     *  crash, also a row cut in the middle) is dropped before the first append. Empty: nothing is
-     *  dropped */
+     *  crash, also a row cut in the middle) is dropped before the first append. Empty: only a last
+     *  row cut by a crash is dropped */
     std::string resumeColumn;
     /** With resume and resumeColumn: the last value whose rows are kept (for a run, the iteration of
      *  its checkpoint) */
@@ -106,6 +107,8 @@ public:
     void append(GRow row);
     /** @brief Hands the rows held back to the sinks and closes them; again: nothing */
     bool close();
+    /** @brief Closes the stream; a failure, of any type, is reported through the log */
+    void closeOrLog() noexcept;
     /** @brief Whether the stream is open */
     [[nodiscard]] bool isOpen() const;
 
@@ -117,6 +120,8 @@ public:
 private:
     /** @brief Hands the rows held back to the sinks, opening them first; under mutex_ */
     void flushLocked_();
+    /** @brief Refuses rows once a sink failed to open; under mutex_ */
+    void refuseAfterFailedOpen_() const;
 
     mutable std::mutex mutex_; ///< Guards everything below
     GStreamInfo info_;         ///< Name, columns, directory, resume
@@ -126,7 +131,8 @@ private:
     std::source_location declarer_;             ///< Where the stream was declared
     std::chrono::steady_clock::time_point start_ = std::chrono::steady_clock::now(); ///< Declared
     std::vector<GRow> held_;   ///< Rows not yet handed to the sinks
-    bool sinks_open_ = false;  ///< The sinks were opened
+    std::size_t sinks_begun_ = 0; ///< The sinks whose open() was called, in their order
+    bool sinks_open_ = false;     ///< Every sink was opened
     bool closed_ = false;      ///< The stream was closed
 };
 
@@ -140,7 +146,8 @@ private:
  *
  * A handle is moved, not copied; destroying it closes its stream. A closed stream (by close(), by
  * the handle's end or by GRecorder::closeAll()) refuses further rows. An empty handle (default
- * constructed, or moved from) has no stream.
+ * constructed, or moved from) has no stream. If a sink fails to open, the stream takes no
+ * further row; the sinks after it are neither opened nor closed.
  */
 class GStream {
 public:

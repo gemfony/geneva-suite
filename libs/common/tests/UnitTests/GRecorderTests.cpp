@@ -38,8 +38,11 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <span>
+#include <stdexcept>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -130,6 +133,36 @@ std::size_t backupsOf(std::filesystem::path const &file) {
     }
     return n;
 }
+
+// A sink that notes the calls it gets, and throws where it is told to: a std::exception, or
+// something that is none
+class ProbeSink final : public GSink {
+public:
+    enum class FailIn { NOWHERE, OPEN, CLOSE };
+    explicit ProbeSink(FailIn fail = FailIn::NOWHERE, bool foreign = false)
+      : fail_(fail)
+      , foreign_(foreign) {}
+    void open(GStreamInfo const &) override { this->note_("open", FailIn::OPEN); }
+    void write(std::span<GRow const> rows) override {
+        calls.push_back("write " + std::to_string(rows.size()));
+    }
+    void close() override { this->note_("close", FailIn::CLOSE); }
+
+    std::vector<std::string> calls; ///< The calls, in their order
+
+private:
+    void note_(std::string const &call, FailIn here) {
+        calls.push_back(call);
+        if(fail_ == here) {
+            if(foreign_) {
+                throw 42; // NOLINT(hicpp-exception-baseclass): what the test is about
+            }
+            throw std::runtime_error("the probe fails in " + call);
+        }
+    }
+    FailIn fail_;
+    bool foreign_;
+};
 
 GTimeStamp parseTimeStamp(std::string const &text) {
     std::istringstream in(text);
@@ -382,6 +415,208 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
     );
 }
 
+TEST_CASE("a resuming stream without a resumeColumn removes a last row cut by a crash", "[common][record]") {
+    // A row without its final line break is never data: the resumed stream drops it before it
+    // appends, also where the cut lies in a CSV text of several lines, and keeps every whole row
+    ScratchDirectory const dir("torn");
+    struct Case {
+        std::string name;
+        bool json;
+        std::string torn;
+    };
+    for(Case const &c :
+        {Case{"torn_csv", false, "2,earl"},
+         Case{"torn_text", false, "2,\"one line\n"},
+         Case{"torn_json", true, R"({"n":2,"no)"}}) {
+        auto const sinks = [&c]() {
+            return c.json ? std::vector<std::shared_ptr<GSink>>{std::make_shared<GJsonLinesSink>()}
+                          : std::vector<std::shared_ptr<GSink>>{std::make_shared<GCsvSink>()};
+        };
+        auto const file = dir / (c.name + (c.json ? ".jsonl" : ".csv"));
+        {
+            auto s = recorder().stream<std::uint64_t, std::string>(
+                c.name, {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks()}
+            );
+            s.append(0, "earlier");
+            s.append(1, "two\nlines");
+        }
+        {
+            std::ofstream(file, std::ios::app) << c.torn;
+        }
+        {
+            auto s = recorder().stream<std::uint64_t, std::string>(
+                c.name, {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks(), .resume = true}
+            );
+            s.append(3, "resumed");
+        }
+        CHECK(backupsOf(file) == 0);
+        if(c.json) {
+            CHECK(
+                linesOf(file) ==
+                std::vector<std::string>{
+                    R"({"n":0,"note":"earlier"})", R"({"n":1,"note":"two\nlines"})", R"({"n":3,"note":"resumed"})"
+                }
+            );
+        }
+        else {
+            CHECK(
+                GCsvSink::readRows(
+                    file,
+                    {GColumn{.name = "n", .type = columnType::UNSIGNED},
+                     GColumn{.name = "note", .type = columnType::TEXT}}
+                ) == std::vector<std::vector<std::string>>{{"0", "earlier"}, {"1", "two\nlines"}, {"3", "resumed"}}
+            );
+        }
+    }
+}
+
+TEST_CASE("a CSV row whose text spans several lines survives a resume and reads back whole", "[common][record]") {
+    // A text with a line break is written in quotes over several lines of the file (RFC 4180).
+    // Cutting the file back and readRows() read such a row as one record, not line by line.
+    ScratchDirectory const dir("multiline");
+    const std::vector<GColumn> columns{
+        GColumn{.name = "n", .type = columnType::UNSIGNED},
+        GColumn{.name = "note, \"quoted\"", .type = columnType::TEXT}
+    };
+    const std::string tricky = "he said \"x, y\"\r\nand left\n";
+    auto const options = [](bool resume) {
+        return GStreamOptions{.resume = resume, .resumeColumn = resume ? "n" : "", .resumeAfter = 2.};
+    };
+    {
+        auto s = recorder().stream("multiline", columns, withTime::none, options(false));
+        s.append(GRow{std::uint64_t{0}, std::string("a\nb")});
+        s.append(GRow{std::uint64_t{1}, tricky});
+        s.append(GRow{std::uint64_t{2}, std::string("plain")});
+        s.append(GRow{std::uint64_t{3}, std::string("after\nthe checkpoint")});
+    }
+    {
+        auto s = recorder().stream("multiline", columns, withTime::none, options(true));
+        s.append(GRow{std::uint64_t{3}, std::string("resumed")});
+    }
+    CHECK(backupsOf(dir / "multiline.csv") == 0);
+    auto const rows = GCsvSink::readRows(dir / "multiline.csv", columns);
+    REQUIRE(rows);
+    CHECK(
+        *rows == std::vector<std::vector<std::string>>{
+                     {"0", "a\nb"}, {"1", tricky}, {"2", "plain"}, {"3", "resumed"}
+                 }
+    );
+
+    // A column name with a line break makes a header of several lines: still the stream's own
+    const std::vector<GColumn> named{GColumn{.name = "two\nlines", .type = columnType::INTEGER}};
+    for(bool const resume : {false, true}) {
+        auto s = recorder().stream("header", named, withTime::none, GStreamOptions{.resume = resume});
+        s.append(GRow{std::int64_t{resume ? 2 : 1}});
+    }
+    CHECK(backupsOf(dir / "header.csv") == 0);
+    CHECK(
+        GCsvSink::readRows(dir / "header.csv", named) ==
+        std::vector<std::vector<std::string>>{{"1"}, {"2"}}
+    );
+}
+
+TEST_CASE("GCsvSink::readRows() returns the complete rows of a file written for its columns", "[common][record]") {
+    ScratchDirectory const dir("readrows");
+    std::filesystem::create_directories(dir / "");
+    const std::vector<GColumn> columns{
+        GColumn{.name = "n", .type = columnType::INTEGER}, GColumn{.name = "note", .type = columnType::TEXT}
+    };
+    {
+        // A row with a missing field and a last row cut by a crash -- with the right number of
+        // fields, but without its line break -- are left out
+        std::ofstream(dir / "rows.csv") << "n,note\n1,one\n2\n3,\"a, b\"\"c\"\"\nd\"\n4,cu";
+    }
+    auto const rows = GCsvSink::readRows(dir / "rows.csv", columns);
+    REQUIRE(rows);
+    CHECK(*rows == std::vector<std::vector<std::string>>{{"1", "one"}, {"3", "a, b\"c\"\nd"}});
+
+    // No such file, or one written for other columns: none
+    CHECK_FALSE(GCsvSink::readRows(dir / "missing.csv", columns));
+    {
+        std::ofstream(dir / "other.csv") << "n,other\n1,one\n";
+    }
+    CHECK_FALSE(GCsvSink::readRows(dir / "other.csv", columns));
+    // A file of the header alone has no rows
+    {
+        std::ofstream(dir / "empty.csv") << "n,note\n";
+    }
+    auto const none = GCsvSink::readRows(dir / "empty.csv", columns);
+    REQUIRE(none);
+    CHECK(none->empty());
+}
+
+TEST_CASE("a stream whose sink fails to open takes no further row and closes only the sinks it opened", "[common][record]") {
+    // The GSink contract: write() and close() only after open(); close() also when open() threw
+    ScratchDirectory const dir("failopen");
+    auto const first = std::make_shared<ProbeSink>();
+    auto const failing = std::make_shared<ProbeSink>(ProbeSink::FailIn::OPEN);
+    auto const third = std::make_shared<ProbeSink>();
+    auto s = recorder().stream(
+        "failopen",
+        {GColumn{.name = "n", .type = columnType::INTEGER}},
+        withTime::none,
+        GStreamOptions{.sinks = {first, failing, third}}
+    );
+    CHECK_THROWS_AS(s.append(GRow{std::int64_t{1}}), std::runtime_error);
+    try {
+        s.append(GRow{std::int64_t{2}});
+        FAIL("a stream whose sink failed to open took a row");
+    }
+    catch(gem_exception const &e) {
+        CHECK_THAT(e.what(), Catch::Matchers::ContainsSubstring("failed to open"));
+    }
+    CHECK_THROWS_AS(s.close(), gem_exception); // the rows held back reach no sink
+    CHECK(first->calls == std::vector<std::string>{"open", "close"});
+    CHECK(failing->calls == std::vector<std::string>{"open", "close"});
+    CHECK(third->calls.empty());
+}
+
+TEST_CASE("a sink that throws no std::exception is reported by the handle and by closeAll()", "[common][record]") {
+    // The handle's end and its move assignment do not throw, and closeAll() reports through the log
+    ScratchDirectory const dir("foreign_exception");
+    std::vector<GColumn> const columns{GColumn{.name = "n", .type = columnType::INTEGER}};
+    auto const declare = [&columns](std::string const &name) {
+        auto s = recorder().stream(
+            name,
+            columns,
+            withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<ProbeSink>(ProbeSink::FailIn::CLOSE, true)}}
+        );
+        s.append(GRow{std::int64_t{1}});
+        return s;
+    };
+    auto by_close_all = declare("by_close_all");
+    CHECK_NOTHROW(recorder().closeAll());
+    CHECK_FALSE(by_close_all.isOpen());
+    auto by_close = declare("by_close");
+    CHECK_THROWS_AS(by_close.close(), int); // close() itself passes it on
+    auto moved_onto = declare("by_move");
+    moved_onto = GStream();
+    CHECK_FALSE(moved_onto.isOpen());
+    {
+        auto s = declare("by_destructor");
+    }
+}
+
+TEST_CASE("a handle moved onto an open stream closes that stream and takes over the other", "[common][record]") {
+    ScratchDirectory const dir("move");
+    auto target = recorder().stream<int>("target", {"n"});
+    auto source = recorder().stream<int>("source", {"n"});
+    target.append(1);
+    source.append(2);
+    target = std::move(source);
+    CHECK(target.name() == "source");
+    CHECK(target.isOpen());
+    CHECK_FALSE(source.isOpen()); // NOLINT(bugprone-use-after-move): a moved-from handle is empty
+    CHECK(source.name().empty());  // NOLINT(bugprone-use-after-move)
+    CHECK(linesOf(dir / "target.csv") == std::vector<std::string>{"n", "1"});
+    auto again = recorder().stream<int>("target", {"n"}); // its name is free again
+    CHECK(again.isOpen());
+    target.append(3);
+    target.close();
+    CHECK(linesOf(dir / "source.csv") == std::vector<std::string>{"n", "2", "3"});
+}
+
 TEST_CASE("a sink added by name joins the next declaration of that stream", "[common][record]") {
     // A program adds a sink to a stream that another part of it declares later: the sink joins the
     // declarer's sinks (here the default CSV file), for that declaration only.
@@ -469,4 +704,73 @@ TEST_CASE("GTextSink: one row per line with the values separated by a space", "[
     }
     CHECK(linesOf(dir / "plain.log") == std::vector<std::string>{"7 2.5 true some text", "8 0.5 false"});
     CHECK_FALSE(std::filesystem::exists(dir / "plain.csv")); // the sinks given replace the default
+}
+TEST_CASE("a handle tells its name and columns and an empty one has none", "[common][record]") {
+    ScratchDirectory const dir("handle");
+    auto s = recorder().stream(
+        "described", {GColumn{.name = "x", .type = columnType::FLOATING}}, withTime::wall
+    );
+    CHECK(s.name() == "described");
+    CHECK(
+        s.columns() ==
+        std::vector<GColumn>{
+            GColumn{.name = "time", .type = columnType::TIMESTAMP},
+            GColumn{.name = "x", .type = columnType::FLOATING}
+        }
+    );
+    auto typed = recorder().stream<int>("typed", {"n"});
+    CHECK(typed.name() == "typed");
+
+    GStream empty;
+    CHECK_FALSE(empty.isOpen());
+    CHECK(empty.name().empty());
+    CHECK(empty.columns().empty());
+    CHECK_THROWS_AS(empty.append(GRow{1.}), gem_exception);
+    CHECK_NOTHROW(empty.close());
+    GStreamT<int> empty_typed;
+    CHECK_FALSE(empty_typed.isOpen());
+    CHECK(empty_typed.name().empty());
+    CHECK_THROWS_AS(empty_typed.append(1), gem_exception);
+}
+
+TEST_CASE("a file sink names its file by the output rule and knows it once open", "[common][record]") {
+    ScratchDirectory const dir("paths");
+    auto const csv = std::make_shared<GCsvSink>();
+    GStreamInfo const info{.name = "where", .directory = dir};
+    CHECK(csv->fileFor(info) == dir / "where.csv");
+    CHECK(GJsonLinesSink().fileFor(info) == dir / "where.jsonl");
+    CHECK(GTextSink().fileFor(info) == dir / "where.log");
+    {
+        auto s = recorder().stream<int>("where", {"n"}, withTime::none, GStreamOptions{.sinks = {csv}});
+        CHECK(csv->path().empty()); // opened at the first write
+        s.append(1);
+        CHECK(csv->path() == dir / "where.csv");
+    }
+}
+
+TEST_CASE("the types of the values: typeOf() columnTypeOf() and toValue()", "[common][record]") {
+    static_assert(columnTypeOf<bool>() == columnType::BOOLEAN);
+    static_assert(columnTypeOf<std::int8_t>() == columnType::INTEGER);
+    static_assert(columnTypeOf<unsigned short>() == columnType::UNSIGNED);
+    static_assert(columnTypeOf<float>() == columnType::FLOATING);
+    static_assert(columnTypeOf<char const *>() == columnType::TEXT);
+    static_assert(columnTypeOf<std::string const &>() == columnType::TEXT);
+    static_assert(columnTypeOf<GTimeStamp>() == columnType::TIMESTAMP);
+
+    CHECK(toValue(std::int16_t{-3}) == GValue(std::int64_t{-3}));
+    CHECK(toValue(std::uint8_t{200}) == GValue(std::uint64_t{200}));
+    CHECK(toValue(0.5F) == GValue(0.5));
+    CHECK(toValue(true) == GValue(true));
+    CHECK(toValue(std::string_view("text")) == GValue(std::string("text")));
+    const GTimeStamp stamp = std::chrono::system_clock::now();
+    CHECK(toValue(stamp) == GValue(stamp));
+    CHECK(typeOf(toValue(std::int16_t{-3})) == columnType::INTEGER);
+    CHECK(typeOf(GValue(std::uint64_t{1})) == columnType::UNSIGNED);
+    CHECK(typeOf(GValue(std::string())) == columnType::TEXT);
+    CHECK(typeOf(GValue(stamp)) == columnType::TIMESTAMP);
+
+    CHECK(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "a", .type = columnType::TEXT});
+    CHECK_FALSE(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "a", .type = columnType::BOOLEAN});
+    CHECK_FALSE(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "b", .type = columnType::TEXT});
+    CHECK(Gem::Common::enumName(columnType::TIMESTAMP) == "timestamp");
 }
