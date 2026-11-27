@@ -814,23 +814,5 @@ milliseconds_to_time_point(std::chrono::milliseconds::rep const &val) {
 }
 
 /******************************************************************************/
-/**
- * Raise an exception if a given define wasn't set. "F" stands for "function",
- * "D" for "define".
- *
- * @param f The name of the function that was called ("function")
- * @param d The name of the define that was expected to be set ("define")
- */
-void condnotset(std::string const &f, std::string const &d) {
-    std::ostringstream error;
-    error << '\n'
-          << "================================================" << '\n'
-          << "In function " << f << " Error!" << '\n'
-          << "Function was called even though " << d << " hasn't been set." << '\n'
-          << "================================================" << '\n';
-    throw(gem_exception(error.str()));
-}
-
-/******************************************************************************/
 
 } /* namespace Gem::Common */
