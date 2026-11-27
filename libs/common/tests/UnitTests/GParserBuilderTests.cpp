@@ -1337,6 +1337,35 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// Regression (R138-13): an array parameter took a list of the wrong length without a word -- the
+// surplus of a longer list was dropped, the missing values of a shorter one kept their defaults. A
+// list of any other length than the array's is refused, naming the key and both lengths.
+
+TEST_CASE(
+    "GParserBuilder: an array parameter refuses a list of the wrong length",
+    "[common][parser-builder][regression]"
+) {
+    GParserBuilder gpb;
+    std::array<int, 3> triple{};
+    gpb.registerFileParameter<int, 3>("triple", triple, std::array<int, 3>{1, 2, 3});
+    auto load = [&gpb](std::string const &text) { gpb.loadFromDocument(boost::json::parse(text)); };
+
+    CHECK_THROWS_WITH(
+        load(R"({ "triple": { "value": [4, 5, 6, 7] } })"),
+        ContainsSubstring(R"("triple" has the wrong form: [4,5,6,7])") &&
+            ContainsSubstring("exactly 3 values, not 4")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "triple": { "value": [4, 5] } })"),
+        ContainsSubstring(R"("triple")") && ContainsSubstring("exactly 3 values, not 2")
+    );
+    CHECK(triple == std::array<int, 3>{});
+
+    load(R"({ "triple": { "value": [4, 5, 6] } })");
+    CHECK(triple == std::array<int, 3>{4, 5, 6});
+}
+
+// ---------------------------------------------------------------------------
 // Regression: parseConfigFile() returned false on any error, and most callers ignored the
 // result (a direct readConfigFile() of an optimization algorithm among them), so a file that could not
 // be applied left the defaults in force without a word. It throws, naming the file and the cause.

@@ -1207,13 +1207,20 @@ private:
             return; // an absent key keeps the constructor-seeded defaults (a wrong form was refused)
         }
         auto const &values = value->get_array();
-        for(std::size_t i = 0; i < par_arr_.size() && i < values.size(); ++i) {
+        if(values.size() != N) {
+            detail::cfgRefuseEntry(
+                GParsableI::optionName(0),
+                "a \"value\" array of exactly " + std::to_string(N) + " values, not " +
+                    std::to_string(values.size()),
+                *value
+            );
+        }
+        for(std::size_t i = 0; i < N; ++i) {
             par_arr_.at(i) = detail::cfgScalarFromString<parameter_type>(
                 detail::cfgValueToString(values[i]),
                 GParsableI::optionName(0)
             );
         }
-        // Elements beyond the on-disk array length keep their defaults.
     }
 
     /***************************************************************************/

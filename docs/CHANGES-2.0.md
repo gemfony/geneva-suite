@@ -144,6 +144,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   known key in another form (the flat `"scan_randomly": false`, an object without `"value"`, a
   list where one value belongs) was skipped without a word, leaving the default in force; it is
   now an error that names the key and the form it needs. An absent key keeps its default.
+  An array parameter refuses a list of another length than its own; a longer list lost its
+  surplus, and the missing values of a shorter one kept their defaults.
   So is a value that does not read as its parameter's type: a boolean other than `true`,
   `false`, `1` or `0` (it read as `false`), a number with text or a remainder (`2.5` for an
   integer read as 2), a negative number for an unsigned key (`-1` wrapped around to
