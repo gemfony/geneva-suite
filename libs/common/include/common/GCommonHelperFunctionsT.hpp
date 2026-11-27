@@ -833,12 +833,14 @@ std::vector<split_type> splitStringT(const std::string &raw, const char *sep) {
 template <typename split1_type, typename split2_type>
 std::vector<std::tuple<split1_type, split2_type>>
 splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
-    if(std::string(sep1) == std::string(sep2)) {
-        throw gem_exception(
-            g_error_streamer() << "sep1 and sep2 are identical: \"" << sep1 << "\" / \"" << sep2
-                               << "\"" << '\n'
-        );
-    }
+    checkThat(
+        std::string(sep1) != std::string(sep2),
+        "sep1 and sep2 are identical: \"",
+        sep1,
+        "\" / \"",
+        sep2,
+        "\""
+    );
 
     std::vector<std::tuple<split1_type, split2_type>> result;
     for(const auto &fragment : Gem::Common::splitString(raw, sep1)) {
@@ -868,14 +870,10 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
  */
 template <typename map_type>
 decltype(auto) getMapItem(map_type &&m, const std::string &key) {
-    if(m.empty()) {
-        throw gem_exception(g_error_streamer() << "map is empty" << '\n');
-    }
+    checkThat(not m.empty(), "map is empty");
     auto it = m.find(key);
-    if(it != m.end()) {
-        return std::forward_like<map_type>(it->second);
-    }
-    throw gem_exception(g_error_streamer() << "key \"" << key << "\" not found" << '\n');
+    checkThat(it != m.end(), "key \"", key, "\" not found");
+    return std::forward_like<map_type>(it->second);
 }
 
 /******************************************************************************/

@@ -375,9 +375,7 @@ public:
      * @throw gem_exception if the queue is empty
      */
     [[nodiscard]] StoredType const &best() const {
-        if(data_cnt_.empty()) {
-            throw gem_exception(g_error_streamer() << "Priority queue is empty." << '\n');
-        }
+        checkThat(not data_cnt_.empty(), "Priority queue is empty.");
         return data_cnt_.front();
     }
 
@@ -389,9 +387,7 @@ public:
      * @throw gem_exception if the queue is empty
      */
     [[nodiscard]] StoredType const &worst() const {
-        if(data_cnt_.empty()) {
-            throw gem_exception(g_error_streamer() << "Priority queue is empty." << '\n');
-        }
+        checkThat(not data_cnt_.empty(), "Priority queue is empty.");
         return data_cnt_.back();
     }
 
@@ -413,12 +409,14 @@ public:
      * @throw gem_exception if rank is out of range
      */
     [[nodiscard]] StoredType const &at(std::size_t rank) const {
-        if(rank >= data_cnt_.size()) {
-            throw gem_exception(
-                g_error_streamer() << "Requested rank " << rank << " but the queue holds "
-                                   << data_cnt_.size() << " items." << '\n'
-            );
-        }
+        checkThat(
+            rank < data_cnt_.size(),
+            "Requested rank ",
+            rank,
+            " but the queue holds ",
+            data_cnt_.size(),
+            " items."
+        );
         return data_cnt_[rank];
     }
 
@@ -461,9 +459,7 @@ public:
      * @throw gem_exception if the queue is empty
      */
     StoredType pop() {
-        if(data_cnt_.empty()) {
-            throw gem_exception(g_error_streamer() << "Priority queue is empty." << '\n');
-        }
+        checkThat(not data_cnt_.empty(), "Priority queue is empty.");
         StoredType item = std::move(data_cnt_.front());
         data_cnt_.erase(data_cnt_.begin());
         return item;
