@@ -73,9 +73,10 @@ class GToken // NOLINT(cppcoreguidelines-special-member-functions)
 {
 public:
     /**
-     * @brief The standard constructor -- initialization with class name and expectation.
+     * @brief The standard constructor -- initialization with class name, expectation and the
+     * limit of floating point similarity.
      */
-    GToken(std::string caller, Gem::Common::expectation e);
+    GToken(std::string caller, Gem::Common::expectation e, double limit);
 
     /*************************************************************************/
     // Defaulted or deleted constructors, destructor and assignment operators
@@ -118,6 +119,11 @@ public:
      */
     [[nodiscard]] Gem::Common::expectation getExpectation() const;
     /**
+     * @brief Allows to retrieve the maximum deviation of two floating point values that are
+     * similar (FP_SIMILARITY).
+     */
+    [[nodiscard]] double getLimit() const;
+    /**
      * @brief Allows to retrieve the expectation token as a string.
      */
     [[nodiscard]] std::string getExpectationStr() const;
@@ -158,6 +164,8 @@ private:
     const std::string caller_;
     /** @brief The expectation to be met */
     const Gem::Common::expectation e_ = Gem::Common::expectation::INEQUALITY;
+    /** @brief The maximum deviation of two floating point values that meet FP_SIMILARITY */
+    const double limit_;
 };
 
 /******************************************************************************/
@@ -173,7 +181,9 @@ std::ostream &operator<<(std::ostream &s, GToken const &g);
 #define BASENAME(B) std::string(#B)
 
 /**
- * This struct facilitates transfer of comparable items to comparators
+ * This struct facilitates transfer of comparable items to comparators. The expectation and the
+ * limit of floating point similarity come from the GToken the items are compared under (see
+ * compare_t()).
  *
  * @tparam T The type of the two items (held by const reference) to be compared
  */
@@ -189,20 +199,12 @@ public:
      * @param y_var The second item to be compared (held by const reference)
      * @param x_name_var A human-readable name for the first item (moved into the struct)
      * @param y_name_var A human-readable name for the second item (moved into the struct)
-     * @param l_var The maximum allowed deviation for "similar" floating point values
      */
-    identity(
-        T const &x_var,
-        T const &y_var,
-        std::string x_name_var,
-        std::string y_name_var,
-        double l_var
-    )
+    identity(T const &x_var, T const &y_var, std::string x_name_var, std::string y_name_var)
       : x(x_var)
       , y(y_var)
       , x_name(std::move(x_name_var))
-      , y_name(std::move(y_name_var))
-      , limit(l_var) { /* nothing */
+      , y_name(std::move(y_name_var)) { /* nothing */
     }
 
     /***************************************************************************/
@@ -243,7 +245,6 @@ public:
     const T &y;
     const std::string x_name;
     const std::string y_name;
-    const double limit;
 
 private:
     /***************************************************************************/
@@ -252,7 +253,7 @@ private:
      *
      * @tparam base_type A base class of T (enforced via a requires-clause) the items are cast to
      * @return An identity object whose items are dynamic_cast base-class references of this object's items,
-     *         with the names prefixed by the base-type name and the same limit retained
+     *         with the names prefixed by the base-type name
      */
     template <typename base_type>
         requires std::is_base_of_v<base_type, T>
@@ -263,7 +264,7 @@ private:
         const std::string x_name_conv = "(" + BASENAME(base_type) + ")" + x_name;
         const std::string y_name_conv = "(" + BASENAME(base_type) + ")" + y_name;
 
-        return identity<base_type>(x_conv, y_conv, x_name_conv, y_name_conv, limit);
+        return identity<base_type>(x_conv, y_conv, x_name_conv, y_name_conv);
     }
 };
 
@@ -287,15 +288,14 @@ std::ostream &operator<<(std::ostream &s, identity<T> const &i) {
 /******************************************************************************/
 /**
  * @brief Returns an identity object. The function is needed as automatic type
- * deduction does not work for structs / classes. We assume a central default
- * value for the maximum allowed difference for "similar" floating point values.
+ * deduction does not work for structs / classes.
  *
  * @tparam T The type of the two items to be compared
  * @param x_var The first item to be compared
  * @param y_var The second item to be compared
  * @param x_name_var A human-readable name for the first item
  * @param y_name_var A human-readable name for the second item
- * @return An identity object wrapping the two items, their names and the default similarity difference
+ * @return An identity object wrapping the two items and their names
  */
 template <typename T>
 identity<T> getIdentity(
@@ -304,13 +304,7 @@ identity<T> getIdentity(
     std::string const &x_name_var,
     std::string const &y_name_var
 ) {
-    return identity<T>(
-        x_var,
-        y_var,
-        x_name_var,
-        y_name_var,
-        Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
-    );
+    return identity<T>(x_var, y_var, x_name_var, y_name_var);
 }
 
 /******************************************************************************/
@@ -330,7 +324,7 @@ identity<T> getIdentity(
  * @param y_var The second item to be compared (cast to base_type const &)
  * @param x_name_var A human-readable name for the first item
  * @param y_name_var A human-readable name for the second item
- * @return An identity object holding the base-class views of the two items and the default similarity difference
+ * @return An identity object holding the base-class views of the two items
  */
 template <typename T, typename base_type>
 identity<base_type> getBaseIdentity(
@@ -342,13 +336,7 @@ identity<base_type> getBaseIdentity(
     auto const &x_var_base = dynamic_cast<const base_type &>(x_var);
     auto const &y_var_base = dynamic_cast<const base_type &>(y_var);
 
-    return identity<base_type>(
-        x_var_base,
-        y_var_base,
-        x_name_var,
-        y_name_var,
-        Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
-    );
+    return identity<base_type>(x_var_base, y_var_base, x_name_var, y_name_var);
 }
 
 /******************************************************************************/
@@ -824,20 +812,21 @@ void compare(
 /**
  * @brief This function checks whether two types fulfill a given expectation.
  *
- * It increments the token's test counter, delegates to the appropriate compare() overload using the
- * items, names and limit held by the identity struct and the expectation taken from the token, and
- * records either success or a registered error message on the token. Non-expectation exceptions are
- * re-thrown as a gem_exception.
+ * It increments the token's test counter, delegates to the appropriate compare() overload using
+ * the items and names held by the identity struct and the expectation and limit taken from the
+ * token, and records either success or a registered error message on the token. Non-expectation
+ * exceptions are re-thrown as a gem_exception.
  *
  * @tparam T The type of the two items wrapped by the identity struct
- * @param data The identity struct holding the two items, their names and the comparison limit
- * @param token The token holding the expectation and accumulating test / success counts and error messages
+ * @param data The identity struct holding the two items and their names
+ * @param token The token holding the expectation and the limit, accumulating test / success
+ * counts and error messages
  */
 template <typename T>
 void compare_t(identity<T> const &data, GToken &token) {
     try {
         token.incrTestCounter();
-        compare(data.x, data.y, data.x_name, data.y_name, token.getExpectation(), data.limit);
+        compare(data.x, data.y, data.x_name, data.y_name, token.getExpectation(), token.getLimit());
         token.incrSuccessCounter();
     }
     catch(const g_expectation_violation &g) {
@@ -858,9 +847,10 @@ void compare_t(identity<T> const &data, GToken &token) {
 /**
  * @brief This function checks whether two base types fulfill a given expectation.
  *
- * It forces the use of base_type's own compare_() member (so only the base-class slice is compared),
- * incrementing the token's test counter and recording success or a registered error message on the
- * token. Non-expectation exceptions are re-thrown as a gem_exception.
+ * It forces the use of base_type's own compare_() member (so only the base-class slice is
+ * compared) under the token's expectation and limit, incrementing the token's test counter and
+ * recording success or a registered error message on the token. Non-expectation exceptions are
+ * re-thrown as a gem_exception.
  *
  * @tparam base_type The base class whose compare_() member is invoked for the comparison
  * @param x The first object whose base_type slice is compared
@@ -874,7 +864,7 @@ void compare_base_t(base_type const &x, base_type const &y, GToken &token) {
         x.base_type::compare_( // Force usage of the base-type compare_ function
             y
             , token.getExpectation()
-            , Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
+            , token.getLimit()
         );
         token.incrSuccessCounter();
     }

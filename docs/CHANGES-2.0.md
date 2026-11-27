@@ -986,6 +986,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   change accordingly.
   `touch_time()` appends its content to an existing file and sets its last-write time; it used to
   empty the file.
+- **common: the limit passed to `compare()` is applied.** `compare(cp, FP_SIMILARITY, limit)` and
+  the free `compare()` used 1e-5 for every floating-point member, whatever `limit` said; the limit
+  now reaches every member, the parent slices, the elements of container members and
+  `GContainerT::compare_base()`. 1e-5 (`CE_DEF_SIMILARITY_DIFFERENCE`) stays the default. The limit
+  travels in the token: `GToken` takes it as a third constructor argument (`getLimit()` returns it),
+  and `compare_t()` compares under it. A hand-written `compare_()` creates its token with the
+  `limit` it receives, `GToken token("MyClass", e, limit)`; `identity` no longer carries a limit
+  (its constructor takes the two items and their names). `GEqualityPrinter` of the standard tests
+  applies the limit it is made with.
 
 ## 8. Checkpointing
 

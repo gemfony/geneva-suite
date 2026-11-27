@@ -51,15 +51,18 @@ constexpr std::size_t SUCCESSCOUNTER = 1;
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * @brief The standard constructor -- initialization with class name and expectation
+ * @brief The standard constructor -- initialization with class name, expectation and limit
  *
  * @param caller The name of the class / function performing the comparison (used in messages)
  * @param e The expectation (equality, similarity or inequality) the comparisons should fulfil
+ * @param limit The maximum deviation of two floating point values that are similar: the limit a
+ * caller passed to compare(), handed on to every comparison made under this token
  */
-GToken::GToken(std::string caller, Gem::Common::expectation e)
+GToken::GToken(std::string caller, Gem::Common::expectation e, double limit)
   : test_counter_(std::make_tuple(0uz, 0uz))
   , caller_(std::move(caller))
-  , e_(e) { /* nothing */
+  , e_(e)
+  , limit_(limit) { /* nothing */
 }
 
 /******************************************************************************/
@@ -141,6 +144,16 @@ GToken::operator bool() const {
  */
 Gem::Common::expectation GToken::getExpectation() const {
     return e_;
+}
+
+/******************************************************************************/
+/**
+ * @brief Allows to retrieve the maximum deviation of two similar floating point values
+ *
+ * @return The limit this token was created with
+ */
+double GToken::getLimit() const {
+    return limit_;
 }
 
 /******************************************************************************/

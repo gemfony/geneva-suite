@@ -1582,12 +1582,9 @@ public:
      * @param limit The tolerance used for floating-point similarity checks.
      * @throws g_expectation_violation when the comparison result violates @p e.
      */
-    virtual void compare_base(
-        const GContainerT &cp,
-        Gem::Common::expectation e,
-        [[maybe_unused]] double limit
-    ) const {
-        Gem::Common::GToken token("GContainerT", e);
+    virtual void
+    compare_base(const GContainerT &cp, Gem::Common::expectation e, double limit) const {
+        Gem::Common::GToken token("GContainerT", e, limit);
         Gem::Common::compare_t(
             Gem::Common::getIdentity(
                 this->data_cnt_,

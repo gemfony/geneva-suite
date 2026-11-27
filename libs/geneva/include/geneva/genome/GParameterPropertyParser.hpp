@@ -181,23 +181,21 @@ protected:
      *
      * @param cp A constant reference to another parPropSpec object to compare against
      * @param e The expected outcome of the comparison (e.g. equality or inequality)
-     *
-     * The third argument, the maximum allowed deviation for floating point comparisons, is unused
-     * here.
+     * @param limit The maximum allowed deviation for floating point comparisons
      */
     void compare_(
         const parPropSpec<par_type> &cp // the other object
         ,
         const Gem::Common::expectation &e // the expectation for this object, e.g. equality
         ,
-        const double & /*limit*/ // the limit for allowed deviations of floating point types
+        const double &limit // the limit for allowed deviations of floating point types
     ) const override {
         using namespace Gem::Common;
 
         // Check that we are dealing with a parPropSpec reference independent of this object and convert the pointer
         const parPropSpec<par_type> *p_load = Gem::Common::g_convert_and_compare(cp, this);
 
-        Gem::Common::GToken token("parPropSpec<T>", e);
+        Gem::Common::GToken token("parPropSpec<T>", e, limit);
 
         // Compare our parent data ...
         Gem::Common::compare_base_t<GCommonInterfaceT<parPropSpec<par_type>>>(

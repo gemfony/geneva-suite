@@ -45,6 +45,8 @@
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GMemberReflectionT.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 #include "common/testing/GStandardTests.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE
 
@@ -80,12 +82,8 @@ protected:
         v_ = cp->v_;
     }
 
-    void compare_(
-        const Root &cp,
-        const expectation &e,
-        [[maybe_unused]] const double &limit
-    ) const override {
-        GToken token("Root", e);
+    void compare_(const Root &cp, const expectation &e, const double &limit) const override {
+        GToken token("Root", e, limit);
         compare_base_t<GCommonInterfaceT<Root>>(*this, cp, token);
         compare_t(getIdentity(v_, cp.v_, "v_", "cp.v_"), token);
         token.evaluate();
@@ -93,7 +91,9 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Root(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Root(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -127,7 +127,7 @@ protected:
 
     void compare_(const Root &cp, const expectation &e, const double &limit) const override {
         Root::compare_(cp, e, limit);
-        GToken token("Derived", e);
+        GToken token("Derived", e, limit);
         compare_t(
             getIdentity(label_, dynamic_cast<const Derived &>(cp).label_, "label_", "cp.label_"),
             token
@@ -137,7 +137,9 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Derived(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Derived(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -159,19 +161,18 @@ protected:
     void load_(const Unchangeable *cp) override {
         ptrDifferenceCheck(cp, this);
     }
-    void compare_(
-        const Unchangeable &cp,
-        const expectation &e,
-        [[maybe_unused]] const double &limit
-    ) const override {
-        GToken token("Unchangeable", e);
+    void
+    compare_(const Unchangeable &cp, const expectation &e, const double &limit) const override {
+        GToken token("Unchangeable", e, limit);
         compare_base_t<GCommonInterfaceT<Unchangeable>>(*this, cp, token);
         token.evaluate();
     }
 
 private:
     [[nodiscard]] Unchangeable *clone_() const override {
-        return new Unchangeable(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Unchangeable(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -185,6 +186,23 @@ protected:
     bool modifyForTest() {
         return true;
     }
+};
+
+/******************************************************************************/
+// A reflective type with a floating point member, for the limit of GEqualityPrinter
+
+class WithDouble : public GReflectiveInterfaceT<WithDouble, GCommonInterfaceT<WithDouble>> {
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(make_member("d_", self.d_));
+    }
+
+public:
+    static constexpr std::string_view class_name = "WithDouble";
+
+    double d_ = 1.0;
 };
 
 /******************************************************************************/
@@ -282,6 +300,22 @@ TEST_CASE(
     catch(...) {
         FAIL("threw a non-gem exception type");
     }
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "GEqualityPrinter: isSimilar() applies the limit it was made with",
+    "[common][standard-tests][limit]"
+) {
+    WithDouble const x;
+    WithDouble y;
+    y.d_ += 1e-3;
+    GEqualityPrinter const wide("wide", 1e-2, not CE_WITH_MESSAGES);
+    GEqualityPrinter const narrow_printer("narrow", 1e-6, not CE_WITH_MESSAGES);
+    CHECK(wide.isSimilar(x, y));
+    CHECK_FALSE(narrow_printer.isSimilar(x, y));
+    CHECK_FALSE(wide.isEqual(x, y));
 }
 
 /******************************************************************************/

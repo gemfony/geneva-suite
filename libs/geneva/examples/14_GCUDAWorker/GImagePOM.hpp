@@ -236,7 +236,7 @@ protected:
         // Check that we are dealing with a GImagePOM reference independent of this object
         const GImagePOM *p_load = Gem::Common::g_convert_and_compare(cp, this);
 
-        GToken token("GImagePOM", e);
+        GToken token("GImagePOM", e, limit);
 
         // Compare our parent data ...
         Gem::Common::compare_base_t<oa::GBasePluggableOM>(*this, *p_load, token);

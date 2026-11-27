@@ -40,8 +40,11 @@
 #include <vector>
 
 #include "common/GCommonInterfaceT.hpp"
+#include "common/GContainerT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GMemberReflectionT.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 
 using namespace Gem::Common;
 
@@ -49,9 +52,11 @@ using namespace Gem::Common;
 // GToken: counter / success / message accounting
 
 TEST_CASE("GToken: starts empty and reports zero counters", "[common][expectations][GToken]") {
-    GToken const t("MyClass", expectation::EQUALITY);
+    GToken const t("MyClass", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     CHECK(t.getCallerName() == "MyClass");
     CHECK(t.getExpectation() == expectation::EQUALITY);
+    CHECK(t.getLimit() == CE_DEF_SIMILARITY_DIFFERENCE);
+    CHECK(GToken("MyClass", expectation::FP_SIMILARITY, 1e-2).getLimit() == 1e-2);
     CHECK_FALSE(t.getExpectationStr().empty());
     CHECK(t.getTestCounter() == 0);
     CHECK(t.getSuccessCounter() == 0);
@@ -63,7 +68,7 @@ TEST_CASE(
     "GToken: incrTestCounter without matching success ⇒ expectationMet false",
     "[common][expectations][GToken]"
 ) {
-    GToken t("X", expectation::EQUALITY);
+    GToken t("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     t.incrTestCounter();
     CHECK(t.getTestCounter() == 1);
     CHECK(t.getSuccessCounter() == 0);
@@ -71,14 +76,14 @@ TEST_CASE(
 }
 
 TEST_CASE("GToken: equal increments produce a satisfied token", "[common][expectations][GToken]") {
-    GToken t("X", expectation::EQUALITY);
+    GToken t("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     t.incrTestCounter();
     t.incrSuccessCounter();
     CHECK(t.expectationMet());
 }
 
 TEST_CASE("GToken: registerErrorMessage accumulates strings", "[common][expectations][GToken]") {
-    GToken t("X", expectation::EQUALITY);
+    GToken t("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     t.registerErrorMessage("alpha");
     t.registerErrorMessage(g_expectation_violation("beta"));
     auto msgs = t.getErrorMessages();
@@ -92,7 +97,7 @@ TEST_CASE(
 ) {
     // toString() returns a short "Expectation was met" status while operator<<
     // emits the full counter dump; both must mention the caller name.
-    GToken t("MyClass", expectation::EQUALITY);
+    GToken t("MyClass", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     t.incrTestCounter();
     t.incrSuccessCounter();
 
@@ -109,7 +114,7 @@ TEST_CASE(
     "GToken: evaluate() throws when expectation is not met",
     "[common][expectations][GToken]"
 ) {
-    GToken t("X", expectation::EQUALITY);
+    GToken t("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     t.incrTestCounter(); // unmet test
     CHECK_THROWS_AS(t.evaluate(), g_expectation_violation);
 }
@@ -118,7 +123,7 @@ TEST_CASE(
     "GToken: evaluate() does not throw when expectation is met",
     "[common][expectations][GToken]"
 ) {
-    GToken const t("X", expectation::EQUALITY);
+    GToken const t("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     CHECK_NOTHROW(t.evaluate());
 }
 
@@ -211,7 +216,6 @@ TEST_CASE(
     CHECK(&id.y == &b);
     CHECK(id.x_name == "a");
     CHECK(id.y_name == "b");
-    CHECK(id.limit == CE_DEF_SIMILARITY_DIFFERENCE);
 }
 
 TEST_CASE("identity: stream-out names the items", "[common][expectations][identity]") {
@@ -231,7 +235,7 @@ TEST_CASE(
     "compare_t<int>: matching values increment success counter",
     "[common][expectations][compare_t]"
 ) {
-    GToken tok("X", expectation::EQUALITY);
+    GToken tok("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     int const a = 7;
     int const b = 7;
     compare_t(getIdentity(a, b, "a", "b"), tok);
@@ -246,7 +250,7 @@ TEST_CASE(
 ) {
     // compare_t catches g_expectation_violation and records into the token —
     // the call must NOT propagate.
-    GToken tok("X", expectation::EQUALITY);
+    GToken tok("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
     int const a = 7;
     int const b = 8;
     CHECK_NOTHROW(compare_t(getIdentity(a, b, "a", "b"), tok));
@@ -377,12 +381,8 @@ protected:
         if(cp)
             v_ = cp->v_;
     }
-    void compare_(
-        CmpObj const &cp,
-        expectation const &e,
-        [[maybe_unused]] double const &limit
-    ) const override {
-        GToken token("CmpObj", e);
+    void compare_(CmpObj const &cp, expectation const &e, double const &limit) const override {
+        GToken token("CmpObj", e, limit);
         compare_base_t<GCommonInterfaceT<CmpObj>>(*this, cp, token);
         compare_t(Gem::Common::getIdentity(v_, cp.v_, "v_", "cp.v_"), token);
         token.evaluate();
@@ -939,4 +939,112 @@ TEST_CASE(
 TEST_CASE("compare<tribool>: compared as a value", "[common][expectations][compare]") {
     checkEqual(tribool::Indeterminate, tribool::Indeterminate);
     checkDifferent(tribool::True, tribool::Indeterminate);
+}
+
+// ---------------------------------------------------------------------------
+// The limit a caller passes to compare() is applied to every floating point member: of the class
+// itself, of its parent slice, inside a container member, and in GContainerT::compare_base().
+
+namespace {
+
+class LimitRoot : public GReflectiveInterfaceT<LimitRoot, GCommonInterfaceT<LimitRoot>> {
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(make_member("root_d_", self.root_d_));
+    }
+
+public:
+    static constexpr std::string_view class_name = "LimitRoot";
+
+    double root_d_ = 1.0;
+};
+
+class LimitDerived : public GReflectiveInterfaceT<LimitDerived, LimitRoot> {
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(make_member("d_", self.d_), make_member("v_", self.v_));
+    }
+
+public:
+    static constexpr std::string_view class_name = "LimitDerived";
+
+    double d_ = 2.0;
+    std::vector<double> v_{3.0, 4.0};
+};
+
+class LimitContainer : public GPodContainerT<double> {
+public:
+    explicit LimitContainer(std::vector<double> const &values) {
+        for(double const v : values) {
+            this->push_back(v);
+        }
+    }
+    ~LimitContainer() override = default;
+};
+
+/** Checks that x and y, which deviate by 1e-3 in one place, are similar within 1e-2, not 1e-6. */
+template <typename T>
+void checkLimitApplied(T const &x, T const &y) {
+    CHECK_NOTHROW(x.compare(y, expectation::FP_SIMILARITY, 1e-2));
+    CHECK_THROWS_AS(x.compare(y, expectation::FP_SIMILARITY, 1e-6), g_expectation_violation);
+    CHECK_NOTHROW(compare(x, y, "x", "y", expectation::FP_SIMILARITY, 1e-2));
+    CHECK_THROWS_AS(
+        compare(x, y, "x", "y", expectation::FP_SIMILARITY, 1e-6),
+        g_expectation_violation
+    );
+}
+
+} // namespace
+
+TEST_CASE(
+    "compare: the limit a caller passes applies to every floating point member",
+    "[common][expectations][compare][limit]"
+) {
+    LimitDerived const x;
+
+    SECTION("a member of the class itself") {
+        LimitDerived y;
+        y.d_ += 1e-3;
+        checkLimitApplied(x, y);
+    }
+
+    SECTION("a member of the parent slice") {
+        LimitDerived y;
+        y.root_d_ += 1e-3;
+        checkLimitApplied(x, y);
+    }
+
+    SECTION("an element of a container member") {
+        LimitDerived y;
+        y.v_[1] += 1e-3;
+        checkLimitApplied(x, y);
+    }
+}
+
+TEST_CASE(
+    "GContainerT::compare_base: the limit a caller passes applies to the elements",
+    "[common][expectations][compare][limit]"
+) {
+    LimitContainer const x({1.0, 2.0});
+    LimitContainer const y({1.0, 2.0 + 1e-3});
+    CHECK_NOTHROW(x.compare_base(y, expectation::FP_SIMILARITY, 1e-2));
+    CHECK_THROWS_AS(x.compare_base(y, expectation::FP_SIMILARITY, 1e-6), g_expectation_violation);
+}
+
+TEST_CASE(
+    "compare_t: the comparison takes its limit from the token",
+    "[common][expectations][compare_t][limit]"
+) {
+    double const a = 1.0;
+    double const b = 1.0 + 1e-3;
+    GToken wide("X", expectation::FP_SIMILARITY, 1e-2);
+    compare_t(getIdentity(a, b, "a", "b"), wide);
+    CHECK(wide.expectationMet());
+    GToken narrow_token("X", expectation::FP_SIMILARITY, 1e-6);
+    compare_t(getIdentity(a, b, "a", "b"), narrow_token);
+    CHECK_FALSE(narrow_token.expectationMet());
 }

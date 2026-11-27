@@ -122,8 +122,8 @@ public:
     /**
      * @brief The only constructor.
      *
-     * @param caller The name of the calling entity
-     * @param limit Used in floating point comparisons to check similarity
+     * @param caller The name of the calling entity, named in the messages
+     * @param limit The maximum deviation of two similar floating point values (isSimilar())
      * @param emit_messages Determines whether messages should be emitted upon error
      */
     GEqualityPrinter(std::string caller, double limit, bool emit_messages)
@@ -145,7 +145,7 @@ public:
         requires Gem::Common::gemfony_common_interface<gem_type>
     [[nodiscard]] bool isEqual(const gem_type &x, const gem_type &y) const {
         try {
-            x.compare(y, Gem::Common::expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
+            x.compare(y, Gem::Common::expectation::EQUALITY, limit_);
             return true;
         }
         catch(g_expectation_violation &g) {
@@ -173,7 +173,7 @@ public:
     ) const {
         try {
             x.Gem::Common::template GPodContainerT<typename gem_simplecontainer_type::value_type>::
-                compare_base(y, Gem::Common::expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
+                compare_base(y, Gem::Common::expectation::EQUALITY, limit_);
             return true;
         }
         catch(g_expectation_violation &g) {
@@ -195,7 +195,7 @@ public:
         requires Gem::Common::gemfony_common_interface<gem_type>
     [[nodiscard]] bool isSimilar(const gem_type &x, const gem_type &y) const {
         try {
-            x.compare(y, Gem::Common::expectation::FP_SIMILARITY, CE_DEF_SIMILARITY_DIFFERENCE);
+            x.compare(y, Gem::Common::expectation::FP_SIMILARITY, limit_);
             return true;
         }
         catch(g_expectation_violation &g) {
@@ -223,11 +223,7 @@ public:
     ) const {
         try {
             x.Gem::Common::template GPodContainerT<typename gem_simplecontainer_type::value_type>::
-                compare_base(
-                    y,
-                    Gem::Common::expectation::FP_SIMILARITY,
-                    CE_DEF_SIMILARITY_DIFFERENCE
-                );
+                compare_base(y, Gem::Common::expectation::FP_SIMILARITY, limit_);
             return true;
         }
         catch(g_expectation_violation &g) {
@@ -244,12 +240,13 @@ private:
     void report(g_expectation_violation const &g) const {
         if(emit_messages_) {
             std::cout << "\n=========================================\n"
+                      << caller_ << ":\n"
                       << g << "\n=========================================\n";
         }
     }
 
-    std::string caller_; ///< Holds the name of the calling entity
-    double limit_;       ///< A limit used to determine similarity in fp comparisons
+    std::string caller_; ///< Holds the name of the calling entity, named in the messages
+    double limit_;       ///< The maximum deviation of two similar floating point values
     bool
         emit_messages_; ///< Specifies whether messages should be emitted if expectations were not met
 };
