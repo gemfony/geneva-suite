@@ -175,15 +175,7 @@ public:
         const gem_simplecontainer_type &x,
         const std::vector<typename gem_simplecontainer_type::value_type> &y
     ) const {
-        try {
-            x.Gem::Common::template GPodContainerT<typename gem_simplecontainer_type::value_type>::
-                compare_base(y, Gem::Common::expectation::EQUALITY, limit_);
-            return true;
-        }
-        catch(g_expectation_violation &g) {
-            this->report(g);
-            return false;
-        }
+        return this->elementsMeet(x, y, Gem::Common::expectation::EQUALITY);
     }
 
     /***************************************************************************/
@@ -225,9 +217,29 @@ public:
         const gem_simplecontainer_type &x,
         const std::vector<typename gem_simplecontainer_type::value_type> &y
     ) const {
+        return this->elementsMeet(x, y, Gem::Common::expectation::FP_SIMILARITY);
+    }
+
+    /***************************************************************************/
+
+private:
+    /**
+     * @brief Compares the elements of a container with a std::vector under an expectation, with the
+     * limit, and reports a violation
+     * @param x The container
+     * @param y The std::vector
+     * @param e The expectation
+     * @return Whether the expectation was met
+     */
+    template <typename container_type>
+    [[nodiscard]] bool elementsMeet(
+        container_type const &x,
+        std::vector<typename container_type::value_type> const &y,
+        Gem::Common::expectation e
+    ) const {
         try {
-            x.Gem::Common::template GPodContainerT<typename gem_simplecontainer_type::value_type>::
-                compare_base(y, Gem::Common::expectation::FP_SIMILARITY, limit_);
+            std::vector<typename container_type::value_type> const x_values(x.begin(), x.end());
+            Gem::Common::compare(x_values, y, "container", "vector", e, limit_);
             return true;
         }
         catch(g_expectation_violation &g) {
@@ -236,9 +248,6 @@ public:
         }
     }
 
-    /***************************************************************************/
-
-private:
     /** @brief Prints a violated expectation, if messages were asked for
      *  @param g The violated expectation */
     void report(g_expectation_violation const &g) const {

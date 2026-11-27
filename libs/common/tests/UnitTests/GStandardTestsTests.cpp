@@ -409,3 +409,65 @@ TEST_CASE(
               .isEqual(stale, original));
     CHECK_FALSE(usesAgree(stale, original));
 }
+
+/******************************************************************************/
+// The public parts of the standard tests, one by one
+
+namespace {
+
+class PodValues : public GPodContainerT<double> {
+public:
+    explicit PodValues(std::vector<double> const &values) {
+        for(double const v : values) {
+            this->push_back(v);
+        }
+    }
+    ~PodValues() override = default;
+};
+
+} // namespace
+
+TEST_CASE(
+    "GEqualityPrinter: a container is compared with a vector of its values",
+    "[common][standard-tests]"
+) {
+    PodValues const values({1.0, 2.0});
+    GEqualityPrinter const gep("pod", 1e-2, not CE_WITH_MESSAGES);
+    CHECK(gep.isEqual(values, std::vector<double>{1.0, 2.0}));
+    CHECK_FALSE(gep.isEqual(values, std::vector<double>{1.0, 2.0 + 1e-3}));
+    CHECK_FALSE(gep.isEqual(values, std::vector<double>{1.0}));
+    CHECK(gep.isSimilar(values, std::vector<double>{1.0, 2.0 + 1e-3}));
+    CHECK_FALSE(gep.isSimilar(values, std::vector<double>{1.0, 2.1}));
+}
+
+TEST_CASE(
+    "GStandardTests: the steps of the standard tests run one by one",
+    "[common][standard-tests]"
+) {
+    STATIC_REQUIRE(std::same_as<category_root_t<Derived>, Root>);
+    STATIC_REQUIRE(std::same_as<category_root_t<Root>, Root>);
+
+    std::shared_ptr<Derived> const changed = makeChangedForTest<Derived>();
+    CHECK(changed->value() == 1);
+    CHECK(changed->label() == "derived_m");
+    std::shared_ptr<Cached> const used = makeUsedTarget<Cached>();
+    CHECK(used->useForTest() == 0);
+
+    GEqualityPrinter const gep("steps", CE_DEF_SIMILARITY_DIFFERENCE, CE_WITH_MESSAGES);
+    std::shared_ptr<Root> const copy = std::make_shared<Derived>(*changed);
+    std::shared_ptr<Root> const original = std::make_shared<Derived>(*changed);
+    checkCopyOf(gep, copy, original);
+
+    testCopyConstruction<Derived>(gep);
+    testCloneToCategoryRoot<Derived>(gep);
+    testCloneToTarget<Derived>(gep);
+    testLoadThroughPointer<Derived>(gep);
+    testLoadThroughReference<Derived>(gep);
+    testCopyAssignment<Root>(gep);
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        testOwnRoundTrip<Derived>(gep, mode);
+        testHelperRoundTrip<Derived>(gep, mode);
+        testOwnRoundTrip<Unchangeable>(gep, mode); // skipped, with a notice
+    }
+    reportSkippedRoundTrip<Unchangeable>("Internal", serializationMode::GEM_JSON);
+}

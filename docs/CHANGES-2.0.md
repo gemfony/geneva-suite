@@ -994,7 +994,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   and `compare_t()` compares under it. A hand-written `compare_()` creates its token with the
   `limit` it receives, `GToken token("MyClass", e, limit)`; `identity` no longer carries a limit
   (its constructor takes the two items and their names). `GEqualityPrinter` of the standard tests
-  applies the limit it is made with.
+  applies the limit it is made with; its overloads that compare a `GPodContainerT` with a
+  `std::vector` of its values did not compile and do now.
 - **common: in `compare()` two NaN are equal.** `compare()` checks the equality of object states,
   so an object that holds a NaN now equals its clone and itself after a round trip; a NaN and a
   number differ under every expectation. Two equal infinities are similar as well (they failed

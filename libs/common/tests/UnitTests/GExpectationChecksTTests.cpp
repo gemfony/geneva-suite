@@ -1190,3 +1190,156 @@ TEST_CASE(
     CHECK(&converted.x == static_cast<ViewBase const *>(&a));
     CHECK(&converted.y == static_cast<ViewBase const *>(&b));
 }
+
+// ---------------------------------------------------------------------------
+// The public parts of the comparison that had no test of their own
+
+TEST_CASE("GToken: an empty error message is refused", "[common][expectations][GToken]") {
+    GToken t("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
+    CHECK_THROWS_AS(t.registerErrorMessage(std::string{}), gem_exception);
+}
+
+TEST_CASE(
+    "GToken: INEQUALITY is met by one success; toString() lists failures only for equality",
+    "[common][expectations][GToken]"
+) {
+    GToken inequality("X", expectation::INEQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
+    CHECK_FALSE(inequality.expectationMet());
+    inequality.incrTestCounter();
+    inequality.registerErrorMessage("first differs");
+    CHECK_FALSE(inequality.expectationMet());
+    CHECK(inequality.toString().contains("not met in X"));
+    CHECK_FALSE(inequality.toString().contains("first differs"));
+    CHECK(inequality.getExpectationStr() == "INEQUALITY");
+    inequality.incrTestCounter();
+    inequality.incrSuccessCounter();
+    CHECK(inequality.expectationMet());
+    CHECK(inequality.toString().contains("met in X"));
+
+    GToken equality("Y", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
+    equality.incrTestCounter();
+    equality.registerErrorMessage("second differs");
+    CHECK(equality.toString().contains("second differs"));
+    CHECK_THROWS_AS(equality.evaluate(), g_expectation_violation);
+}
+
+namespace {
+
+struct NamedBase {
+    virtual ~NamedBase() = default;
+    int value = 3;
+};
+
+struct NamedDerived : NamedBase {};
+
+} // namespace
+
+TEST_CASE(
+    "IDENTITY / getBaseIdentity / IDENTITY_CAST: names and objects",
+    "[common][expectations][identity]"
+) {
+    int const first = 1;
+    int const second = 2;
+    auto const id = IDENTITY(first, second);
+    CHECK(id.x_name == "first");
+    CHECK(id.y_name == "second");
+    CHECK(&id.x == &first);
+
+    NamedDerived const a;
+    NamedDerived const b;
+    auto const base_id = getBaseIdentity<NamedDerived, NamedBase>(a, b, "a", "b");
+    CHECK(&base_id.x == static_cast<NamedBase const *>(&a));
+    CHECK(&base_id.y == static_cast<NamedBase const *>(&b));
+    CHECK(base_id.x_name == "a");
+
+    auto const cast_id = IDENTITY_CAST(NamedBase, a, b);
+    CHECK(&cast_id.x == static_cast<NamedBase const *>(&a));
+    CHECK(cast_id.x_name == "(const NamedBase&)a");
+    CHECK(cast_id.y_name == "(const NamedBase&)b");
+
+    GToken token("X", expectation::EQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
+    compare_t(getIdentity(base_id.x.value, base_id.y.value, "a.value", "b.value"), token);
+    CHECK(token.expectationMet());
+}
+
+TEST_CASE(
+    "compare: the concepts sort types into pointers and ranges and values",
+    "[common][expectations][compare]"
+) {
+    STATIC_REQUIRE(GemPointer<std::shared_ptr<CmpObj>>);
+    STATIC_REQUIRE(GemPointer<std::unique_ptr<CmpObj>>);
+    STATIC_REQUIRE_FALSE(GemPointer<std::shared_ptr<int>>);
+    STATIC_REQUIRE(ComparedAsRange<std::vector<int>>);
+    STATIC_REQUIRE(ComparedAsRange<std::set<double>>);
+    STATIC_REQUIRE_FALSE(ComparedAsRange<std::string>);
+    STATIC_REQUIRE_FALSE(ComparedAsRange<CmpObj>);
+    STATIC_REQUIRE(ComparedByValue<int>);
+    STATIC_REQUIRE(ComparedByValue<std::string>);
+    STATIC_REQUIRE_FALSE(ComparedByValue<double>);
+    STATIC_REQUIRE_FALSE(ComparedByValue<CmpObj>);
+    STATIC_REQUIRE_FALSE(ComparedByValue<std::vector<int>>);
+    STATIC_REQUIRE_FALSE(ComparedByValue<std::shared_ptr<CmpObj>>);
+}
+
+TEST_CASE(
+    "valuesMeet / elementsMeet / valueViolation / byValueExpectationName",
+    "[common][expectations][compare]"
+) {
+    CHECK(valuesMeet(1.0, 1.0 + 1e-3, expectation::FP_SIMILARITY, 1e-2));
+    CHECK_FALSE(valuesMeet(1.0, 1.0 + 1e-3, expectation::FP_SIMILARITY, 1e-6));
+    CHECK_FALSE(valuesMeet(1.0, 1.0 + 1e-3, expectation::EQUALITY, 1e-2));
+    CHECK(valuesMeet(1.0, 1.0 + 1e-3, expectation::INEQUALITY, 1e-2));
+    CHECK(valuesMeet(3, 3, expectation::FP_SIMILARITY, 0.));
+    CHECK(valuesMeet(3, 4, expectation::INEQUALITY, 0.));
+
+    CHECK(elementsMeet(CmpObj(1), CmpObj(1), expectation::EQUALITY, 0.));
+    CHECK_FALSE(elementsMeet(CmpObj(1), CmpObj(2), expectation::EQUALITY, 0.));
+    CHECK(elementsMeet(std::vector<int>{1}, std::vector<int>{2}, expectation::INEQUALITY, 0.));
+    CHECK(elementsMeet(2.0, 2.0, expectation::EQUALITY, 0.));
+
+    std::string const message = valueViolation("EQUALITY", "a", 1, "b", 2);
+    CHECK(message.contains("Expectation of EQUALITY was violated"));
+    CHECK(message.contains("a = 1"));
+    CHECK(message.contains("b = 2"));
+
+    CHECK(byValueExpectationName(expectation::INEQUALITY) == "INEQUALITY");
+    CHECK(byValueExpectationName(expectation::EQUALITY) == "FP_SIMILARITY / EQUALITY");
+    CHECK(byValueExpectationName(expectation::FP_SIMILARITY) == "FP_SIMILARITY / EQUALITY");
+}
+
+TEST_CASE(
+    "compare_base_t / g_compare_members: the slice and the member list are compared under the "
+    "token",
+    "[common][expectations][compare_t]"
+) {
+    LimitDerived const x;
+    LimitDerived y;
+    y.root_d_ += 1e-3;
+    GToken wide("X", expectation::FP_SIMILARITY, 1e-2);
+    compare_base_t<LimitRoot>(x, y, wide);
+    CHECK(wide.getTestCounter() == 1);
+    CHECK(wide.expectationMet());
+    GToken narrow_token("X", expectation::FP_SIMILARITY, 1e-6);
+    compare_base_t<LimitRoot>(x, y, narrow_token);
+    CHECK_FALSE(narrow_token.expectationMet());
+
+    double const d = 1.0;
+    double const d_near = 1.0 + 1e-3;
+    int const i = 4;
+    GToken members("X", expectation::FP_SIMILARITY, 1e-2);
+    g_compare_members(
+        std::make_tuple(make_member("d", d), make_member("i", i)),
+        std::make_tuple(make_member("d", d_near), make_member("i", i)),
+        members
+    );
+    CHECK(members.getTestCounter() == 2);
+    CHECK(members.getSuccessCounter() == 2);
+}
+
+TEST_CASE("compare<time_point>: different time points differ", "[common][expectations][compare]") {
+    using TP = std::chrono::system_clock::time_point;
+    TP const t1{std::chrono::seconds{10}};
+    TP const t2{std::chrono::seconds{11}};
+    checkDifferent(t1, t2);
+    checkEqual(t1, t1);
+}
