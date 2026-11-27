@@ -1014,6 +1014,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `checkRoundTrips()` before and after each copy, clone, load, assignment and round trip; copy and
   original must give the same result. It finds a member kept outside the compared ones (a cache)
   that a load forgot to renew, as `GFactoryT::load()` once kept its parse cache.
+- **common: the range checks refuse NaN.** NaN lies in no range: `checkRangeCompliance()` returns
+  `false` for it, `checkValueRange()` throws (also in its warn-only mode, so a NaN is never
+  returned as a valid value) and `enforceRangeConstraint()` throws instead of keeping it. Before,
+  all three let it pass. A NaN boundary is refused like a lower boundary above the upper one, and
+  `checkValueRange()` now refuses such boundaries as well (in warn-only mode it warned). The three
+  share one statement of the range rules; `checkRangeCompliance()` and `checkValueRange()` are one
+  template each for all arithmetic types, and the integral `checkValueRange()` takes a variable
+  name like the floating-point one.
 
 ## 8. Checkpointing
 

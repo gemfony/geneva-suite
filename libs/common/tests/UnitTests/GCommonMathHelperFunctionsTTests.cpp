@@ -264,7 +264,10 @@ TEST_CASE("getWorstCase/getBestCase sortOrder overloads", "[common][math][worstB
     REQUIRE(Gem::Common::getBestCase<double>(so::LOWERISBETTER) < 0.);
 }
 
-TEST_CASE("isBetter: strict under both sort orders and NaN worse than every number", "[common][math][isBetter]") {
+TEST_CASE(
+    "isBetter: strict under both sort orders and NaN worse than every number",
+    "[common][math][isBetter]"
+) {
     using so = Gem::Common::sortOrder;
     double const nan = std::numeric_limits<double>::quiet_NaN();
     double const inf = std::numeric_limits<double>::infinity();
@@ -354,6 +357,84 @@ TEST_CASE(
         Gem::Common::checkValueRange(10, 0, 10, false, true /*upperOpen*/),
         gem_exception
     );
+}
+
+TEST_CASE(
+    "checkValueRange: lower > upper throws also when only a warning is asked for",
+    "[common][math][checkValueRange]"
+) {
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(5., 10., 0.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(5., 10., 0., false, false, true), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(5, 10, 0, false, false, true), gem_exception);
+}
+
+TEST_CASE(
+    "checkValueRange: the named flags select the boundaries and the warning",
+    "[common][math][checkValueRange]"
+) {
+    using namespace Gem::Common;
+    CHECK(checkValueRange(0., 0., 1., GFPLOWERCLOSED, GFPUPPEROPEN, GFNOWARNING, "x") == 0.);
+    CHECK_THROWS_AS(
+        checkValueRange(1., 0., 1., GFPLOWERCLOSED, GFPUPPEROPEN, GFNOWARNING, "x"),
+        gem_exception
+    );
+    // A warning instead of an exception returns the value unchanged
+    CHECK(checkValueRange(2, 0, 1, GFPLOWERCLOSED, GFPUPPERCLOSED, true, "n") == 2);
+}
+
+// --- NaN in the range checks ---------------------------------------------
+
+TEST_CASE("Range checks: NaN lies in no range", "[common][math][rangeNaN]") {
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+    float const nan_f = std::numeric_limits<float>::quiet_NaN();
+
+    CHECK_FALSE(Gem::Common::checkRangeCompliance(nan, 0., 1.));
+    CHECK_FALSE(Gem::Common::checkRangeCompliance(nan_f, 0.f, 1.f));
+
+    // Every combination of open and closed boundaries, and also when only a warning is asked for
+    for(bool const lower_open : {false, true}) {
+        for(bool const upper_open : {false, true}) {
+            CHECK_THROWS_AS(
+                Gem::Common::checkValueRange(nan, 0., 1., lower_open, upper_open),
+                gem_exception
+            );
+            CHECK_THROWS_AS(
+                Gem::Common::checkValueRange(nan, 0., 1., lower_open, upper_open, true),
+                gem_exception
+            );
+        }
+    }
+
+    double v = nan;
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 0., 1.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 0., 1., "caller", true), gem_exception);
+}
+
+TEST_CASE("Range checks: a NaN boundary is refused", "[common][math][rangeNaN]") {
+    double const nan = std::numeric_limits<double>::quiet_NaN();
+
+    CHECK_THROWS_AS(Gem::Common::checkRangeCompliance(0.5, nan, 1.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkRangeCompliance(0.5, 0., nan), gem_exception);
+
+    double v = 0.5;
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, nan, 1.), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::enforceRangeConstraint(v, 0., nan), gem_exception);
+
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(0.5, nan, 1., false, false, true), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(0.5, 0., nan, false, false, true), gem_exception);
+}
+
+TEST_CASE("Range checks: infinities are ordinary values", "[common][math][rangeNaN]") {
+    double const inf = std::numeric_limits<double>::infinity();
+
+    CHECK(Gem::Common::checkRangeCompliance(inf, 0., inf));
+    CHECK_FALSE(Gem::Common::checkRangeCompliance(inf, 0., 1.));
+    CHECK(Gem::Common::checkValueRange(-inf, -inf, 0.) == -inf);
+    CHECK_THROWS_AS(Gem::Common::checkValueRange(-inf, -inf, 0., true, false), gem_exception);
+
+    double v = inf;
+    CHECK(Gem::Common::enforceRangeConstraint(v, 0., 1.) == 1.);
+    CHECK(v == 1.);
 }
 
 // --- getMinMax -----------------------------------------------------------
@@ -648,16 +729,47 @@ TEST_CASE(
     REQUIRE(sb == Approx(0.).margin(1e-10));
 }
 
-// --- getRatioError / getRatioErrors --------------------------------------
+// --- ratioWithError ------------------------------------------------------
 
-TEST_CASE("getRatioError: known ratio and propagated error", "[common][math][getRatioError]") {
-    auto s = std::tuple<double, double, double, double>{2., 0., 6., 0.3};
-    auto p = std::tuple<double, double, double, double>{2., 0., 2., 0.1};
-    auto [t, te, ratio, err] = Gem::Common::getRatioError(s, p);
-    REQUIRE(t == Approx(2.));
-    REQUIRE(te == Approx(0.));
+TEST_CASE("ratioWithError: known ratio and propagated error", "[common][math][ratioWithError]") {
+    auto [ratio, err] = Gem::Common::ratioWithError(6., 0.3, 2., 0.1);
     REQUIRE(ratio == Approx(3.));
     REQUIRE(err == Approx(0.15 * std::sqrt(2.)));
+}
+
+TEST_CASE("ratioWithError: each error contributes on its own", "[common][math][ratioWithError]") {
+    // Only the numerator is uncertain: the error is s_error / p
+    auto [r1, e1] = Gem::Common::ratioWithError(6., 0.4, 2., 0.);
+    CHECK(r1 == Approx(3.));
+    CHECK(e1 == Approx(0.2));
+    // Only the denominator is uncertain: the error is s * p_error / p^2
+    auto [r2, e2] = Gem::Common::ratioWithError(6., 0., 2., 0.2);
+    CHECK(r2 == Approx(3.));
+    CHECK(e2 == Approx(0.3));
+    // Exact quantities have an exact ratio
+    auto [r3, e3] = Gem::Common::ratioWithError(1.f, 0.f, 4.f, 0.f);
+    CHECK(r3 == Approx(0.25f));
+    CHECK(e3 == 0.f);
+}
+
+TEST_CASE("ratioWithError: division by zero throws", "[common][math][ratioWithError]") {
+    REQUIRE_THROWS_AS(Gem::Common::ratioWithError(4., 0.1, 0., 0.1), gem_exception);
+}
+
+// --- getRatioError / getRatioErrors --------------------------------------
+
+TEST_CASE(
+    "getRatioError: carries the position and takes the ratio of ratioWithError()",
+    "[common][math][getRatioError]"
+) {
+    auto s = std::tuple<double, double, double, double>{2., 0.5, 6., 0.3};
+    auto p = std::tuple<double, double, double, double>{2., 0.5, 2., 0.1};
+    auto [x, xe, ratio, err] = Gem::Common::getRatioError(s, p);
+    auto [expected_ratio, expected_err] = Gem::Common::ratioWithError(6., 0.3, 2., 0.1);
+    REQUIRE(x == Approx(2.));
+    REQUIRE(xe == Approx(0.));
+    REQUIRE(ratio == Approx(expected_ratio));
+    REQUIRE(err == Approx(expected_err));
 }
 
 TEST_CASE("getRatioError: division by zero throws", "[common][math][getRatioError]") {
@@ -666,7 +778,7 @@ TEST_CASE("getRatioError: division by zero throws", "[common][math][getRatioErro
     REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), gem_exception);
 }
 
-TEST_CASE("getRatioError: mismatched sleep times throws", "[common][math][getRatioError]") {
+TEST_CASE("getRatioError: different positions throw", "[common][math][getRatioError]") {
     auto s = std::tuple<double, double, double, double>{1., 0., 4., 0.1};
     auto p = std::tuple<double, double, double, double>{2., 0., 2., 0.1};
     REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), gem_exception);
