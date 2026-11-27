@@ -60,12 +60,13 @@ struct GStreamOptions {
     std::vector<std::shared_ptr<GSink>> sinks;
     /** The stream continues a run that was resumed from a checkpoint: a file sink appends to an
      *  existing file whose columns are the stream's, and backs it up and begins a new one otherwise.
-     *  Before it appends, it cuts the file back to the checkpoint if resumeColumn names a column */
+     *  Before it appends, it drops a last row cut by a crash (one without its final line break),
+     *  and cuts the file back to the checkpoint if resumeColumn names a column */
     bool resume = false;
     /** With resume: a numeric column by which the file is cut back -- every row whose value in it
      *  is greater than resumeAfter (the rows the earlier run wrote after its checkpoint; after a
-     *  crash, also a row cut in the middle) is dropped before the first append. Empty: nothing is
-     *  dropped */
+     *  crash, also a row cut in the middle) is dropped before the first append. Empty: only a last
+     *  row cut by a crash is dropped */
     std::string resumeColumn;
     /** With resume and resumeColumn: the last value whose rows are kept (for a run, the iteration of
      *  its checkpoint) */

@@ -1089,7 +1089,8 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   file is backed up at the first write; a run resumed from a checkpoint appends to the files of
   its monitors when their columns are the same, after cutting them back to the checkpoint: the
   rows the earlier run recorded after it -- after a crash, those since the last checkpoint, and a
-  row cut in the middle -- are dropped (`GStreamOptions::resumeColumn`, `resumeAfter`); the plot
+  row cut in the middle -- are dropped (`GStreamOptions::resumeColumn`, `resumeAfter`; without a
+  `resumeColumn` only a last row cut by a crash is dropped, and the drop is logged); the plot
   of a resumed stream reads the earlier rows from the stream's CSV file and draws the whole run.
   Each row is flushed to its file. Courtier's launcher closes all streams when `run()` ends -- also after
   an exception or a stop request; a program without the launcher calls `recorder().closeAll()`

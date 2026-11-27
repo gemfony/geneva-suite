@@ -415,6 +415,61 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
     );
 }
 
+TEST_CASE("a resuming stream without a resumeColumn removes a last row cut by a crash", "[common][record]") {
+    // A row without its final line break is never data: the resumed stream drops it before it
+    // appends, also where the cut lies in a CSV text of several lines, and keeps every whole row
+    ScratchDirectory const dir("torn");
+    struct Case {
+        std::string name;
+        bool json;
+        std::string torn;
+    };
+    for(Case const &c :
+        {Case{"torn_csv", false, "2,earl"},
+         Case{"torn_text", false, "2,\"one line\n"},
+         Case{"torn_json", true, R"({"n":2,"no)"}}) {
+        auto const sinks = [&c]() {
+            return c.json ? std::vector<std::shared_ptr<GSink>>{std::make_shared<GJsonLinesSink>()}
+                          : std::vector<std::shared_ptr<GSink>>{std::make_shared<GCsvSink>()};
+        };
+        auto const file = dir / (c.name + (c.json ? ".jsonl" : ".csv"));
+        {
+            auto s = recorder().stream<std::uint64_t, std::string>(
+                c.name, {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks()}
+            );
+            s.append(0, "earlier");
+            s.append(1, "two\nlines");
+        }
+        {
+            std::ofstream(file, std::ios::app) << c.torn;
+        }
+        {
+            auto s = recorder().stream<std::uint64_t, std::string>(
+                c.name, {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks(), .resume = true}
+            );
+            s.append(3, "resumed");
+        }
+        CHECK(backupsOf(file) == 0);
+        if(c.json) {
+            CHECK(
+                linesOf(file) ==
+                std::vector<std::string>{
+                    R"({"n":0,"note":"earlier"})", R"({"n":1,"note":"two\nlines"})", R"({"n":3,"note":"resumed"})"
+                }
+            );
+        }
+        else {
+            CHECK(
+                GCsvSink::readRows(
+                    file,
+                    {GColumn{.name = "n", .type = columnType::UNSIGNED},
+                     GColumn{.name = "note", .type = columnType::TEXT}}
+                ) == std::vector<std::vector<std::string>>{{"0", "earlier"}, {"1", "two\nlines"}, {"3", "resumed"}}
+            );
+        }
+    }
+}
+
 TEST_CASE("a CSV row whose text spans several lines survives a resume and reads back whole", "[common][record]") {
     // A text with a line break is written in quotes over several lines of the file (RFC 4180).
     // Cutting the file back and readRows() read such a row as one record, not line by line.

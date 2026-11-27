@@ -56,10 +56,11 @@ namespace Gem::Common::Record {
  * directory is created when needed. An existing file is backed up when the sink opens, that is at
  * the stream's first write (Gem::Common::backupExistingFile()), so nothing is overwritten
  * silently -- except that a resuming stream (GStreamInfo::resume) appends to an existing file
- * whose columns are its own, and backs it up only otherwise. Before it appends, it cuts the file
- * back to the checkpoint: with GStreamInfo::resumeColumn, every row whose value in that column is
- * greater than GStreamInfo::resumeAfter, or which cannot be read (a row cut by a crash), is
- * dropped -- a row is read as a whole (readRecord_()), also where it spans several lines -- and the file is rewritten as a whole (Gem::Common::replaceFileAtomically()). Every write
+ * whose columns are its own, and backs it up only otherwise. Before it appends, it drops a last
+ * row without its final line break (a row cut by a crash; the drop is logged) and, with
+ * GStreamInfo::resumeColumn, cuts the file back to the checkpoint: every row whose value in that
+ * column is greater than GStreamInfo::resumeAfter, or which cannot be read, is dropped -- a row
+ * is read as a whole (readRecord_()), also where it spans several lines -- and the file is rewritten as a whole (Gem::Common::replaceFileAtomically()). Every write
  * is flushed to the file.
  *
  * A derived sink says how a file of its kind begins and how a row is written.
