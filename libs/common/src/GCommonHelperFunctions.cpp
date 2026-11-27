@@ -629,25 +629,21 @@ std::chrono::duration<double> duration_from_string(std::string const &duration_s
     switch(timings.size()) {
     case 1:
         return std::chrono::seconds(timings.at(0));
-        break;
 
     case 2:
         return (std::chrono::minutes(timings.at(0)) + std::chrono::seconds(timings.at(1)));
-        break;
 
     case 3:
         return (
             std::chrono::hours(timings.at(0)) + std::chrono::minutes(timings.at(1)) +
             std::chrono::seconds(timings.at(2))
         );
-        break;
 
     default:
         throw gem_exception(
             g_error_streamer() << "Invalid number of fields present in \"" << duration_string
                                << "\": " << timings.size() << '\n'
         );
-        break;
     }
 }
 

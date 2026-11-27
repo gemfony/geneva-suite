@@ -102,9 +102,7 @@
  * The plain-C compatibility fingerprint. extern "C" so the tag type has C linkage and an identical layout
  * on both sides of a module boundary. Field order is frozen within GEM_COMPAT_STRUCT_VERSION.
  */
-#ifdef __cplusplus
 extern "C" {
-#endif
 
 typedef struct GemCompat {
     std::uint32_t struct_version;  /* == GEM_COMPAT_STRUCT_VERSION                         */
@@ -121,9 +119,7 @@ typedef struct GemCompat {
     std::uint32_t abi_flags;         /* GEM_ABI_FLAG_* bitfield                                 */
 } GemCompat;
 
-#ifdef __cplusplus
 } /* extern "C" */
-#endif
 
 /******************************************************************************/
 /*
@@ -135,12 +131,12 @@ typedef struct GemCompat {
 /* Compiler family + version. Check __clang__ FIRST: clang also defines __GNUC__. */
 #if defined(__clang__)
 #define GEM_FP_COMPILER_FAMILY GEM_COMPILER_FAMILY_CLANG
-#define GEM_FP_COMPILER_MAJOR  ((std::uint32_t)__clang_major__)
-#define GEM_FP_COMPILER_MINOR  ((std::uint32_t)__clang_minor__)
+#define GEM_FP_COMPILER_MAJOR  (static_cast<std::uint32_t>(__clang_major__))
+#define GEM_FP_COMPILER_MINOR  (static_cast<std::uint32_t>(__clang_minor__))
 #elif defined(__GNUC__)
 #define GEM_FP_COMPILER_FAMILY GEM_COMPILER_FAMILY_GNU
-#define GEM_FP_COMPILER_MAJOR  ((std::uint32_t)__GNUC__)
-#define GEM_FP_COMPILER_MINOR  ((std::uint32_t)__GNUC_MINOR__)
+#define GEM_FP_COMPILER_MAJOR  (static_cast<std::uint32_t>(__GNUC__))
+#define GEM_FP_COMPILER_MINOR  (static_cast<std::uint32_t>(__GNUC_MINOR__))
 #else
 #define GEM_FP_COMPILER_FAMILY GEM_COMPILER_FAMILY_UNKNOWN
 #define GEM_FP_COMPILER_MAJOR  0u
@@ -150,11 +146,11 @@ typedef struct GemCompat {
 /* Standard library family + version. */
 #if defined(_LIBCPP_VERSION)
 #define GEM_FP_STDLIB_FAMILY  GEM_STDLIB_FAMILY_LIBCXX
-#define GEM_FP_STDLIB_VERSION ((std::uint32_t)_LIBCPP_VERSION)
+#define GEM_FP_STDLIB_VERSION (static_cast<std::uint32_t>(_LIBCPP_VERSION))
 #elif defined(__GLIBCXX__)
 #define GEM_FP_STDLIB_FAMILY GEM_STDLIB_FAMILY_LIBSTDCXX
 #if defined(_GLIBCXX_RELEASE)
-#define GEM_FP_STDLIB_VERSION ((std::uint32_t)_GLIBCXX_RELEASE)
+#define GEM_FP_STDLIB_VERSION (static_cast<std::uint32_t>(_GLIBCXX_RELEASE))
 #else
 #define GEM_FP_STDLIB_VERSION 0u
 #endif
@@ -165,7 +161,7 @@ typedef struct GemCompat {
 
 /* libstdc++ dual-ABI switch (irrelevant / absent under libc++). */
 #if defined(_GLIBCXX_USE_CXX11_ABI)
-#define GEM_FP_GLIBCXX_CXX11_ABI ((std::uint32_t)_GLIBCXX_USE_CXX11_ABI)
+#define GEM_FP_GLIBCXX_CXX11_ABI (static_cast<std::uint32_t>(_GLIBCXX_USE_CXX11_ABI))
 #else
 #define GEM_FP_GLIBCXX_CXX11_ABI 0u
 #endif
@@ -246,8 +242,8 @@ typedef struct GemCompat {
 #define GEM_BUILD_FINGERPRINT                                                                      \
     {                                                                                              \
         .struct_version = GEM_COMPAT_STRUCT_VERSION,                                               \
-        .struct_size = (std::uint32_t)sizeof(GemCompat),                                           \
-        .gem_version = (std::uint32_t)GEM_VERSION,                                                 \
+        .struct_size = static_cast<std::uint32_t>(sizeof(GemCompat)),                              \
+        .gem_version = static_cast<std::uint32_t>(GEM_VERSION),                                    \
         .compiler_family = GEM_FP_COMPILER_FAMILY,                                                 \
         .compiler_major = GEM_FP_COMPILER_MAJOR,                                                   \
         .compiler_minor = GEM_FP_COMPILER_MINOR,                                                   \
@@ -255,7 +251,7 @@ typedef struct GemCompat {
         .stdlib_version = GEM_FP_STDLIB_VERSION,                                                   \
         .cxx_standard = GEM_FP_CXX_STANDARD,                                                       \
         .glibcxx_cxx11_abi = GEM_FP_GLIBCXX_CXX11_ABI,                                             \
-        .boost_version = (std::uint32_t)BOOST_VERSION,                                             \
+        .boost_version = static_cast<std::uint32_t>(BOOST_VERSION),                                \
         .abi_flags = GEM_FP_ABI_FLAGS,                                                             \
     }
 

@@ -109,7 +109,7 @@ public:
      *  @param key The key. @param value The value to store. */
     void set(const ordered_key_type &key, mapped_value_type value) {
         std::scoped_lock const guard(mutex_);
-        kvp_[key] = std::move(value);
+        kvp_.insert_or_assign(key, std::move(value));
     }
 
     /** @brief Inserts an entry only if the key is not already present.
@@ -117,11 +117,7 @@ public:
      *  @return true if inserted, false if the key already existed (left unchanged). */
     bool setOnce(const ordered_key_type &key, mapped_value_type value) {
         std::scoped_lock const guard(mutex_);
-        if(kvp_.contains(key)) {
-            return false;
-        }
-        kvp_[key] = std::move(value);
-        return true;
+        return kvp_.try_emplace(key, std::move(value)).second;
     }
 
     /** @brief Removes an entry if present.

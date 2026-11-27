@@ -455,23 +455,17 @@ auto GStandardDeviation(const std::vector<T> &par_vec) {
 /**
  * @brief Compile-time integer power: B^E.
  *
- * Replaces the old PowSmallPosInt struct template metaprogramming.
- *
  * @tparam B The base of the power
  * @tparam E The exponent of the power
  * @return The value of B raised to the power E, computed at compile time
  */
 template <std::size_t B, std::size_t E>
 constexpr std::size_t PowSmallPosInt() {
-    if constexpr(E == 0) {
-        return 1uz;
+    std::size_t result = 1uz;
+    for(std::size_t i = 0; i < E; ++i) {
+        result *= B;
     }
-    else if constexpr(E == 1) {
-        return B;
-    }
-    else {
-        return B * PowSmallPosInt<B, E - 1>();
-    }
+    return result;
 }
 
 /******************************************************************************/

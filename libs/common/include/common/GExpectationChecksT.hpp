@@ -156,8 +156,10 @@ public:
     void evaluate() const;
 
 private:
-    /** @brief Counts all tests vs. tests that have met the expectation */
-    std::tuple<std::size_t, std::size_t> test_counter_;
+    /** @brief The number of tests made under this token */
+    std::size_t test_counter_ = 0;
+    /** @brief The number of tests that met the expectation */
+    std::size_t success_counter_ = 0;
     /** @brief Error messages obtained from failed checks */
     std::vector<std::string> error_messages_;
 

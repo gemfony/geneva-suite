@@ -45,7 +45,6 @@
 #include <locale>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -357,8 +356,9 @@ T from_string(const std::string &s) {
 /**
  * @brief Reads a given environment variable and converts it to a target type.
  *
- * The value is trimmed of surrounding whitespace and read with parseWhole(). Access to std::getenv
- * is serialised with a local mutex.
+ * The value is trimmed of surrounding whitespace and read with parseWhole(). Reading the
+ * environment from several threads at once is safe; changing it (setenv(), putenv()) while another
+ * thread reads it is not, and this function cannot prevent that: the collection never changes it.
  *
  * @tparam target_type The type the environment variable's value is converted to (see parseWhole())
  * @param var The name of the environment variable to be read
@@ -370,10 +370,6 @@ std::optional<target_type> environmentVariableAs(std::string const &var) {
     std::string result_str;
 
     {
-        // std::getenv is not thread-safe; serialise access with a local mutex.
-        static std::mutex read_env_mutex;
-        std::scoped_lock const lk(read_env_mutex);
-
 #if defined(_MSC_VER) && (_MSC_VER >= 1020)
         char *env_ptr = 0;
         size_t sz = 0;
@@ -385,7 +381,7 @@ std::optional<target_type> environmentVariableAs(std::string const &var) {
             return {};
         }
 #else
-        // NOLINTNEXTLINE(concurrency-mt-unsafe) -- called under lock; Geneva never calls putenv/setenv from threads
+        // NOLINTNEXTLINE(concurrency-mt-unsafe) -- only reads; the collection never calls putenv/setenv
         const char *env_ptr = std::getenv(var.c_str());
         if(env_ptr) {
             result_str = std::string(env_ptr);
@@ -394,7 +390,7 @@ std::optional<target_type> environmentVariableAs(std::string const &var) {
             return {};
         }
 #endif
-    } // releases the lock
+    }
 
     std::optional<target_type> value = parseWhole<target_type>(trimWhitespace(result_str));
     checkThat(
@@ -830,7 +826,8 @@ bool operator==(const gemfony_common_type &x, const gemfony_common_type &y) {
 
 /******************************************************************************/
 /**
- * @brief Adds an operator!= to every object with a Gemfony-common interface.
+ * @brief Adds an operator!= to every object with a Gemfony-common interface: the negation of
+ * operator==.
  *
  * @tparam gemfony_common_type The compared type (must satisfy gemfony_common_interface)
  * @param x The left-hand operand
@@ -840,13 +837,7 @@ bool operator==(const gemfony_common_type &x, const gemfony_common_type &y) {
 template <class gemfony_common_type>
     requires Gem::Common::gemfony_common_interface<gemfony_common_type>
 bool operator!=(const gemfony_common_type &x, const gemfony_common_type &y) {
-    try {
-        x.compare(y, Gem::Common::expectation::INEQUALITY, CE_DEF_SIMILARITY_DIFFERENCE);
-        return true;
-    }
-    catch(g_expectation_violation &) {
-        return false;
-    }
+    return not(x == y);
 }
 
 /******************************************************************************/
