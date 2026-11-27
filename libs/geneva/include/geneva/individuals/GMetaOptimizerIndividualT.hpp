@@ -1277,7 +1277,7 @@ protected:
     void compare_(
         const oa::GBasePluggableOM &cp,
         const Gem::Common::expectation &e,
-        [[maybe_unused]] const double &limit
+        const double &limit
     ) const override {
         using namespace Gem::Common;
 
@@ -1288,7 +1288,7 @@ protected:
                 this
             );
 
-        GToken token("GOptOptMonitorT", e);
+        GToken token("GOptOptMonitorT", e, limit);
 
         // Compare our parent data ...
         Gem::Common::compare_base_t<oa::GBasePluggableOM>(*this, *p_load, token);

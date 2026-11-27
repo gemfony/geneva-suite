@@ -34,8 +34,8 @@
 #include <algorithm>
 #include <cmath>
 #include <concepts>
-#include <limits>
 #include <iostream>
+#include <limits>
 #include <memory>
 #include <ranges>
 #include <sstream>
@@ -86,12 +86,8 @@ protected:
         }
     }
 
-    void compare_(
-        TestItem const &cp,
-        expectation const &e,
-        [[maybe_unused]] double const &limit
-    ) const override {
-        GToken token("TestItem", e);
+    void compare_(TestItem const &cp, expectation const &e, double const &limit) const override {
+        GToken token("TestItem", e, limit);
         compare_base_t<GCommonInterfaceT<TestItem>>(*this, cp, token);
         compare_t(Gem::Common::getIdentity(value_, cp.value_, "value_", "cp.value_"), token);
         token.evaluate();
@@ -99,7 +95,8 @@ protected:
 
 public:
     /** @brief The number of clones made of any TestItem, so a test can count what an insertion cloned */
-    inline static std::size_t n_clones = 0; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    inline static std::size_t n_clones =
+        0; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 private:
     [[nodiscard]] TestItem *clone_() const override {

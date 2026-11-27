@@ -986,6 +986,34 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   change accordingly.
   `touch_time()` appends its content to an existing file and sets its last-write time; it used to
   empty the file.
+- **common: the limit passed to `compare()` is applied.** `compare(cp, FP_SIMILARITY, limit)` and
+  the free `compare()` used 1e-5 for every floating-point member, whatever `limit` said; the limit
+  now reaches every member, the parent slices, the elements of container members and
+  `GContainerT::compare_base()`. 1e-5 (`CE_DEF_SIMILARITY_DIFFERENCE`) stays the default. The limit
+  travels in the token: `GToken` takes it as a third constructor argument (`getLimit()` returns it),
+  and `compare_t()` compares under it. A hand-written `compare_()` creates its token with the
+  `limit` it receives, `GToken token("MyClass", e, limit)`; `identity` no longer carries a limit
+  (its constructor takes the two items and their names). `GEqualityPrinter` of the standard tests
+  applies the limit it is made with; its overloads that compare a `GPodContainerT` with a
+  `std::vector` of its values did not compile and do now.
+- **common: in `compare()` two NaN are equal.** `compare()` checks the equality of object states,
+  so an object that holds a NaN now equals its clone and itself after a round trip; a NaN and a
+  number differ under every expectation. Two equal infinities are similar as well (they failed
+  `FP_SIMILARITY`, their difference being NaN).
+- **common: `compare()` takes unordered containers by their `==`.** `std::unordered_set`,
+  `std::unordered_map` and their multi forms were compared in iteration order, so two equal
+  containers with different bucket counts were reported as different. A `std::map` (whose pairs
+  cannot be printed) did not compile in `compare()`; it does now.
+- **common: the struct type traits of `GTypeTraitsT.hpp` were removed.** `has_compare_member`,
+  `has_clone_member`, `has_load_member` and `has_gemfony_common_interface`: the second and third
+  were false for every class of the common interface (it overloads `clone()` and `load()`), and
+  nothing in the collection used any of them. A type is tested with the concept
+  `gemfony_common_interface<T>` (was `has_gemfony_common_interface<T>::value`).
+- **common: the standard tests use an object after each copy.** A type with a public member
+  `useForTest()` (its result compared with `==`, concept `UsableForTest`) is used by
+  `checkRoundTrips()` before and after each copy, clone, load, assignment and round trip; copy and
+  original must give the same result. It finds a member kept outside the compared ones (a cache)
+  that a load forgot to renew, as `GFactoryT::load()` once kept its parse cache.
 
 ## 8. Checkpointing
 

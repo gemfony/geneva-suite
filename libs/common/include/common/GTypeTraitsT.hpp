@@ -40,6 +40,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <type_traits>
 #include <typeinfo>
 #include <vector>
 
@@ -69,77 +70,16 @@ concept arithmetic = std::integral<T> || std::floating_point<T>;
 class gemfony_common_interface_indicator {};
 
 /**
- * A type trait helping to check whether a class has the Gemfony Scientific library
- * interface. The simple convention is that the base class of a hierarchy must
- * (we recommend) inherit from gemfony_common_interface_indicator.
- *
- * @tparam T The type checked for carrying the Gemfony common interface
- */
-template <typename T>
-struct has_gemfony_common_interface {
-    static constexpr bool value = std::is_base_of_v<gemfony_common_interface_indicator, T>;
-};
-
-/**
- * The C++20 concept form of has_gemfony_common_interface, for use in requires
- * clauses. T satisfies it iff it carries the Gemfony common interface, i.e. it
- * (indirectly) derives from gemfony_common_interface_indicator. Equivalent to
- * has_gemfony_common_interface<T>::value but more ergonomic and giving clearer
- * diagnostics at the constraint site. (is_base_of, not std::derived_from, since
- * the indicator is inherited privately and is therefore not an accessible base.)
+ * A concept checking whether a class has the common interface of the Gemfony libraries. The simple
+ * convention is that the base class of a hierarchy (we recommend) inherits from
+ * gemfony_common_interface_indicator; T satisfies the concept iff it (indirectly) derives from it.
+ * (is_base_of, not std::derived_from, since the indicator is inherited privately and is therefore not
+ * an accessible base.)
  *
  * @tparam T The type checked for carrying the Gemfony common interface
  */
 template <typename T>
 concept gemfony_common_interface = std::is_base_of_v<gemfony_common_interface_indicator, T>;
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * A type trait helping to check whether a class has a compare function.
- *
- * Modernized from pre-C++11 SFINAE to a C++20 requires-expression.
- * The @c ::value member is preserved for backward compatibility.
- *
- * @tparam T The type checked for a compare member
- */
-template <typename T>
-struct has_compare_member {
-    static constexpr bool value = requires { &T::compare; };
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * A type trait helping to check whether a class has a clone function.
- *
- * Modernized from pre-C++11 SFINAE to a C++20 requires-expression.
- * The @c ::value member is preserved for backward compatibility.
- *
- * @tparam T The type checked for a clone member
- */
-template <typename T>
-struct has_clone_member {
-    static constexpr bool value = requires { &T::clone; };
-};
-
-/******************************************************************************/
-////////////////////////////////////////////////////////////////////////////////
-/******************************************************************************/
-/**
- * A type trait helping to check whether a class has a load function.
- *
- * Modernized from pre-C++11 SFINAE to a C++20 requires-expression.
- * The @c ::value member is preserved for backward compatibility.
- *
- * @tparam T The type checked for a load member
- */
-template <typename T>
-struct has_load_member {
-    static constexpr bool value = requires { &T::load; };
-};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

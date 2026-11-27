@@ -99,16 +99,16 @@ trainingSet::trainingSet(const std::size_t &n_input, const std::size_t &n_output
  *
  * @param cp A constant reference to another trainingSet object to compare against
  * @param e The expected outcome of the comparison
- * @param limit The acceptable deviation limit (unused here; data are compared for identity)
+ * @param limit The maximum allowed deviation of two floating point values under FP_SIMILARITY
  */
 void trainingSet::compare(
     const trainingSet &cp,
     const Gem::Common::expectation &e,
-    [[maybe_unused]] const double &limit
+    const double &limit
 ) const {
     using namespace Gem::Common;
 
-    Gem::Common::GToken token("trainingSet", e);
+    Gem::Common::GToken token("trainingSet", e, limit);
 
     // Compare our local data
     Gem::Common::compare_t(
@@ -229,14 +229,14 @@ networkData &networkData::operator=(const networkData &cp) {
  *
  * @param cp A constant reference to another networkData object to compare against
  * @param e The expected outcome of the comparison
- * @param limit The acceptable deviation limit (unused here; sizes are compared for identity)
+ * @param limit The maximum allowed deviation of two floating point values under FP_SIMILARITY
  */
 void networkData::compare(
     const networkData &cp,
     const Gem::Common::expectation &e,
-    [[maybe_unused]] const double &limit
+    const double &limit
 ) const {
-    Gem::Common::GToken token("networkData", e);
+    Gem::Common::GToken token("networkData", e, limit);
 
     // Compare our local data
     Gem::Common::compare_t(

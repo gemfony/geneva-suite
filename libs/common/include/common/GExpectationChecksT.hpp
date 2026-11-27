@@ -50,6 +50,7 @@
 #include <vector>
 
 // Boost headers go here
+#include <boost/core/demangle.hpp>
 
 // Gemfony headers go here
 #include "common/GCommonEnums.hpp"
@@ -73,9 +74,10 @@ class GToken // NOLINT(cppcoreguidelines-special-member-functions)
 {
 public:
     /**
-     * @brief The standard constructor -- initialization with class name and expectation.
+     * @brief The standard constructor -- initialization with class name, expectation and the
+     * limit of floating point similarity.
      */
-    GToken(std::string caller, Gem::Common::expectation e);
+    GToken(std::string caller, Gem::Common::expectation e, double limit);
 
     /*************************************************************************/
     // Defaulted or deleted constructors, destructor and assignment operators
@@ -118,6 +120,11 @@ public:
      */
     [[nodiscard]] Gem::Common::expectation getExpectation() const;
     /**
+     * @brief Allows to retrieve the maximum deviation of two floating point values that are
+     * similar (FP_SIMILARITY).
+     */
+    [[nodiscard]] double getLimit() const;
+    /**
      * @brief Allows to retrieve the expectation token as a string.
      */
     [[nodiscard]] std::string getExpectationStr() const;
@@ -158,6 +165,8 @@ private:
     const std::string caller_;
     /** @brief The expectation to be met */
     const Gem::Common::expectation e_ = Gem::Common::expectation::INEQUALITY;
+    /** @brief The maximum deviation of two floating point values that meet FP_SIMILARITY */
+    const double limit_;
 };
 
 /******************************************************************************/
@@ -170,10 +179,10 @@ std::ostream &operator<<(std::ostream &s, GToken const &g);
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 
-#define BASENAME(B) std::string(#B)
-
 /**
- * This struct facilitates transfer of comparable items to comparators
+ * This struct facilitates transfer of comparable items to comparators. The expectation and the
+ * limit of floating point similarity come from the GToken the items are compared under (see
+ * compare_t()).
  *
  * @tparam T The type of the two items (held by const reference) to be compared
  */
@@ -189,20 +198,12 @@ public:
      * @param y_var The second item to be compared (held by const reference)
      * @param x_name_var A human-readable name for the first item (moved into the struct)
      * @param y_name_var A human-readable name for the second item (moved into the struct)
-     * @param l_var The maximum allowed deviation for "similar" floating point values
      */
-    identity(
-        T const &x_var,
-        T const &y_var,
-        std::string x_name_var,
-        std::string y_name_var,
-        double l_var
-    )
+    identity(T const &x_var, T const &y_var, std::string x_name_var, std::string y_name_var)
       : x(x_var)
       , y(y_var)
       , x_name(std::move(x_name_var))
-      , y_name(std::move(y_name_var))
-      , limit(l_var) { /* nothing */
+      , y_name(std::move(y_name_var)) { /* nothing */
     }
 
     /***************************************************************************/
@@ -243,7 +244,6 @@ public:
     const T &y;
     const std::string x_name;
     const std::string y_name;
-    const double limit;
 
 private:
     /***************************************************************************/
@@ -252,7 +252,7 @@ private:
      *
      * @tparam base_type A base class of T (enforced via a requires-clause) the items are cast to
      * @return An identity object whose items are dynamic_cast base-class references of this object's items,
-     *         with the names prefixed by the base-type name and the same limit retained
+     *         with the names prefixed by the base-type name
      */
     template <typename base_type>
         requires std::is_base_of_v<base_type, T>
@@ -260,10 +260,11 @@ private:
         auto const &x_conv = dynamic_cast<base_type const &>(x);
         auto const &y_conv = dynamic_cast<base_type const &>(y);
 
-        const std::string x_name_conv = "(" + BASENAME(base_type) + ")" + x_name;
-        const std::string y_name_conv = "(" + BASENAME(base_type) + ")" + y_name;
+        std::string const base_name = boost::core::demangle(typeid(base_type).name());
+        std::string const x_name_conv = "(" + base_name + ")" + x_name;
+        std::string const y_name_conv = "(" + base_name + ")" + y_name;
 
-        return identity<base_type>(x_conv, y_conv, x_name_conv, y_name_conv, limit);
+        return identity<base_type>(x_conv, y_conv, x_name_conv, y_name_conv);
     }
 };
 
@@ -287,15 +288,14 @@ std::ostream &operator<<(std::ostream &s, identity<T> const &i) {
 /******************************************************************************/
 /**
  * @brief Returns an identity object. The function is needed as automatic type
- * deduction does not work for structs / classes. We assume a central default
- * value for the maximum allowed difference for "similar" floating point values.
+ * deduction does not work for structs / classes.
  *
  * @tparam T The type of the two items to be compared
  * @param x_var The first item to be compared
  * @param y_var The second item to be compared
  * @param x_name_var A human-readable name for the first item
  * @param y_name_var A human-readable name for the second item
- * @return An identity object wrapping the two items, their names and the default similarity difference
+ * @return An identity object wrapping the two items and their names
  */
 template <typename T>
 identity<T> getIdentity(
@@ -304,13 +304,7 @@ identity<T> getIdentity(
     std::string const &x_name_var,
     std::string const &y_name_var
 ) {
-    return identity<T>(
-        x_var,
-        y_var,
-        x_name_var,
-        y_name_var,
-        Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
-    );
+    return identity<T>(x_var, y_var, x_name_var, y_name_var);
 }
 
 /******************************************************************************/
@@ -330,7 +324,7 @@ identity<T> getIdentity(
  * @param y_var The second item to be compared (cast to base_type const &)
  * @param x_name_var A human-readable name for the first item
  * @param y_name_var A human-readable name for the second item
- * @return An identity object holding the base-class views of the two items and the default similarity difference
+ * @return An identity object holding the base-class views of the two items
  */
 template <typename T, typename base_type>
 identity<base_type> getBaseIdentity(
@@ -342,13 +336,7 @@ identity<base_type> getBaseIdentity(
     auto const &x_var_base = dynamic_cast<const base_type &>(x_var);
     auto const &y_var_base = dynamic_cast<const base_type &>(y_var);
 
-    return identity<base_type>(
-        x_var_base,
-        y_var_base,
-        x_name_var,
-        y_name_var,
-        Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
-    );
+    return identity<base_type>(x_var_base, y_var_base, x_name_var, y_name_var);
 }
 
 /******************************************************************************/
@@ -380,9 +368,10 @@ concept GemPointer =
 
 /**
  * Satisfied by a container or other sized range that compare() takes element by element: a vector,
- * deque, list, set, map or array, also nested. Strings (all types with a traits_type) are compared as
- * values, and an object with the Gemfony common interface through its own compare(), even if it is a
- * range as well.
+ * deque, list, set, map or array, also nested. An unordered container (a type with a hasher) is
+ * compared with its own ==, which does not depend on the order of its elements. Strings (all types
+ * with a traits_type) are compared as values, and an object with the Gemfony common interface through
+ * its own compare(), even if it is a range as well.
  *
  * @tparam T The type checked
  */
@@ -405,9 +394,10 @@ concept ComparedByValue = !std::floating_point<T> && !gemfony_common_interface<T
 /**
  * @brief Tells whether two values meet an expectation. The one place of the floating point tolerance.
  *
- * Floating point values meet FP_SIMILARITY if they deviate by less than the limit. All other cases
- * compare with == (EQUALITY, and FP_SIMILARITY for values that are not floating point) or != (INEQUALITY;
- * floating point values too are then compared exactly).
+ * Floating point values meet FP_SIMILARITY if they are equal or deviate by less than the limit. All
+ * other cases compare with == (EQUALITY, and FP_SIMILARITY for values that are not floating point) or
+ * != (INEQUALITY; floating point values too are then compared exactly). compare() checks the equality
+ * of object states, so two floating point NaN are equal here, and a NaN differs from every number.
  *
  * @tparam T The type of the two values
  * @param x The first value
@@ -420,8 +410,14 @@ template <typename T>
 [[nodiscard]] bool
 valuesMeet(T const &x, T const &y, Gem::Common::expectation e, [[maybe_unused]] double limit) {
     if constexpr(std::floating_point<T>) {
-        if(Gem::Common::expectation::FP_SIMILARITY == e) {
-            return std::abs(x - y) < Gem::Common::narrow<T>(limit);
+        bool const equal = x == y || (std::isnan(x) && std::isnan(y));
+        switch(e) {
+        case Gem::Common::expectation::FP_SIMILARITY:
+            return equal || std::abs(x - y) < Gem::Common::narrow<T>(limit);
+        case Gem::Common::expectation::EQUALITY:
+            return equal;
+        case Gem::Common::expectation::INEQUALITY:
+            return not equal;
         }
     }
     if(Gem::Common::expectation::INEQUALITY == e) {
@@ -452,10 +448,14 @@ template <typename printable_type>
 ) {
     std::ostringstream error;
     error << "Expectation of " << expectation_str << " was violated for parameters " << '\n'
-          << "[" << '\n'
-          << x_name << " = " << x << '\n'
-          << y_name << " = " << y << '\n'
-          << "]" << '\n';
+          << "[" << '\n';
+    if constexpr(requires(std::ostream &out) { out << x; }) {
+        error << x_name << " = " << x << '\n' << y_name << " = " << y << '\n';
+    }
+    else { // e.g. the std::pair elements of a map
+        error << x_name << " and " << y_name << " (values that cannot be printed)" << '\n';
+    }
+    error << "]" << '\n';
     return error.str();
 }
 
@@ -753,8 +753,10 @@ template <typename T>
  * violation, its names indexed by the position (x_name[i]). INEQUALITY is met if the sizes differ or
  * one pair of elements differs. Elements are compared by their kind: floating point values with the
  * limit, objects with the Gemfony common interface and pointers to them through their compare(),
- * nested ranges by this function, all others as values. The function will throw a
- * g_expectation_violation exception if the expectation was violated.
+ * nested ranges by this function, all others as values. An unordered container (std::unordered_set,
+ * std::unordered_map and their multi forms) has no order of its own: two equal ones may iterate in
+ * different orders, so it is compared with its == (exactly, also under FP_SIMILARITY). The function
+ * will throw a g_expectation_violation exception if the expectation was violated.
  *
  * @tparam range_type The type of the two ranges
  * @param x The first range to be compared
@@ -782,40 +784,51 @@ void compare(
                x_name + " and " + y_name;
     };
 
-    if(Gem::Common::expectation::INEQUALITY == e) {
-        auto const differ = [limit](auto const &xy) {
-            return elementsMeet<element_type>(
-                std::get<0>(xy),
-                std::get<1>(xy),
-                Gem::Common::expectation::INEQUALITY,
-                limit
+    if constexpr(requires { typename range_type::hasher; }) {
+        bool const equal = x == y;
+        if(equal == (Gem::Common::expectation::INEQUALITY == e)) {
+            throw g_expectation_violation(
+                violation() + (equal ? ": they do not differ\n" : ": they differ\n")
             );
-        };
-        if(x_size != y_size || std::ranges::any_of(std::views::zip(x, y), differ)) {
-            return;
         }
-        throw g_expectation_violation(violation() + ": they do not differ\n");
     }
+    else {
+        if(Gem::Common::expectation::INEQUALITY == e) {
+            auto const differ = [limit](auto const &xy) {
+                return elementsMeet<element_type>(
+                    std::get<0>(xy),
+                    std::get<1>(xy),
+                    Gem::Common::expectation::INEQUALITY,
+                    limit
+                );
+            };
+            if(x_size != y_size || std::ranges::any_of(std::views::zip(x, y), differ)) {
+                return;
+            }
+            throw g_expectation_violation(violation() + ": they do not differ\n");
+        }
 
-    if(x_size != y_size) {
-        throw g_expectation_violation(
-            violation() + ": different sizes " + x_name + ".size() = " + std::to_string(x_size) +
-            ", " + y_name + ".size() = " + std::to_string(y_size) + '\n'
-        );
-    }
-
-    for(auto const &[index, xy] : std::views::zip(x, y) | std::views::enumerate) {
-        element_type const &x_element = std::get<0>(xy);
-        element_type const &y_element = std::get<1>(xy);
-        if(not elementsMeet(x_element, y_element, e, limit)) {
-            compare(
-                x_element,
-                y_element,
-                x_name + "[" + std::to_string(index) + "]",
-                y_name + "[" + std::to_string(index) + "]",
-                e,
-                limit
+        if(x_size != y_size) {
+            throw g_expectation_violation(
+                violation() + ": different sizes " + x_name +
+                ".size() = " + std::to_string(x_size) + ", " + y_name +
+                ".size() = " + std::to_string(y_size) + '\n'
             );
+        }
+
+        for(auto const &[index, xy] : std::views::zip(x, y) | std::views::enumerate) {
+            element_type const &x_element = std::get<0>(xy);
+            element_type const &y_element = std::get<1>(xy);
+            if(not elementsMeet(x_element, y_element, e, limit)) {
+                compare(
+                    x_element,
+                    y_element,
+                    x_name + "[" + std::to_string(index) + "]",
+                    y_name + "[" + std::to_string(index) + "]",
+                    e,
+                    limit
+                );
+            }
         }
     }
 }
@@ -824,20 +837,21 @@ void compare(
 /**
  * @brief This function checks whether two types fulfill a given expectation.
  *
- * It increments the token's test counter, delegates to the appropriate compare() overload using the
- * items, names and limit held by the identity struct and the expectation taken from the token, and
- * records either success or a registered error message on the token. Non-expectation exceptions are
- * re-thrown as a gem_exception.
+ * It increments the token's test counter, delegates to the appropriate compare() overload using
+ * the items and names held by the identity struct and the expectation and limit taken from the
+ * token, and records either success or a registered error message on the token. Non-expectation
+ * exceptions are re-thrown as a gem_exception.
  *
  * @tparam T The type of the two items wrapped by the identity struct
- * @param data The identity struct holding the two items, their names and the comparison limit
- * @param token The token holding the expectation and accumulating test / success counts and error messages
+ * @param data The identity struct holding the two items and their names
+ * @param token The token holding the expectation and the limit, accumulating test / success
+ * counts and error messages
  */
 template <typename T>
 void compare_t(identity<T> const &data, GToken &token) {
     try {
         token.incrTestCounter();
-        compare(data.x, data.y, data.x_name, data.y_name, token.getExpectation(), data.limit);
+        compare(data.x, data.y, data.x_name, data.y_name, token.getExpectation(), token.getLimit());
         token.incrSuccessCounter();
     }
     catch(const g_expectation_violation &g) {
@@ -858,9 +872,10 @@ void compare_t(identity<T> const &data, GToken &token) {
 /**
  * @brief This function checks whether two base types fulfill a given expectation.
  *
- * It forces the use of base_type's own compare_() member (so only the base-class slice is compared),
- * incrementing the token's test counter and recording success or a registered error message on the
- * token. Non-expectation exceptions are re-thrown as a gem_exception.
+ * It forces the use of base_type's own compare_() member (so only the base-class slice is
+ * compared) under the token's expectation and limit, incrementing the token's test counter and
+ * recording success or a registered error message on the token. Non-expectation exceptions are
+ * re-thrown as a gem_exception.
  *
  * @tparam base_type The base class whose compare_() member is invoked for the comparison
  * @param x The first object whose base_type slice is compared
@@ -874,7 +889,7 @@ void compare_base_t(base_type const &x, base_type const &y, GToken &token) {
         x.base_type::compare_( // Force usage of the base-type compare_ function
             y
             , token.getExpectation()
-            , Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
+            , token.getLimit()
         );
         token.incrSuccessCounter();
     }

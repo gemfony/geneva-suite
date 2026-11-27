@@ -327,13 +327,13 @@ private:
      * @brief Compares this object to another of the same hierarchy against an expectation.
      * @param cp The other object, passed as a hierarchy-root reference
      * @param e The expectation (equality / inequality) the comparison should fulfil
-     * @param limit The tolerance for floating-point comparisons (unused: per-member
-     *              tolerance is applied inside g_compare_members / compare_base_t)
+     * @param limit The tolerance for floating-point similarity, carried by the token to the
+     *              comparison of the parent slice and of every member
      */
     void compare_(
         Root const &cp,
         Gem::Common::expectation const &e,
-        [[maybe_unused]] double const &limit
+        double const &limit
     ) const override {
         static_assert(
             ReflectiveInterfaceManaged<derived_type>,
@@ -345,7 +345,7 @@ private:
         auto const *p_load =
             Gem::Common::g_convert_and_compare(cp, static_cast<derived_type const *>(this));
 
-        GToken token(std::string(derived_type::class_name), e);
+        GToken token(std::string(derived_type::class_name), e, limit);
 
         // Compare the parent slice (for the root this is the GCommonInterfaceT base's same-type overload) ...
         Gem::Common::compare_base_t<parent_type>(*this, *p_load, token);

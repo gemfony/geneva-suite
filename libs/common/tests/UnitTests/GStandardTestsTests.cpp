@@ -36,6 +36,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -45,6 +46,8 @@
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GMemberReflectionT.hpp"
+#include "common/GReflectiveInterfaceT.hpp"
 #include "common/testing/GStandardTests.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE
 
@@ -80,12 +83,8 @@ protected:
         v_ = cp->v_;
     }
 
-    void compare_(
-        const Root &cp,
-        const expectation &e,
-        [[maybe_unused]] const double &limit
-    ) const override {
-        GToken token("Root", e);
+    void compare_(const Root &cp, const expectation &e, const double &limit) const override {
+        GToken token("Root", e, limit);
         compare_base_t<GCommonInterfaceT<Root>>(*this, cp, token);
         compare_t(getIdentity(v_, cp.v_, "v_", "cp.v_"), token);
         token.evaluate();
@@ -93,7 +92,9 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Root(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Root(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -127,7 +128,7 @@ protected:
 
     void compare_(const Root &cp, const expectation &e, const double &limit) const override {
         Root::compare_(cp, e, limit);
-        GToken token("Derived", e);
+        GToken token("Derived", e, limit);
         compare_t(
             getIdentity(label_, dynamic_cast<const Derived &>(cp).label_, "label_", "cp.label_"),
             token
@@ -137,7 +138,9 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Derived(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Derived(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -159,19 +162,18 @@ protected:
     void load_(const Unchangeable *cp) override {
         ptrDifferenceCheck(cp, this);
     }
-    void compare_(
-        const Unchangeable &cp,
-        const expectation &e,
-        [[maybe_unused]] const double &limit
-    ) const override {
-        GToken token("Unchangeable", e);
+    void
+    compare_(const Unchangeable &cp, const expectation &e, const double &limit) const override {
+        GToken token("Unchangeable", e, limit);
         compare_base_t<GCommonInterfaceT<Unchangeable>>(*this, cp, token);
         token.evaluate();
     }
 
 private:
     [[nodiscard]] Unchangeable *clone_() const override {
-        return new Unchangeable(*this); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Unchangeable(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
     }
 
     friend struct Gem::Weft::access;
@@ -185,6 +187,82 @@ protected:
     bool modifyForTest() {
         return true;
     }
+};
+
+/******************************************************************************/
+// Types with a cache outside their compared members, used by useForTest(): Cached renews it whenever
+// its members are replaced; StaleCache forgets to in load_(), as GFactoryT::load() once forgot its
+// parse cache.
+
+template <bool RENEWS_CACHE>
+class CacheHolder : public GCommonInterfaceT<CacheHolder<RENEWS_CACHE>> {
+public:
+    /** @brief Changes this object for the standard tests @return true */
+    bool modifyForTest() {
+        ++v_;
+        cache_.reset();
+        return true;
+    }
+
+    /** @brief Reads the cache, which is filled from v_ on first use @return The cached value */
+    int useForTest() {
+        if(not cache_) {
+            cache_ = 10 * v_;
+        }
+        return *cache_;
+    }
+
+protected:
+    void load_(const CacheHolder *cp) override {
+        ptrDifferenceCheck(cp, this);
+        v_ = cp->v_;
+        if constexpr(RENEWS_CACHE) {
+            cache_.reset();
+        }
+    }
+
+    void compare_(const CacheHolder &cp, const expectation &e, const double &limit) const override {
+        GToken token("CacheHolder", e, limit);
+        compare_base_t<GCommonInterfaceT<CacheHolder>>(*this, cp, token);
+        compare_t(getIdentity(v_, cp.v_, "v_", "cp.v_"), token);
+        token.evaluate();
+    }
+
+private:
+    [[nodiscard]] CacheHolder *clone_() const override {
+        return new CacheHolder(
+            *this
+        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+    }
+
+    friend struct Gem::Weft::access;
+    template <class archive_type>
+    void serialize(archive_type &ar, [[maybe_unused]] unsigned int version) {
+        Gem::Common::archive_named(ar, "v_", v_);
+    }
+
+    int v_ = 0;
+    std::optional<int> cache_; ///< transient: derived from v_ on first use
+};
+
+using Cached = CacheHolder<true>;
+using StaleCache = CacheHolder<false>;
+
+/******************************************************************************/
+// A reflective type with a floating point member, for the limit of GEqualityPrinter
+
+class WithDouble : public GReflectiveInterfaceT<WithDouble, GCommonInterfaceT<WithDouble>> {
+    friend struct Gem::Common::GReflectiveInterfaceAccess;
+
+    template <typename self_type>
+    auto localMembers_(this self_type &self) {
+        return std::make_tuple(make_member("d_", self.d_));
+    }
+
+public:
+    static constexpr std::string_view class_name = "WithDouble";
+
+    double d_ = 1.0;
 };
 
 /******************************************************************************/
@@ -211,6 +289,7 @@ struct ThrowsOther {
 GEM_REGISTER_ARCHIVABLE(Root)         // NOLINT
 GEM_REGISTER_ARCHIVABLE(Derived)      // NOLINT
 GEM_REGISTER_ARCHIVABLE(Unchangeable) // NOLINT
+GEM_REGISTER_ARCHIVABLE(Cached)       // NOLINT
 
 /******************************************************************************/
 
@@ -285,3 +364,110 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+
+TEST_CASE(
+    "GEqualityPrinter: isSimilar() applies the limit it was made with",
+    "[common][standard-tests][limit]"
+) {
+    WithDouble const x;
+    WithDouble y;
+    y.d_ += 1e-3;
+    GEqualityPrinter const wide("wide", 1e-2, not CE_WITH_MESSAGES);
+    GEqualityPrinter const narrow_printer("narrow", 1e-6, not CE_WITH_MESSAGES);
+    CHECK(wide.isSimilar(x, y));
+    CHECK_FALSE(narrow_printer.isSimilar(x, y));
+    CHECK_FALSE(wide.isEqual(x, y));
+}
+
+/******************************************************************************/
+
+TEST_CASE(
+    "GStandardTests: useForTest() is found and a copy is used after each step",
+    "[common][standard-tests][use]"
+) {
+    STATIC_REQUIRE(UsableForTest<Cached>);
+    STATIC_REQUIRE_FALSE(UsableForTest<Root>);
+    checkRoundTrips<Cached>();
+
+    Root r;
+    useForTestIfAvailable(r); // a type without useForTest() is left alone
+    CHECK(r.value() == 0);
+    Root r_copy(r);
+    CHECK(usesAgree(r_copy, r));
+}
+
+TEST_CASE(
+    "GStandardTests: a cache that a load forgot to renew is found by its use",
+    "[common][standard-tests][use]"
+) {
+    StaleCache original;
+    original.modifyForTest();
+    StaleCache stale;
+    useForTestIfAvailable(stale); // fills the cache from the old value
+    stale.load(original);
+    CHECK(GEqualityPrinter("stale", CE_DEF_SIMILARITY_DIFFERENCE, not CE_WITH_MESSAGES)
+              .isEqual(stale, original));
+    CHECK_FALSE(usesAgree(stale, original));
+}
+
+/******************************************************************************/
+// The public parts of the standard tests, one by one
+
+namespace {
+
+class PodValues : public GPodContainerT<double> {
+public:
+    explicit PodValues(std::vector<double> const &values) {
+        for(double const v : values) {
+            this->push_back(v);
+        }
+    }
+    ~PodValues() override = default;
+};
+
+} // namespace
+
+TEST_CASE(
+    "GEqualityPrinter: a container is compared with a vector of its values",
+    "[common][standard-tests]"
+) {
+    PodValues const values({1.0, 2.0});
+    GEqualityPrinter const gep("pod", 1e-2, not CE_WITH_MESSAGES);
+    CHECK(gep.isEqual(values, std::vector<double>{1.0, 2.0}));
+    CHECK_FALSE(gep.isEqual(values, std::vector<double>{1.0, 2.0 + 1e-3}));
+    CHECK_FALSE(gep.isEqual(values, std::vector<double>{1.0}));
+    CHECK(gep.isSimilar(values, std::vector<double>{1.0, 2.0 + 1e-3}));
+    CHECK_FALSE(gep.isSimilar(values, std::vector<double>{1.0, 2.1}));
+}
+
+TEST_CASE(
+    "GStandardTests: the steps of the standard tests run one by one",
+    "[common][standard-tests]"
+) {
+    STATIC_REQUIRE(std::same_as<category_root_t<Derived>, Root>);
+    STATIC_REQUIRE(std::same_as<category_root_t<Root>, Root>);
+
+    std::shared_ptr<Derived> const changed = makeChangedForTest<Derived>();
+    CHECK(changed->value() == 1);
+    CHECK(changed->label() == "derived_m");
+    std::shared_ptr<Cached> const used = makeUsedTarget<Cached>();
+    CHECK(used->useForTest() == 0);
+
+    GEqualityPrinter const gep("steps", CE_DEF_SIMILARITY_DIFFERENCE, CE_WITH_MESSAGES);
+    std::shared_ptr<Root> const copy = std::make_shared<Derived>(*changed);
+    std::shared_ptr<Root> const original = std::make_shared<Derived>(*changed);
+    checkCopyOf(gep, copy, original);
+
+    testCopyConstruction<Derived>(gep);
+    testCloneToCategoryRoot<Derived>(gep);
+    testCloneToTarget<Derived>(gep);
+    testLoadThroughPointer<Derived>(gep);
+    testLoadThroughReference<Derived>(gep);
+    testCopyAssignment<Root>(gep);
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        testOwnRoundTrip<Derived>(gep, mode);
+        testHelperRoundTrip<Derived>(gep, mode);
+        testOwnRoundTrip<Unchangeable>(gep, mode); // skipped, with a notice
+    }
+    reportSkippedRoundTrip<Unchangeable>("Internal", serializationMode::GEM_JSON);
+}

@@ -170,7 +170,7 @@ struct PodStorage {
  * via the clone()/load() protocol required by the Gemfony common interface.
  *
  * @tparam T         The element type. Must expose the Gemfony common interface
- *                   (detected via has_gemfony_common_interface<T>::value).
+ *                   (the concept gemfony_common_interface<T>).
  * @tparam container_type The underlying sequence container. Defaults to
  *                   std::vector<std::shared_ptr<T>>.
  */
@@ -1582,12 +1582,9 @@ public:
      * @param limit The tolerance used for floating-point similarity checks.
      * @throws g_expectation_violation when the comparison result violates @p e.
      */
-    virtual void compare_base(
-        const GContainerT &cp,
-        Gem::Common::expectation e,
-        [[maybe_unused]] double limit
-    ) const {
-        Gem::Common::GToken token("GContainerT", e);
+    virtual void
+    compare_base(const GContainerT &cp, Gem::Common::expectation e, double limit) const {
+        Gem::Common::GToken token("GContainerT", e, limit);
         Gem::Common::compare_t(
             Gem::Common::getIdentity(
                 this->data_cnt_,
