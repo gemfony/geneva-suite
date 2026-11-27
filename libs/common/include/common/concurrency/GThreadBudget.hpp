@@ -65,8 +65,8 @@ enum class ThreadElasticity : std::uint8_t {
  * A process creates threads from many independent, mutually-unaware sources
  * (the libraries it links and its own code); this is the one place that sums them.
  *
- * The budget does ACCOUNTING AND ADVICE, not scheduling: reserve() never blocks,
- * never throws and never refuses a request. Every reservation is granted in
+ * The budget does ACCOUNTING AND ADVICE, not scheduling: reserve() never blocks
+ * and never refuses a request (it allocates its bookkeeping, so it may throw std::bad_alloc). Every reservation is granted in
  * full and the budget's only behavioural surface is a rate-limited warning,
  * naming the largest reservations, when the reserved total crosses a multiple
  * of the hardware ceiling (previously oversubscription was silent). The
@@ -157,7 +157,7 @@ public:
     /**
      * @brief Reserves threads for a named source
      *
-     * Advisory: never blocks, never throws, never refuses. The grant always
+     * Advisory: never blocks, never refuses (may throw std::bad_alloc). The grant always
      * equals max(1, desired) regardless of elasticity -- a pool always gets
      * at least one worker. Crossing the warning threshold (ceiling x factor)
      * emits one rate-limited warning naming the largest reservations.
@@ -212,20 +212,20 @@ public:
     /***************************************************************************/
     /** @brief The current sum of reserved threads across all live reservations
      *  @return The reserved total */
-    [[nodiscard]] unsigned int reserved() const noexcept {
+    [[nodiscard]] unsigned int reserved() const {
         std::scoped_lock const lk(mutex_);
         return reserved_;
     }
 
     /** @brief The soft ceiling the budget compares against
      *  @return The number of hardware threads */
-    [[nodiscard]] unsigned int ceiling() const noexcept {
+    [[nodiscard]] unsigned int ceiling() const {
         return getNHardwareThreads();
     }
 
     /** @brief Whether the reserved total exceeds the hardware ceiling
      *  @return true if more threads are reserved than the hardware provides */
-    [[nodiscard]] bool oversubscribed() const noexcept {
+    [[nodiscard]] bool oversubscribed() const {
         return reserved() > ceiling();
     }
 
@@ -246,7 +246,8 @@ private:
             elasticity; ///< Whether the pool could run smaller (recorded for diagnostics)
     };
 
-    /** @brief Returns a reservation to the budget (called by Reservation only)
+    /** @brief Returns a reservation to the budget (called by Reservation only). It does not throw:
+     *  reserve() asked ceiling() first, which returns its cached value from then on.
      *  @param key The registry key handed out by reserve() */
     void release_(std::size_t key) noexcept {
         std::scoped_lock const lk(mutex_);
@@ -262,7 +263,7 @@ private:
 
     /** @brief The reserved total above which the warning fires (mutex_ must be held or irrelevant)
      *  @return ceiling() x OVERSUBSCRIPTION_FACTOR, as an integer count */
-    [[nodiscard]] unsigned int warnThreshold_() const noexcept {
+    [[nodiscard]] unsigned int warnThreshold_() const {
         return static_cast<unsigned int>(static_cast<double>(ceiling()) * OVERSUBSCRIPTION_FACTOR);
     }
 
