@@ -46,7 +46,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
@@ -302,7 +302,7 @@ void GWebsocketListener::stop() {
         return;
     }
     // The latch is shared with the handler: this call may give up waiting before it has run.
-    auto closed = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    auto closed = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(accept_strand_, [this, closed] {
         this->closeAcceptor_();
         closed->count_down();

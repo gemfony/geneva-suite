@@ -34,7 +34,7 @@
 
 // Geneva headers go here
 #include "GFillBackend.hpp" // library-private engine selection (GPU/SIMD/scalar)
-#include "common/concurrency/GSPSCStagingRingT.hpp" // the shared lock-free staging ring
+#include "common/concurrency/GSPMCStagingRingT.hpp" // the shared lock-free staging ring
 #include "hap/GRandomFactory.hpp"                   // for randomFactory() / getSeed()
 
 // Standard headers go here
@@ -46,7 +46,7 @@ namespace Gem::Hap::detail {
 /******************************************************************************/
 /**
  * @brief The STAGED / QUARANTINE random sources' bulk-filled rotating pool: a Hap-specific binding of
- * the shared lock-free Gem::Common::Concurrency::GSPSCStagingRingT to the Hap fill backend.
+ * the shared lock-free Gem::Common::Concurrency::GSPMCStagingRingT to the Hap fill backend.
  *
  * The generic ring (the rotating pools, the atomic claim cursor, the background producer and the benign
  * refill-vs-stale-reader race analysed there) lives in common; this thin wrapper only owns the
@@ -93,7 +93,7 @@ public:
 private:
     GFillBackend
         backend_; ///< the shared bulk source (chosen once); MUST outlive ring_ (declared first)
-    Gem::Common::Concurrency::GSPSCStagingRingT<CHUNK_WORDS, CHUNKS_PER_POOL, N_POOLS> ring_;
+    Gem::Common::Concurrency::GSPMCStagingRingT<CHUNK_WORDS, CHUNKS_PER_POOL, N_POOLS> ring_;
 };
 
 /******************************************************************************/

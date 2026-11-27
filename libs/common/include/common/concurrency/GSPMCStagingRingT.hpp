@@ -167,17 +167,17 @@ namespace Gem::Common::Concurrency {
  * @tparam N_POOLS         Number of rotating pools (@f$N@f$; must be @f$\ge 3@f$ for the quarantine)
  */
 template <std::size_t CHUNK_WORDS, std::size_t CHUNKS_PER_POOL = 64, int N_POOLS = 4>
-class GSPSCStagingRingT {
+class GSPMCStagingRingT {
     static constexpr std::size_t PoolWords = CHUNK_WORDS * CHUNKS_PER_POOL;
     static_assert(
         N_POOLS >= 3,
-        "GSPSCStagingRingT needs >= 3 pools for the quarantine separation."
+        "GSPMCStagingRingT needs >= 3 pools for the quarantine separation."
     );
 
     // Aligned 64-bit access must be tear-free for the benign old-or-new read to hold.
     static_assert(
         std::atomic_ref<std::uint64_t>::is_always_lock_free,
-        "GSPSCStagingRingT requires lock-free aligned 64-bit access (its benign race relies "
+        "GSPMCStagingRingT requires lock-free aligned 64-bit access (its benign race relies "
         "on tear-free old-or-new reads); this platform does not provide it."
     );
 
@@ -191,7 +191,7 @@ public:
 
     /** @brief Builds the ring, fills the initial @c N_POOLS generations and starts the producer thread.
      *  @param fill The bulk-fill callback that populates one pool's worth of words. */
-    explicit GSPSCStagingRingT(fill_function fill)
+    explicit GSPMCStagingRingT(fill_function fill)
       : fill_(std::move(fill))
       , pools_(static_cast<std::size_t>(N_POOLS)) {
         for(auto &pool : pools_) {
@@ -201,7 +201,7 @@ public:
             GEM_ANNOTATE_BENIGN_RACE(
                 pool.data(),
                 PoolWords * sizeof(word_type),
-                "GSPSCStagingRingT: benign refill-vs-stale-reader race (aligned 64-bit)"
+                "GSPMCStagingRingT: benign refill-vs-stale-reader race (aligned 64-bit)"
             );
         }
         // Fill the initial N_POOLS generations (pool k holds generation k).
@@ -212,17 +212,17 @@ public:
         producer_ = std::thread([this]() { this->produce(); });
     }
 
-    ~GSPSCStagingRingT() {
+    ~GSPMCStagingRingT() {
         stop_.store(true, std::memory_order_relaxed);
         if(producer_.joinable()) {
             producer_.join();
         }
     }
 
-    GSPSCStagingRingT(const GSPSCStagingRingT &) = delete;
-    GSPSCStagingRingT(GSPSCStagingRingT &&) = delete;
-    GSPSCStagingRingT &operator=(const GSPSCStagingRingT &) = delete;
-    GSPSCStagingRingT &operator=(GSPSCStagingRingT &&) = delete;
+    GSPMCStagingRingT(const GSPMCStagingRingT &) = delete;
+    GSPMCStagingRingT(GSPMCStagingRingT &&) = delete;
+    GSPMCStagingRingT &operator=(const GSPMCStagingRingT &) = delete;
+    GSPMCStagingRingT &operator=(GSPMCStagingRingT &&) = delete;
 
     /**
      * @brief Claims the next chunk and returns a pointer to its span for in-place reading.

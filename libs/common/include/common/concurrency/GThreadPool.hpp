@@ -59,7 +59,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GBlockingMPMCQueueT.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 
@@ -248,7 +248,7 @@ public:
      * @brief Runs @p per_item over every element of @p items on the pool and blocks until all have
      * finished (a bulk fork/join).
      *
-     * One task per element is submitted (fire-and-forget), and a private @c GCompletionLatchT sized to the
+     * One task per element is submitted (fire-and-forget), and a private @c GCompletionLatch sized to the
      * batch is used to wait for exactly this batch -- not the whole pool -- so it is safe when the pool is
      * shared (e.g. several algorithms submitting concurrently). @p per_item is invoked CONCURRENTLY, once
      * per element, so it must be safe to run on distinct elements in parallel (evaluating distinct work
@@ -273,7 +273,7 @@ public:
         if(items.empty()) {
             return;
         }
-        auto latch = std::make_shared<GCompletionLatchT>(items.size());
+        auto latch = std::make_shared<GCompletionLatch>(items.size());
         std::size_t n_refused = 0;
         std::size_t i = 0;
         try {
@@ -283,9 +283,9 @@ public:
                 auto task = [elem, &per_item, latch]() {
                     // Counted down on every way out of the task -- also if the report below
                     // throws -- so that the join never hangs
-                    const std::unique_ptr<GCompletionLatchT, void (*)(GCompletionLatchT *)> arrival(
+                    const std::unique_ptr<GCompletionLatch, void (*)(GCompletionLatch *)> arrival(
                         latch.get(),
-                        [](GCompletionLatchT *l) { l->count_down(); }
+                        [](GCompletionLatch *l) { l->count_down(); }
                     );
                     try {
                         per_item(*elem);

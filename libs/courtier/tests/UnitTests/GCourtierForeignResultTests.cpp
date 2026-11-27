@@ -54,7 +54,7 @@
 #include <unistd.h>
 
 #include "GDemoProcessingContainers.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
 #include "courtier/transport/GWebsocketTransportT.hpp"
@@ -190,7 +190,7 @@ TEST_CASE(
     // The client evaluates in this process; it counts per item, and its first evaluation waits
     std::mutex mutex;
     std::map<std::size_t, int> evaluated;
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     auto client = std::make_shared<Gem::Courtier::Consumers::GWebsocketClientT<GFaultyContainer>>(
         Gem::Courtier::GWebsocketConsumerConfig{
             .ip = "127.0.0.1",

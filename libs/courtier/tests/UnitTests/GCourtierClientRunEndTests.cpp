@@ -42,7 +42,7 @@
 #include <vector>
 
 #include "GDemoProcessingContainers.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
 #include "courtier/consumers/GWebsocketConsumerT.hpp"
@@ -51,7 +51,7 @@
 
 #include "GInProcessTestSupport.hpp"
 
-using Gem::Common::Concurrency::GCompletionLatchT;
+using Gem::Common::Concurrency::GCompletionLatch;
 using Gem::Courtier::GFaultyContainer;
 using Gem::Courtier::Tests::eventually;
 using namespace std::chrono_literals;
@@ -126,9 +126,9 @@ TEST_CASE(
     consumer->startServer();
     config.port = consumer->getPort();
     auto client = std::make_shared<HaltingClient>(config);
-    // Shared with the processor, which may run after this test has left (see GCompletionLatchT)
-    auto arrived = std::make_shared<GCompletionLatchT>(1); // the evaluation has begun
-    auto gate = std::make_shared<GCompletionLatchT>(1);    // the test lets it end
+    // Shared with the processor, which may run after this test has left (see GCompletionLatch)
+    auto arrived = std::make_shared<GCompletionLatch>(1); // the evaluation has begun
+    auto gate = std::make_shared<GCompletionLatch>(1);    // the test lets it end
     client->setItemProcessor([arrived, gate](GFaultyContainer &item) {
         arrived->count_down();
         gate->wait_for(PATIENCE);

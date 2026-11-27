@@ -66,7 +66,7 @@
 #ifdef GCOURTIER_MQTT_BROKER_DIR
 #include "GMqttTestSupport.hpp"
 #endif
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/transport/GIoContext.hpp"
 #include "courtier/transport/GMPIPeerTransport.hpp"
@@ -317,9 +317,9 @@ private:
 
 /** @brief Holds the strand of @p executor until the latch it returns is counted down
  *  @param executor A strand @return The latch */
-std::shared_ptr<Gem::Common::Concurrency::GCompletionLatchT>
+std::shared_ptr<Gem::Common::Concurrency::GCompletionLatch>
 holdStrand(const boost::asio::any_io_executor &executor) {
-    auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(executor, [held = release]() { held->wait(); });
     return release;
 }
@@ -328,7 +328,7 @@ holdStrand(const boost::asio::any_io_executor &executor) {
  *  run (a strand runs its handlers in the order they were posted)
  *  @param executor A strand @return Whether they ran in time */
 bool flushed(const boost::asio::any_io_executor &executor) {
-    const auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(executor, [done] { done->count_down(); });
     return done->wait_for(PATIENCE);
 }
@@ -688,7 +688,7 @@ TEST_CASE("Peer rules (in-process): rule 4 -- ownership", "[courtier][peer]") {
 
         CHECK(eventually([&] { return role_b->events().size() == 1; }));
         // The context still runs handlers after both ends have opened: it has not run out of work
-        const auto ran = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        const auto ran = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
         boost::asio::post(ctx, [ran] { ran->count_down(); });
         CHECK(ran->wait_for(PATIENCE));
         CHECK_FALSE(returned.load());
@@ -788,7 +788,7 @@ TEST_CASE("Peer rules (in-process): listener and connector", "[courtier][peer]")
 
     // cancel(): done is not called.
     std::atomic<bool> called{false};
-    const auto issued = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto issued = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(strand, [&] {
         connector.connect(strand, [&called](const std::shared_ptr<GPeerI> &, std::string_view) {
             called.store(true);
@@ -830,8 +830,8 @@ TEST_CASE("Peer rules (in-process): an end does not outlive its io context", "[c
     auto [server_end, client_end] =
         GInProcessPeer::makePair(server.executor(), {}, client_ctx->get_executor(), {});
 
-    const auto in_hook = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto in_hook = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     bool hooked = false; // on the server end's strand only
     server_end->setTransmitHook([&in_hook, release, &hooked](std::string_view) {
         if(hooked) {
@@ -948,7 +948,7 @@ TEST_CASE("Peer rules (in-process): a severed connection fails at both ends", "[
 
     // The message is on its way when the connection is cut: the other end's strand is held until
     // the cut has been made, so that it cannot have been delivered before.
-    const auto cut = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto cut = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(b->executor(), [cut] { cut->wait(); });
     boost::asio::post(a->executor(), [role_a, a, &cut] {
         role_a->send("lost");

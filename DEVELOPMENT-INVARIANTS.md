@@ -32,7 +32,7 @@ Geneva's shared concurrency facilities, consolidated in the distinct sub-module
 `par`/`ind`/`oa`, so they stay able to use `common`'s facilities yet are clearly separated and impossible to
 overlook. These include `GBlockingMPMCQueueT`, `GPreallocatedMPMCQueueT`, the `GMPMCQueueT` facade + the
 `MPMCQueue` concept, the thread pool/group, `GContentAddressedStoreT`, `GThreadSafeKeyedStoreT`,
-`GThreadSafeSetT`, `GCompletionLatchT`, `GSPSCStagingRingT` and `GAgingStoreT`. No part of Geneva rolls its
+`GThreadSafeSetT`, `GCompletionLatch`, `GSPMCStagingRingT` and `GAgingStoreT`. No part of Geneva rolls its
 own. If a primitive does not meet a requirement, **improve it or add a variant there** — never a local
 `deque`+`mutex`, bespoke ring, hand-rolled thread pool, or ad-hoc thread-safe map at the use site.
 What is forbidden is building one's own building block -- a queue, a pool, a thread-safe store -- that

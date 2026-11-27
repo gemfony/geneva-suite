@@ -53,7 +53,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
@@ -957,7 +957,7 @@ struct GMqttListener::GJoins {
     bool down = false;    ///< The broker was lost and has not answered again (said once in the log)
     bool decided = false; ///< start() has its answer (strand only)
     std::string why;      ///< Why the client could not subscribe; empty if it did
-    Gem::Common::Concurrency::GCompletionLatchT answered{1}; ///< start()'s answer is there
+    Gem::Common::Concurrency::GCompletionLatch answered{1}; ///< start()'s answer is there
 };
 
 /******************************************************************************/
@@ -1238,7 +1238,7 @@ void GMqttListener::stop() {
     if(not running_.load() || stopped_.exchange(true)) {
         return;
     }
-    auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(strand_, [this, done] {
         joins_->client->cancel(); // it has no will: the broker forgets it
         joins_->retry.cancel();

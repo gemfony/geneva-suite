@@ -507,7 +507,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   deadlock; from a task of another pool they run). `blocking_for_each()` on a pool whose
   destructor runs no longer hangs: it waits for the elements the pool still took and throws,
   naming how many were left out. Likewise `GThreadGroup::join_all()` from a thread of the group
-  and a `GCompletionLatchT::count_down()` beyond the armed count throw `gem_exception` (they
+  and a `GCompletionLatch::count_down()` beyond the armed count throw `gem_exception` (they
   ended in a `std::system_error` and in a latch that never opened again).
 - **`close()` of the preallocated queue keeps every item it accepted.** With
   `QueueBackend::Preallocated`, an item whose `push()` was under way when `close()` came was
@@ -821,6 +821,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **common: `GLogger` is no longer a class template.** The single streamer type it ever
   produced (`GLogStreamer`) is now fixed; code naming `GLogger<GLogStreamer>` drops the
   template arguments. The `glogger` singleton and all streaming behavior are unchanged.
+- **common: two concurrency classes carry names that say what they are** (source-breaking):
+  `GSPSCStagingRingT` is `GSPMCStagingRingT` (one producer, any number of readers; header
+  `common/concurrency/GSPMCStagingRingT.hpp`), and `GCompletionLatchT` is `GCompletionLatch`
+  (no template; header `common/concurrency/GCompletionLatch.hpp`). Their behaviour is unchanged.
 - **common: `GConsoleLogger` offers the severity overloads** `log(message, severity)` and
   `logWithSource(message, extension, severity)` through its own type; they were hidden by its
   overrides of the forms without severity. A user's log target that overrides only some of the

@@ -50,7 +50,7 @@
 #include <boost/system/error_code.hpp>
 
 // Geneva headers go here
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 
 /******************************************************************************/
@@ -368,7 +368,7 @@ private:
      *  @param work What runs */
     template <typename work_type>
     void call_(work_type work) {
-        auto latch = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        auto latch = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
         auto failure = std::make_shared<std::exception_ptr>();
         boost::asio::post(ctx_, [latch, failure, work = std::move(work)]() mutable {
             try {

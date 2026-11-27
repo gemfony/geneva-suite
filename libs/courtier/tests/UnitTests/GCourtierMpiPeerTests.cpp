@@ -63,7 +63,7 @@
 #include "GInProcessTestSupport.hpp"
 #include "GMPIFakeCalls.hpp"
 #include "GPeerTestRole.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -110,7 +110,7 @@ GMPIPeerOptions optionsWith() {
  *  run (an executor with one thread, or a strand, runs them in the order they were posted)
  *  @param executor The executor @return Whether they ran in time */
 bool flushed(const boost::asio::any_io_executor &executor) {
-    const auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto done = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(executor, [done] { done->count_down(); });
     return done->wait_for(PATIENCE);
 }
@@ -579,7 +579,7 @@ TEST_CASE(
     Client two(world, 2);
     Client three(world, 3);
     std::atomic<bool> holding{false};
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     boost::asio::post(master.pool().executor(), [&holding, release] {
         holding.store(true);
         std::ignore = release->wait_for(3 * PATIENCE); // longer than the check waits
@@ -629,7 +629,7 @@ TEST_CASE("MPI transport: the connector", "[courtier][mpi]") {
 
     SECTION("cancel() before the attempt is reported") {
         std::atomic<bool> called{false};
-        const auto held = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        const auto held = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
         boost::asio::post(pool.executor(), [held] { held->wait(); });
         connector->connect(pool.executor(), [&](const std::shared_ptr<GPeerI> &, std::string_view) {
             called.store(true);
@@ -667,7 +667,7 @@ TEST_CASE("MPI transport: a slow session does not hold up the poll", "[courtier]
         role.close(GPeerClose::NORMAL);
     };
     std::atomic<bool> holding{false};
-    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+    const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
     master.start([&holding, release](Role &role, GWirePeerId rank) {
         if(rank == 1) {
             role.whenMessage = [&holding, release](Role &, const std::string &) {

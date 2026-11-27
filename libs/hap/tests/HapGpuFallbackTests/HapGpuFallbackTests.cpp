@@ -50,7 +50,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "common/GLogger.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "hap/GRandomFactory.hpp"
 #include "hap/GRandomT.hpp"
@@ -219,7 +219,7 @@ public:
     GReleaseAfterCheck &operator=(GReleaseAfterCheck const &) = delete;
 
 private:
-    Gem::Common::Concurrency::GCompletionLatchT checked_{1};
+    Gem::Common::Concurrency::GCompletionLatch checked_{1};
     std::thread thread_; ///< declared last: it uses checked_
 };
 

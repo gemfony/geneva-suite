@@ -66,7 +66,7 @@
 #include "common/GGemCommit.hpp"
 #include "common/GLogger.hpp"
 #include "common/GModuleManifest.hpp"
-#include "common/concurrency/GCompletionLatchT.hpp"
+#include "common/concurrency/GCompletionLatch.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GProcessingContainerT.hpp"
 #include "courtier/GSubmissionPolicy.hpp"
@@ -1229,8 +1229,8 @@ namespace {
 
 /** @brief A gate an item processor waits at until the test opens it */
 struct Gate {
-    Gem::Common::Concurrency::GCompletionLatchT opened{1}; ///< Counted down once to open it
-    std::atomic<std::size_t> waiting{0};                   ///< Evaluations that arrived
+    Gem::Common::Concurrency::GCompletionLatch opened{1}; ///< Counted down once to open it
+    std::atomic<std::size_t> waiting{0};                  ///< Evaluations that arrived
 
     /** @brief Opens the gate (once) */
     void open() {
@@ -2096,7 +2096,7 @@ TEST_CASE(
 
         // The strand of the server's end is held: what the client sends waits there, and so does
         // the server's own close, in the order of the calls.
-        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatchT>(1);
+        const auto release = std::make_shared<Gem::Common::Concurrency::GCompletionLatch>(1);
         boost::asio::post(server_end->executor(), [held = release]() { held->wait_for(PATIENCE); });
         if(server_close_out_first) {
             server_end->close(GPeerClose::ERROR); // goes out before the result arrives
