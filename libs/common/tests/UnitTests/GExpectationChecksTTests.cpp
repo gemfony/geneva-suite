@@ -1159,3 +1159,34 @@ TEST_CASE(
     CHECK(message.contains("a[1]"));
     CHECK(message.contains("cannot be printed"));
 }
+
+// ---------------------------------------------------------------------------
+// The conversion of an identity to a base-class identity names the base.
+
+namespace {
+
+struct ViewBase {
+    virtual ~ViewBase() = default;
+    int base_value = 1;
+};
+
+struct ViewDerived : ViewBase {
+    int derived_value = 2;
+};
+
+} // namespace
+
+TEST_CASE(
+    "identity: the conversion to a base names the base and views the same objects",
+    "[common][expectations][identity]"
+) {
+    ViewDerived const a;
+    ViewDerived const b;
+    auto const converted = static_cast<identity<ViewBase>>(getIdentity(a, b, "a", "b"));
+    CHECK(converted.x_name.contains("ViewBase"));
+    CHECK(converted.x_name.ends_with(")a"));
+    CHECK(converted.y_name.contains("ViewBase"));
+    CHECK_FALSE(converted.x_name.contains("base_type"));
+    CHECK(&converted.x == static_cast<ViewBase const *>(&a));
+    CHECK(&converted.y == static_cast<ViewBase const *>(&b));
+}

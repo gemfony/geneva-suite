@@ -50,6 +50,7 @@
 #include <vector>
 
 // Boost headers go here
+#include <boost/core/demangle.hpp>
 
 // Gemfony headers go here
 #include "common/GCommonEnums.hpp"
@@ -178,8 +179,6 @@ std::ostream &operator<<(std::ostream &s, GToken const &g);
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 
-#define BASENAME(B) std::string(#B)
-
 /**
  * This struct facilitates transfer of comparable items to comparators. The expectation and the
  * limit of floating point similarity come from the GToken the items are compared under (see
@@ -261,8 +260,9 @@ private:
         auto const &x_conv = dynamic_cast<base_type const &>(x);
         auto const &y_conv = dynamic_cast<base_type const &>(y);
 
-        const std::string x_name_conv = "(" + BASENAME(base_type) + ")" + x_name;
-        const std::string y_name_conv = "(" + BASENAME(base_type) + ")" + y_name;
+        std::string const base_name = boost::core::demangle(typeid(base_type).name());
+        std::string const x_name_conv = "(" + base_name + ")" + x_name;
+        std::string const y_name_conv = "(" + base_name + ")" + y_name;
 
         return identity<base_type>(x_conv, y_conv, x_name_conv, y_name_conv);
     }
