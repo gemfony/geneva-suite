@@ -345,11 +345,7 @@ num_type checkValueRange(
  */
 template <typename x_type>
 auto getMinMax(const std::vector<x_type> &ext_dat) {
-    if(ext_dat.size() < 2uz) {
-        throw gem_exception(
-            g_error_streamer() << "Got vector of invalid size " << ext_dat.size() << '\n'
-        );
-    }
+    checkThat(ext_dat.size() >= 2uz, "Got vector of invalid size ", ext_dat.size());
 
     auto [min_it, max_it] = std::minmax_element(ext_dat.begin(), ext_dat.end());
     return std::tuple<x_type, x_type>{*min_it, *max_it};
@@ -370,12 +366,7 @@ auto getMinMax(const std::vector<x_type> &ext_dat) {
  */
 template <typename... tuple_element_type>
 auto getMinMax(const std::vector<std::tuple<tuple_element_type...>> &ext_dat) {
-    // Do some error checking
-    if(ext_dat.size() < 2uz) {
-        throw gem_exception(
-            g_error_streamer() << "Got vector of invalid size " << ext_dat.size() << '\n'
-        );
-    }
+    checkThat(ext_dat.size() >= 2uz, "Got vector of invalid size ", ext_dat.size());
 
     // Seed every {min, max} pair from the first entry: {min_0, max_0, min_1, max_1, ...}
     auto result = [&]<std::size_t... INDICES>(std::index_sequence<INDICES...>) {

@@ -825,6 +825,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `GSPSCStagingRingT` is `GSPMCStagingRingT` (one producer, any number of readers; header
   `common/concurrency/GSPMCStagingRingT.hpp`), and `GCompletionLatchT` is `GCompletionLatch`
   (no template; header `common/concurrency/GCompletionLatch.hpp`). Their behaviour is unchanged.
+- **`describeException()` moved from courtier to common** (source-breaking):
+  `Gem::Courtier::describeException(std::exception_ptr)` is `Gem::Common::describeException()`
+  in `common/GExceptions.hpp`, so that every library can say what an exception says; its header
+  `courtier/GCourtierHelperFunctions.hpp`, which held nothing else, is gone. Its behaviour is
+  unchanged.
 - **common: `GConsoleLogger` offers the severity overloads** `log(message, severity)` and
   `logWithSource(message, extension, severity)` through its own type; they were hidden by its
   overrides of the forms without severity. A user's log target that overrides only some of the

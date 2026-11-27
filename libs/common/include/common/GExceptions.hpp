@@ -44,6 +44,7 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
+#include <exception>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -87,6 +88,24 @@ class g_expectation_violation : public gem_exception {
 public:
     using gem_exception::gem_exception;
 };
+
+/******************************************************************************/
+////////////////////////////////////////////////////////////////////////////////
+/******************************************************************************/
+
+namespace Gem::Common {
+
+/******************************************************************************/
+/**
+ * @brief Says what an exception says, for a log or an error description: the what() of a
+ * std::exception, or that it is not one. For every place that ends a task on any exception and has
+ * to say why.
+ */
+[[nodiscard]] std::string describeException(const std::exception_ptr &failure);
+
+/******************************************************************************/
+
+} /* namespace Gem::Common */
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

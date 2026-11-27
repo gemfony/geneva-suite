@@ -347,7 +347,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "makeTestObject: another exception is wrapped in a gem_exception",
+    "makeTestObject: another exception is wrapped in a gem_exception that keeps its message",
     "[common][standard-tests]"
 ) {
     try {
@@ -356,7 +356,7 @@ TEST_CASE(
     }
     catch(gem_exception const &g) {
         std::string const what = g.what();
-        CHECK(what.contains("Caught unknown exception"));
+        CHECK(what.contains("not a gem exception"));
     }
     catch(...) {
         FAIL("threw a non-gem exception type");

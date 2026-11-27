@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "common/GExpectationChecksT.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
@@ -183,12 +184,8 @@ std::string GToken::getCallerName() const {
  * @param m The (non-empty) error message to store; an empty message triggers an exception
  */
 void GToken::registerErrorMessage(std::string const &m) {
-    if(not m.empty()) {
-        error_messages_.push_back(m);
-    }
-    else {
-        throw gem_exception(g_error_streamer() << "Tried to register empty error message" << '\n');
-    }
+    checkThat(not m.empty(), "Tried to register empty error message");
+    error_messages_.push_back(m);
 }
 
 /******************************************************************************/

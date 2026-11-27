@@ -641,11 +641,7 @@ public:
 	  * @param call_back The function to be executed
 	  */
     void registerCallBackFunction(std::move_only_function<void(parameter_type)> call_back) {
-        if(not call_back) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
-            );
-        }
+        checkThat(call_back != nullptr, "Tried to register an empty call-back function");
 
         call_back_func_ = std::move(call_back);
     }
@@ -689,12 +685,11 @@ private:
 
         // Check that we have the right number of comments
         if(this->hasComments()) {
-            if(this->numberOfComments() != 1) {
-                throw gem_exception(
-                    g_error_streamer()
-                    << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
-                );
-            }
+            checkThat(
+                this->numberOfComments() == 1,
+                "Expected 0 or 1 comment but got ",
+                this->numberOfComments()
+            );
             detail::cfgWriteComments(entry, GParsableI::splitComment(this->comment(0)));
         }
 
@@ -708,12 +703,10 @@ private:
 	  * Executes a stored call-back function
 	  */
     void executeCallBackFunction_() override {
-        if(not call_back_func_) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Tried to execute call-back function without a stored function" << '\n'
-            );
-        }
+        checkThat(
+            call_back_func_ != nullptr,
+            "Tried to execute call-back function without a stored function"
+        );
 
         // Execute the function
         call_back_func_(par_);
@@ -812,11 +805,7 @@ public:
 	  * @param call_back The function to be executed
 	  */
     void registerCallBackFunction(std::move_only_function<void(par0_type, par1_type)> call_back) {
-        if(not call_back) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
-            );
-        }
+        checkThat(call_back != nullptr, "Tried to register an empty call-back function");
 
         call_back_func_ = std::move(call_back);
     }
@@ -876,12 +865,11 @@ private:
 	  */
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
-        if(this->hasComments() && this->numberOfComments() != 2) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Expected 0 or 2 comments but got " << this->numberOfComments() << '\n'
-            );
-        }
+        checkThat(
+            not this->hasComments() || this->numberOfComments() == 2,
+            "Expected 0 or 2 comments but got ",
+            this->numberOfComments()
+        );
 
         boost::json::object entry0;
         if(this->hasComments()) {
@@ -908,12 +896,10 @@ private:
 	  * Executes a stored call-back function
 	  */
     void executeCallBackFunction_() override {
-        if(not call_back_func_) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Tried to execute call-back function without a stored function" << '\n'
-            );
-        }
+        checkThat(
+            call_back_func_ != nullptr,
+            "Tried to execute call-back function without a stored function"
+        );
 
         // Execute the function
         call_back_func_(par0_, par1_);
@@ -991,11 +977,7 @@ public:
 	  */
     void
     registerCallBackFunction(std::move_only_function<void(std::vector<parameter_type>)> call_back) {
-        if(not call_back) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
-            );
-        }
+        checkThat(call_back != nullptr, "Tried to register an empty call-back function");
 
         call_back_func_ = std::move(call_back);
     }
@@ -1049,12 +1031,11 @@ private:
 	  */
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
-        if(this->hasComments() && this->numberOfComments() != 1) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
-            );
-        }
+        checkThat(
+            not this->hasComments() || this->numberOfComments() == 1,
+            "Expected 0 or 1 comment but got ",
+            this->numberOfComments()
+        );
 
         // An empty default is valid: it denotes a list-valued parameter that is empty unless the user fills
         // it in (e.g. a set of optional paths). save_to() and load_from() both round-trip it as "[]"; the
@@ -1086,12 +1067,10 @@ private:
 	  * Executes a stored call-back function
 	  */
     void executeCallBackFunction_() override {
-        if(not call_back_func_) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Tried to execute call-back function without a stored function" << '\n'
-            );
-        }
+        checkThat(
+            call_back_func_ != nullptr,
+            "Tried to execute call-back function without a stored function"
+        );
 
         // Execute the function
         call_back_func_(par_cnt_);
@@ -1167,11 +1146,7 @@ public:
     void registerCallBackFunction(
         std::move_only_function<void(std::array<parameter_type, N>)> call_back
     ) {
-        if(not call_back) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to register an empty call-back function" << '\n'
-            );
-        }
+        checkThat(call_back != nullptr, "Tried to register an empty call-back function");
 
         call_back_func_ = std::move(call_back);
     }
@@ -1225,19 +1200,14 @@ private:
 	  */
     void save_to(boost::json::object &root) const override {
         // Check that we have the right number of comments
-        if(this->hasComments() && this->numberOfComments() != 1) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Expected 0 or 1 comment but got " << this->numberOfComments() << '\n'
-            );
-        }
+        checkThat(
+            not this->hasComments() || this->numberOfComments() == 1,
+            "Expected 0 or 1 comment but got ",
+            this->numberOfComments()
+        );
 
         // Do some error checking
-        if(def_val_arr_.empty()) {
-            throw gem_exception(
-                g_error_streamer() << "You need to provide at least one default value" << '\n'
-            );
-        }
+        checkThat(not def_val_arr_.empty(), "You need to provide at least one default value");
 
         boost::json::object entry;
         if(this->hasComments()) {
@@ -1266,12 +1236,10 @@ private:
 	  * Executes a stored call-back function
 	  */
     void executeCallBackFunction_() override {
-        if(not call_back_func_) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Tried to execute call-back function without a stored function" << '\n'
-            );
-        }
+        checkThat(
+            call_back_func_ != nullptr,
+            "Tried to execute call-back function without a stored function"
+        );
 
         // Execute the function
         call_back_func_(par_arr_);

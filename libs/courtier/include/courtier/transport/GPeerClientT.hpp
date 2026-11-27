@@ -59,7 +59,6 @@
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GWireCodec.hpp"               // scope-wrapped (de)serialization, HELLO
 #include "courtier/GWireSerializationContext.hpp"
 #include "courtier/transport/GPeerI.hpp" // the connection and how to get one
@@ -466,7 +465,7 @@ private:
                     }
                 }
                 catch(...) {
-                    decoded.error = Gem::Courtier::describeException(std::current_exception());
+                    decoded.error = Gem::Common::describeException(std::current_exception());
                 }
                 if(decoded.head_read && not decoded.error.empty()) {
                     decoded.failed_result = self->failedResult_(
@@ -639,7 +638,7 @@ private:
                     bytes = self->failedResult_(
                         frame,
                         "The work item could not be processed or returned: " +
-                            Gem::Courtier::describeException(std::current_exception())
+                            Gem::Common::describeException(std::current_exception())
                     );
                 }
                 auto &io = self->io_context_;
@@ -674,7 +673,7 @@ private:
             return this->failedResult_(
                 frame,
                 "The result could not be encoded: " +
-                    Gem::Courtier::describeException(std::current_exception())
+                    Gem::Common::describeException(std::current_exception())
             );
         }
     }

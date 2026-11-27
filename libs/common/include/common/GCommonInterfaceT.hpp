@@ -44,6 +44,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp" // For the serialization mode
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GErrorStreamer.hpp"
@@ -384,13 +385,10 @@ public:
     [[nodiscard]] std::unique_ptr<clone_type> clone() const {
         // Take ownership immediately, so the clone is released on every exit path (Inv 21)
         std::unique_ptr<g_class_type> raw(this->clone_());
-        if(auto *converted = dynamic_cast<clone_type *>(raw.get()); converted != nullptr) {
-            raw.release(); // ownership passes to the converted pointer
-            return std::unique_ptr<clone_type>(converted);
-        }
-        throw gem_exception(
-            g_error_streamer() << "Invalid conversion to type " << typeid(clone_type).name() << '\n'
-        );
+        auto *converted = dynamic_cast<clone_type *>(raw.get());
+        checkThat(converted != nullptr, "Invalid conversion to type ", typeid(clone_type).name());
+        raw.release(); // ownership passes to the converted pointer
+        return std::unique_ptr<clone_type>(converted);
     }
 
     /***************************************************************************/

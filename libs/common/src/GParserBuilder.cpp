@@ -144,12 +144,14 @@ GParsableI::GParsableI(
  * @return The option name stored at position @p pos
  */
 std::string GParsableI::optionName(std::size_t pos) const {
-    if(option_name_.size() <= pos) {
-        throw gem_exception(
-            g_error_streamer() << "Tried to access item at position " << pos << '\n'
-                               << "where the size of the vector is " << option_name_.size() << '\n'
-        );
-    }
+    checkThat(
+        pos < option_name_.size(),
+        "Tried to access item at position ",
+        pos,
+        '\n',
+        "where the size of the vector is ",
+        option_name_.size()
+    );
 
     return option_name_.at(pos);
 }
@@ -162,12 +164,14 @@ std::string GParsableI::optionName(std::size_t pos) const {
  * @return The comment string stored at position @p pos
  */
 std::string GParsableI::comment(std::size_t pos) const {
-    if(comment_.size() <= pos) {
-        throw gem_exception(
-            g_error_streamer() << "Tried to access item at position " << pos << '\n'
-                               << "where the size of the vector is " << comment_.size() << '\n'
-        );
-    }
+    checkThat(
+        pos < comment_.size(),
+        "Tried to access item at position ",
+        pos,
+        '\n',
+        "where the size of the vector is ",
+        comment_.size()
+    );
 
     return comment_.at(pos);
 }
@@ -853,12 +857,11 @@ void GParserBuilder::createConfigFile_(
         }
 
         // Check that the configuration file has the required extension
-        if(not config_file.has_extension() || config_file.extension() != ".json") {
-            throw gem_exception(
-                g_error_streamer()
-                << config_file.string() << " does not have the required extension \".json\"" << '\n'
-            );
-        }
+        checkThat(
+            config_file.has_extension() && config_file.extension() == ".json",
+            config_file.string(),
+            " does not have the required extension \".json\""
+        );
     }
 
     // Assemble the canonical document (shared with the update-in-place rewrite) before the file is
@@ -934,12 +937,11 @@ void GParserBuilder::atomicReplaceConfigFile_(
     boost::json::value const &document
 ) const {
     // Enforce the .json extension (matches writeConfigFile()/parseConfigFile()).
-    if(not config_file.has_extension() || config_file.extension() != ".json") {
-        throw gem_exception(
-            g_error_streamer() << config_file.string()
-                               << " does not have the required extension \".json\"" << '\n'
-        );
-    }
+    checkThat(
+        config_file.has_extension() && config_file.extension() == ".json",
+        config_file.string(),
+        " does not have the required extension \".json\""
+    );
 
     Gem::Common::replaceFileAtomically(
         config_file,
@@ -1090,13 +1092,15 @@ void GParserBuilder::parseKnownOptions(int argc, char **argv) {
 bool GParserBuilder::givenExplicitly(std::string const &option_name) const {
     auto const long_name = [](std::string const &name) { return name.substr(0, name.find(',')); };
     std::string const key = long_name(option_name);
-    if(std::ranges::none_of(cl_parameter_proxies_, [&](auto const &p_ptr) {
-           return long_name(p_ptr->optionName(0)) == key;
-       })) {
-        throw gem_exception(
-            g_error_streamer() << "no command-line option \"" << key << "\" is registered" << '\n'
-        );
-    }
+    checkThat(
+        std::ranges::any_of(
+            cl_parameter_proxies_,
+            [&](auto const &p_ptr) { return long_name(p_ptr->optionName(0)) == key; }
+        ),
+        "no command-line option \"",
+        key,
+        "\" is registered"
+    );
     return given_explicitly_.contains(key);
 }
 

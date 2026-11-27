@@ -36,6 +36,7 @@
 #include <string>
 
 // Geneva header files go here
+#include "common/GChecks.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
@@ -88,32 +89,34 @@ GStreamCore::GStreamCore(
  */
 void GStreamCore::append(GRow row) {
     const std::size_t offset = time_ == withTime::none ? 0 : 1;
-    if(row.size() + offset != info_.columns.size()) {
-        throw gem_exception(
-            g_error_streamer() << "The stream \"" << info_.name << "\" has "
-                               << info_.columns.size() - offset << " columns, but a row of "
-                               << row.size() << " values was appended" << '\n'
-        );
-    }
+    checkThat(
+        row.size() + offset == info_.columns.size(),
+        "The stream \"",
+        info_.name,
+        "\" has ",
+        info_.columns.size() - offset,
+        " columns, but a row of ",
+        row.size(),
+        " values was appended"
+    );
     for(std::size_t i = 0; i < row.size(); ++i) {
         GColumn const &column = info_.columns[i + offset];
-        if(typeOf(row[i]) != column.type) {
-            throw gem_exception(
-                g_error_streamer()
-                << "The column \"" << column.name << "\" of the stream \"" << info_.name
-                << "\" holds " << enumName(column.type) << " values, but a "
-                << enumName(typeOf(row[i])) << " value was appended" << '\n'
-            );
-        }
+        checkThat(
+            typeOf(row[i]) == column.type,
+            "The column \"",
+            column.name,
+            "\" of the stream \"",
+            info_.name,
+            "\" holds ",
+            enumName(column.type),
+            " values, but a ",
+            enumName(typeOf(row[i])),
+            " value was appended"
+        );
     }
 
     const std::scoped_lock lk(mutex_);
-    if(closed_) {
-        throw gem_exception(
-            g_error_streamer() << "The stream \"" << info_.name
-                               << "\" is closed; it takes no further row" << '\n'
-        );
-    }
+    checkThat(not closed_, "The stream \"", info_.name, "\" is closed; it takes no further row");
     this->refuseAfterFailedOpen_();
     if(time_ == withTime::wall) {
         row.insert(row.begin(), GValue(std::chrono::system_clock::now()));
@@ -180,11 +183,8 @@ void GStreamCore::closeOrLog() noexcept {
         this->close();
         return;
     }
-    catch(std::exception const &e) {
-        what = e.what();
-    }
     catch(...) {
-        what = "an exception that is no std::exception";
+        what = describeException(std::current_exception());
     }
     try {
         glogger << "the stream \"" << info_.name << "\" could not be closed cleanly:" << '\n'
@@ -313,9 +313,7 @@ GStream::~GStream() {
  * @param row The row
  */
 void GStream::append(GRow row) {
-    if(not core_) {
-        throw gem_exception(g_error_streamer() << "The handle has no stream" << '\n');
-    }
+    checkThat(core_ != nullptr, "The handle has no stream");
     core_->append(std::move(row));
 }
 

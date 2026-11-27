@@ -723,13 +723,11 @@ public:
     void resize(size_type amount)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if(amount > data_cnt_.size()) {
-            throw gem_exception(
-                g_error_streamer()
-                << "Cannot grow a SharedPtrStorage container without a prototype. "
-                << "Use resize_clone(), resize_noclone(), or resize_empty() instead." << '\n'
-            );
-        }
+        checkThat(
+            amount <= data_cnt_.size(),
+            "Cannot grow a SharedPtrStorage container without a prototype. ",
+            "Use resize_clone(), resize_noclone(), or resize_empty() instead."
+        );
         data_cnt_.resize(amount);
     }
 
@@ -1062,11 +1060,7 @@ public:
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] size_type count(const std::shared_ptr<item_type> &item) const {
-        if(not item) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to count with an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item != nullptr, "Tried to count with an empty smart pointer.");
         return Gem::Common::narrow<size_type>(
             std::ranges::count_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
                 auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
@@ -1088,11 +1082,7 @@ public:
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] const_iterator find(const std::shared_ptr<item_type> &item) const {
-        if(not item) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to find an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item != nullptr, "Tried to find an empty smart pointer.");
         return std::ranges::find_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
             auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
             return cast && (*item == *cast);
@@ -1137,11 +1127,7 @@ public:
     void push_back_clone(const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if(not item_ptr) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item_ptr != nullptr, "Tried to clone an empty smart pointer.");
         data_cnt_.push_back(clone_into_stored(item_ptr));
     }
 
@@ -1158,11 +1144,7 @@ public:
     void push_back_noclone(StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if(not item_ptr) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item_ptr != nullptr, "Tried to insert an empty smart pointer.");
         data_cnt_.push_back(std::move(item_ptr));
     }
 
@@ -1182,11 +1164,7 @@ public:
     iterator insert_clone(const_iterator pos, const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if(not item_ptr) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item_ptr != nullptr, "Tried to clone an empty smart pointer.");
         return data_cnt_.insert(pos, clone_into_stored(item_ptr));
     }
 
@@ -1202,11 +1180,7 @@ public:
     void insert_clone(const_iterator pos, size_type count, const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if(not item_ptr) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item_ptr != nullptr, "Tried to clone an empty smart pointer.");
         if(count == 0)
             return;
 
@@ -1234,11 +1208,7 @@ public:
     iterator insert_noclone(const_iterator pos, StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if(not item_ptr) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item_ptr != nullptr, "Tried to insert an empty smart pointer.");
         return data_cnt_.insert(pos, std::move(item_ptr));
     }
 
@@ -1258,11 +1228,7 @@ public:
     void insert_noclone(const_iterator pos, size_type count, StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if(not item_ptr) {
-            throw gem_exception(
-                g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
-            );
-        }
+        checkThat(item_ptr != nullptr, "Tried to insert an empty smart pointer.");
         // Guard against unsigned underflow of `count - 1` below when count == 0.
         if(count == 0)
             return;
@@ -1303,11 +1269,7 @@ public:
             data_cnt_.resize(amount);
         }
         else if(amount > data_size) {
-            if(not item_ptr) {
-                throw gem_exception(
-                    g_error_streamer() << "Tried to clone an empty smart pointer." << '\n'
-                );
-            }
+            checkThat(item_ptr != nullptr, "Tried to clone an empty smart pointer.");
             // Clone the prototype into an independent local FIRST: item_ptr frequently aliases an element
             // of this very container (e.g. resize_clone(n, data_cnt_[0])), and the reserve()/push_back()
             // below may reallocate the container, which would leave that reference dangling. The local
@@ -1338,11 +1300,7 @@ public:
             data_cnt_.resize(amount);
         }
         else if(amount > data_size) {
-            if(not item_ptr) {
-                throw gem_exception(
-                    g_error_streamer() << "Tried to insert an empty smart pointer." << '\n'
-                );
-            }
+            checkThat(item_ptr != nullptr, "Tried to insert an empty smart pointer.");
             data_cnt_.reserve(amount);
             for(std::size_t i = data_size; i < amount - 1; ++i) {
                 data_cnt_.push_back(clone_into_stored(item_ptr));

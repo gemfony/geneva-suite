@@ -857,14 +857,11 @@ void compare_t(identity<T> const &data, GToken &token) {
     catch(const g_expectation_violation &g) {
         token.registerErrorMessage(g);
     }
-    catch(const std::exception &e) {
-        throw gem_exception(
-            g_error_streamer() << "Caught std::exception with message " << '\n'
-                               << e.what() << '\n'
-        );
-    }
     catch(...) {
-        throw gem_exception(g_error_streamer() << "Caught unknown exception" << '\n');
+        throw gem_exception(
+            g_error_streamer() << "Caught an exception with message" << '\n'
+                               << describeException(std::current_exception()) << '\n'
+        );
     }
 }
 
@@ -896,14 +893,11 @@ void compare_base_t(base_type const &x, base_type const &y, GToken &token) {
     catch(const g_expectation_violation &g) {
         token.registerErrorMessage(g);
     }
-    catch(const std::exception &e) {
-        throw gem_exception(
-            g_error_streamer() << "Caught std::exception with message" << '\n'
-                               << e.what() << '\n'
-        );
-    }
     catch(...) {
-        throw gem_exception(g_error_streamer() << "Caught unknown exception" << '\n');
+        throw gem_exception(
+            g_error_streamer() << "Caught an exception with message" << '\n'
+                               << describeException(std::current_exception()) << '\n'
+        );
     }
 }
 

@@ -39,7 +39,9 @@
  */
 
 #include "common/GExceptions.hpp"
+#include <exception>
 #include <ostream>
+#include <string>
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,3 +61,31 @@ std::ostream &operator<<(std::ostream &o, const gem_exception &g) {
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
+
+namespace Gem::Common {
+
+/******************************************************************************/
+/**
+ * Says what an exception says: the what() of a std::exception, or that it is not one.
+ *
+ * @param failure The exception; may be null
+ * @return Its description
+ */
+std::string describeException(const std::exception_ptr &failure) {
+    if(not failure) {
+        return "no exception";
+    }
+    try {
+        std::rethrow_exception(failure);
+    }
+    catch(const std::exception &e) {
+        return e.what();
+    }
+    catch(...) {
+        return "an exception that is not a std::exception";
+    }
+}
+
+/******************************************************************************/
+
+} /* namespace Gem::Common */

@@ -104,7 +104,10 @@ std::shared_ptr<T> makeTestObject() {
         throw;
     }
     catch(...) {
-        throw gem_exception(g_error_streamer() << "Caught unknown exception" << '\n');
+        throw gem_exception(
+            g_error_streamer() << "The test object could not be created:" << '\n'
+                               << describeException(std::current_exception()) << '\n'
+        );
     }
 
     return p;

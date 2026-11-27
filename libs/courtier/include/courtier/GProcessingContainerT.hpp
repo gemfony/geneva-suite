@@ -55,7 +55,6 @@
 #include "common/GSerializableFunctionObjectT.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp" // serialization of std::chrono time_point members
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
 #include "courtier/GProcessable.hpp" // the non-generic processing-lifecycle base
 
 namespace Gem::Courtier {

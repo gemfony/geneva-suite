@@ -54,7 +54,6 @@
 #include "common/GLogger.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GServerSessionLogic.hpp"      // GWakeFn, GCheckoutResult
 #include "courtier/GWireCodec.hpp"               // scope-wrapped (de)serialization, HELLO
 #include "courtier/GWireProtocolT.hpp"           // the WORK tag
@@ -257,7 +256,7 @@ private:
             );
         }
         catch(...) {
-            this->protocolError_(*peer, Gem::Courtier::describeException(std::current_exception()));
+            this->protocolError_(*peer, Gem::Common::describeException(std::current_exception()));
             return;
         }
         switch(command_container_.kind()) {
@@ -305,7 +304,7 @@ private:
         catch(...) {
             const std::string what =
                 "The result of client " + std::to_string(peer_id_) +
-                " could not be read: " + Gem::Courtier::describeException(std::current_exception());
+                " could not be read: " + Gem::Common::describeException(std::current_exception());
             glogger << "GPeerSessionT<processable_type>: " << what << '\n' << GLOGGING;
             this->forgetBlobs_();
             hooks_.failPayloadItem(id, what);
@@ -462,7 +461,7 @@ private:
         catch(...) {
             const std::string what = "The work item could not be encoded for client " +
                                      std::to_string(peer_id_) + ": " +
-                                     Gem::Courtier::describeException(std::current_exception());
+                                     Gem::Common::describeException(std::current_exception());
             command_container_.reset();
             this->forgetBlobs_(); // the failed encoding may have counted a blob as sent
             hooks_.failPayloadItem(id, what);

@@ -35,6 +35,7 @@
 #include <utility>
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
@@ -62,13 +63,14 @@ void setProgramIdentity(std::string identity_text) {
     if(identity_text == id) {
         return;
     }
-    if(not id.empty()) {
-        throw gem_exception(
-            g_error_streamer() << "The program's identity is \"" << id << "\" and cannot become \""
-                               << identity_text << "\": a process has one identity, set once"
-                               << '\n'
-        );
-    }
+    checkThat(
+        id.empty(),
+        "The program's identity is \"",
+        id,
+        "\" and cannot become \"",
+        identity_text,
+        "\": a process has one identity, set once"
+    );
     id = std::move(identity_text);
 }
 
