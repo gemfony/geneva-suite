@@ -94,13 +94,12 @@ int main(int argc, char **argv) {
     GEM_LOGGER << "Some information " << 5 << " " << 6 << '\n' << GEM_ERROR;
 
     // Output to a specific file
-    GEM_LOGGER(std::filesystem::path("anotherFile"))
-        << "Some other information " << 7 << " " << 8 << '\n'
-        << GEM_FILE;
+    GEM_LOGGER.toFile("anotherFile") << "Some other information " << 7 << " " << 8 << '\n'
+                                     << GEM_FILE;
 
     // Output to registered logging targets with a given extension
-    GEM_LOGGER(std::string("extension")) << "And yet another information " << 9 << " " << 10 << '\n'
-                                         << GEM_LOGGING;
+    GEM_LOGGER.withSource("extension") << "And yet another information " << 9 << " " << 10 << '\n'
+                                       << GEM_LOGGING;
 
     // Output to stdout
     GEM_LOGGER << "std::out-information" << '\n' << GEM_STDOUT;

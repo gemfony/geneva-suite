@@ -333,7 +333,7 @@ TEST_CASE(
     auto path = scratch("one_time.log");
     std::filesystem::remove(path);
 
-    CHECK_NOTHROW(GEM_LOGGER(path) << "one-time-payload" << '\n' << GEM_FILE);
+    CHECK_NOTHROW(GEM_LOGGER.toFile(path) << "one-time-payload" << '\n' << GEM_FILE);
     REQUIRE(std::filesystem::exists(path));
 
     std::ifstream ifs(path);
@@ -352,11 +352,11 @@ TEST_CASE(
     "GLogStreamer << GEM_WARNING with extension forwards through logWithSource",
     "[common][logger][manipulator]"
 ) {
-    // The string-form of GEM_LOGGER() captures an extension; the WARNING arm
+    // GEM_LOGGER.withSource() captures a source name; the WARNING arm
     // then routes through logWithSource on every registered target.
     CHECK_NOTHROW(
-        GEM_LOGGER(std::string{"unit-test-module"}) << "warning with source" << '\n'
-                                                    << GEM_WARNING
+        GEM_LOGGER.withSource("unit-test-module") << "warning with source" << '\n'
+                                                  << GEM_WARNING
     );
 }
 
@@ -365,8 +365,8 @@ TEST_CASE(
     "[common][logger][manipulator]"
 ) {
     CHECK_NOTHROW(
-        GEM_LOGGER(std::string{"unit-test-module"}) << "logging with source" << '\n'
-                                                    << GEM_LOGGING
+        GEM_LOGGER.withSource("unit-test-module") << "logging with source" << '\n'
+                                                  << GEM_LOGGING
     );
 }
 
@@ -473,7 +473,7 @@ void checkReentry(logType inner) {
     {
         CerrCapture const capture;
         GEM_LOGGER << "outer message" << '\n' << GEM_LOGGING;
-        GEM_LOGGER(std::string("src")) << "outer with source" << '\n' << GEM_WARNING;
+        GEM_LOGGER.withSource("src") << "outer with source" << '\n' << GEM_WARNING;
         err = capture.text();
     }
     GEM_LOGGER.resetLogTargets();
@@ -549,8 +549,8 @@ TEST_CASE(
     GEM_LOGGER.addLogTarget(target);
     GEM_LOGGER << "plain" << '\n' << GEM_LOGGING;
     GEM_LOGGER << "careful" << '\n' << GEM_WARNING;
-    GEM_LOGGER(std::string("modY")) << "plain with source" << '\n' << GEM_LOGGING;
-    GEM_LOGGER(std::string("modY")) << "careful with source" << '\n' << GEM_WARNING;
+    GEM_LOGGER.withSource("modY") << "plain with source" << '\n' << GEM_LOGGING;
+    GEM_LOGGER.withSource("modY") << "careful with source" << '\n' << GEM_WARNING;
     GEM_LOGGER.resetLogTargets();
 
     REQUIRE(target->entries.size() == 4);
@@ -562,6 +562,28 @@ TEST_CASE(
     CHECK(target->entries[2].source == "modY");
     CHECK(target->entries[3].severity == logType::WARNING);
     CHECK(target->entries[3].source == "modY");
+}
+
+// A string literal names a source with withSource(), a character string a file with toFile(): the
+// former call operator took a std::string or a std::filesystem::path, and a literal fitted both.
+TEST_CASE("GLogger: withSource() and toFile() take a string literal", "[common][logger]") {
+    auto target = std::make_shared<SeverityTarget>();
+    GEM_LOGGER.addLogTarget(target);
+    GEM_LOGGER.withSource("solver") << "from the solver" << '\n' << GEM_LOGGING;
+    GEM_LOGGER.resetLogTargets();
+
+    REQUIRE(target->entries.size() == 1);
+    CHECK(target->entries[0].source == "solver");
+    CHECK(target->entries[0].message == "from the solver\n");
+
+    auto const path = scratch("literal_file.log");
+    std::filesystem::remove(path);
+    // A character pointer, the type a literal decays to (a literal would write to the working directory)
+    GEM_LOGGER.toFile(path.c_str()) << "to the file" << '\n' << GEM_FILE;
+    std::ifstream ifs(path);
+    std::string const content{std::istreambuf_iterator<char>(ifs), {}};
+    CHECK(content.contains("to the file"));
+    std::filesystem::remove(path);
 }
 
 TEST_CASE(
@@ -694,7 +716,7 @@ TEST_CASE(
     Record::recorder().addSink("log", std::make_shared<Record::GJsonLinesSink>());
     GEM_LOGGER.addLogTarget(std::make_shared<GRecordLogTarget>());
     GEM_LOGGER << "plain message" << '\n' << GEM_LOGGING;
-    GEM_LOGGER(std::string("modA")) << "careful" << '\n' << GEM_WARNING;
+    GEM_LOGGER.withSource("modA") << "careful" << '\n' << GEM_WARNING;
     GEM_LOGGER.resetLogTargets();
 
     auto const rows = csvRecords(dir / "log.csv");
@@ -823,7 +845,7 @@ TEST_CASE(
     );
     GEM_LOGGER << "first message" << '\n' << GEM_LOGGING;
     GEM_LOGGER << "second message, no line break" << GEM_LOGGING;
-    GEM_LOGGER(std::string("modA")) << "from a source" << '\n' << GEM_LOGGING;
+    GEM_LOGGER.withSource("modA") << "from a source" << '\n' << GEM_LOGGING;
     GEM_LOGGER << "careful" << '\n' << GEM_WARNING;
     GEM_LOGGER.resetLogTargets();
 

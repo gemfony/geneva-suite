@@ -1043,7 +1043,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   share one statement of the range rules; `checkRangeCompliance()` and `checkValueRange()` are one
   template each for all arithmetic types, and the integral `checkValueRange()` takes a variable
   name like the floating-point one.
-- **common: its names live in `Gem::Common`, its macros begin with `GEM_`.** The exception classes, the error streamer, the
+- **common: its names live in `Gem::Common`, its macros begin with `GEM_`, the logger names its two streamers.** The exception classes, the error streamer, the
   logger's singleton type and the stream operator of `gem_exception` were in the global
   namespace; they keep their names and move into `Gem::Common`. Code outside that namespace
   qualifies them (`catch(const Gem::Common::gem_exception &e)`); the stream operator is found
@@ -1075,6 +1075,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   | `IDENTITY(x, y)` | `GEM_IDENTITY(x, y)` |
   | `IDENTITY_CAST(t, x, y)` | `GEM_IDENTITY_CAST(t, x, y)` |
   | `G_DEPRECATED(message)` | `GEM_DEPRECATED(message)` |
+
+  The logger's call operator had two meanings by the type of its argument, and a string literal
+  fitted both (it did not compile). It is replaced by two named functions:
+
+  | Before | Now |
+  |---|---|
+  | `glogger(std::string{"name"})` | `GEM_LOGGER.withSource("name")` |
+  | `glogger(std::filesystem::path{"file"})` | `GEM_LOGGER.toFile("file")` |
 
 ## 8. Checkpointing
 

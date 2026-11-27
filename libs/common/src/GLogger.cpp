@@ -523,7 +523,7 @@ void GLogStreamer::operator<<(GManipulator const &gm) {
             '\n',
             "You need to supply a file name like this:",
             '\n',
-            "GEM_LOGGER(\"filename.txt\") << \"some log text\" << GEM_FILE"
+            "GEM_LOGGER.toFile(\"filename.txt\") << \"some log text\" << GEM_FILE"
         );
         appendToFile(this->getOneTimeLogFile(), oss_.str());
     } break;

@@ -258,16 +258,18 @@ public:
      *  @return A freshly created GLogStreamer with the manipulator applied */
     GLogStreamer operator<<(std::ios_base &(*val)(std::ios_base &));
 
-    /** @brief Creates a streamer carrying a source-extension specifier (emitted
-     *  alongside console output / appended to a log-file name with an underscore)
-     *  @param extension The source-extension specifier to attach to the streamer
-     *  @return A freshly created GLogStreamer carrying the extension */
-    GLogStreamer operator()(std::string const &extension);
+    /** @brief Creates a streamer that logs with a source name (emitted alongside console
+     *  output / appended to a log-file name with an underscore), as in
+     *  GEM_LOGGER.withSource("solver") << ... << GEM_LOGGING
+     *  @param name The source name to attach to the streamer
+     *  @return A freshly created GLogStreamer carrying the source name */
+    GLogStreamer withSource(std::string const &name);
 
-    /** @brief Creates a streamer that logs to a specific one-time log file
-     *  @param p The path of the one-time log file to write to
+    /** @brief Creates a streamer that writes to a one-time log file, as in
+     *  GEM_LOGGER.toFile("result.txt") << ... << GEM_FILE
+     *  @param path The path of the one-time log file to write to
      *  @return A freshly created GLogStreamer bound to the given log file */
-    GLogStreamer operator()(std::filesystem::path p);
+    GLogStreamer toFile(std::filesystem::path path);
 
     /***************************************************************************/
     /**
@@ -604,7 +606,7 @@ private:
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// GLogger's streamer-producing operators. They construct a GLogStreamer by
+// GLogger's streamer-producing operators and functions. They construct a GLogStreamer by
 // value, so their definitions must follow the streamer's class definition.
 
 template <typename T>
@@ -632,12 +634,12 @@ inline GLogStreamer GLogger::operator<<(std::ios_base &(*val)(std::ios_base &)) 
     return s;
 }
 
-inline GLogStreamer GLogger::operator()(std::string const &extension) {
-    return GLogStreamer(extension);
+inline GLogStreamer GLogger::withSource(std::string const &name) {
+    return GLogStreamer(name);
 }
 
-inline GLogStreamer GLogger::operator()(std::filesystem::path p) {
-    return GLogStreamer(std::move(p));
+inline GLogStreamer GLogger::toFile(std::filesystem::path path) {
+    return GLogStreamer(std::move(path));
 }
 
 /******************************************************************************/
