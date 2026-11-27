@@ -45,6 +45,7 @@
 #include <vector>
 
 // Boost headers go here
+#include <boost/core/demangle.hpp>
 
 // Geneva headers go here
 #include "weft/GWeftError.hpp"
@@ -232,7 +233,7 @@ public:
                 << "In GPolymorphicRegistry::create(): no type is registered under tag \"" << key
                 << "\". "
                 << "The archive references a type that was never registered (missing "
-                   "GEM_REGISTER_TYPE?)."
+                   "GEM_REGISTER_ARCHIVABLE(<the class>) in the program that reads it?)."
                 << '\n'
             );
         }
@@ -254,9 +255,11 @@ public:
         if(it == type_to_tag.end()) {
             throw weft_exception(
                 weft_error_streamer()
-                << "In GPolymorphicRegistry::tagOf(): the dynamic type \"" << ti.name()
-                << "\" was never registered "
-                << "(missing GEM_REGISTER_TYPE for this concrete type?)." << '\n'
+                << "In GPolymorphicRegistry::tagOf(): the class "
+                << boost::core::demangle(ti.name())
+                << " was never registered. A class that is checkpointed or sent to another "
+                   "process needs one line at namespace scope in one of its source files: "
+                << "GEM_REGISTER_ARCHIVABLE(" << boost::core::demangle(ti.name()) << ")" << '\n'
             );
         }
         return it->second;
