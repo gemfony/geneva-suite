@@ -44,6 +44,7 @@
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GSerializationHelperFunctionsT.hpp"
 
 using namespace Gem::Common;
 
@@ -235,6 +236,26 @@ TEST_CASE(
     TestObj dst(0);
     dst.fromString(s, serializationMode::GEM_JSON);
     CHECK(dst.v() == -789);
+}
+
+// The object streams and the two free functions write one format (R138-37): a string of toString() is
+// read by sharedPtrFromString<>(), a string of sharedPtrToString() by fromString(), in both modes.
+TEST_CASE(
+    "GCommonInterfaceT: strings of toString() and sharedPtrToString() are interchangeable",
+    "[common][interface][serialize]"
+) {
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        TestObj const src(123);
+        auto const restored = sharedPtrFromString<TestObj>(src.toString(mode), mode);
+        REQUIRE(restored);
+        CHECK(restored->v() == 123);
+
+        TestObj dst(0);
+        dst.fromString(sharedPtrToString(std::make_shared<TestObj>(321), mode), mode);
+        CHECK(dst.v() == 321);
+
+        CHECK(src.toString(mode) == sharedPtrToString(std::make_shared<TestObj>(123), mode));
+    }
 }
 
 // ---------------------------------------------------------------------------

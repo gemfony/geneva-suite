@@ -51,8 +51,7 @@
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GParserBuilder.hpp"
-#include "weft/GArchivePolymorphic.hpp" // GArchive codec arm for toStream/fromStream (gem_serialize_pointer)
-#include "weft/GBinaryArchive.hpp" // GArchive flat binary codec
+#include "common/GSerializationHelperFunctionsT.hpp" // the codecs behind toStream/fromStream
 
 namespace Gem::Common {
 /******************************************************************************/
@@ -88,7 +87,8 @@ public:
     /***************************************************************************/
     /**
      * Converts the class(-hierarchy) to a serial representation that is
-     * then written to a stream.
+     * then written to a stream. The text is the one Gem::Common::sharedPtrToString() writes for the
+     * same object, so Gem::Common::sharedPtrFromString() reads it as well as fromStream().
      *
      * @tparam self_type The deduced most-derived type of *this (an accessible g_class_type derivative)
      * @param self The (deduced) object being serialized
@@ -102,82 +102,30 @@ public:
         Gem::Common::serializationMode ser_mod
     ) {
         // With deducing this, `self` already IS the most-derived caller object, so taking its address
-        // yields a g_class_type pointer by an implicit, compile-time-checked upcast -- no checked
-        // downcast (g_ptr_conversion) is needed. (De-)serialization
-        // still travels through a g_class_type pointer, so the archive bytes are identical to before.
+        // yields a g_class_type pointer by an implicit, compile-time-checked upcast. The object is
+        // serialized through a NON-owning shared_ptr, so the archive's smart-pointer arm writes its
+        // dynamic type and members: the deleter does nothing, as `self` is borrowed; the const_cast is
+        // safe because saving never mutates.
         const g_class_type *local = &self;
-
-        switch(ser_mod) {
-        case Gem::Common::serializationMode::GEM_BINARY: {
-            // GArchive: serialize the polymorphic root pointer through a NON-owning shared_ptr so the
-            // smart-ptr arm's gem_serialize_pointer runs (present flag + dynamic tag + members). The
-            // deleter is a no-op -- `local` is borrowed (it is &self), the archive must not delete it;
-            // the const_cast is safe because saving never mutates.
-            std::shared_ptr<g_class_type> sp(const_cast<g_class_type *>(local), [](g_class_type *) {
-            });
-            Gem::Weft::GBinaryOArchive oa;
-            oa &Gem::Weft::make_nvp("classhierarchyFromT", sp);
-            oarchive_stream << oa.str();
-        }
-
-        break;
-
-        case Gem::Common::serializationMode::GEM_JSON: {
-            std::shared_ptr<g_class_type> sp(const_cast<g_class_type *>(local), [](g_class_type *) {
-            });
-            Gem::Weft::GJsonOArchive oa;
-            oa &Gem::Weft::make_nvp("classhierarchyFromT", sp);
-            oarchive_stream << oa.str();
-        }
-
-        break;
-        }
+        std::shared_ptr<g_class_type> const sp(const_cast<g_class_type *>(local), [](g_class_type *) {
+            /* borrowed: nothing to delete */
+        });
+        oarchive_stream << Gem::Common::sharedPtrToString(sp, ser_mod);
     }
 
     /***************************************************************************/
     /**
-     * Loads the object from a stream.
+     * Loads the object from a stream. Reads what toStream() and Gem::Common::sharedPtrToString()
+     * write.
      *
      * @param istr The stream from which the object should be loaded
      * @param ser_mod The desired serialization mode
-     *
      */
     void fromStream(std::istream &istr, Gem::Common::serializationMode ser_mod) {
-        g_class_type *raw = nullptr;
-
-        switch(ser_mod) {
-        case Gem::Common::serializationMode::GEM_BINARY: {
-            // GArchive: read the whole stream, reconstruct the dynamic type via the smart-ptr arm
-            // (gem_serialize_pointer builds it from the identity registry), then hand ownership to
-            // the raw pointer the common tail already adopts. NOTE: GBinaryIArchive holds a
-            // string_view over its input, so the decoded buffer must outlive it (named local, not a
-            // temporary).
-            std::ostringstream ss;
-            ss << istr.rdbuf();
-            const std::string data = ss.str();
-            Gem::Weft::GBinaryIArchive ia(data);
-            std::unique_ptr<g_class_type> loaded;
-            ia &Gem::Weft::make_nvp("classhierarchyFromT", loaded);
-            raw = loaded.release();
-        }
-
-        break;
-
-        case Gem::Common::serializationMode::GEM_JSON: {
-            std::ostringstream ss;
-            ss << istr.rdbuf();
-            const std::string data = ss.str();
-            Gem::Weft::GJsonIArchive ia(data);
-            std::unique_ptr<g_class_type> loaded;
-            ia &Gem::Weft::make_nvp("classhierarchyFromT", loaded);
-            raw = loaded.release();
-        }
-
-        break;
-        }
-
-        std::unique_ptr<g_class_type> const local(raw);
-        this->load_(local.get());
+        std::ostringstream ss;
+        ss << istr.rdbuf();
+        auto const loaded = Gem::Common::sharedPtrFromString<g_class_type>(ss.str(), ser_mod);
+        this->load_(loaded.get());
     }
 
     /***************************************************************************/
