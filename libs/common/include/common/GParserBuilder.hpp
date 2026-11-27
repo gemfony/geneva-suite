@@ -1529,10 +1529,16 @@ private:
  * Command-line options may be hidden (listed by --showAll, not by --help), grouped into sections of
  * the help text, flags or repeatable; a malformed command line throws GCommandLineError; an early
  * parse reads only the options known so far; givenExplicitly() tells a given option from a default.
+ *
+ * The environment variable GEM_CONFIG_BASENAME, if it is set and not empty when a GParserBuilder is
+ * constructed, names a directory below which parseConfigFile(), updateConfigFile() and
+ * writeConfigFile() place their files: a relative path is resolved against it, an absolute one is
+ * used as given. The directory is created if it does not exist. It lets the processes of a job keep
+ * their configuration files outside their working directory without a change of the program.
  */
 class GParserBuilder {
 public:
-    /** @brief The default constructor */
+    /** @brief The default constructor; reads GEM_CONFIG_BASENAME (see the class comment) */
     GParserBuilder();
 
     /** @brief The destructor */
@@ -2208,7 +2214,12 @@ private:
     std::set<std::string>
         given_explicitly_; ///< The options the last parse found on the command line (long names)
 
-    std::filesystem::path config_base_dir_;
+    std::filesystem::path
+        config_base_dir_; ///< The directory GEM_CONFIG_BASENAME names; empty if it was not set
+
+    /** @brief The path of a configuration file below config_base_dir_ (as given if it is empty) */
+    [[nodiscard]] std::filesystem::path
+    belowBaseDir_(std::filesystem::path const &config_file) const;
 
     /** @brief Stores a command-line proxy in the current section of the help text */
     GCLParsableI &addCLProxy_(std::shared_ptr<GCLParsableI> proxy);

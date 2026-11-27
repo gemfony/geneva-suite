@@ -39,6 +39,7 @@
 #include <functional>
 #include <iterator>
 #include <locale>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -1787,6 +1788,89 @@ TEST_CASE(
 
     Argv bad_value({"--rank=first"});
     CHECK_THROWS_AS(gpb.parseCommandLine(bad_value.argc(), bad_value.argv()), GCommandLineError);
+}
+
+// ---------------------------------------------------------------------------
+// GEM_CONFIG_BASENAME (R138-45): the environment variable places the configuration files of a
+// process below one directory. Regression: writeConfigFile() wrote to the path as given, so a file
+// a program wrote with it was not the file parseConfigFile() then read below that directory.
+
+namespace {
+/** Sets an environment variable for its lifetime and restores the earlier state afterwards */
+class GScopedEnvironmentVariable {
+public:
+    GScopedEnvironmentVariable(std::string name, std::string const &value)
+      : name_(std::move(name)) {
+        if(char const *earlier = std::getenv(name_.c_str())) {
+            earlier_ = std::string(earlier);
+        }
+        ::setenv(name_.c_str(), value.c_str(), 1);
+    }
+    ~GScopedEnvironmentVariable() {
+        if(earlier_) {
+            ::setenv(name_.c_str(), earlier_->c_str(), 1);
+        }
+        else {
+            ::unsetenv(name_.c_str());
+        }
+    }
+    GScopedEnvironmentVariable(GScopedEnvironmentVariable const &) = delete;
+    GScopedEnvironmentVariable(GScopedEnvironmentVariable &&) = delete;
+    GScopedEnvironmentVariable &operator=(GScopedEnvironmentVariable const &) = delete;
+    GScopedEnvironmentVariable &operator=(GScopedEnvironmentVariable &&) = delete;
+
+private:
+    std::string name_;
+    std::optional<std::string> earlier_;
+};
+} // namespace
+
+TEST_CASE(
+    "GParserBuilder: GEM_CONFIG_BASENAME places the configuration files below its directory",
+    "[common][parser-builder]"
+) {
+    auto const top = std::filesystem::temp_directory_path() / "gem_parserbuilder_tests" /
+                     ("basename_" + std::to_string(::getpid()));
+    auto const base = top / "configs";
+    std::filesystem::remove_all(top);
+    std::filesystem::create_directories(top);
+    auto const work_dir = std::filesystem::current_path();
+    std::filesystem::current_path(top); // a relative path that misses the base lands here
+
+    {
+        GScopedEnvironmentVariable const env("GEM_CONFIG_BASENAME", base.string());
+        GParserBuilder gpb;
+        int answer = 0;
+        gpb.registerFileParameter<int>("answer", answer, 42);
+
+        // parseConfigFile(): a relative path is resolved below the directory, which is created
+        REQUIRE_NOTHROW(gpb.parseConfigFile("sub/answer.json"));
+        CHECK(std::filesystem::is_regular_file(base / "sub" / "answer.json"));
+        CHECK_FALSE(std::filesystem::exists(top / "sub"));
+        CHECK(answer == 42);
+
+        // writeConfigFile() and updateConfigFile() place their files there as well
+        gpb.writeConfigFile("written.json");
+        CHECK(std::filesystem::is_regular_file(base / "written.json"));
+        CHECK_FALSE(std::filesystem::exists(top / "written.json"));
+        CHECK_THROWS_AS(gpb.writeConfigFile("written.json"), gem_exception);
+        REQUIRE_NOTHROW(gpb.updateConfigFile("updated.json"));
+        CHECK(std::filesystem::is_regular_file(base / "updated.json"));
+
+        // An absolute path is used as given
+        REQUIRE_NOTHROW(gpb.parseConfigFile(top / "absolute.json"));
+        CHECK(std::filesystem::is_regular_file(top / "absolute.json"));
+    }
+
+    // Without the variable, a relative path is the working directory's
+    GParserBuilder plain;
+    int answer = 0;
+    plain.registerFileParameter<int>("answer", answer, 42);
+    REQUIRE_NOTHROW(plain.parseConfigFile("plain.json"));
+    CHECK(std::filesystem::is_regular_file(top / "plain.json"));
+
+    std::filesystem::current_path(work_dir);
+    std::filesystem::remove_all(top);
 }
 
 // ---------------------------------------------------------------------------

@@ -161,6 +161,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   integer read as 2), a negative number for an unsigned key (`-1` wrapped around to
   4294967295), and for an enumeration text or a number that is none of its values
   (`"MAXIMIZE"` for `maxmode` read as 0, i.e. minimize). The error names what the value must be.
+- **The environment variable `GEM_CONFIG_BASENAME`** names a directory below which a
+  program's configuration files are placed (a relative path is resolved against it, the
+  directory is created). `GParserBuilder::writeConfigFile()` follows it too; it wrote to the path
+  as given, so the file a program wrote was not the one it then read.
 - **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `gem_exception`
   that names the file and the cause when the file cannot be read or applied, and return
   `void`. They used to log the error and return `false`, which most callers ignored -- a direct
