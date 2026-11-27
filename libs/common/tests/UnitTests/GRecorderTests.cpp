@@ -382,6 +382,81 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
     );
 }
 
+TEST_CASE("a CSV row whose text spans several lines survives a resume and reads back whole", "[common][record]") {
+    // A text with a line break is written in quotes over several lines of the file (RFC 4180).
+    // Cutting the file back and readRows() read such a row as one record, not line by line.
+    ScratchDirectory const dir("multiline");
+    const std::vector<GColumn> columns{
+        GColumn{.name = "n", .type = columnType::UNSIGNED},
+        GColumn{.name = "note, \"quoted\"", .type = columnType::TEXT}
+    };
+    const std::string tricky = "he said \"x, y\"\r\nand left\n";
+    auto const options = [](bool resume) {
+        return GStreamOptions{.resume = resume, .resumeColumn = resume ? "n" : "", .resumeAfter = 2.};
+    };
+    {
+        auto s = recorder().stream("multiline", columns, withTime::none, options(false));
+        s.append(GRow{std::uint64_t{0}, std::string("a\nb")});
+        s.append(GRow{std::uint64_t{1}, tricky});
+        s.append(GRow{std::uint64_t{2}, std::string("plain")});
+        s.append(GRow{std::uint64_t{3}, std::string("after\nthe checkpoint")});
+    }
+    {
+        auto s = recorder().stream("multiline", columns, withTime::none, options(true));
+        s.append(GRow{std::uint64_t{3}, std::string("resumed")});
+    }
+    CHECK(backupsOf(dir / "multiline.csv") == 0);
+    auto const rows = GCsvSink::readRows(dir / "multiline.csv", columns);
+    REQUIRE(rows);
+    CHECK(
+        *rows == std::vector<std::vector<std::string>>{
+                     {"0", "a\nb"}, {"1", tricky}, {"2", "plain"}, {"3", "resumed"}
+                 }
+    );
+
+    // A column name with a line break makes a header of several lines: still the stream's own
+    const std::vector<GColumn> named{GColumn{.name = "two\nlines", .type = columnType::INTEGER}};
+    for(bool const resume : {false, true}) {
+        auto s = recorder().stream("header", named, withTime::none, GStreamOptions{.resume = resume});
+        s.append(GRow{std::int64_t{resume ? 2 : 1}});
+    }
+    CHECK(backupsOf(dir / "header.csv") == 0);
+    CHECK(
+        GCsvSink::readRows(dir / "header.csv", named) ==
+        std::vector<std::vector<std::string>>{{"1"}, {"2"}}
+    );
+}
+
+TEST_CASE("GCsvSink::readRows() returns the complete rows of a file written for its columns", "[common][record]") {
+    ScratchDirectory const dir("readrows");
+    std::filesystem::create_directories(dir / "");
+    const std::vector<GColumn> columns{
+        GColumn{.name = "n", .type = columnType::INTEGER}, GColumn{.name = "note", .type = columnType::TEXT}
+    };
+    {
+        // A row with a missing field and a last row cut by a crash -- with the right number of
+        // fields, but without its line break -- are left out
+        std::ofstream(dir / "rows.csv") << "n,note\n1,one\n2\n3,\"a, b\"\"c\"\"\nd\"\n4,cu";
+    }
+    auto const rows = GCsvSink::readRows(dir / "rows.csv", columns);
+    REQUIRE(rows);
+    CHECK(*rows == std::vector<std::vector<std::string>>{{"1", "one"}, {"3", "a, b\"c\"\nd"}});
+
+    // No such file, or one written for other columns: none
+    CHECK_FALSE(GCsvSink::readRows(dir / "missing.csv", columns));
+    {
+        std::ofstream(dir / "other.csv") << "n,other\n1,one\n";
+    }
+    CHECK_FALSE(GCsvSink::readRows(dir / "other.csv", columns));
+    // A file of the header alone has no rows
+    {
+        std::ofstream(dir / "empty.csv") << "n,note\n";
+    }
+    auto const none = GCsvSink::readRows(dir / "empty.csv", columns);
+    REQUIRE(none);
+    CHECK(none->empty());
+}
+
 TEST_CASE("a sink added by name joins the next declaration of that stream", "[common][record]") {
     // A program adds a sink to a stream that another part of it declares later: the sink joins the
     // declarer's sinks (here the default CSV file), for that declaration only.

@@ -1124,6 +1124,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   this change that holds such a monitor is not meant to load.
 - **Corrected on the way.** The progress plotter of a GOptimizer chain kept only the last algorithm's
   data; `GNAdpationsLogger` and `GAdaptorPropertyLoggerT` shared the default file `NAdaptions.C`.
+  A CSV row whose text holds a line break spans several lines of the file; it is now read as one
+  row, so it survives the cut-back of a resumed file and reaches `GCsvSink::readRows()` and the
+  plot of a resumed stream.
 - **The log file is a stream.** `GRecordLogTarget` (columns time, severity, source, text; plain
   text with `GTextSink`) replaces `GFileLogger`; a target may override `log(message, logType)`.
 - **courtier's end-of-run report.** When the launcher releases a consumer that counts something,

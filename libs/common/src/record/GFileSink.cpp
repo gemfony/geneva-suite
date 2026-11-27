@@ -32,6 +32,7 @@
 // Standard header files go here
 #include <algorithm>
 #include <fstream>
+#include <istream>
 #include <string>
 #include <system_error>
 #include <vector>
@@ -108,7 +109,7 @@ void GFileSink::cutBack_(GStreamInfo const &info) const {
     {
         std::ifstream in(path_);
         std::size_t n = 0;
-        for(std::string line; std::getline(in, line); ++n) {
+        for(std::string line; this->readRecord_(in, line); ++n) {
             if(n < this->startLines_()) {
                 kept.push_back(line);
                 continue;
@@ -128,6 +129,19 @@ void GFileSink::cutBack_(GStreamInfo const &info) const {
         },
         "GFileSink::open() of the stream \"" + info.name + "\""
     );
+}
+
+/******************************************************************************/
+/**
+ * Reads the next row of the file, or a line it begins with: by default one line. A kind of file
+ * whose rows may span several lines (GCsvSink) reads such a row as a whole.
+ *
+ * @param in The file
+ * @param record The text read, without its last line break
+ * @return Whether one was read
+ */
+bool GFileSink::readRecord_(std::istream &in, std::string &record) const {
+    return static_cast<bool>(std::getline(in, record));
 }
 
 /******************************************************************************/

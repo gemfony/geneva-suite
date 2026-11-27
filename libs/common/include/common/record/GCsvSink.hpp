@@ -34,6 +34,7 @@
 
 // Standard header files go here
 #include <filesystem>
+#include <istream>
 #include <optional>
 #include <ostream>
 #include <string>
@@ -53,8 +54,9 @@ namespace Gem::Common::Record {
  * value in the shortest form that reads back as the same value ("nan", "inf" and "-inf" for the
  * values that are not finite); a bool as "true" or "false"; a time stamp in ISO 8601, in UTC
  * ("2026-11-21T22:15:03.123456789Z"). A text, and a column name, is enclosed in double quotes when
- * it holds a comma, a double quote (written twice), a line break, or space at its start or end.
- * The default sink of a stream.
+ * it holds a comma, a double quote (written twice), a line break, or space at its start or end;
+ * a row with a line break in a text spans several lines of the file, and is read back, cut back
+ * on a resume and returned by readRows() as one row. The default sink of a stream.
  */
 class GCsvSink final : public GFileSink {
 public:
@@ -79,6 +81,8 @@ protected:
     /** @brief The value of one column of a CSV row, as a number */
     [[nodiscard]] std::optional<double>
     numberIn_(std::string const &line, std::size_t column) const override;
+    /** @brief Reads the next CSV record, also one whose quoted text spans several lines */
+    [[nodiscard]] bool readRecord_(std::istream &in, std::string &record) const override;
 };
 
 /******************************************************************************/
