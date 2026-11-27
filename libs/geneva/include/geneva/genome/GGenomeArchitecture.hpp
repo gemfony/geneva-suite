@@ -145,9 +145,10 @@ private:
      *  @param n The number of floating-point values the individual provided */
     void checkSize(std::size_t n) const {
         if(n < rows_ * cols_) {
-            throw gem_exception(
-                g_error_streamer() << "Individual has " << n << " FP values, but the " << rows_
-                                   << "x" << cols_ << " grid needs " << (rows_ * cols_) << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Individual has " << n << " FP values, but the " << rows_ << "x" << cols_
+                << " grid needs " << (rows_ * cols_) << '\n'
             );
         }
     }

@@ -52,7 +52,7 @@
 // Geneva headers
 #include "common/GErrorStreamer.hpp" // g_error_streamer (a refused time limit)
 #include "common/GExceptions.hpp"    // gem_exception (a refused time limit)
-#include "common/GLogger.hpp"        // glogger << ... << GWARNING (late-return drop warning)
+#include "common/GLogger.hpp"        // GEM_LOGGER << ... << GEM_WARNING (late-return drop warning)
 #include "common/concurrency/GAgingStoreT.hpp" // the shared aging keyed+FIFO store (late-return facility)
 #include "common/concurrency/GMPMCQueueT.hpp"            // the list of parked callers
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp" // the per-session in-flight store (CheckoutLease)
@@ -818,10 +818,10 @@ private:
             }
         }
         catch(...) {
-            glogger << "The late result with the id " << id << '\n'
-                    << "could not be applied to its retained original and is dropped: "
-                    << Gem::Common::describeException(std::current_exception()) << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "The late result with the id " << id << '\n'
+                       << "could not be applied to its retained original and is dropped: "
+                       << Gem::Common::describeException(std::current_exception()) << '\n'
+                       << GEM_WARNING;
             recordLateDrop_locked(1);
             return;
         }
@@ -844,13 +844,16 @@ private:
         late_dropped_count_ += n;
         if(not late_drop_warned_) {
             late_drop_warned_ = true;
-            glogger << "A late work-item return (a result for a" << '\n'
-                    << "batch that had already finished or timed out) was dropped. It came" << '\n'
-                    << "too late to be used this round, or it duplicated a result that was" << '\n'
-                    << "used. Enable/enlarge the late-return buffer (setLateReturnBuffer)" << '\n'
-                    << "to retain the late ones for the submitter to reap; the" << '\n'
-                    << "running drop total is available via lateReturnDroppedCount()." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "A late work-item return (a result for a" << '\n'
+                       << "batch that had already finished or timed out) was dropped. It came"
+                       << '\n'
+                       << "too late to be used this round, or it duplicated a result that was"
+                       << '\n'
+                       << "used. Enable/enlarge the late-return buffer (setLateReturnBuffer)"
+                       << '\n'
+                       << "to retain the late ones for the submitter to reap; the" << '\n'
+                       << "running drop total is available via lateReturnDroppedCount()." << '\n'
+                       << GEM_WARNING;
         }
     }
 
@@ -860,11 +863,12 @@ private:
         ++n_foreign_returns_;
         if(not foreign_return_warned_) {
             foreign_return_warned_ = true;
-            glogger << "A result arrived whose work item was" << '\n'
-                    << "handed out by another server process; it is dropped. This happens" << '\n'
-                    << "when a client outlives its server and connects to a new one. The" << '\n'
-                    << "total is available via foreignReturnCount()." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "A result arrived whose work item was" << '\n'
+                       << "handed out by another server process; it is dropped. This happens"
+                       << '\n'
+                       << "when a client outlives its server and connects to a new one. The" << '\n'
+                       << "total is available via foreignReturnCount()." << '\n'
+                       << GEM_WARNING;
         }
     }
 
@@ -992,9 +996,9 @@ private:
         outcome.status = Gem::Courtier::processingStatus::ERROR_FLAGGED;
         outcome.error_descriptions += what;
         b.items[slot]->applyProcessingOutcome(outcome);
-        glogger << "In GNetworkedConsumerT::" << where << ": " << what << '\n'
-                << "The work item is flagged as failed." << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In GNetworkedConsumerT::" << where << ": " << what << '\n'
+                   << "The work item is flagged as failed." << '\n'
+                   << GEM_WARNING;
         completeSlot_locked(b, slot);
     }
 
@@ -1100,11 +1104,12 @@ private:
             std::chrono::duration_cast<std::chrono::milliseconds>(clock::duration::max()).count() /
             2;
         if(ms < 0 || ms > max_ms) {
-            throw gem_exception(
-                g_error_streamer() << "The value " << ms << " of \"" << key
-                                   << "\" is not a time limit: it must be" << '\n'
-                                   << "0 (no limit) or a positive number of milliseconds up to "
-                                   << max_ms << "." << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "The value " << ms << " of \"" << key << "\" is not a time limit: it must be"
+                << '\n'
+                << "0 (no limit) or a positive number of milliseconds up to " << max_ms << "."
+                << '\n'
             );
         }
         return std::chrono::milliseconds(ms);

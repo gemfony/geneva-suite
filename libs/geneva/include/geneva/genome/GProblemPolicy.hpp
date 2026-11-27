@@ -187,8 +187,9 @@ public:
      */
     void setSteepness(double steepness) {
         if(steepness <= 0.) {
-            throw gem_exception(
-                g_error_streamer() << "Invalid value of steepness parameter: " << steepness << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Invalid value of steepness parameter: " << steepness << '\n'
             );
         }
         sigmoid_steepness_ = steepness;
@@ -204,8 +205,9 @@ public:
      */
     void setBarrier(double barrier) {
         if(barrier <= 0.) {
-            throw gem_exception(
-                g_error_streamer() << "Invalid value of barrier parameter: " << barrier << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Invalid value of barrier parameter: " << barrier << '\n'
             );
         }
         sigmoid_extremes_ = barrier;

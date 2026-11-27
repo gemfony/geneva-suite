@@ -91,8 +91,9 @@ using adaption_fp_t = typename adaption_fp<T>::type;
 template <typename T>
 T foldConstrainedFP(const T &val, const T &lo, const T &hi) {
     if(std::isnan(val) || std::isinf(val)) {
-        throw gem_exception(
-            g_error_streamer() << "val is " << (std::isnan(val) ? "NaN" : "infinite") << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "val is " << (std::isnan(val) ? "NaN" : "infinite") << '\n'
         );
     }
 

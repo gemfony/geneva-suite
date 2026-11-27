@@ -81,8 +81,8 @@ inline BackendKind backendKindFromString(const std::string &s) {
     if(const auto kind = Gem::Common::enumFromName<BackendKind>(s)) {
         return *kind;
     }
-    throw gem_exception(
-        g_error_streamer()
+    throw Gem::Common::gem_exception(
+        Gem::Common::g_error_streamer()
         << "Unknown GPU backend '" << s << "'. The GPU consumer is device-only; the only backend is"
         << " 'cuda'." << '\n'
         << "To run on the CPU, use a CPU consumer instead (e.g. --consumer stc), which runs the"

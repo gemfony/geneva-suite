@@ -78,9 +78,9 @@ void beginConfigEmission() {
  * @brief Concludes a configuration-emission run: logs completion. The caller ends the run.
  */
 void finishConfigEmission() {
-    glogger << "Configuration emission complete; configuration files were refreshed in place."
-            << '\n'
-            << GLOGGING;
+    GEM_LOGGER << "Configuration emission complete; configuration files were refreshed in place."
+               << '\n'
+               << GEM_LOGGING;
 }
 
 /******************************************************************************/

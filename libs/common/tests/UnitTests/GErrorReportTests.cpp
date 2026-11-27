@@ -30,7 +30,7 @@
 // Where an error is reported: once, at the place where it is finally handled -- not where it is
 // thrown, and not again on each rethrow. An error that a caller catches and handles prints nothing;
 // one that ends the program is written once to the standard error stream and once to
-// GEM-EXCEPTION.log (the fatal report); one that ends a task is reported once by GERROR, by the
+// GEM-EXCEPTION.log (the fatal report); one that ends a task is reported once by GEM_ERROR, by the
 // handler that ends it (here the thread pool's bulk fork/join).
 
 #include <catch2/catch_test_macros.hpp>
@@ -114,18 +114,18 @@ private:
     std::filesystem::path path_;
 };
 
-/** @brief Captures what glogger hands to its targets while the object lives */
+/** @brief Captures what GEM_LOGGER hands to its targets while the object lives */
 class CapturedLog {
 public:
     CapturedLog() {
-        glogger.addLogTarget(target_);
+        GEM_LOGGER.addLogTarget(target_);
     }
     CapturedLog(CapturedLog const &) = delete;
     CapturedLog(CapturedLog &&) = delete;
     CapturedLog &operator=(CapturedLog const &) = delete;
     CapturedLog &operator=(CapturedLog &&) = delete;
     ~CapturedLog() {
-        glogger.resetLogTargets();
+        GEM_LOGGER.resetLogTargets();
     }
     [[nodiscard]] std::vector<std::string> messages() const {
         std::scoped_lock const lk(target_->m_);
@@ -240,13 +240,13 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GERROR reports an error once to the log and once to GEM-EXCEPTION.log without a throw",
+    "GEM_ERROR reports an error once to the log and once to GEM-EXCEPTION.log without a throw",
     "[common][error-report]"
 ) {
     ScratchDirectory const directory("gerror");
     CapturedLog const log;
 
-    CHECK_NOTHROW(glogger << "a task ended" << '\n' << GERROR);
+    CHECK_NOTHROW(GEM_LOGGER << "a task ended" << '\n' << GEM_ERROR);
 
     const auto messages = log.messages();
     REQUIRE(messages.size() == 1);
@@ -312,7 +312,7 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GTERMINATION writes the error to GEM-TERMINATION.log and to stderr and aborts",
+    "GEM_TERMINATION writes the error to GEM-TERMINATION.log and to stderr and aborts",
     "[common][error-report][termination]"
 ) {
     ScratchDirectory const directory("termination");
@@ -327,7 +327,7 @@ TEST_CASE(
         if(std::freopen("stderr.txt", "w", stderr) == nullptr) {
             std::_Exit(98);
         }
-        glogger << "the reason to terminate" << '\n' << GTERMINATION;
+        GEM_LOGGER << "the reason to terminate" << '\n' << GEM_TERMINATION;
         std::_Exit(99); // not reached
     }
 
@@ -403,7 +403,7 @@ void markCleanExit() {
 } // namespace
 
 TEST_CASE(
-    "LOGEXIT logs the message with its severity and exits cleanly with the return code",
+    "GEM_LOGEXIT logs the message with its severity and exits cleanly with the return code",
     "[common][error-report][exit]"
 ) {
     ScratchDirectory const directory("logexit");
@@ -414,9 +414,9 @@ TEST_CASE(
         if(std::freopen("stderr.txt", "w", stderr) == nullptr) {
             std::_Exit(98);
         }
-        glogger.addLogTarget(std::make_shared<FileTarget>());
+        GEM_LOGGER.addLogTarget(std::make_shared<FileTarget>());
         std::atexit(markCleanExit);
-        glogger << "the reason to leave" << LOGEXIT(3);
+        GEM_LOGGER << "the reason to leave" << GEM_LOGEXIT(3);
         std::_Exit(99); // not reached
     }
 

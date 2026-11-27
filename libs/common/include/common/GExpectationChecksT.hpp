@@ -312,7 +312,7 @@ identity<T> getIdentity(
  * This macro facilitates the creation of an identity object including
  * variable names
  */
-#define IDENTITY(x, y) Gem::Common::getIdentity((x), (y), std::string(#x), std::string(#y))
+#define GEM_IDENTITY(x, y) Gem::Common::getIdentity((x), (y), std::string(#x), std::string(#y))
 
 /******************************************************************************/
 /**
@@ -343,7 +343,7 @@ identity<base_type> getBaseIdentity(
 /**
  * This macro helps to cast an object to its parent class before creating the identity object
  */
-#define IDENTITY_CAST(t, x, y)                                                                     \
+#define GEM_IDENTITY_CAST(t, x, y)                                                                 \
     Gem::Common::getBaseIdentity<decltype(x), t>(                                                  \
         (x),                                                                                       \
         (y),                                                                                       \

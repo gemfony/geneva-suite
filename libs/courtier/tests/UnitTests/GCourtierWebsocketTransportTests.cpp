@@ -766,7 +766,7 @@ TEST_CASE(
             mutable std::atomic<int> n{0};
         };
         auto failures = std::make_shared<GAcceptFailures>();
-        glogger.addLogTarget(failures);
+        GEM_LOGGER.addLogTarget(failures);
 
         OneThread sessions;
         std::atomic<int> n_peers{0};
@@ -856,7 +856,7 @@ TEST_CASE(
         }
         listener.stop();
         listener.endWork();
-        glogger.resetLogTargets();
+        GEM_LOGGER.resetLogTargets();
         ::_exit(code);
     }
 

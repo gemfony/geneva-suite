@@ -115,7 +115,9 @@ public:
     typename base_type::consumer_ptr setup(const ConsumerSpec &) override {
         const auto provider = marshaller_();
         if(not provider) {
-            throw gem_exception(g_error_streamer() << missingPrerequisite() << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << missingPrerequisite() << '\n'
+            );
         }
         const auto handle = provider->provide();
         if(handle->scalarKind() == GPUScalarKind::Double) {
@@ -149,9 +151,10 @@ private:
     build_(const std::shared_ptr<GGPUMarshallerHandle> &handle, const std::string &config_file) {
         auto marshaller = typed_<scalar_type>(handle);
         if(not marshaller) {
-            throw gem_exception(
-                g_error_streamer() << "The registered GPU marshaller is not one for the item type "
-                                   << boost::core::demangle(typeid(processable_type).name()) << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "The registered GPU marshaller is not one for the item type "
+                << boost::core::demangle(typeid(processable_type).name()) << '\n'
             );
         }
         return std::make_shared<GGPUConsumerT<processable_type, scalar_type>>(

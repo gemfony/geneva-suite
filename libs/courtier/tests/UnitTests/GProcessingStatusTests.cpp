@@ -209,7 +209,7 @@ TEST_CASE(
     "[proc][status]"
 ) {
     StatusProbeContainer c(StatusProbeContainer::Mode::SUCCEED);
-    CHECK_THROWS_AS(c.markAsProcessedWith({1., 2.}), gem_exception);
+    CHECK_THROWS_AS(c.markAsProcessedWith({1., 2.}), Gem::Common::gem_exception);
     CHECK(c.is_due_for_processing());
     CHECK_NOTHROW(c.markAsProcessedWith({3.}));
     CHECK(c.is_processed());
@@ -262,7 +262,7 @@ TEST_CASE("courtier's enums: every value has its name", "[proc][status][names]")
     );
     checkEnumNames<BackendKind>({{BackendKind::CUDA, "cuda"}});
     CHECK(Gem::Courtier::GPU::backendKindFromString("cuda") == BackendKind::CUDA);
-    CHECK_THROWS_AS(Gem::Courtier::GPU::backendKindFromString("cpu"), gem_exception);
+    CHECK_THROWS_AS(Gem::Courtier::GPU::backendKindFromString("cpu"), Gem::Common::gem_exception);
 
     std::ostringstream status;
     status << processingStatus::EXCEPTION_CAUGHT;

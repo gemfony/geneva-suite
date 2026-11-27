@@ -74,12 +74,14 @@ GMPIPollCore::GMPIPollCore(
   , keep_alive_(timing.keepAlive)
   , life_(receivers_.size()) {
     if(not calls_) {
-        throw gem_exception(g_error_streamer() << "No calls to MPI were given" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "No calls to MPI were given" << '\n'
+        );
     }
     if(timing_.pauseMin.count() <= 0 || timing_.pauseMax < timing_.pauseMin || timing_.rounds < 1 ||
        timing_.drainGrace.count() < 0 || timing_.keepAlive.count() < 0) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "The timing is not usable: the shortest pause must be positive and not above the "
             << "longest, at least one round, and a drain grace and a keep-alive interval that are "
             << "not negative" << '\n'
@@ -127,9 +129,9 @@ void GMPIPollCore::addReceiver(int rank, std::shared_ptr<GMPIPollReceiverI> rece
         refusal = "the rank has a receiver already";
     }
     if(refusal != nullptr) {
-        throw gem_exception(
-            g_error_streamer() << "A receiver for rank " << rank << " cannot be added: " << refusal
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "A receiver for rank " << rank << " cannot be added: " << refusal << '\n'
         );
     }
     const auto index = static_cast<std::size_t>(rank);
@@ -196,9 +198,9 @@ void GMPIPollCore::setKeepAlive(std::chrono::milliseconds interval) {
  */
 void GMPIPollCore::startSend(int rank, int tag, std::string message) {
     if(not this->validRank_(rank)) {
-        throw gem_exception(
-            g_error_streamer() << "Rank " << rank << " is not one of the " << size_
-                               << " ranks of the communicator" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Rank " << rank << " is not one of the " << size_
+                                            << " ranks of the communicator" << '\n'
         );
     }
     // Counted in before the end is looked at, and out on every way out of this call. shutdown()
@@ -220,9 +222,9 @@ void GMPIPollCore::startSend(int rank, int tag, std::string message) {
     } const scope(sends_in_progress_);
 
     if(shut_down_.load()) {
-        glogger << "GMPIPollCore: a send to rank " << rank
-                << " after the end of the poll was dropped" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "GMPIPollCore: a send to rank " << rank
+                   << " after the end of the poll was dropped" << '\n'
+                   << GEM_WARNING;
         return;
     }
 
@@ -281,10 +283,10 @@ std::size_t GMPIPollCore::drainSends(std::chrono::milliseconds limit) {
         }
     }
     catch(...) {
-        glogger << "GMPIPollCore (rank " << calls_->rank()
-                << "): a look at the sends under way failed: "
-                << Gem::Common::describeException(std::current_exception()) << '\n'
-                << GWARNING;
+        GEM_LOGGER << "GMPIPollCore (rank " << calls_->rank()
+                   << "): a look at the sends under way failed: "
+                   << Gem::Common::describeException(std::current_exception()) << '\n'
+                   << GEM_WARNING;
     }
     return requests_.size();
 }
@@ -322,10 +324,10 @@ std::size_t GMPIPollCore::shutdown() {
         this->reap_();
     }
     catch(...) {
-        glogger << "GMPIPollCore (rank " << calls_->rank()
-                << "): the last look at the sends failed: "
-                << Gem::Common::describeException(std::current_exception()) << '\n'
-                << GWARNING;
+        GEM_LOGGER << "GMPIPollCore (rank " << calls_->rank()
+                   << "): the last look at the sends failed: "
+                   << Gem::Common::describeException(std::current_exception()) << '\n'
+                   << GEM_WARNING;
     }
     const std::size_t n_given_up = requests_.size();
     for(std::size_t i = 0; i < requests_.size(); ++i) {
@@ -333,10 +335,10 @@ std::size_t GMPIPollCore::shutdown() {
             calls_->giveUp(requests_[i], std::move(buffers_[i]));
         }
         catch(...) {
-            glogger << "GMPIPollCore (rank " << calls_->rank()
-                    << "): a send could not be given up: "
-                    << Gem::Common::describeException(std::current_exception()) << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "GMPIPollCore (rank " << calls_->rank()
+                       << "): a send could not be given up: "
+                       << Gem::Common::describeException(std::current_exception()) << '\n'
+                       << GEM_WARNING;
         }
     }
     requests_.clear();
@@ -351,17 +353,17 @@ std::size_t GMPIPollCore::shutdown() {
     receiver_executors_.clear();
 
     // The chain no longer runs: what it has counted is read here
-    glogger << "GMPIPollCore (rank " << calls_->rank() << "): " << n_received_
-            << " messages received, " << n_sent_ << " sent, " << n_polls_ << " polls, "
-            << std::chrono::duration_cast<std::chrono::milliseconds>(receiving_).count()
-            << " ms in receives (longest "
-            << std::chrono::duration_cast<std::chrono::microseconds>(longest_receive_).count()
-            << " us)"
-            << (n_given_up > 0 ? ", " + std::to_string(n_given_up) + " sends given up"
-                               : std::string{})
-            << (n_pings_ > 0 ? ", " + std::to_string(n_pings_) + " pings sent" : std::string{})
-            << '\n'
-            << GLOGGING;
+    GEM_LOGGER << "GMPIPollCore (rank " << calls_->rank() << "): " << n_received_
+               << " messages received, " << n_sent_ << " sent, " << n_polls_ << " polls, "
+               << std::chrono::duration_cast<std::chrono::milliseconds>(receiving_).count()
+               << " ms in receives (longest "
+               << std::chrono::duration_cast<std::chrono::microseconds>(longest_receive_).count()
+               << " us)"
+               << (n_given_up > 0 ? ", " + std::to_string(n_given_up) + " sends given up"
+                                  : std::string{})
+               << (n_pings_ > 0 ? ", " + std::to_string(n_pings_) + " pings sent" : std::string{})
+               << '\n'
+               << GEM_LOGGING;
     return n_given_up;
 }
 
@@ -481,9 +483,9 @@ bool GMPIPollCore::receiveOne_() {
         );
     }
     else {
-        glogger << "GMPIPollCore: a message from rank " << probed->source << " with the tag "
-                << probed->tag << ", which has no receiver in this process, was dropped" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "GMPIPollCore: a message from rank " << probed->source << " with the tag "
+                   << probed->tag << ", which has no receiver in this process, was dropped" << '\n'
+                   << GEM_WARNING;
     }
     return true;
 }
@@ -503,9 +505,9 @@ void GMPIPollCore::fail_(const std::exception_ptr &cause) noexcept {
     const std::string reason = Gem::Common::describeException(cause);
     timer_.cancel();
     tick_timer_.cancel();
-    glogger << "GMPIPollCore (rank " << calls_->rank()
-            << "): the poll has failed and receives nothing more: " << reason << '\n'
-            << GWARNING;
+    GEM_LOGGER << "GMPIPollCore (rank " << calls_->rank()
+               << "): the poll has failed and receives nothing more: " << reason << '\n'
+               << GEM_WARNING;
     for(std::size_t index = 0; index < receivers_.size(); ++index) {
         if(receivers_[index]) {
             boost::asio::post(receiver_executors_[index], [receiver = receivers_[index], reason] {
@@ -649,13 +651,15 @@ void GMPIPollCore::tick_() {
             }
             else if(life.everHeard && now - life.heard > 2 * keep_alive_) {
                 life.silent = true;
-                glogger << "GMPIPollCore (rank " << calls_->rank() << "): rank " << rank
-                        << " has not been heard from for "
-                        << std::chrono::duration_cast<std::chrono::milliseconds>(now - life.heard)
-                               .count()
-                        << " ms (keep-alive interval " << keep_alive_.count()
-                        << " ms): it is silent" << '\n'
-                        << GWARNING;
+                GEM_LOGGER << "GMPIPollCore (rank " << calls_->rank() << "): rank " << rank
+                           << " has not been heard from for "
+                           << std::chrono::duration_cast<std::chrono::milliseconds>(
+                                  now - life.heard
+                              )
+                                  .count()
+                           << " ms (keep-alive interval " << keep_alive_.count()
+                           << " ms): it is silent" << '\n'
+                           << GEM_WARNING;
                 calls_->noteLostRank(rank);
                 boost::asio::post(receiver_executors_[index], [receiver = receivers_[index]] {
                     receiver->silent();

@@ -336,14 +336,14 @@ inline constexpr auto numeric_enum_values_v<sortOrder> =
  * Different log and exception types
  */
 enum class logType : Gem::Common::ENUMBASETYPE {
-    ERROR_REPORT = 0, ///< An error where it is finally handled: logged and recorded (see GERROR)
+    ERROR_REPORT = 0, ///< An error where it is finally handled: logged and recorded (see GEM_ERROR)
     TERMINATION = 1,
     WARNING = 2,
     LOGGING = 3,
     FILE = 4,
     STDOUT = 5,
     STDERR = 6,
-    EXIT = 7 ///< A deliberate, clean program exit with a chosen return code (see LOGEXIT)
+    EXIT = 7 ///< A deliberate, clean program exit with a chosen return code (see GEM_LOGEXIT)
 };
 
 /** @brief logType streams as its underlying numeric value (see numeric_enum_values_v) */

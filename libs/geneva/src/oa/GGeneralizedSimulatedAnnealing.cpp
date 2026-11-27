@@ -84,7 +84,9 @@ std::size_t GGeneralizedSimulatedAnnealing::getNChains() const {
 /** Allows to set the number of independent Markov chains. */
 void GGeneralizedSimulatedAnnealing::setNChains(std::size_t n_chains) {
     if(n_chains == 0) {
-        throw gem_exception(g_error_streamer() << "Got invalid number of chains (0)." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got invalid number of chains (0)." << '\n'
+        );
     }
     n_chains_ = n_chains;
     this->setDefaultPopulationSize(n_chains_ * GSA_SLOTS_PER_CHAIN);
@@ -95,7 +97,9 @@ void GGeneralizedSimulatedAnnealing::setNChains(std::size_t n_chains) {
 void GGeneralizedSimulatedAnnealing::setQv(double qv) {
     // The Tsallis visiting form is defined for 1 < q_v < 3
     if(qv <= 1. || qv >= 3.) {
-        throw gem_exception(g_error_streamer() << "q_v must be in ]1,3[, got " << qv << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "q_v must be in ]1,3[, got " << qv << '\n'
+        );
     }
     qv_ = qv;
 }
@@ -111,9 +115,9 @@ void GGeneralizedSimulatedAnnealing::setQa(double qa) {
     // The generalized acceptance form requires q_a != 1 (q_a == 1 is the
     // classical exponential limit and is intentionally excluded here).
     if(qa == 1.) {
-        throw gem_exception(
-            g_error_streamer() << "q_a must not be exactly 1 (the classical exponential limit)."
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "q_a must not be exactly 1 (the classical exponential limit)." << '\n'
         );
     }
     qa_ = qa;
@@ -128,9 +132,9 @@ double GGeneralizedSimulatedAnnealing::getQa() const {
 /** Sets the initial visiting temperature (0 => derive from ranges). */
 void GGeneralizedSimulatedAnnealing::setT0(double t0) {
     if(t0 < 0.) {
-        throw gem_exception(
-            g_error_streamer() << "t0 must be >= 0 (0 means derive from parameter ranges), got "
-                               << t0 << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "t0 must be >= 0 (0 means derive from parameter ranges), got " << t0 << '\n'
         );
     }
     t0_ = t0;
@@ -241,10 +245,10 @@ void GGeneralizedSimulatedAnnealing::resetToOptimizationStart_() {
  */
 void GGeneralizedSimulatedAnnealing::adjustPopulation_() {
     if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer() << "No individuals found in the population. You need to add at least"
-                               << '\n'
-                               << "one individual before the call to optimize()." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "No individuals found in the population. You need to add at least" << '\n'
+            << "one individual before the call to optimize()." << '\n'
         );
     }
 
@@ -273,8 +277,8 @@ void GGeneralizedSimulatedAnnealing::init() {
     n_fp_parms_ = this->at(0)->countFPParameters(activityMode::ACTIVEONLY);
 
     if(n_fp_parms_ == 0) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "The individual exposes no floating point parameters; Generalized Simulated" << '\n'
             << "Annealing requires a continuous (double / float) genome." << '\n'
         );

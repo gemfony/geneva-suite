@@ -256,7 +256,7 @@ TEST_CASE(
             [](const std::shared_ptr<GPeerI> &, Gem::Courtier::GWirePeerId) {}
         );
     }
-    catch(const gem_exception &e) {
+    catch(const Gem::Common::gem_exception &e) {
         refusal = e.what();
     }
     CHECK(refusal.find(where) != std::string::npos);

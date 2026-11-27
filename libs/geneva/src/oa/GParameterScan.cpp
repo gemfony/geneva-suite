@@ -114,8 +114,9 @@ std::vector<std::int32_t> fillWithData<std::int32_t>(
 
     // We require at least 2 steps, unless we are in random mode
     if(n_steps < 2) {
-        throw gem_exception(
-            g_error_streamer() << "Number of requested steps is too low: " << n_steps << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Number of requested steps is too low: " << n_steps << '\n'
         );
     }
 
@@ -144,8 +145,9 @@ std::vector<float> fillWithData<float>(std::size_t n_steps, float lower, float u
 
     // We require at least 2 steps, unless we are in random mode
     if(n_steps < 2) {
-        throw gem_exception(
-            g_error_streamer() << "Number of requested steps is too low: " << n_steps << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Number of requested steps is too low: " << n_steps << '\n'
         );
     }
 
@@ -173,8 +175,9 @@ std::vector<double> fillWithData<double>(std::size_t n_steps, double lower, doub
 
     // We require at least 2 steps, unless we are in random mode
     if(n_steps < 2) {
-        throw gem_exception(
-            g_error_streamer() << "Number of requested steps is too low: " << n_steps << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Number of requested steps is too low: " << n_steps << '\n'
         );
     }
 
@@ -623,9 +626,9 @@ void GParameterScan::clearAllParVec() {
  */
 bool GParameterScan::customHalt_() const {
     if(this->cycle_logic_halt_) {
-        glogger << "Terminating the loop as no items are left to be" << '\n'
-                << "processed in parameter scan." << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "Terminating the loop as no items are left to be" << '\n'
+                   << "processed in parameter scan." << '\n'
+                   << GEM_LOGGING;
         return true;
     }
     return false;
@@ -715,8 +718,8 @@ void GParameterScan::evaluatePopulation_() {
 void GParameterScan::setParameterSpecs(const std::string &par_str) {
     // Check that the parameter string isn't empty
     if(par_str.empty()) {
-        throw gem_exception(
-            g_error_streamer() << "Parameter string " << par_str << " is empty" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Parameter string " << par_str << " is empty" << '\n'
         );
     }
 
@@ -951,8 +954,8 @@ void GParameterScan::adjustPopulation_() {
 
     // An empty population is an error
     if(n_start == 0) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
     }
@@ -966,7 +969,9 @@ void GParameterScan::adjustPopulation_() {
 
     // Check that we have a valid default population size
     if(0 == this->getDefaultPopulationSize()) {
-        throw gem_exception(g_error_streamer() << "Default-size of the population is 0" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Default-size of the population is 0" << '\n'
+        );
     }
 
     // Create the desired number of (identical) individuals in the population.

@@ -213,7 +213,7 @@ TEST_CASE(
     auto &budget = threadBudget();
 
     auto capture = std::make_shared<CapturingTarget>();
-    glogger.addLogTarget(capture);
+    GEM_LOGGER.addLogTarget(capture);
 
     {
         // Push the total past ceiling * factor in one reservation; the warning must fire once.
@@ -233,5 +233,5 @@ TEST_CASE(
         CHECK(found);
     }
 
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 }

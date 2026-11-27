@@ -610,9 +610,9 @@ TEST_CASE(
     TestFactory f(out);
 
     auto const capture = std::make_shared<CapturingLogTarget>();
-    glogger.addLogTarget(capture);
+    GEM_LOGGER.addLogTarget(capture);
     CHECK_NOTHROW(f.writeConfigFile("a header"));
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     CHECK_FALSE(std::filesystem::exists(out));
     bool warned = false;

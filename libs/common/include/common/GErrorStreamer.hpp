@@ -67,8 +67,6 @@ timeAndPlace(std::source_location const &loc = std::source_location::current()) 
            ") :\n";
 }
 
-} /* namespace Gem::Common */
-
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
@@ -81,7 +79,7 @@ timeAndPlace(std::source_location const &loc = std::source_location::current()) 
  * to a string, done when the exception is built, puts the time and the place of the throw
  * (timeAndPlace(): file, line and function) in front of the streamed message. Nothing is
  * logged here: an error is logged where it is finally handled -- the fatal report for an
- * error that ends the program (common/GFatalReport.hpp), GERROR (common/GLogger.hpp) where an
+ * error that ends the program (common/GFatalReport.hpp), GEM_ERROR (common/GLogger.hpp) where an
  * error ends a task -- so an error that a caller catches and handles prints nothing.
  */
 class g_error_streamer {
@@ -196,5 +194,9 @@ private:
 
     /**************************************************************************/
 };
+
+/******************************************************************************/
+
+} /* namespace Gem::Common */
 
 /******************************************************************************/

@@ -164,13 +164,14 @@ void GSwarmAlgorithm::setSwarmSizes(
 ) {
     // Enforce useful settings
     if(n_neighborhoods == 0) {
-        glogger << "Requested number of neighborhoods is 0. Setting to 1." << '\n' << GWARNING;
+        GEM_LOGGER << "Requested number of neighborhoods is 0. Setting to 1." << '\n'
+                   << GEM_WARNING;
     }
 
     if(default_n_neighborhood_members <= 1) {
-        glogger << "Requested number of members in each neighborhood is too small. Setting to 2."
-                << '\n'
-                << GWARNING;
+        GEM_LOGGER << "Requested number of members in each neighborhood is too small. Setting to 2."
+                   << '\n'
+                   << GEM_WARNING;
     }
 
     n_neighborhoods_ = (n_neighborhoods >= 1) ? n_neighborhoods : 1;
@@ -450,7 +451,7 @@ void GSwarmAlgorithm::init() {
     if(this->at(0)->hasMultipleFitnessCriteria()) {
         static std::atomic<bool> warned{false};
         if(not warned.exchange(true)) {
-            glogger
+            GEM_LOGGER
                 << "The individuals expose more than one fitness criterion, but the swarm" << '\n'
                 << "algorithm is single-objective: it optimizes only the first criterion" << '\n'
                 << "(transformed_fitness(0)) and ignores the rest. Multi-objective PSO is not"
@@ -458,7 +459,7 @@ void GSwarmAlgorithm::init() {
                 << "implemented. Use an evolutionary algorithm in a PARETO sorting mode for true"
                 << '\n'
                 << "multi-objective optimization." << '\n'
-                << GWARNING;
+                << GEM_WARNING;
         }
     }
 }
@@ -1045,8 +1046,8 @@ void GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(maxMode m) {
         // the population. adjustNeighborhoods() refills it afterwards.
         if(first_counter == last_counter) {
             if(inFirstIteration()) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "No item of neighborhood " << n
                     << " returned in the first iteration; cannot seed its best." << '\n'
                 );
@@ -1159,10 +1160,11 @@ void GSwarmAlgorithm::adjustPopulation_() {
     const std::size_t n_neighborhoods = getNNeighborhoods();
 
     if(current_size == 0) {
-        throw gem_exception(
-            g_error_streamer() << "No individuals found in the population." << '\n'
-                               << "You need to add at least one individual before" << '\n'
-                               << "the call to optimize<>()" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "No individuals found in the population." << '\n'
+            << "You need to add at least one individual before" << '\n'
+            << "the call to optimize<>()" << '\n'
         );
     }
     if(current_size == 1) {
@@ -1262,9 +1264,9 @@ void GSwarmAlgorithm::adjustPopulation_() {
 void GSwarmAlgorithm::fillUpNeighborhood1() {
     // Do some error checking
     if(this->size() != n_neighborhoods_) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid size: " << this->size() << " Expected "
-                               << n_neighborhoods_ << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid size: " << this->size() << " Expected " << n_neighborhoods_ << '\n'
         );
     }
 
@@ -1382,9 +1384,9 @@ double GSwarmAlgorithm::getCVelocity() const {
 void GSwarmAlgorithm::setVelocityRangePercentage(double velocity_range_percentage) {
     // Do some error checking
     if(velocity_range_percentage <= 0. || velocity_range_percentage > 1.) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid velocity_range_percentage: " << velocity_range_percentage
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid velocity_range_percentage: " << velocity_range_percentage << '\n'
         );
     }
 

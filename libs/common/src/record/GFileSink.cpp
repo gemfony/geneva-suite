@@ -126,10 +126,10 @@ void GFileSink::cutBack_(GStreamInfo const &info) const {
     }
     // readRecord_() leaves a last row that was cut before its end in line
     if(not line.empty()) {
-        glogger << "The stream \"" << info.name << "\" resumes: the last row of " << path_.string()
-                << " was cut before its end and is dropped:" << '\n'
-                << line << '\n'
-                << GWARNING;
+        GEM_LOGGER << "The stream \"" << info.name << "\" resumes: the last row of "
+                   << path_.string() << " was cut before its end and is dropped:" << '\n'
+                   << line << '\n'
+                   << GEM_WARNING;
     }
     else if(info.resumeColumn.empty()) {
         return;

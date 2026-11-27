@@ -56,8 +56,8 @@ namespace Gem::Common {
  * program adds it like any target:
  *
  * @code
- * glogger.addLogTarget(std::make_shared<Gem::Common::GRecordLogTarget>());
- * glogger.addLogTarget(std::make_shared<Gem::Common::GRecordLogTarget>(
+ * GEM_LOGGER.addLogTarget(std::make_shared<Gem::Common::GRecordLogTarget>());
+ * GEM_LOGGER.addLogTarget(std::make_shared<Gem::Common::GRecordLogTarget>(
  *     "run", std::vector<std::shared_ptr<Gem::Common::Record::GSink>>{
  *                std::make_shared<Gem::Common::Record::GTextSink>()})); // records/run.log, plain text
  * @endcode

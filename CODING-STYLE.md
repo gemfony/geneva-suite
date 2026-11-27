@@ -344,7 +344,7 @@ for(auto it = v.begin(); it != v.end(); ++it) {
 try {
     // code that may throw
 }
-catch(const gem_exception &e) {
+catch(const Gem::Common::gem_exception &e) {
     // handle it; catch by const reference
 }
 

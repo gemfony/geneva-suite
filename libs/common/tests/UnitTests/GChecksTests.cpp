@@ -58,7 +58,7 @@ std::string messageOf(function_type f) {
     try {
         f();
     }
-    catch(gem_exception const &e) {
+    catch(Gem::Common::gem_exception const &e) {
         return e.what();
     }
     return {};
@@ -76,7 +76,10 @@ TEST_CASE(
 }
 
 TEST_CASE("checkThat: a failed condition throws gem_exception", "[common][checks]") {
-    CHECK_THROWS_AS(Gem::Common::checkThat(1 > 2, "one is not larger than two"), gem_exception);
+    CHECK_THROWS_AS(
+        Gem::Common::checkThat(1 > 2, "one is not larger than two"),
+        Gem::Common::gem_exception
+    );
 }
 
 TEST_CASE(
@@ -115,7 +118,10 @@ TEST_CASE("GEM_DEBUG_CHECK: follows the NDEBUG of the build", "[common][checks]"
     CHECK_NOTHROW(GEM_DEBUG_CHECK(failing(), "absent with NDEBUG"));
     CHECK(evaluated == 0);
 #else
-    CHECK_THROWS_AS(GEM_DEBUG_CHECK(failing(), "active without NDEBUG"), gem_exception);
+    CHECK_THROWS_AS(
+        GEM_DEBUG_CHECK(failing(), "active without NDEBUG"),
+        Gem::Common::gem_exception
+    );
     CHECK(evaluated == 1);
 #endif
 }

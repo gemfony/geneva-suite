@@ -275,10 +275,10 @@ bool parseCommandLine(
 
     // Check the number of parents in the super-population
     if(2 * nParents > populationSize) {
-        glogger << "Error: Invalid number of parents inpopulation" << std::endl
-                << "nParents       = " << nParents << std::endl
-                << "populationSize = " << populationSize << std::endl
-                << GWARNING;
+        GEM_LOGGER << "Error: Invalid number of parents inpopulation" << std::endl
+                   << "nParents       = " << nParents << std::endl
+                   << "populationSize = " << populationSize << std::endl
+                   << GEM_WARNING;
 
         return false;
     }

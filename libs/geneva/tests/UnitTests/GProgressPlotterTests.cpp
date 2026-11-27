@@ -458,7 +458,7 @@ TEST_CASE("Two monitors of one class need different stream names", "[monitor][oa
         p->optimize();
         FAIL("the second monitor's stream was taken");
     }
-    catch(const gem_exception &e) {
+    catch(const Gem::Common::gem_exception &e) {
         CHECK(std::string(e.what()).contains("two objects of one class"));
     }
 }
@@ -489,12 +489,12 @@ TEST_CASE("GProcessingTimesLogger refuses histograms without bins", "[monitor][o
     // moved onto streams, and so asked the plot for a histogram of zero bins. They refuse it again,
     // and so does the constructor.
     Gem::Geneva::GProcessingTimesLogger monitor;
-    CHECK_THROWS_AS(monitor.setNBinsX(0), gem_exception);
-    CHECK_THROWS_AS(monitor.setNBinsY(0), gem_exception);
+    CHECK_THROWS_AS(monitor.setNBinsX(0), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(monitor.setNBinsY(0), Gem::Common::gem_exception);
     CHECK(monitor.getNBinsX() > 0);
     CHECK(monitor.getNBinsY() > 0);
-    CHECK_THROWS_AS(Gem::Geneva::GProcessingTimesLogger(0, 10), gem_exception);
-    CHECK_THROWS_AS(Gem::Geneva::GProcessingTimesLogger(10, 0), gem_exception);
+    CHECK_THROWS_AS(Gem::Geneva::GProcessingTimesLogger(0, 10), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(Gem::Geneva::GProcessingTimesLogger(10, 0), Gem::Common::gem_exception);
     CHECK_NOTHROW(Gem::Geneva::GProcessingTimesLogger(10, 10));
 }
 

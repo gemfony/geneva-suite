@@ -92,9 +92,10 @@ struct GFrameHead {
         archive_named(ar, "kind", kind);
         if constexpr(std::remove_cvref_t<archive_type>::is_loading) {
             if(not isFrameKind(kind)) {
-                throw gem_exception(
-                    g_error_streamer() << "The message is not a frame: its kind "
-                                       << std::to_underlying(kind) << " is not a GFrameKind" << '\n'
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
+                    << "The message is not a frame: its kind " << std::to_underlying(kind)
+                    << " is not a GFrameKind" << '\n'
                 );
             }
         }
@@ -347,8 +348,8 @@ public:
     void process(GItemProcessorT<processable_type> *processor = nullptr) {
         auto *held = std::get_if<std::unique_ptr<processable_type>>(&payload_);
         if(held == nullptr || not *held) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Tried to process a work item while the frame carries none" << '\n'
             );
         }
@@ -499,7 +500,7 @@ void makeFailedResult(
  * is not due -- leaves the item unflagged; it is flagged here (ERROR_FLAGGED, the text appended to
  * its error descriptions, unless the item already reports an error). Neither ends the worker: the
  * flagged item is returned like any other result, and the server's submission policy decides what
- * happens to the slot. The failure ends the item's task here, so it is reported here (GERROR: the
+ * happens to the slot. The failure ends the item's task here, so it is reported here (GEM_ERROR: the
  * worker's log and its GEM-EXCEPTION.log), once.
  *
  * A due item is processed by @p processor if one is given (a client's item processor, see
@@ -534,11 +535,11 @@ void processWorkFrame(
             item->applyProcessingOutcome(outcome);
         }
         container.setItem(std::move(item));
-        glogger << "In " << worker_name << ":" << '\n'
-                << "The work item could not be processed:" << '\n'
-                << reason << '\n'
-                << "It is returned to the server flagged; the worker keeps running." << '\n'
-                << GERROR;
+        GEM_LOGGER << "In " << worker_name << ":" << '\n'
+                   << "The work item could not be processed:" << '\n'
+                   << reason << '\n'
+                   << "It is returned to the server flagged; the worker keeps running." << '\n'
+                   << GEM_ERROR;
         return true;
     };
 
@@ -546,11 +547,11 @@ void processWorkFrame(
         container.process(processor);
     }
     catch(const g_processing_exception &e) {
-        glogger << "In " << worker_name << ":" << '\n'
-                << "The work item flagged a processing exception:" << '\n'
-                << e.what() << '\n'
-                << "It is returned to the server flagged; the worker keeps running." << '\n'
-                << GERROR;
+        GEM_LOGGER << "In " << worker_name << ":" << '\n'
+                   << "The work item flagged a processing exception:" << '\n'
+                   << e.what() << '\n'
+                   << "It is returned to the server flagged; the worker keeps running." << '\n'
+                   << GEM_ERROR;
     }
     catch(const std::exception &e) {
         if(not return_flagged(e.what())) {
@@ -590,8 +591,9 @@ std::string_view frameHeadFromString(
     container.reset();
     try {
         if(descr.size() < 4) {
-            throw gem_exception(
-                g_error_streamer() << "the message is shorter than the length of a head" << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "the message is shorter than the length of a head" << '\n'
             );
         }
         std::size_t head_length = 0;
@@ -600,8 +602,8 @@ std::string_view frameHeadFromString(
                         << (8 * i);
         }
         if(head_length > descr.size() - 4) {
-            throw gem_exception(
-                g_error_streamer() << "the head is longer than the message" << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "the head is longer than the message" << '\n'
             );
         }
         container.headFromString(descr.substr(4, head_length), serMode);
@@ -609,9 +611,10 @@ std::string_view frameHeadFromString(
     }
     catch(...) {
         container.reset();
-        throw gem_exception(
-            g_error_streamer() << "The head of a message cannot be read: "
-                               << Gem::Common::describeException(std::current_exception()) << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "The head of a message cannot be read: "
+            << Gem::Common::describeException(std::current_exception()) << '\n'
         );
     }
 }
@@ -636,10 +639,10 @@ void framePayloadFromString(
         container.payloadFromString(payload, serMode);
     }
     catch(...) {
-        throw gem_exception(
-            g_error_streamer() << "The payload of a " << Gem::Common::enumName(container.kind())
-                               << " cannot be read: "
-                               << Gem::Common::describeException(std::current_exception()) << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "The payload of a " << Gem::Common::enumName(container.kind()) << " cannot be read: "
+            << Gem::Common::describeException(std::current_exception()) << '\n'
         );
     }
 }
@@ -673,10 +676,10 @@ std::string container_to_string(
         return message;
     }
     catch(...) {
-        throw gem_exception(
-            g_error_streamer() << Gem::Common::describeException(std::current_exception()) << '\n'
-                               << "with serializationMode == " << Gem::Common::enumName(serMode)
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << Gem::Common::describeException(std::current_exception()) << '\n'
+            << "with serializationMode == " << Gem::Common::enumName(serMode) << '\n'
         );
     }
 }

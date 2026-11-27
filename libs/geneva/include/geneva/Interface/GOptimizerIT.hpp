@@ -132,8 +132,9 @@ public:
 
         // Cross check that we indeed got a valid set of individuals
         if(best_base_individuals.empty()) {
-            throw gem_exception(
-                g_error_streamer() << "Received empty collection of best individuals." << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Received empty collection of best individuals." << '\n'
             );
         }
 
@@ -194,8 +195,9 @@ public:
 
         // Cross check that we indeed got a valid set of individuals
         if(best_base_individuals.empty()) {
-            throw gem_exception(
-                g_error_streamer() << "Received empty collection of best individuals." << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Received empty collection of best individuals." << '\n'
             );
         }
 
@@ -297,10 +299,10 @@ private:
             ind_ptr.release(); // ownership passes to the converted pointer
             return std::unique_ptr<individual_type>(converted);
         }
-        throw gem_exception(
-            g_error_streamer() << "In GOptimizerIT<>::" << accessor << "(): Error!" << '\n'
-                               << "The best individual is not of the requested individual_type."
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "In GOptimizerIT<>::" << accessor << "(): Error!" << '\n'
+            << "The best individual is not of the requested individual_type." << '\n'
         );
     }
 

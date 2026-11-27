@@ -158,7 +158,8 @@ void GFaultyContainer::process_([[maybe_unused]] const std::vector<bool> &res_ve
 
     case fault_mode::THROW_PROCESSING:
         throw g_processing_exception(
-            g_error_streamer() << "GFaultyContainer: injected g_processing_exception" << '\n'
+            Gem::Common::g_error_streamer()
+            << "GFaultyContainer: injected g_processing_exception" << '\n'
         );
 
     case fault_mode::THROW_FATAL:

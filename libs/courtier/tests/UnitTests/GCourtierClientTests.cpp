@@ -291,13 +291,13 @@ TEST_CASE(
 
     const ScratchDirectory directory("worker");
     const auto log = std::make_shared<Gem::Courtier::Tests::CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
 
     auto item = std::make_unique<GFaultyContainer>(0, fault_mode::THROW_PROCESSING);
     item->set_processing_status(processingStatus::DO_PROCESS);
     GCommandContainerT<GFaultyContainer> frame{GFrameKind::WORK, std::move(item)};
     CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "test worker"));
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     CHECK(frame.item()->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
     CHECK(log->countLinesWith({"injected g_processing_exception", "ERROR"}) == 1);
@@ -315,7 +315,7 @@ TEST_CASE(
 
     const ScratchDirectory directory("consumer");
     const auto log = std::make_shared<Gem::Courtier::Tests::CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
 
     std::vector<std::unique_ptr<GFaultyContainer>> batch;
     for(std::size_t i = 0; i < 4; ++i) {
@@ -332,7 +332,7 @@ TEST_CASE(
         std::span<std::unique_ptr<GFaultyContainer>>(batch.data(), batch.size()),
         GSubmissionPolicy::clone_on_partial_return()
     );
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 
     CHECK(log->countLinesWith({"injected g_processing_exception", "ERROR"}) == 1);
     CHECK(recordedFailures() == 1);

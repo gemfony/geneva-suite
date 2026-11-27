@@ -88,55 +88,55 @@ std::ostream &operator<<(std::ostream &os, const CircleTriangle &ct) {
  */
 static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
     if(c.min_size < 0. || c.max_size > 1. || c.min_size >= c.max_size) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid values for minSize and maxSize provided: " << c.min_size
-                               << " / " << c.max_size << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Invalid values for minSize and maxSize provided: "
+                                            << c.min_size << " / " << c.max_size << '\n'
         );
     }
 
     // A startSize < 0 means random initialization in the range [minSize, maxSize]
     if(c.start_size >= 0. && c.start_size < c.min_size) {
         // Cannot be < 0 as minSize may not be <= 0
-        throw gem_exception(
-            g_error_streamer() << "Invalid values for minSize and startSize provided: "
-                               << c.min_size << " / " << c.start_size << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Invalid values for minSize and startSize provided: "
+                                            << c.min_size << " / " << c.start_size << '\n'
         );
     }
 
     if(c.start_size > c.max_size) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid values for maxSize and startSize provided: "
-                               << c.max_size << " / " << c.start_size << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Invalid values for maxSize and startSize provided: "
+                                            << c.max_size << " / " << c.start_size << '\n'
         );
     }
 
     if(c.adapt_ad_prob < 0. || c.adapt_ad_prob > 1.) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid value for adaptAdProb provided: " << c.adapt_ad_prob
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid value for adaptAdProb provided: " << c.adapt_ad_prob << '\n'
         );
     }
 
     if(c.loc_adapt_ad_prob < 0. || c.loc_adapt_ad_prob > 1.) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid value for loc_adaptAdProb provided: "
-                               << c.loc_adapt_ad_prob << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid value for loc_adaptAdProb provided: " << c.loc_adapt_ad_prob << '\n'
         );
     }
 
     if(c.min_ad_prob >= c.max_ad_prob || c.min_ad_prob < 0. || c.max_ad_prob > 1. ||
        c.ad_prob < c.min_ad_prob || c.ad_prob > c.max_ad_prob) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid values for minAdprob, maxAdProb or adProb provided: "
-                               << c.min_ad_prob << " / " << c.max_ad_prob << " / " << c.ad_prob
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid values for minAdprob, maxAdProb or adProb provided: " << c.min_ad_prob
+            << " / " << c.max_ad_prob << " / " << c.ad_prob << '\n'
         );
     }
 
     if(c.loc_min_ad_prob >= c.loc_max_ad_prob || c.loc_min_ad_prob < 0. || c.loc_max_ad_prob > 1. ||
        c.loc_ad_prob < c.loc_min_ad_prob || c.loc_ad_prob > c.loc_max_ad_prob) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "Invalid values for loc_minAdprob, loc_maxAdProb or loc_adProb provided: "
             << c.loc_min_ad_prob << " / " << c.loc_max_ad_prob << " / " << c.loc_ad_prob << '\n'
         );

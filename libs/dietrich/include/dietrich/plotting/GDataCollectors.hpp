@@ -203,10 +203,11 @@ public:
             x = Gem::Common::narrow<axis_t<0>>(x_undet);
         }
         catch(std::overflow_error &e) {
-            throw gem_exception(
-                g_error_streamer() << "Encountered invalid cast with Gem::Common::narrow," << '\n'
-                                   << "with the message " << '\n'
-                                   << e.what() << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                << "with the message " << '\n'
+                << e.what() << '\n'
             );
         }
 
@@ -294,8 +295,8 @@ public:
                 x = Gem::Common::narrow<axis_t<0>>(src);
             }
             catch(std::overflow_error &e) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                     << "with the message " << '\n'
                     << e.what() << '\n'
@@ -327,8 +328,8 @@ public:
                 x = Gem::Common::narrow<axis_t<0>>(src);
             }
             catch(std::overflow_error &e) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "Encountered invalid cast with Gem::Common::narrow," << '\n'
                     << "with the message " << '\n'
                     << e.what() << '\n'
@@ -517,8 +518,8 @@ public:
 	  */
     [[nodiscard]] auto getMinMaxElements() const {
         if(this->currentSize() == 0) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Cannot determine the data range of an empty collector." << '\n'
             );
         }
@@ -577,8 +578,8 @@ public:
     void appendRow(std::span<const double> row) override {
         if constexpr(((std::is_same_v<Ts, double> || std::is_same_v<Ts, std::int32_t>) && ...)) {
             if(row.size() != n_axes) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "row size " << row.size() << " != axis count " << n_axes << '\n'
                 );
             }
@@ -689,10 +690,11 @@ private:
              ...);
         }
         catch(std::overflow_error &e) {
-            throw gem_exception(
-                g_error_streamer() << "Encountered invalid cast with Gem::Common::narrow," << '\n'
-                                   << "with the message " << '\n'
-                                   << e.what() << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                << "with the message " << '\n'
+                << e.what() << '\n'
             );
         }
     }
@@ -770,10 +772,11 @@ private:
             return item_t(Gem::Common::narrow<axis_t<INDICES>>(std::get<INDICES>(src))...);
         }
         catch(std::overflow_error &e) {
-            throw gem_exception(
-                g_error_streamer() << "Encountered invalid cast with Gem::Common::narrow," << '\n'
-                                   << "with the message " << '\n'
-                                   << e.what() << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Encountered invalid cast with Gem::Common::narrow," << '\n'
+                << "with the message " << '\n'
+                << e.what() << '\n'
             );
         }
     }

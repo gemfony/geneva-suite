@@ -779,7 +779,7 @@ TEST_CASE(
     }
 
     SECTION("an empty evaluation") {
-        CHECK_THROWS_AS(ind.process(GGenome::evaluation_function{}), gem_exception);
+        CHECK_THROWS_AS(ind.process(GGenome::evaluation_function{}), Gem::Common::gem_exception);
         CHECK(ind.getProcessingStatus() == processingStatus::DO_PROCESS);
     }
 
@@ -974,7 +974,7 @@ private:
     }
 };
 
-/** @brief A log target that counts the error reports (GERROR) that contain a text */
+/** @brief A log target that counts the error reports (GEM_ERROR) that contain a text */
 class ErrorReportCounter : public Gem::Common::GBaseLogTarget {
 public:
     using Gem::Common::GBaseLogTarget::logWithSource;
@@ -1086,7 +1086,10 @@ TEST_CASE(
         const Gem::Tests::ProcessWritingMarshaller marshaller;
         std::vector<double> params;
         marshaller.flatten(batch, params);
-        CHECK_THROWS_AS(marshaller.scatter(batch, std::vector<double>(3, 12.), 0.), gem_exception);
+        CHECK_THROWS_AS(
+            marshaller.scatter(batch, std::vector<double>(3, 12.), 0.),
+            Gem::Common::gem_exception
+        );
         CHECK(
             suppliedEvaluationLog.order == std::vector<std::string>{"pre", "pre", "pre"}
         ); // not run a second time
@@ -1118,7 +1121,7 @@ TEST_CASE(
         batch[0]->set_processing_status(processingStatus::DO_PROCESS);
         CHECK_THROWS_AS(
             batch[0]->completeProcessing({individual_processing_result(3.)}),
-            gem_exception
+            Gem::Common::gem_exception
         );
 
         // A working device processes the resubmitted batch: each item is begun anew
@@ -1145,11 +1148,11 @@ TEST_CASE(
         std::vector<double> params;
         // Each failure ends its item's task in the marshaller, which reports it once
         const auto reports = std::make_shared<Gem::Tests::ErrorReportCounter>("processor failed");
-        glogger.addLogTarget(reports);
+        GEM_LOGGER.addLogTarget(reports);
         CHECK_NOTHROW(marshaller.flatten(batch, params));
         CHECK(params == std::vector<double>(9, 1.));
         CHECK_NOTHROW(marshaller.scatter(batch, std::vector<double>{-1., 3., 3.}, 0.));
-        glogger.resetLogTargets();
+        GEM_LOGGER.resetLogTargets();
         CHECK(reports->count == 2);
 
         CHECK(batch[0]->getProcessingStatus() == processingStatus::EXCEPTION_CAUGHT);
@@ -1164,32 +1167,32 @@ TEST_CASE(
         GGenome &item = *batch[0];
         item.set_processing_status(processingStatus::DO_PROCESS);
         const std::vector<individual_processing_result> res{individual_processing_result(3.)};
-        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), Gem::Common::gem_exception);
         item.beginProcessing();
-        CHECK_THROWS_AS(item.completeProcessing({}), gem_exception);
+        CHECK_THROWS_AS(item.completeProcessing({}), Gem::Common::gem_exception);
         CHECK(item.getProcessingStatus() == processingStatus::DO_PROCESS);
         CHECK_NOTHROW(item.completeProcessing(res));
         CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);
-        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception); // not twice
+        CHECK_THROWS_AS(item.completeProcessing(res), Gem::Common::gem_exception); // not twice
 
         // A begun item that is un-submitted and submitted again must be begun again
         item.set_processing_status(processingStatus::DO_PROCESS);
         item.beginProcessing();
         item.set_processing_status(processingStatus::UNPROCESSED);
         item.set_processing_status(processingStatus::DO_PROCESS);
-        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), Gem::Common::gem_exception);
 
         // So does a submission of a begun item that is due already (DO_PROCESS to DO_PROCESS)
         item.beginProcessing();
         item.set_processing_status(processingStatus::DO_PROCESS);
-        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), Gem::Common::gem_exception);
 
         // A clone of a begun item is not begun
         item.set_processing_status(processingStatus::DO_PROCESS);
         item.beginProcessing();
         auto copy = item.clone();
         CHECK(copy->getProcessingStatus() == processingStatus::DO_PROCESS);
-        CHECK_THROWS_AS(copy->completeProcessing(res), gem_exception);
+        CHECK_THROWS_AS(copy->completeProcessing(res), Gem::Common::gem_exception);
         CHECK_NOTHROW(item.completeProcessing(res));
 
         // Results adopted with markAsProcessedWith() end a begun processing: the item is refused
@@ -1202,13 +1205,13 @@ TEST_CASE(
             Catch::Matchers::ContainsSubstring("Function called while processing_status_")
         );
         item.mark_as_due_for_processing();
-        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), Gem::Common::gem_exception);
 
         // So does a new submission of a begun item (e.g. its values were changed after the
         // pre-processor ran)
         item.beginProcessing();
         item.mark_as_due_for_processing();
-        CHECK_THROWS_AS(item.completeProcessing(res), gem_exception);
+        CHECK_THROWS_AS(item.completeProcessing(res), Gem::Common::gem_exception);
         item.beginProcessing();
         CHECK_NOTHROW(item.completeProcessing(res));
         CHECK(item.getProcessingStatus() == processingStatus::PROCESSED);

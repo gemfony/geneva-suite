@@ -504,7 +504,9 @@ public:
      */
     void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE> &factory) {
         if(not factory) {
-            throw gem_exception(g_error_streamer() << "Individual is empty" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Individual is empty" << '\n'
+            );
         }
 
         ind_factory_ = Gem::Common::g_ptr_conversion<
@@ -717,8 +719,9 @@ protected:
         // ind_factory_->get() below would dereference a null factory pointer (undefined behaviour) rather
         // than report the missing registration.
         if(not ind_factory_) {
-            throw gem_exception(
-                g_error_streamer() << "No factory class for individuals has been registered" << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "No factory class for individuals has been registered" << '\n'
             );
         }
 
@@ -1032,7 +1035,9 @@ public:
      */
     void registerIndividualFactory(const std::shared_ptr<typename ind_type::FACTORYTYPE> &factory) {
         if(not factory) {
-            throw gem_exception(g_error_streamer() << "Individual is empty" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Individual is empty" << '\n'
+            );
         }
 
         ind_factory_ = Gem::Common::g_ptr_conversion<

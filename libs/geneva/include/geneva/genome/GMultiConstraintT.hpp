@@ -356,7 +356,9 @@ public:
      */
     void addCheck(const std::shared_ptr<GPreEvaluationValidityCheckT<ind_type>> &vc_ptr) {
         if(not vc_ptr) {
-            throw gem_exception(g_error_streamer() << "Got empty check pointer" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Got empty check pointer" << '\n'
+            );
         }
 
         validity_checks_.push_back(
@@ -539,8 +541,8 @@ protected:
 
             // --------------------------------------------------------------------
         default: {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Got invalid combiner_policy_ value: " << combiner_policy_ << '\n'
             );
         }

@@ -88,7 +88,9 @@ void GOptimizer::registerDefaultAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
-        throw gem_exception(g_error_streamer() << "Got invalid algorithm mnemonic " << mn << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got invalid algorithm mnemonic " << mn << '\n'
+        );
     }
 
     this->registerDefaultAlgorithm(p->provide());
@@ -106,7 +108,9 @@ void GOptimizer::registerDefaultAlgorithm(std::string const &mn) {
 void GOptimizer::registerDefaultAlgorithm(const std::shared_ptr<GOABase> &default_algorithm) {
     // Check that the pointer isn't empty
     if(not default_algorithm) {
-        throw gem_exception(g_error_streamer() << "Got empty algorithm." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got empty algorithm." << '\n'
+        );
     }
 
     // If any individuals have been storedn in the default algorithm, we assume
@@ -134,8 +138,9 @@ void GOptimizer::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM>
         pluggable_monitors_cnt_.push_back(pluggable_om);
     }
     else {
-        throw gem_exception(
-            g_error_streamer() << "Tried to register empty pluggable optimization monitor\n"
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Tried to register empty pluggable optimization monitor\n"
         );
     }
 }
@@ -201,7 +206,9 @@ std::size_t GOptimizer::getNAlgorithms() const {
 void GOptimizer::addAlgorithm(const std::shared_ptr<GOABase> &alg) {
     // Check that the pointer is not empty
     if(not alg) {
-        throw gem_exception(g_error_streamer() << "Tried to register an empty pointer" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Tried to register an empty pointer" << '\n'
+        );
     }
 
     // If any individuals have already been registered with alg, we assume
@@ -280,7 +287,9 @@ void GOptimizer::addAlgorithm(std::string const &mn) {
     // Retrieve the algorithm from the global store
     std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
     if(not oaFactoryStore()->get(mn, p)) {
-        throw gem_exception(g_error_streamer() << "Got invalid algorithm mnemonic " << mn << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got invalid algorithm mnemonic " << mn << '\n'
+        );
     }
 
     this->addAlgorithm(p->provide()); // The provider's factory might add a monitor to the object
@@ -339,15 +348,16 @@ void GOptimizer::claimContentCreator_(
     };
 
     if(not cc_ptr) {
-        throw gem_exception(
-            g_error_streamer() << "Tried to register an empty content creator (source: "
-                               << sourceStr(source) << ")" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Tried to register an empty content creator (source: " << sourceStr(source) << ")"
+            << '\n'
         );
     }
 
     if(content_creator_source_ != individualSource::NONE) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "An optimization problem (individual) is already provided ("
             << sourceStr(content_creator_source_) << ");" << '\n'
             << "refusing to add another (" << sourceStr(source) << ")." << '\n'
@@ -425,9 +435,9 @@ void GOptimizer::refreshAllConfigs_() {
             (void)provider->provide();
         }
         catch(std::exception const &e) {
-            glogger << "could not refresh the \"" << provider->getMnemonic()
-                    << "\" algorithm config: " << e.what() << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "could not refresh the \"" << provider->getMnemonic()
+                       << "\" algorithm config: " << e.what() << '\n'
+                       << GEM_WARNING;
         }
     }
 
@@ -437,7 +447,8 @@ void GOptimizer::refreshAllConfigs_() {
             (void)(*content_creator_ptr_)();
         }
         catch(std::exception const &e) {
-            glogger << "could not refresh the individual config: " << e.what() << '\n' << GWARNING;
+            GEM_LOGGER << "could not refresh the individual config: " << e.what() << '\n'
+                       << GEM_WARNING;
         }
     }
 }
@@ -453,11 +464,11 @@ void GOptimizer::ensureAlgorithmPresent() {
             // Simply add the Geneva-side default algorithm
             this->registerDefaultAlgorithm(default_algorithm_str_);
 
-            glogger << "In GOptimizer::optimize(): INFORMATION:" << '\n'
-                    << "No user-defined optimization algorithm available." << '\n'
-                    << "Using default algorithm \"" << default_algorithm_str_ << "\" instead."
-                    << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "In GOptimizer::optimize(): INFORMATION:" << '\n'
+                       << "No user-defined optimization algorithm available." << '\n'
+                       << "Using default algorithm \"" << default_algorithm_str_ << "\" instead."
+                       << '\n'
+                       << GEM_LOGGING;
         }
 
         algorithms_cnt_.push_back(default_algorithm_->clone<GOABase>());
@@ -505,10 +516,10 @@ std::uint32_t GOptimizer::prepareInitialPopulation(std::uint32_t offset) {
 void GOptimizer::validateCheckpointFitsFirstAlgorithm() const {
     if(cp_file_ != "empty" &&
        not algorithms_cnt_[0]->cp_mnemonic_fits(std::filesystem::path(cp_file_))) {
-        throw gem_exception(
-            g_error_streamer() << "Checkpoint file " << cp_file_ << " does not" << '\n'
-                               << "fit requirements of first algorithm "
-                               << algorithms_cnt_[0]->getAlgorithmMnemonic() << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Checkpoint file " << cp_file_ << " does not" << '\n'
+                                            << "fit requirements of first algorithm "
+                                            << algorithms_cnt_[0]->getAlgorithmMnemonic() << '\n'
         );
     }
 }
@@ -531,8 +542,8 @@ void GOptimizer::fillPopulationFromContentCreator() {
         return; // individuals were already registered directly -- nothing to create
     }
     if(not content_creator_ptr_) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "No optimization problem (individual) is available: no content creator and no"
             << '\n'
             << "individuals have been registered. Provide exactly one of:" << '\n'
@@ -559,8 +570,8 @@ void GOptimizer::createIndividualsFromContentCreator() {
         }
         else {                  // No valid item received, the factory has run empty
             if(this->empty()) { // Still empty?
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "The content creator did not deliver any individuals" << '\n'
                     << "and none have been registered so far." << '\n'
                     << "No way to continue." << '\n'
@@ -810,8 +821,8 @@ void GOptimizer::resolveAlgorithmChain_(std::vector<std::string> const &mnemonic
         // Retrieve the algorithm provider from the global store
         std::shared_ptr<Gem::Common::GProviderT<GOABase>> p;
         if(not oaFactoryStore()->get(alg_str, p)) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Got invalid algorithm mnemonic \"" << alg_str << "\"." << '\n'
                 << "No algorithm found for this string." << '\n'
             );

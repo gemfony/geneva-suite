@@ -733,10 +733,11 @@ inline scriptKind classifyForScript(
     default:
         break;
     }
-    throw gem_exception(
-        g_error_streamer() << "In " << where << ": Error!" << '\n'
-                           << "the " << backend_name << " backend does not support "
-                           << p.getPlotterName() << "; use the ROOT backend for it" << '\n'
+    throw Gem::Common::gem_exception(
+        Gem::Common::g_error_streamer()
+        << "In " << where << ": Error!" << '\n'
+        << "the " << backend_name << " backend does not support " << p.getPlotterName()
+        << "; use the ROOT backend for it" << '\n'
     );
 }
 
@@ -769,8 +770,8 @@ inline void validateScriptPads(
             const scriptKind sk = classifyForScript(*sp, with_histograms, where, backend_name);
             if(sp->plotSpec().projection.value_or(surfaceProjection::NONE) !=
                surfaceProjection::NONE) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "In " << where << ": Error!" << '\n'
                     << "an overlay (" << sp->getPlotterName()
                     << ") requests a surface projection -- "
@@ -778,8 +779,8 @@ inline void validateScriptPads(
                 );
             }
             if(isThreeDimensionalScript(k) != isThreeDimensionalScript(sk)) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "In " << where << ": Error!" << '\n'
                     << "a 2-d and a 3-d graph cannot share a single " << backend_name << " pad ("
                     << p->getPlotterName() << " vs. " << sp->getPlotterName() << ")" << '\n'
@@ -804,11 +805,11 @@ inline void warnPadOverflow(
     std::size_t max_plots
 ) {
     if(n_plotters > max_plots) {
-        glogger << "In " << where << " (Canvas label = \"" << canvas_label << "\":" << '\n'
-                << "Warning! Found more plots than pads (" << n_plotters << " vs. " << max_plots
-                << ")" << '\n'
-                << "Some of the plots will be ignored" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << where << " (Canvas label = \"" << canvas_label << "\":" << '\n'
+                   << "Warning! Found more plots than pads (" << n_plotters << " vs. " << max_plots
+                   << ")" << '\n'
+                   << "Some of the plots will be ignored" << '\n'
+                   << GEM_WARNING;
     }
 }
 

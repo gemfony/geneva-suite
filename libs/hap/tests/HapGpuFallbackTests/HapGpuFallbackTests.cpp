@@ -449,7 +449,7 @@ TEST_CASE(
         std::chrono::milliseconds(300)
     );
     auto capture = std::make_shared<GCapturingTarget>();
-    glogger.addLogTarget(capture);
+    GEM_LOGGER.addLogTarget(capture);
 
     GStartHold hold(GpuSourceStartStage::CONTEXT_CREATION);
     {
@@ -465,7 +465,7 @@ TEST_CASE(
         CHECK(warned_twice);
         CHECK(capture->count("building its random-number engine") >= 2);
     }
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 }
 
 TEST_CASE(

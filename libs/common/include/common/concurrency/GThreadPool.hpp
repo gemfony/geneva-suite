@@ -183,9 +183,9 @@ public:
                     promise_ptr->set_exception(std::current_exception());
                 }
                 catch(...) { // set_exception() itself may throw -- nothing safe remains
-                    glogger << "promise.set_exception() threw." << '\n'
-                            << "We cannot continue" << '\n'
-                            << GTERMINATION;
+                    GEM_LOGGER << "promise.set_exception() threw." << '\n'
+                               << "We cannot continue" << '\n'
+                               << GEM_TERMINATION;
                 }
             }
         };
@@ -208,7 +208,7 @@ public:
     /**
      * Fire-and-forget submission: schedules the task but returns no future and
      * allocates no promise. As there is no result channel, an exception thrown by
-     * the task ends it here and is reported (GERROR: logged and recorded in
+     * the task ends it here and is reported (GEM_ERROR: logged and recorded in
      * GEM-EXCEPTION.log) -- never propagated, which would terminate the worker thread. Use this for tasks whose result and success the caller does
      * not need to observe; it still participates in wait().
      *
@@ -225,15 +225,15 @@ public:
                 (void)f(std::move(args)...); // any return value is discarded
             }
             catch(...) {
-                glogger << "A fire-and-forget task ended with an error:" << '\n'
-                        << Gem::Common::describeException(std::current_exception()) << '\n'
-                        << GERROR;
+                GEM_LOGGER << "A fire-and-forget task ended with an error:" << '\n'
+                           << Gem::Common::describeException(std::current_exception()) << '\n'
+                           << GEM_ERROR;
             }
         };
         if(not enqueue(std::move_only_function<void()>(std::move(task)))) {
-            glogger << "submission after the pool was closed;"
-                    << " task dropped." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "submission after the pool was closed;"
+                       << " task dropped." << '\n'
+                       << GEM_WARNING;
         }
     }
 
@@ -247,7 +247,7 @@ public:
      * shared (e.g. several algorithms submitting concurrently). @p per_item is invoked CONCURRENTLY, once
      * per element, so it must be safe to run on distinct elements in parallel (evaluating distinct work
      * items is the intended use). An exception thrown by @p per_item ends the task of its element there:
-     * it is reported (GERROR: logged and recorded in GEM-EXCEPTION.log) and not propagated -- the
+     * it is reported (GEM_ERROR: logged and recorded in GEM-EXCEPTION.log) and not propagated -- the
      * element is expected to record its own failure state, as a work item's processing status does --
      * and the latch is still counted down so the join never hangs. A single-thread pool degenerates to sequential execution in
      * submission order.
@@ -286,9 +286,10 @@ public:
                     }
                     // Reported here, where the task ends; the element records its own failure
                     catch(...) {
-                        glogger << "A task of a bulk fork/join ended with an error:" << '\n'
-                                << Gem::Common::describeException(std::current_exception()) << '\n'
-                                << GERROR;
+                        GEM_LOGGER << "A task of a bulk fork/join ended with an error:" << '\n'
+                                   << Gem::Common::describeException(std::current_exception())
+                                   << '\n'
+                                   << GEM_ERROR;
                     }
                 };
                 if(not enqueue(std::move_only_function<void()>(std::move(task)))) {

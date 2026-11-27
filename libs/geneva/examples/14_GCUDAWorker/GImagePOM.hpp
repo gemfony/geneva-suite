@@ -280,15 +280,15 @@ private:
             const std::filesystem::path dir(resultImageDirectory_);
             if(not std::filesystem::exists(dir)) {
                 if(not std::filesystem::create_directories(dir)) {
-                    throw gem_exception(
-                        g_error_streamer()
+                    throw Gem::Common::gem_exception(
+                        Gem::Common::g_error_streamer()
                         << "GImagePOM: could not create directory " << resultImageDirectory_ << '\n'
                     );
                 }
             }
             else if(not std::filesystem::is_directory(dir)) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "GImagePOM: " << resultImageDirectory_ << " is not a directory" << '\n'
                 );
             }

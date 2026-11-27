@@ -244,7 +244,7 @@ IF(GEM_GPU_CONSUMER_ENABLED)
 	gem_courtier_test(GCourtierGpuConsumerTests S  GCourtierGpuConsumerTests.cpp)
 ENDIF()
 
-# The fatal reconciliation paths exit the process cleanly with a non-zero status (via LOGEXIT, no
+# The fatal reconciliation paths exit the process cleanly with a non-zero status (via GEM_LOGEXIT, no
 # core dump), so they are exercised as subprocesses: the "ok" control must succeed (exit 0); each
 # fatal scenario must exit non-zero, which CTest's WILL_FAIL asserts directly.
 ADD_EXECUTABLE(GCourtierFatalExerciser GCourtierFatalExerciser.cpp)

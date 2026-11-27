@@ -105,8 +105,8 @@ GTestIndividual2::GTestIndividual2(const std::size_t &n_objects, const PERFOBJEC
     } break;
 
     default: {
-        throw gem_exception(
-            g_error_streamer() << "Invalid object type requested: " << otype << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Invalid object type requested: " << otype << '\n'
         );
     }
     }

@@ -63,7 +63,7 @@ TEST_CASE(
         line = std::source_location::current().line() + 1; // the line of the check below
         GEM_DEBUG_CHECK(2 < 1, "two is not smaller than ", 1);
     }
-    catch(gem_exception const &e) {
+    catch(Gem::Common::gem_exception const &e) {
         message = e.what();
     }
     CHECK(message.contains("GChecksDebugActiveTests.cpp"));

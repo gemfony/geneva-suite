@@ -262,8 +262,9 @@ protected:
 
         auto *fg = dynamic_cast<GGenome *>(p.get());
         if(fg == nullptr) {
-            throw gem_exception(
-                g_error_streamer() << "The produced object is not a GGenome derivative" << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "The produced object is not a GGenome derivative" << '\n'
             );
         }
         fg->setGenome(genome);

@@ -244,7 +244,7 @@ int main(int argc, char **argv) {
             );
             gtp.setNThreads(nt);
 
-            glogger << "Resized thread pool to size " << nt << '\n' << GLOGGING;
+            GEM_LOGGER << "Resized thread pool to size " << nt << '\n' << GEM_LOGGING;
         }
 
         // Wait for all tasks to complete and check for errors
@@ -254,10 +254,10 @@ int main(int argc, char **argv) {
     // Check that each task has been called exactly nIterations times
     for(std::size_t i = 0; i < nJobs; i++) {
         if(nIterations != (tasks.at(i))->getProcessCalledValue()) {
-            glogger << "In task " << i << ":" << '\n'
-                    << "Got wrong number of calls: " << (tasks.at(i))->getProcessCalledValue()
-                    << "." << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "In task " << i << ":" << '\n'
+                       << "Got wrong number of calls: " << (tasks.at(i))->getProcessCalledValue()
+                       << "." << '\n'
+                       << GEM_LOGGING;
         }
     }
 }

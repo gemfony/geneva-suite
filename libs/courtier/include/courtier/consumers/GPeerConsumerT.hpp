@@ -157,9 +157,9 @@ public:
       , keep_alive_(listener ? listener->keepAlive() : std::chrono::milliseconds::zero())
       , listener_(std::move(listener)) {
         if(not listener_) {
-            throw gem_exception(
-                g_error_streamer() << "In " << consumer_name_ << ": Error!" << '\n'
-                                   << "The listener must not be empty" << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "In " << consumer_name_ << ": Error!" << '\n'
+                                                << "The listener must not be empty" << '\n'
             );
         }
     }
@@ -242,9 +242,10 @@ public:
             else if(lifecycle_ == GLifecycle::START_FAILED) {
                 why = "the listener could not be started before";
             }
-            throw gem_exception(
-                g_error_streamer() << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
-                                   << "The consumer cannot be started: " << why << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "In " << consumer_name_ << "::startServer(): Error!" << '\n'
+                << "The consumer cannot be started: " << why << '\n'
             );
         }
 
@@ -359,10 +360,10 @@ private:
             }
         }
         if(not peers_.waitUntilEmpty(listener_->stopGrace())) {
-            glogger << "In " << consumer_name_ << "::stopServer(): " << peers_.size()
-                    << " peer(s) had not ended within " << listener_->stopGrace().count() << " ms"
-                    << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "In " << consumer_name_ << "::stopServer(): " << peers_.size()
+                       << " peer(s) had not ended within " << listener_->stopGrace().count()
+                       << " ms" << '\n'
+                       << GEM_LOGGING;
         }
     }
 

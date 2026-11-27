@@ -57,7 +57,7 @@ namespace Gem::Courtier::Consumers {
 
 /******************************************************************************/
 /**
- * @brief Ends the MPI job: reports @p text as an error (GERROR: logged and recorded in
+ * @brief Ends the MPI job: reports @p text as an error (GEM_ERROR: logged and recorded in
  * GEM-EXCEPTION.log, where the error is finally handled), flushes the program's streams and calls
  * MPI_Abort on @p communicator with @p code, which ends every process of the job. Does not
  * return. The one way courtier ends a job (GMPICascade, ~GMPIEnvironment()).
@@ -69,7 +69,7 @@ namespace Gem::Courtier::Consumers {
 [[noreturn]] inline void
 endMpiJob(MPI_Comm communicator, std::string_view text, int code) noexcept {
     try {
-        glogger << text << '\n' << GERROR;
+        GEM_LOGGER << text << '\n' << GEM_ERROR;
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case
     }
@@ -157,8 +157,8 @@ public:
         int finalized = 0;
         MPI_Finalized(&finalized);
         if(finalized != 0) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "MPI has been finalized in this process and cannot be used again." << '\n'
             );
         }
@@ -177,8 +177,8 @@ public:
             if(i_initialized_mpi_) {
                 MPI_Finalize(); // nobody else will: the destructor does not run for this object
             }
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "courtier's MPI transport requires MPI with the thread level "
                 << "MPI_THREAD_MULTIPLE (a.k.a. " << MPI_THREAD_MULTIPLE << "), but "
                 << (i_initialized_mpi_ ? "the runtime environment only supports level "
@@ -228,10 +228,11 @@ public:
         }
         if(lost_rank_.load()) {
             try {
-                glogger << "ranks were lost during the run: the program's MPI_Finalize will wait "
-                           "for them"
-                        << '\n'
-                        << GWARNING;
+                GEM_LOGGER
+                    << "ranks were lost during the run: the program's MPI_Finalize will wait "
+                       "for them"
+                    << '\n'
+                    << GEM_WARNING;
             }
             catch(...) { // NOLINT(bugprone-empty-catch): nothing to do about a log line
             }
@@ -313,8 +314,8 @@ private:
      *  @param what The function that was asked */
     void requireCommunicator_(const char *what) const {
         if(communicator_ == MPI_COMM_NULL) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In GMPIEnvironment::" << what << ": Error!" << '\n'
                 << "This process takes no part in courtier's MPI protocol and has no "
                 << "communicator." << '\n'

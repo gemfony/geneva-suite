@@ -175,8 +175,8 @@ public:
             r = run_state::INIT;
 
             if(not this->init()) { // Initialize the client
-                throw gem_exception(
-                    g_error_streamer() << "Initialization failed. Leaving ..." << '\n'
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer() << "Initialization failed. Leaving ..." << '\n'
                 );
             }
 
@@ -185,12 +185,14 @@ public:
 
             r = run_state::FINALLY;
             if(not this->finally()) {
-                throw gem_exception(g_error_streamer() << "Finalization failed." << '\n');
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer() << "Finalization failed." << '\n'
+                );
             }
         }
-        catch(gem_exception &e) {
-            throw gem_exception(
-                g_error_streamer()
+        catch(Gem::Common::gem_exception &e) {
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In the state run_state::" << Gem::Common::enumName(r) << ":" << '\n'
                 << "Caught gem_exception" << '\n'
                 << "with message" << '\n'
@@ -198,16 +200,18 @@ public:
             );
         }
         catch(std::exception &e) {
-            throw gem_exception(
-                g_error_streamer() << "In the state run_state::" << Gem::Common::enumName(r)
-                                   << ": Caught std::exception with message" << '\n'
-                                   << e.what() << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "In the state run_state::" << Gem::Common::enumName(r)
+                << ": Caught std::exception with message" << '\n'
+                << e.what() << '\n'
             );
         }
         catch(...) {
-            throw gem_exception(
-                g_error_streamer() << "In the state run_state::" << Gem::Common::enumName(r)
-                                   << ": Caught unknown exception." << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "In the state run_state::" << Gem::Common::enumName(r)
+                << ": Caught unknown exception." << '\n'
             );
         }
 
@@ -286,7 +290,7 @@ protected:
         auto haltOnce = [this](const char *reason) {
             if(not halt_logged_) {
                 halt_logged_ = true;
-                glogger << "Client is terminating because " << reason << '\n' << GLOGGING;
+                GEM_LOGGER << "Client is terminating because " << reason << '\n' << GEM_LOGGING;
             }
             return true;
         };

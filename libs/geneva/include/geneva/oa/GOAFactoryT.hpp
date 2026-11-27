@@ -208,7 +208,9 @@ public:
     void
     registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr) {
         if(not cc_ptr) {
-            throw gem_exception(g_error_streamer() << "Tried to register an empty pointer" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Tried to register an empty pointer" << '\n'
+            );
         }
 
         content_creator_ptr_ = cc_ptr;
@@ -225,8 +227,8 @@ public:
             pluggable_om_ = pluggable_om;
         }
         else {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Tried to register empty pluggable optimization monitor" << '\n'
             );
         }
@@ -310,7 +312,9 @@ public:
         if(max_iteration_cl_ != CL_UNSET) {
             return Gem::Common::narrow<std::uint32_t>(max_iteration_cl_);
         }
-        throw gem_exception(g_error_streamer() << "max_iteration_cl_ wasn't set" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "max_iteration_cl_ wasn't set" << '\n'
+        );
 
         // Make the compiler happy
         return static_cast<std::uint32_t>(0);
@@ -346,7 +350,9 @@ public:
         if(max_stall_iteration_cl_ != CL_UNSET) {
             return Gem::Common::narrow<std::uint32_t>(max_stall_iteration_cl_);
         }
-        throw gem_exception(g_error_streamer() << "max_stall_iteration_cl_ wasn't set" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "max_stall_iteration_cl_ wasn't set" << '\n'
+        );
 
         // Make the compiler happy
         return static_cast<std::uint32_t>(0);
@@ -384,7 +390,9 @@ public:
                 std::chrono::seconds(Gem::Common::narrow<long>(max_seconds_cl_));
             return max_duration;
         }
-        throw gem_exception(g_error_streamer() << "max_seconds_cl_ wasn't set" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "max_seconds_cl_ wasn't set" << '\n'
+        );
 
         // Make the compiler happy
         return std::chrono::seconds(0);

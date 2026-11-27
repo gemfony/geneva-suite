@@ -119,11 +119,11 @@ static BenchmarkConfig loadConfig(const std::string &configFile) {
     gpb.parseConfigFile(configFile);
 
     if(algoTags.size() != algoMnemonics.size() || algoTags.size() != algoConfigFiles.size()) {
-        throw gem_exception(
-            g_error_streamer() << "The algo_tags (" << algoTags.size() << "), algo_mnemonics ("
-                               << algoMnemonics.size() << ") and algo_config_files ("
-                               << algoConfigFiles.size()
-                               << ") vectors must all have the same length." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "The algo_tags (" << algoTags.size() << "), algo_mnemonics (" << algoMnemonics.size()
+            << ") and algo_config_files (" << algoConfigFiles.size()
+            << ") vectors must all have the same length." << '\n'
         );
     }
 

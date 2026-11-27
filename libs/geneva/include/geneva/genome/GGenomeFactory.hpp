@@ -114,7 +114,9 @@ public:
             pre_processor_ = p;
         }
         else {
-            throw gem_exception(g_error_streamer() << "Got empty pre-processor" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Got empty pre-processor" << '\n'
+            );
         }
     }
 
@@ -131,7 +133,9 @@ public:
             post_processor_ = p;
         }
         else {
-            throw gem_exception(g_error_streamer() << "Got empty post-processor" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Got empty post-processor" << '\n'
+            );
         }
     }
 

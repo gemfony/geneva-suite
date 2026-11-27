@@ -141,7 +141,9 @@ std::size_t GBaseParChildPersonalityTraits::getParentId() const {
     if(parent_id_ >= 0) {
         return parent_id_;
     }
-    throw gem_exception(g_error_streamer() << "parent_id_ is unset" << '\n');
+    throw Gem::Common::gem_exception(
+        Gem::Common::g_error_streamer() << "parent_id_ is unset" << '\n'
+    );
 
     // Make the compiler happy
     return static_cast<std::size_t>(0);

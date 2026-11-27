@@ -127,8 +127,9 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
     const auto fail = [this](std::string_view what, const error_code &ec) {
         error_code ignored;
         std::ignore = acceptor_.close(ignored);
-        throw gem_exception(
-            g_error_streamer() << "In " << name_ << ": " << what << ": " << ec.message() << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "In " << name_ << ": " << what << ": " << ec.message() << '\n'
         );
     };
 
@@ -187,9 +188,9 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         std::ignore = acceptor_.close(ignored);
         on_peer_ = nullptr;
         handler_executor_ = boost::asio::any_io_executor{};
-        throw gem_exception(
-            g_error_streamer() << "In " << name_ << ": could not start the I/O threads: " << why
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "In " << name_ << ": could not start the I/O threads: " << why << '\n'
         );
     }
     running_.store(true);
@@ -243,9 +244,9 @@ void GWebsocketListener::whenAccepted_(const error_code &ec, GWebsocketPeer::soc
         // Anything else -- "too many open files" above all -- must not be retried at once: that
         // would occupy an I/O thread and never let descriptors be given back. (Tested in a child
         // process whose descriptors are used up: GCourtierWebsocketTransportTests.)
-        glogger << "In " << name_ << ": " << ec.message() << " -- pausing before the next accept"
-                << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": " << ec.message() << " -- pausing before the next accept"
+                   << '\n'
+                   << GEM_WARNING;
         retry_timer_.expires_after(Gem::Courtier::GCONSUMERACCEPTRETRYPAUSE);
         retry_timer_.async_wait(boost::asio::bind_executor(accept_strand_, [this](error_code tec) {
             if(not tec && not stopped_.load()) {
@@ -269,11 +270,12 @@ void GWebsocketListener::whenAccepted_(const error_code &ec, GWebsocketPeer::soc
         );
     }
     catch(const std::exception &e) {
-        glogger << "In " << name_ << ": a new client could not be taken on: " << e.what() << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": a new client could not be taken on: " << e.what() << '\n'
+                   << GEM_WARNING;
     }
     catch(...) {
-        glogger << "In " << name_ << ": a new client could not be taken on" << '\n' << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": a new client could not be taken on" << '\n'
+                   << GEM_WARNING;
     }
 
     this->accept_();
@@ -307,9 +309,9 @@ void GWebsocketListener::stop() {
         closed->count_down();
     });
     if(not closed->wait_for(LISTENER_STOP_BOUND)) {
-        glogger << "In " << name_ << ": the accept loop, with a new client it takes on, did not "
-                << "stop within " << LISTENER_STOP_BOUND.count() << " ms" << '\n'
-                << GWARNING;
+        GEM_LOGGER << "In " << name_ << ": the accept loop, with a new client it takes on, did not "
+                   << "stop within " << LISTENER_STOP_BOUND.count() << " ms" << '\n'
+                   << GEM_WARNING;
     }
 }
 

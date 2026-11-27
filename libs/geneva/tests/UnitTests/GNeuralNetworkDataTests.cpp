@@ -251,5 +251,5 @@ TEST_CASE("The figure of the training data holds every training set", "[individu
     networkData three_inputs(0);
     three_inputs.push_back(3);
     three_inputs.push_back(1);
-    CHECK_THROWS_AS(three_inputs.trainingDataPlot(), gem_exception);
+    CHECK_THROWS_AS(three_inputs.trainingDataPlot(), Gem::Common::gem_exception);
 }

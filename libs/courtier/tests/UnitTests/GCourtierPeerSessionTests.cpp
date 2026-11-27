@@ -828,7 +828,7 @@ TEST_CASE(
     "[courtier][peer][session]"
 ) {
     auto log = std::make_shared<CapturedLog>();
-    glogger.addLogTarget(log);
+    GEM_LOGGER.addLogTarget(log);
     FakeConsumer consumer;
     IoThreads server;
     IoThreads client;
@@ -853,5 +853,5 @@ TEST_CASE(
         ) == 1
     );
     CHECK_FALSE(log->hasLineWith({"cannot"}));
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
 }

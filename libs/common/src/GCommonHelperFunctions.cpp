@@ -265,10 +265,11 @@ unsigned int getNHardwareThreads() {
     static const unsigned int N_THREADS = [] {
         const unsigned int n = askNHardwareThreads();
         if(n == 0) {
-            glogger << "The system does not say how many hardware threads this process may use."
-                    << '\n'
-                    << "Using the default value " << DEFAULTNHARDWARETHREADS << " instead." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "The system does not say how many hardware threads this process may use."
+                       << '\n'
+                       << "Using the default value " << DEFAULTNHARDWARETHREADS << " instead."
+                       << '\n'
+                       << GEM_WARNING;
             return DEFAULTNHARDWARETHREADS;
         }
         return n;
@@ -720,11 +721,11 @@ bool backupExistingFile(const std::string &file_name, std::string_view context) 
         );
     }
 
-    glogger << "In " << context << '\n'
-            << "Attempt to output information to file " << file_name << '\n'
-            << "which already exists. The old file was renamed to" << '\n'
-            << new_file_name << '\n'
-            << GWARNING;
+    GEM_LOGGER << "In " << context << '\n'
+               << "Attempt to output information to file " << file_name << '\n'
+               << "which already exists. The old file was renamed to" << '\n'
+               << new_file_name << '\n'
+               << GEM_WARNING;
 
     return true;
 }

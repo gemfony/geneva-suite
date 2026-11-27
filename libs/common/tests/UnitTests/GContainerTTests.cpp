@@ -79,10 +79,10 @@ struct SerBase : Gem::Common::gemfony_common_interface_indicator {
         if((e == Gem::Common::expectation::EQUALITY ||
             e == Gem::Common::expectation::FP_SIMILARITY) &&
            v != cp.v) {
-            throw g_expectation_violation("SerBase: values differ");
+            throw Gem::Common::g_expectation_violation("SerBase: values differ");
         }
         if(e == Gem::Common::expectation::INEQUALITY && v == cp.v) {
-            throw g_expectation_violation("SerBase: values equal");
+            throw Gem::Common::g_expectation_violation("SerBase: values equal");
         }
     }
 
@@ -147,12 +147,12 @@ struct TestBase : Gem::Common::gemfony_common_interface_indicator {
         if(e == Gem::Common::expectation::EQUALITY ||
            e == Gem::Common::expectation::FP_SIMILARITY) {
             if(val != cp.val) {
-                throw g_expectation_violation("TestBase::compare: values differ");
+                throw Gem::Common::g_expectation_violation("TestBase::compare: values differ");
             }
         }
         else if(e == Gem::Common::expectation::INEQUALITY) {
             if(val == cp.val) {
-                throw g_expectation_violation("TestBase::compare: values are equal");
+                throw Gem::Common::g_expectation_violation("TestBase::compare: values are equal");
             }
         }
     }
@@ -723,7 +723,7 @@ TEST_CASE("GContainerT: GPodContainerT<int> with std::deque backend", "[GContain
         a.assign({1, 2, 3});
         ConcretePodDeque b;
         b.assign({4, 5, 6});
-        CHECK_THROWS_AS(a.crossOver(b, 3), gem_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 3), Gem::Common::gem_exception);
         CHECK_NOTHROW(a.crossOver(b, 2));
     }
 
@@ -830,13 +830,13 @@ TEST_CASE(
     SECTION("push_backClone — null pointer throws") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.push_back_clone(null), gem_exception);
+        CHECK_THROWS_AS(c.push_back_clone(null), Gem::Common::gem_exception);
     }
 
     SECTION("push_backNoclone — null pointer throws") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.push_back_noclone(null), gem_exception);
+        CHECK_THROWS_AS(c.push_back_noclone(null), Gem::Common::gem_exception);
     }
 
     SECTION("insertClone — single") {
@@ -867,8 +867,8 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(0));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.insert_clone(c.begin(), null), gem_exception);
-        CHECK_THROWS_AS(c.insert_clone(c.begin(), 2u, null), gem_exception);
+        CHECK_THROWS_AS(c.insert_clone(c.begin(), null), Gem::Common::gem_exception);
+        CHECK_THROWS_AS(c.insert_clone(c.begin(), 2u, null), Gem::Common::gem_exception);
     }
 
     SECTION("insertNoclone — single") {
@@ -884,7 +884,7 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.insert_noclone(c.begin(), null), gem_exception);
+        CHECK_THROWS_AS(c.insert_noclone(c.begin(), null), Gem::Common::gem_exception);
     }
 
     SECTION("insertClone — count, mid-position contiguity") {
@@ -984,7 +984,7 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.insert_noclone(c.begin(), 2u, null), gem_exception);
+        CHECK_THROWS_AS(c.insert_noclone(c.begin(), 2u, null), Gem::Common::gem_exception);
     }
 
     SECTION("resizeClone") {
@@ -1001,7 +1001,7 @@ TEST_CASE(
     SECTION("resizeClone — null pointer throws on grow") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.resize_clone(3u, null), gem_exception);
+        CHECK_THROWS_AS(c.resize_clone(3u, null), Gem::Common::gem_exception);
     }
 
     SECTION("resizeNoclone") {
@@ -1026,7 +1026,7 @@ TEST_CASE(
     SECTION("resizeNoclone — null pointer throws on grow") {
         ConcretePtrVec c;
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.resize_noclone(3u, null), gem_exception);
+        CHECK_THROWS_AS(c.resize_noclone(3u, null), Gem::Common::gem_exception);
     }
 
     SECTION("resizeEmpty") {
@@ -1075,14 +1075,14 @@ TEST_CASE(
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.count<TestBase>(null), gem_exception);
+        CHECK_THROWS_AS(c.count<TestBase>(null), Gem::Common::gem_exception);
     }
 
     SECTION("find — null pointer throws") {
         ConcretePtrVec c;
         c.push_back_noclone(std::make_shared<TestBase>(1));
         std::shared_ptr<TestBase> const null;
-        CHECK_THROWS_AS(c.find<TestBase>(null), gem_exception);
+        CHECK_THROWS_AS(c.find<TestBase>(null), Gem::Common::gem_exception);
     }
 
     SECTION("crossOver — equal length") {
@@ -1124,7 +1124,7 @@ TEST_CASE(
         ConcretePtrVec b;
         b.push_back_noclone(std::make_shared<TestBase>(4));
         b.push_back_noclone(std::make_shared<TestBase>(5));
-        CHECK_THROWS_AS(a.crossOver(b, 2), gem_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 2), Gem::Common::gem_exception);
         CHECK_NOTHROW(a.crossOver(b, 1));
     }
 
@@ -1535,8 +1535,8 @@ TEST_CASE("GContainerT: edge cases", "[GContainerT][edge]") {
         ConcretePodVec b;
         b.assign({4, 5, 6});
         // pos >= minSize(3) must throw
-        CHECK_THROWS_AS(a.crossOver(b, 3), gem_exception);
-        CHECK_THROWS_AS(a.crossOver(b, 99), gem_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 3), Gem::Common::gem_exception);
+        CHECK_THROWS_AS(a.crossOver(b, 99), Gem::Common::gem_exception);
         CHECK_NOTHROW(a.crossOver(b, 2));
     }
 

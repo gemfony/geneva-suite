@@ -192,9 +192,9 @@ struct GWireProtocolT<Gem::Geneva::Genome::GGenome> {
             break;
 
         default:
-            glogger << "Got a return carrying the unexpected geneva command " << tag << '\n'
-                    << "The return is ignored; the slot keeps its previous state." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "Got a return carrying the unexpected geneva command " << tag << '\n'
+                       << "The return is ignored; the slot keeps its previous state." << '\n'
+                       << GEM_WARNING;
             break;
         }
     }

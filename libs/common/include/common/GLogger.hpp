@@ -127,8 +127,8 @@ public:
     /**
      * @brief Logs a message of a given severity; unless overridden, as log(message)
      *
-     * GLogger calls this overload: GLOGGING passes logType::LOGGING, GWARNING logType::WARNING,
-     * GERROR logType::ERROR_REPORT and LOGEXIT logType::EXIT. A target that has a use for the severity overrides it.
+     * GLogger calls this overload: GEM_LOGGING passes logType::LOGGING, GEM_WARNING logType::WARNING,
+     * GEM_ERROR logType::ERROR_REPORT and GEM_LOGEXIT logType::EXIT. A target that has a use for the severity overrides it.
      *
      * @param message The log message to be emitted by the target
      * @param severity The kind of message
@@ -258,16 +258,18 @@ public:
      *  @return A freshly created GLogStreamer with the manipulator applied */
     GLogStreamer operator<<(std::ios_base &(*val)(std::ios_base &));
 
-    /** @brief Creates a streamer carrying a source-extension specifier (emitted
-     *  alongside console output / appended to a log-file name with an underscore)
-     *  @param extension The source-extension specifier to attach to the streamer
-     *  @return A freshly created GLogStreamer carrying the extension */
-    GLogStreamer operator()(std::string const &extension);
+    /** @brief Creates a streamer that logs with a source name (emitted alongside console
+     *  output / appended to a log-file name with an underscore), as in
+     *  GEM_LOGGER.withSource("solver") << ... << GEM_LOGGING
+     *  @param name The source name to attach to the streamer
+     *  @return A freshly created GLogStreamer carrying the source name */
+    GLogStreamer withSource(std::string const &name);
 
-    /** @brief Creates a streamer that logs to a specific one-time log file
-     *  @param p The path of the one-time log file to write to
+    /** @brief Creates a streamer that writes to a one-time log file, as in
+     *  GEM_LOGGER.toFile("result.txt") << ... << GEM_FILE
+     *  @param path The path of the one-time log file to write to
      *  @return A freshly created GLogStreamer bound to the given log file */
-    GLogStreamer operator()(std::filesystem::path p);
+    GLogStreamer toFile(std::filesystem::path path);
 
     /***************************************************************************/
     /**
@@ -604,7 +606,7 @@ private:
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
-// GLogger's streamer-producing operators. They construct a GLogStreamer by
+// GLogger's streamer-producing operators and functions. They construct a GLogStreamer by
 // value, so their definitions must follow the streamer's class definition.
 
 template <typename T>
@@ -632,12 +634,12 @@ inline GLogStreamer GLogger::operator<<(std::ios_base &(*val)(std::ios_base &)) 
     return s;
 }
 
-inline GLogStreamer GLogger::operator()(std::string const &extension) {
-    return GLogStreamer(extension);
+inline GLogStreamer GLogger::withSource(std::string const &name) {
+    return GLogStreamer(name);
 }
 
-inline GLogStreamer GLogger::operator()(std::filesystem::path p) {
-    return GLogStreamer(std::move(p));
+inline GLogStreamer GLogger::toFile(std::filesystem::path path) {
+    return GLogStreamer(std::move(path));
 }
 
 /******************************************************************************/
@@ -656,17 +658,18 @@ template <>
 struct gsingleton_never_destroy<GLogger> : std::true_type {};
 
 /******************************************************************************/
-
-} /* namespace Gem::Common */
-
-/******************************************************************************/
 /**
 * The logger is process-wide: its targets (the console, a log file) are resources of the process,
 * set up once and written to from every thread and library
 */
-using log_singleton = Gem::Common::GSingletonT<Gem::Common::GLogger>;
-#define glogger_ptr log_singleton::instance()
-#define glogger     (*(log_singleton::instance()))
+using log_singleton = GSingletonT<GLogger>;
+
+/******************************************************************************/
+
+} /* namespace Gem::Common */
+
+#define GEM_LOGGER_PTR Gem::Common::log_singleton::instance()
+#define GEM_LOGGER     (*(Gem::Common::log_singleton::instance()))
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -679,7 +682,7 @@ namespace Gem::Common {
  *
  * Returns an "in file <file> near line <line> (<function>)" string describing the
  * call site via C++20 std::source_location -- the function name is now included.
- * Used directly by the GERROR / GTERMINATION / GWARNING / GSTDERR manipulators.
+ * Used directly by the GEM_ERROR / GEM_TERMINATION / GEM_WARNING / GEM_STDERR manipulators.
  *
  * @param loc The source location to describe (defaults to the caller's location)
  * @return A human-readable string naming the file, line and function of the call site
@@ -695,7 +698,7 @@ locationString(std::source_location const &loc = std::source_location::current()
  * working directory
  *
  * The file is appended to across runs; if it cannot be opened, the report goes to std::cerr. An
- * error is recorded once, where it is finally handled: GERROR (an error that ends a task) and the
+ * error is recorded once, where it is finally handled: GEM_ERROR (an error that ends a task) and the
  * fatal report (an error that ends the program, common/GFatalReport.hpp) write through this
  * function; throwing and rethrowing write nothing. It takes no lock of the logger, so that the
  * fatal report can use it.
@@ -708,25 +711,25 @@ void recordError(std::string_view where, std::string_view what);
 
 // Reports an error where it is finally handled -- where it ends a task or the program: through the
 // log targets, and appended to GEM-EXCEPTION.log (see Gem::Common::recordError()). It does not throw.
-#define GERROR                                                                                     \
+#define GEM_ERROR                                                                                  \
     Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::ERROR_REPORT)
-#define GTERMINATION                                                                               \
+#define GEM_TERMINATION                                                                            \
     Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::TERMINATION)
-#define GWARNING                                                                                   \
+#define GEM_WARNING                                                                                \
     Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::WARNING)
-#define GLOGGING Gem::Common::GManipulator(Gem::Common::logType::LOGGING)
-#define GFILE    Gem::Common::GManipulator(Gem::Common::logType::FILE)
+#define GEM_LOGGING Gem::Common::GManipulator(Gem::Common::logType::LOGGING)
+#define GEM_FILE    Gem::Common::GManipulator(Gem::Common::logType::FILE)
 // Logs the streamed message and then exits the process CLEANLY with the given return code
-// (std::exit, no core dump) -- the graceful counterpart to GTERMINATION, e.g. for command-line
+// (std::exit, no core dump) -- the graceful counterpart to GEM_TERMINATION, e.g. for command-line
 // errors or other deliberate early exits.
-#define LOGEXIT(returncode)                                                                        \
+#define GEM_LOGEXIT(returncode)                                                                    \
     Gem::Common::GManipulator(                                                                     \
         Gem::Common::locationString(),                                                             \
         Gem::Common::logType::EXIT,                                                                \
         (returncode)                                                                               \
     )
-#define GSTDOUT Gem::Common::GManipulator(Gem::Common::logType::STDOUT)
-#define GSTDERR                                                                                    \
+#define GEM_STDOUT Gem::Common::GManipulator(Gem::Common::logType::STDOUT)
+#define GEM_STDERR                                                                                 \
     Gem::Common::GManipulator(Gem::Common::locationString(), Gem::Common::logType::STDERR)
 
 /******************************************************************************/

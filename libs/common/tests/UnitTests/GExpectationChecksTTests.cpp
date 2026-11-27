@@ -207,7 +207,7 @@ TEST_CASE("compare<tribool>: equal values + EQUALITY pass", "[common][expectatio
 }
 
 // ---------------------------------------------------------------------------
-// identity / IDENTITY macro
+// identity / GEM_IDENTITY macro
 
 TEST_CASE(
     "identity / getIdentity: stores references and names",
@@ -1235,12 +1235,12 @@ struct NamedDerived : NamedBase {};
 } // namespace
 
 TEST_CASE(
-    "IDENTITY / getBaseIdentity / IDENTITY_CAST: names and objects",
+    "GEM_IDENTITY / getBaseIdentity / GEM_IDENTITY_CAST: names and objects",
     "[common][expectations][identity]"
 ) {
     int const first = 1;
     int const second = 2;
-    auto const id = IDENTITY(first, second);
+    auto const id = GEM_IDENTITY(first, second);
     CHECK(id.x_name == "first");
     CHECK(id.y_name == "second");
     CHECK(&id.x == &first);
@@ -1252,7 +1252,7 @@ TEST_CASE(
     CHECK(&base_id.y == static_cast<NamedBase const *>(&b));
     CHECK(base_id.x_name == "a");
 
-    auto const cast_id = IDENTITY_CAST(NamedBase, a, b);
+    auto const cast_id = GEM_IDENTITY_CAST(NamedBase, a, b);
     CHECK(&cast_id.x == static_cast<NamedBase const *>(&a));
     CHECK(cast_id.x_name == "(const NamedBase&)a");
     CHECK(cast_id.y_name == "(const NamedBase&)b");

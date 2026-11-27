@@ -152,10 +152,10 @@ fp_type enforceRangeConstraint(
     const bool below = val < lower;
     const fp_type bound = below ? lower : upper;
     if(verbose) {
-        glogger << detail::rangeCaller(caller) << "value " << val
-                << (below ? " < lower boundary " : " > upper boundary ") << bound << '\n'
-                << "Will be adapted to " << bound << '\n'
-                << GWARNING;
+        GEM_LOGGER << detail::rangeCaller(caller) << "value " << val
+                   << (below ? " < lower boundary " : " > upper boundary ") << bound << '\n'
+                   << "Will be adapted to " << bound << '\n'
+                   << GEM_WARNING;
     }
     val = bound;
     return val;
@@ -327,9 +327,9 @@ num_type checkValueRange(
         " outside of allowed range\n",
         range.str()
     );
-    glogger << "Value " << val << name << " outside of recommended range\n"
-            << range.str() << '\n'
-            << GWARNING;
+    GEM_LOGGER << "Value " << val << name << " outside of recommended range\n"
+               << range.str() << '\n'
+               << GEM_WARNING;
     return val;
 }
 

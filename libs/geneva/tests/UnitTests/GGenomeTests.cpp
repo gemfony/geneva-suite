@@ -841,8 +841,14 @@ TEST_CASE("GGenome: value round-trip (parameterValues / assignValueVector)", "[f
 // The size check was compiled only in Debug builds; it now runs in every build.
 TEST_CASE("GGenome: assignValueVector with the wrong number of values throws", "[flat]") {
     Sphere ind(4);
-    CHECK_THROWS_AS(ind.assignValueVector<double>(std::vector<double>{1., 2., 3.}), gem_exception);
-    CHECK_THROWS_AS(ind.assignValueVector<double>(std::vector<double>(5, 1.)), gem_exception);
+    CHECK_THROWS_AS(
+        ind.assignValueVector<double>(std::vector<double>{1., 2., 3.}),
+        Gem::Common::gem_exception
+    );
+    CHECK_THROWS_AS(
+        ind.assignValueVector<double>(std::vector<double>(5, 1.)),
+        Gem::Common::gem_exception
+    );
 }
 
 /******************************************************************************/
@@ -900,7 +906,7 @@ TEST_CASE("GGenome: clone is independent", "[flat]") {
             Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
         );
     }
-    catch(const g_expectation_violation &) {
+    catch(const Gem::Common::g_expectation_violation &) {
         equal = false;
     }
     CHECK_FALSE(equal);
@@ -3083,7 +3089,7 @@ TEST_CASE("GGenome::modifyForTest changes the genome", "[flat]") {
             Gem::Common::expectation::EQUALITY,
             Gem::Common::CE_DEF_SIMILARITY_DIFFERENCE
         ),
-        g_expectation_violation
+        Gem::Common::g_expectation_violation
     );
 }
 

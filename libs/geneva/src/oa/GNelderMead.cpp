@@ -98,7 +98,9 @@ std::size_t GNelderMead::getNSimplices() const {
  */
 void GNelderMead::setNSimplices(std::size_t n_simplices) {
     if(n_simplices == 0) {
-        throw gem_exception(g_error_streamer() << "Got invalid number of simplices (0)." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got invalid number of simplices (0)." << '\n'
+        );
     }
     n_simplices_ = n_simplices;
 }
@@ -111,7 +113,9 @@ void GNelderMead::setNSimplices(std::size_t n_simplices) {
  */
 void GNelderMead::setAlpha(double alpha) {
     if(alpha <= 0.) {
-        throw gem_exception(g_error_streamer() << "alpha must be > 0, got " << alpha << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "alpha must be > 0, got " << alpha << '\n'
+        );
     }
     alpha_ = alpha;
 }
@@ -134,7 +138,9 @@ double GNelderMead::getAlpha() const {
  */
 void GNelderMead::setGamma(double gamma) {
     if(gamma <= 1.) {
-        throw gem_exception(g_error_streamer() << "gamma must be > 1, got " << gamma << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "gamma must be > 1, got " << gamma << '\n'
+        );
     }
     gamma_ = gamma;
 }
@@ -157,7 +163,9 @@ double GNelderMead::getGamma() const {
  */
 void GNelderMead::setRho(double rho) {
     if(rho <= 0. || rho >= 1.) {
-        throw gem_exception(g_error_streamer() << "rho must be in ]0,1[, got " << rho << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "rho must be in ]0,1[, got " << rho << '\n'
+        );
     }
     rho_ = rho;
 }
@@ -180,7 +188,9 @@ double GNelderMead::getRho() const {
  */
 void GNelderMead::setSigma(double sigma) {
     if(sigma <= 0. || sigma >= 1.) {
-        throw gem_exception(g_error_streamer() << "sigma must be in ]0,1[, got " << sigma << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "sigma must be in ]0,1[, got " << sigma << '\n'
+        );
     }
     sigma_ = sigma;
 }
@@ -204,8 +214,9 @@ double GNelderMead::getSigma() const {
  */
 void GNelderMead::setInitialEdge(double initial_edge) {
     if(initial_edge <= 0.) {
-        throw gem_exception(
-            g_error_streamer() << "initial_edge must be > 0, got " << initial_edge << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "initial_edge must be > 0, got " << initial_edge << '\n'
         );
     }
     initial_edge_ = initial_edge;

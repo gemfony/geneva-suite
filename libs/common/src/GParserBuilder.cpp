@@ -465,11 +465,11 @@ void GParserBuilder::loadFromDocument(
                     << "This usually indicates config/code drift (a renamed or stale key)." << '\n'
                 );
             }
-            glogger << "In GParserBuilder::loadFromDocument(): Warning!" << '\n'
-                    << "Configuration file " << config_path.string() << '\n'
-                    << "contains the unknown key \"" << key
-                    << "\" that no registered parameter consumes; it will be ignored." << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "In GParserBuilder::loadFromDocument(): Warning!" << '\n'
+                       << "Configuration file " << config_path.string() << '\n'
+                       << "contains the unknown key \"" << key
+                       << "\" that no registered parameter consumes; it will be ignored." << '\n'
+                       << GEM_LOGGING;
         }
     }
 
@@ -577,10 +577,10 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
                     << " does not exist and could not be created: " << ec.message() << '\n'
                 );
             }
-            glogger << "Note: In GParserBuilder::parseConfigFile():" << '\n'
-                    << "The configuration directory " << config_base_dir_.string()
-                    << " did not exist and was created for you." << '\n'
-                    << GLOGGING;
+            GEM_LOGGER << "Note: In GParserBuilder::parseConfigFile():" << '\n'
+                       << "The configuration directory " << config_base_dir_.string()
+                       << " did not exist and was created for you." << '\n'
+                       << GEM_LOGGING;
         }
         else if(not std::filesystem::is_directory(config_base_dir_)) {
             throw gem_exception(
@@ -594,10 +594,10 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
     // If not, create a default version
     file_existed = std::filesystem::exists(config_path);
     if(not file_existed) {
-        glogger << "Note: In GParserBuilder::parseConfigFile():" << '\n'
-                << "Configuration file " << config_path.string() << " does not exist." << '\n'
-                << "We will try to create a file with default values for you." << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "Note: In GParserBuilder::parseConfigFile():" << '\n'
+                   << "Configuration file " << config_path.string() << " does not exist." << '\n'
+                   << "We will try to create a file with default values for you." << '\n'
+                   << GEM_LOGGING;
 
         // Not writeConfigFile(), which refuses an existing file: another process that starts in
         // the same directory may create the file in the meantime. Both write the same defaults, each
@@ -658,14 +658,14 @@ void GParserBuilder::reportAndRewriteConfigFile(
         }
     }
     if(not dropped.empty()) {
-        glogger << "Note: In GParserBuilder::reportAndRewriteConfigFile(): " << config_path.string()
-                << '\n'
-                << "dropping " << dropped.size()
-                << " stale key(s) no registered parameter consumes: "
-                << (dropped | std::views::join_with(std::string(", ")) |
-                    std::ranges::to<std::string>())
-                << '\n'
-                << GLOGGING;
+        GEM_LOGGER << "Note: In GParserBuilder::reportAndRewriteConfigFile(): "
+                   << config_path.string() << '\n'
+                   << "dropping " << dropped.size()
+                   << " stale key(s) no registered parameter consumes: "
+                   << (dropped | std::views::join_with(std::string(", ")) |
+                       std::ranges::to<std::string>())
+                   << '\n'
+                   << GEM_LOGGING;
     }
 
     std::string const header =
@@ -828,7 +828,7 @@ void GParserBuilder::createConfigFile_(
         // missing config FILE here (this is the "does not exist" path of parseConfigFile), so we
         // must also create a missing config DIRECTORY -- otherwise, on a fresh run directory with
         // no config/ folder, writing the very first config would fail and
-        // abort the whole program via GTERMINATION before any config could be created.
+        // abort the whole program via GEM_TERMINATION before any config could be created.
         const std::filesystem::path target_dir =
             std::filesystem::path(config_file).remove_filename();
         if(not target_dir.empty()) {
@@ -849,10 +849,10 @@ void GParserBuilder::createConfigFile_(
                                            << target_dir.string() << ": " << ec.message() << '\n'
                     );
                 }
-                glogger << "Note: In GParserBuilder::writeConfigFile():" << '\n'
-                        << "The configuration directory " << target_dir.string()
-                        << " did not exist and was created for you." << '\n'
-                        << GLOGGING;
+                GEM_LOGGER << "Note: In GParserBuilder::writeConfigFile():" << '\n'
+                           << "The configuration directory " << target_dir.string()
+                           << " did not exist and was created for you." << '\n'
+                           << GEM_LOGGING;
             }
         }
 

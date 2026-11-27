@@ -42,7 +42,7 @@ TEST_CASE(
     "place",
     "[common][error-streamer]"
 ) {
-    g_error_streamer const s;
+    Gem::Common::g_error_streamer const s;
     CHECK(s.content().empty());
 
     // The conversion (the message of the exception) is the time and place of the construction
@@ -55,7 +55,7 @@ TEST_CASE(
     "g_error_streamer: templated operator<< accumulates streamable values",
     "[common][error-streamer]"
 ) {
-    g_error_streamer s;
+    Gem::Common::g_error_streamer s;
     s << "alpha=" << 1 << " beta=" << 2.5 << " gamma=" << std::string{"x"};
 
     const std::string out = s.content();
@@ -65,7 +65,7 @@ TEST_CASE(
 }
 
 TEST_CASE("g_error_streamer: stream manipulators are honoured", "[common][error-streamer]") {
-    g_error_streamer s;
+    Gem::Common::g_error_streamer s;
     // '\n' is a plain char forwarded through the generic templated
     // operator<< to the internal ostringstream.
     s << "line1" << '\n' << "line2" << '\n';
@@ -82,7 +82,7 @@ TEST_CASE(
     // std::hex is std::ios_base&(*)(std::ios_base&); std::boolalpha as well.
     // std::resetiosflags returns an `_Setiosflags` proxy that goes through
     // the templated operator<< — both forms must coexist without ambiguity.
-    g_error_streamer s;
+    Gem::Common::g_error_streamer s;
     s << std::hex << 255 << " " << std::boolalpha << true;
 
     const std::string out = s.content();
@@ -94,7 +94,7 @@ TEST_CASE(
     "g_error_streamer: the conversion puts the time and place in front while content() omits them",
     "[common][error-streamer]"
 ) {
-    g_error_streamer s(std::source_location::current());
+    Gem::Common::g_error_streamer s(std::source_location::current());
     s << "payload";
 
     CHECK(s.content() == "payload");
@@ -111,7 +111,7 @@ TEST_CASE(
 ) {
     // content() returns a fresh std::string each call without disturbing the
     // wrapped stringstream — calling it twice must produce identical output.
-    g_error_streamer s;
+    Gem::Common::g_error_streamer s;
     s << "stable";
 
     const std::string a = s.content();
@@ -146,7 +146,7 @@ TEST_CASE(
     "g_error_streamer: std::endl and a std::ios manipulator go through their overloads",
     "[common][error-streamer]"
 ) {
-    g_error_streamer s;
+    Gem::Common::g_error_streamer s;
     s << "line" << std::endl << upperCase << std::hex << 255;
     CHECK(s.content() == "line\nFF");
 }

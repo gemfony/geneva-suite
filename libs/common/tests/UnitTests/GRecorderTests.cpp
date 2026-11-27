@@ -249,11 +249,11 @@ TEST_CASE("a stream with columns given at run time checks each row", "[common][r
         {GColumn{.name = "x", .type = columnType::FLOATING}, GColumn{.name = "n", .type = columnType::UNSIGNED}}
     );
     s.append(GRow{1.5, std::uint64_t{3}});
-    CHECK_THROWS_AS(s.append(GRow{1.5}), gem_exception);
-    CHECK_THROWS_AS(s.append(GRow{std::uint64_t{3}, 1.5}), gem_exception);
+    CHECK_THROWS_AS(s.append(GRow{1.5}), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(s.append(GRow{std::uint64_t{3}, 1.5}), Gem::Common::gem_exception);
     s.close();
     CHECK(linesOf(dir / "runtime.csv") == std::vector<std::string>{"x,n", "1.5,3"});
-    CHECK_THROWS_AS(s.append(GRow{1.5, std::uint64_t{3}}), gem_exception);
+    CHECK_THROWS_AS(s.append(GRow{1.5, std::uint64_t{3}}), Gem::Common::gem_exception);
 }
 
 TEST_CASE("the time column comes first: of the wall or the steady clock", "[common][record]") {
@@ -278,7 +278,8 @@ TEST_CASE("the time column comes first: of the wall or the steady clock", "[comm
     CHECK(lines[0] == "time,n");
     CHECK(std::stod(csvFields(lines[1])[0]) <= std::stod(csvFields(lines[2])[0]));
     CHECK_THROWS_AS(
-        recorder().stream<double>("clash", {"time"}, withTime::steady), gem_exception
+        recorder().stream<double>("clash", {"time"}, withTime::steady),
+        Gem::Common::gem_exception
     );
 }
 
@@ -289,7 +290,7 @@ TEST_CASE("a second open stream of a name is refused and both declarers are name
         auto second = recorder().stream<int>("twice", {"n"});
         FAIL("the second declaration was taken");
     }
-    catch(gem_exception const &e) {
+    catch(Gem::Common::gem_exception const &e) {
         const std::string what = e.what();
         CHECK_THAT(what, Catch::Matchers::ContainsSubstring("GRecorderTests.cpp", Catch::CaseSensitive::No));
         CHECK(what.find("GRecorderTests.cpp") != what.rfind("GRecorderTests.cpp")); // named twice
@@ -299,8 +300,8 @@ TEST_CASE("a second open stream of a name is refused and both declarers are name
     first.close();
     auto again = recorder().stream<int>("twice", {"n"});
     CHECK(again.isOpen());
-    CHECK_THROWS_AS(recorder().stream<int>("a/b", {"n"}), gem_exception);
-    CHECK_THROWS_AS((recorder().stream<int, int>("dup", {"n", "n"})), gem_exception);
+    CHECK_THROWS_AS(recorder().stream<int>("a/b", {"n"}), Gem::Common::gem_exception);
+    CHECK_THROWS_AS((recorder().stream<int, int>("dup", {"n", "n"})), Gem::Common::gem_exception);
 }
 
 TEST_CASE("an existing file is backed up at the first write and not before", "[common][record]") {
@@ -404,15 +405,21 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
     // The column by which a file is cut back must be a numeric column of the stream
     CHECK_THROWS_AS(
         (recorder().stream<std::string>(
-            "cut_text", {"note"}, withTime::none, GStreamOptions{.resume = true, .resumeColumn = "note"}
+            "cut_text",
+            {"note"},
+            withTime::none,
+            GStreamOptions{.resume = true, .resumeColumn = "note"}
         )),
-        gem_exception
+        Gem::Common::gem_exception
     );
     CHECK_THROWS_AS(
         (recorder().stream<int>(
-            "cut_none", {"n"}, withTime::none, GStreamOptions{.resume = true, .resumeColumn = "m"}
+            "cut_none",
+            {"n"},
+            withTime::none,
+            GStreamOptions{.resume = true, .resumeColumn = "m"}
         )),
-        gem_exception
+        Gem::Common::gem_exception
     );
 }
 
@@ -563,10 +570,10 @@ TEST_CASE("a stream whose sink fails to open takes no further row and closes onl
         s.append(GRow{std::int64_t{2}});
         FAIL("a stream whose sink failed to open took a row");
     }
-    catch(gem_exception const &e) {
+    catch(Gem::Common::gem_exception const &e) {
         CHECK_THAT(e.what(), Catch::Matchers::ContainsSubstring("failed to open"));
     }
-    CHECK_THROWS_AS(s.close(), gem_exception); // the rows held back reach no sink
+    CHECK_THROWS_AS(s.close(), Gem::Common::gem_exception); // the rows held back reach no sink
     CHECK(first->calls == std::vector<std::string>{"open", "close"});
     CHECK(failing->calls == std::vector<std::string>{"open", "close"});
     CHECK(third->calls.empty());
@@ -623,10 +630,10 @@ TEST_CASE("a stream whose close fails ends no program when its report fails as w
     };
     auto moved_onto = declare("failing_log_move");
     auto destroyed = std::make_unique<GStream>(declare("failing_log_destructor"));
-    glogger.addLogTarget(std::make_shared<ThrowingTarget>());
+    GEM_LOGGER.addLogTarget(std::make_shared<ThrowingTarget>());
     moved_onto = GStream();
     destroyed.reset();
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
     CHECK_FALSE(moved_onto.isOpen());
 }
 
@@ -672,10 +679,10 @@ TEST_CASE("a sink added by name joins the next declaration of that stream", "[co
         recorder().addSink("open_already", std::make_shared<GJsonLinesSink>());
         FAIL("a sink was added to an open stream");
     }
-    catch(gem_exception const &e) {
+    catch(Gem::Common::gem_exception const &e) {
         CHECK_THAT(e.what(), Catch::Matchers::ContainsSubstring("is open already"));
     }
-    CHECK_THROWS_AS(recorder().addSink("nothing", nullptr), gem_exception);
+    CHECK_THROWS_AS(recorder().addSink("nothing", nullptr), Gem::Common::gem_exception);
 }
 
 TEST_CASE("rows held back reach the file when the stream closes", "[common][record]") {
@@ -757,12 +764,12 @@ TEST_CASE("a handle tells its name and columns and an empty one has none", "[com
     CHECK_FALSE(empty.isOpen());
     CHECK(empty.name().empty());
     CHECK(empty.columns().empty());
-    CHECK_THROWS_AS(empty.append(GRow{1.}), gem_exception);
+    CHECK_THROWS_AS(empty.append(GRow{1.}), Gem::Common::gem_exception);
     CHECK_NOTHROW(empty.close());
     GStreamT<int> empty_typed;
     CHECK_FALSE(empty_typed.isOpen());
     CHECK(empty_typed.name().empty());
-    CHECK_THROWS_AS(empty_typed.append(1), gem_exception);
+    CHECK_THROWS_AS(empty_typed.append(1), Gem::Common::gem_exception);
 }
 
 TEST_CASE("a file sink names its file by the output rule and knows it once open", "[common][record]") {

@@ -454,7 +454,7 @@ TEST_CASE(
     }
 
     auto capture = std::make_shared<BackupCapturingTarget>();
-    glogger.addLogTarget(capture);
+    GEM_LOGGER.addLogTarget(capture);
 
     CHECK(Gem::Common::backupExistingFile(target.string(), "GUnitTest: Warning!"));
 
@@ -474,7 +474,7 @@ TEST_CASE(
     }
     CHECK(names_the_renamed_file);
 
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
     std::filesystem::remove(decoy);
 
     // The original name is free again, and exactly one backup carrying the content exists.
@@ -560,9 +560,9 @@ TEST_CASE(
     );
 
     auto capture = std::make_shared<BackupCapturingTarget>();
-    glogger.addLogTarget(capture);
+    GEM_LOGGER.addLogTarget(capture);
     CHECK_THROWS_AS(backupExistingFile(target.string(), "GUnitTest: Warning!"), gem_exception);
-    glogger.resetLogTargets();
+    GEM_LOGGER.resetLogTargets();
     for(auto const &m : capture->messages) {
         CHECK(m.find(".bak_") == std::string::npos);
     }

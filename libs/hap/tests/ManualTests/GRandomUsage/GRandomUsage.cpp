@@ -348,7 +348,7 @@ int main(int argc, char **argv) {
 
     std::ofstream ofs("randomResult.C");
     if(!ofs) {
-        glogger << "Error: Could not write file" << '\n' << GWARNING;
+        GEM_LOGGER << "Error: Could not write file" << '\n' << GEM_WARNING;
         return 1;
     }
 

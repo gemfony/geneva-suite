@@ -109,7 +109,7 @@ TEST_CASE("GBaseParChildPersonalityTraits: reading an unset parent id throws", "
     oa::GBaseParChildPersonalityTraits p_test;
 
     CHECK_NOTHROW(p_test.unsetParentId());
-    CHECK_THROWS_AS(p_test.getParentId(), gem_exception);
+    CHECK_THROWS_AS(p_test.getParentId(), Gem::Common::gem_exception);
 }
 
 /******************************************************************************/

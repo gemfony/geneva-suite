@@ -173,8 +173,8 @@ private:
     static void requireRole_(processRole wanted, const char *caller) {
         const processRole actual = mpiProcessRole();
         if(actual != wanted) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In GMPIConsumerProviderT::" << caller << "(): Error!" << '\n'
                 << "This process has the role " << static_cast<int>(actual) << " in the MPI "
                 << "environment, but " << caller << "() is for the role "

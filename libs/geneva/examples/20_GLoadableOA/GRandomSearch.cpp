@@ -146,13 +146,15 @@ void GRandomSearch::adjustPopulation_() {
     const std::size_t n_start = this->size();
 
     if(n_start == 0) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "You didn't add any individuals to the collection. We need at least one." << '\n'
         );
     }
     if(this->getDefaultPopulationSize() == 0) {
-        throw gem_exception(g_error_streamer() << "The default population size is 0." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "The default population size is 0." << '\n'
+        );
     }
 
     // Keep a single seed, then clone it up to the configured population size.

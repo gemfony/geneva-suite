@@ -597,8 +597,8 @@ gen::GenomeData GFunctionIndividual::buildGenome(const Config &c) {
     } break;
 
     default: {
-        throw gem_exception(
-            g_error_streamer() << "Found invalid parameter_type: " << c.p_t << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Found invalid parameter_type: " << c.p_t << '\n'
         );
     }
     }
@@ -682,10 +682,11 @@ void GFunctionIndividual::applyConfig(GFunctionIndividual &ind, const Config &c)
     // The genome has already been installed on ind (postProcess_ / buildConfigured set it before this).
     if(ind.getParameterSize() < 2 && (c.demo_function == solverFunction::ROSENBROCK ||
                                       c.demo_function == solverFunction::ACKLEY)) {
-        throw gem_exception(
-            g_error_streamer() << "function " << static_cast<int>(c.demo_function)
-                               << " requires at least 2 dimensions, but the genome has only "
-                               << ind.getParameterSize() << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "function " << static_cast<int>(c.demo_function)
+            << " requires at least 2 dimensions, but the genome has only " << ind.getParameterSize()
+            << '\n'
         );
     }
 }

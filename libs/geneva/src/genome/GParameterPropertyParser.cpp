@@ -97,8 +97,9 @@ std::vector<std::string> splitOnComma(const std::string &s) {
  * @param raw The raw (sub)string that could not be parsed, included verbatim in the error message
  */
 [[noreturn]] void fail(const std::string &raw) {
-    throw gem_exception(
-        g_error_streamer() << "Could not parse parameter-property fragment: " << raw << '\n'
+    throw Gem::Common::gem_exception(
+        Gem::Common::g_error_streamer()
+        << "Could not parse parameter-property fragment: " << raw << '\n'
     );
 }
 
@@ -135,8 +136,8 @@ std::size_t
 readNSteps(const std::vector<std::string> &tok, std::size_t first, const std::string &raw) {
     for(std::size_t k = first; k < tok.size(); ++k) {
         if(not Gem::Common::parseWhole<std::size_t>(tok[k])) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "\"" << tok[k] << "\" in (" << raw << ") is not a step count." << '\n'
                 << "A parameter-scan specification carries no label or name: a variable is"
                 << " addressed by its index (a progress plot names its variables with"
@@ -256,19 +257,19 @@ void GParameterPropertyParser::parse() {
 
     // We only accept a single "simple-scan" entry. Complain, if more than one was found.
     if(s_spec_vec_.size() > 1) {
-        throw gem_exception(
-            g_error_streamer() << "Found " << s_spec_vec_.size() << " simple scan entries where a"
-                               << '\n'
-                               << "maximum of 1 is allowed" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Found " << s_spec_vec_.size() << " simple scan entries where a" << '\n'
+            << "maximum of 1 is allowed" << '\n'
         );
     }
     if(s_spec_vec_.size() ==
        1) { // If we did find a "simple scan" entry, we will discard the other entries.
         if(not d_spec_vec_.empty() || not f_spec_vec_.empty() || not i_spec_vec_.empty() ||
            not b_spec_vec_.empty()) {
-            glogger << "You have specified both a simple-scan component and explicit" << '\n'
-                    << "scan-components. The explicit components will be discarded." << '\n'
-                    << GWARNING;
+            GEM_LOGGER << "You have specified both a simple-scan component and explicit" << '\n'
+                       << "scan-components. The explicit components will be discarded." << '\n'
+                       << GEM_WARNING;
 
             d_spec_vec_.clear();
             f_spec_vec_.clear();

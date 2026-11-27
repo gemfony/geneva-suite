@@ -90,8 +90,8 @@ TEST_CASE(
     "[individuals][nn]"
 ) {
     GNeuralNetworkIndividual ind = makeIndividual();
-    CHECK_THROWS_AS(ind.writeVisualizationFile(""), gem_exception);
-    CHECK_THROWS_AS(ind.writeTrainedNetwork(""), gem_exception);
+    CHECK_THROWS_AS(ind.writeVisualizationFile(""), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(ind.writeTrainedNetwork(""), Gem::Common::gem_exception);
 
     // A file name that can be written is accepted.
     const std::filesystem::path dir = std::filesystem::temp_directory_path() /
@@ -175,7 +175,7 @@ TEST_CASE(
     // A file that cannot be written is refused, not left unwritten in silence
     CHECK_THROWS_AS(
         ind.writeVisualizationFile((dir / "no-such-directory" / "visualization.C").string()),
-        gem_exception
+        Gem::Common::gem_exception
     );
     std::filesystem::remove_all(dir);
 }
