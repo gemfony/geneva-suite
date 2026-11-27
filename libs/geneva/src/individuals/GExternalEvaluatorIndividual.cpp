@@ -217,10 +217,12 @@ std::vector<double> GExternalEvaluatorIndividual::evaluate() {
     batch_out["n_individuals"] = static_cast<std::size_t>(1);
     batch_out["individuals"] = json::array{this->toJSON()};
 
-    // Create a suitable extension and exchange file names for this object
+    // Exchange file names of this evaluation: an identifier of its own, so that evaluations in other
+    // processes or on other hosts sharing the working directory, and later ones of this object, never
+    // meet the same files
     std::string const extension = std::string("-") +
                                   Gem::Common::to_string(this->getAssignedIteration()) + "-" +
-                                  Gem::Common::to_string(this);
+                                  Gem::Common::generate_uuid_v4();
     std::string const parameterfile_name = parameter_file_base_name_ + extension + ".json";
     std::string const result_file_name = std::string("result") + extension + ".json";
     std::string const command_output_file_name = std::string("commandOutput") + extension + ".txt";

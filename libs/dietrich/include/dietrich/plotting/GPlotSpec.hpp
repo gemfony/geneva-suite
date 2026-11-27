@@ -42,6 +42,10 @@
 #include <utility>
 #include <vector>
 
+#include <boost/json/array.hpp>
+#include <boost/json/object.hpp>
+
+#include "common/GJsonIO.hpp" // prettyPrintJson()
 #include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode, surfaceProjection, legendPosition
 
 namespace Gem::Dietrich {
@@ -212,135 +216,100 @@ struct GPlotSpec {
 
     /***************************************************************************/
     /**
-     * @brief Serializes this spec as a hand-rolled JSON object (no dependency).
+     * @brief Describes this spec as a JSON object.
      *
-     * Strings are JSON-escaped; the bin counts appear only when populated. The
-     * member order is stable (kind, role, name, labels, drawing_args, columns,
-     * bins) so the output is deterministic.
+     * The member order is stable (kind, role, name, labels, axis scales, drawing_args, columns,
+     * bins, ranges, then the settings of a function, a 4-d graph, a 3-d graph, a pad and a line),
+     * so the output is deterministic. A setting that is absent, or at its rule (a linear axis, no
+     * arrows, no legend room), is left out, so the object of a plot that does not use a setting is
+     * what it was before the setting existed.
      *
-     * @return A JSON object string describing this plot spec
+     * @return A JSON object describing this plot spec
      */
-    [[nodiscard]] std::string toJson() const {
-        std::string out = "{";
-        out += "\"kind\": \"" + jsonEscape(Gem::Common::enumName(kind)) + "\"";
-        out += ", \"role\": \"" + jsonEscape(role) + "\"";
-        out += ", \"name\": \"" + jsonEscape(name) + "\"";
-        out += ", \"x_label\": \"" + jsonEscape(x_label) + "\"";
-        out += ", \"y_label\": \"" + jsonEscape(y_label) + "\"";
-        out += ", \"z_label\": \"" + jsonEscape(z_label) + "\"";
-        // A linear axis is the rule and is not written, so the JSON of a plot without a
-        // logarithmic axis is what it was before these two fields existed.
+    [[nodiscard]] boost::json::object toJsonObject() const {
+        boost::json::object out;
+        out["kind"] = Gem::Common::enumName(kind);
+        out["role"] = role;
+        out["name"] = name;
+        out["x_label"] = x_label;
+        out["y_label"] = y_label;
+        out["z_label"] = z_label;
         if(x_log) {
-            out += ", \"x_log\": true";
+            out["x_log"] = true;
         }
         if(y_log) {
-            out += ", \"y_log\": true";
+            out["y_log"] = true;
         }
-        out += ", \"drawing_args\": \"" + jsonEscape(drawing_args) + "\"";
-        out += ", \"columns\": [";
-        for(std::size_t c = 0; c < columns.size(); ++c) {
-            out += (c == 0 ? "" : ", ");
-            out += "\"" + jsonEscape(columns[c]) + "\"";
+        out["drawing_args"] = drawing_args;
+        boost::json::array column_names;
+        for(const auto &column : columns) {
+            column_names.emplace_back(column);
         }
-        out += "]";
+        out["columns"] = std::move(column_names);
         if(n_bins_x.has_value()) {
-            out += ", \"n_bins_x\": " + std::to_string(*n_bins_x);
+            out["n_bins_x"] = *n_bins_x;
         }
         if(n_bins_y.has_value()) {
-            out += ", \"n_bins_y\": " + std::to_string(*n_bins_y);
+            out["n_bins_y"] = *n_bins_y;
         }
         if(range_x.has_value()) {
-            out += ", \"range_x\": [" + std::to_string(std::get<0>(*range_x)) + ", " +
-                   std::to_string(std::get<1>(*range_x)) + "]";
+            out["range_x"] = boost::json::array{std::get<0>(*range_x), std::get<1>(*range_x)};
         }
         if(range_y.has_value()) {
-            out += ", \"range_y\": [" + std::to_string(std::get<0>(*range_y)) + ", " +
-                   std::to_string(std::get<1>(*range_y)) + "]";
+            out["range_y"] = boost::json::array{std::get<0>(*range_y), std::get<1>(*range_y)};
         }
-        // The settings of a function and of a 4-d graph appear only when set, so the JSON of
-        // another plot is what it was before they existed.
         if(not function.empty()) {
-            out += ", \"function\": \"" + jsonEscape(function) + "\"";
+            out["function"] = function;
         }
         if(marker_size.has_value()) {
-            out += ", \"marker_size\": [" + std::to_string(std::get<0>(*marker_size)) + ", " +
-                   std::to_string(std::get<1>(*marker_size)) + "]";
+            out["marker_size"] =
+                boost::json::array{std::get<0>(*marker_size), std::get<1>(*marker_size)};
         }
         if(small_w_large_marker.has_value()) {
-            out += std::string(", \"small_w_large_marker\": ") +
-                   (*small_w_large_marker ? "true" : "false");
+            out["small_w_large_marker"] = *small_w_large_marker;
         }
         if(n_best.has_value()) {
-            out += ", \"n_best\": " + std::to_string(*n_best);
+            out["n_best"] = *n_best;
         }
         if(plot_mode.has_value()) {
-            out += ", \"plot_mode\": \"";
-            out += Gem::Common::enumName(*plot_mode);
-            out += "\"";
+            out["plot_mode"] = Gem::Common::enumName(*plot_mode);
         }
         if(projection.has_value()) {
-            out += ", \"projection\": \"";
-            out += Gem::Common::enumName(*projection);
-            out += "\"";
+            out["projection"] = Gem::Common::enumName(*projection);
         }
         if(surface.has_value()) {
-            out += std::string(", \"surface\": ") + (*surface ? "true" : "false");
+            out["surface"] = *surface;
         }
         if(floor_shadow.has_value()) {
-            out += std::string(", \"floor_shadow\": ") + (*floor_shadow ? "true" : "false");
+            out["floor_shadow"] = *floor_shadow;
         }
-        // The three settings of a pad and a line appear only when set, so the JSON of a plot that
-        // does not use them is what it was before they existed.
         if(not pad_title.empty()) {
-            out += ", \"pad_title\": \"" + jsonEscape(pad_title) + "\"";
+            out["pad_title"] = pad_title;
         }
         if(legend.has_value()) {
-            out += ", \"legend\": \"";
-            out += Gem::Common::enumName(*legend);
-            out += "\"";
+            out["legend"] = Gem::Common::enumName(*legend);
         }
         if(line_width.has_value()) {
-            out += ", \"line_width\": " + std::to_string(*line_width);
+            out["line_width"] = *line_width;
         }
         if(arrows.value_or(false)) {
-            out += ", \"arrows\": true";
+            out["arrows"] = true;
         }
         if(legend_room.value_or(false)) {
-            out += ", \"legend_room\": true";
+            out["legend_room"] = true;
         }
-        out += "}";
         return out;
     }
 
     /***************************************************************************/
-    /** @brief Minimal JSON string escaping (quotes, backslashes, control chars). Public and
-     *  static so the DATA backend's hand-assembled manifest fields escape identically. */
-    static std::string jsonEscape(const std::string &in) {
-        std::string out;
-        out.reserve(in.size() + 2);
-        for(char const c : in) {
-            switch(c) {
-            case '"':
-                out += "\\\"";
-                break;
-            case '\\':
-                out += "\\\\";
-                break;
-            case '\n':
-                out += "\\n";
-                break;
-            case '\r':
-                out += "\\r";
-                break;
-            case '\t':
-                out += "\\t";
-                break;
-            default:
-                out += c;
-                break;
-            }
-        }
-        return out;
+    /**
+     * @brief Serializes this spec as JSON text: toJsonObject(), indented as
+     * Gem::Common::prettyPrintJson() writes it (numbers in full precision, strings escaped).
+     *
+     * @return A JSON object string describing this plot spec
+     */
+    [[nodiscard]] std::string toJson() const {
+        return Gem::Common::prettyPrintJson(toJsonObject());
     }
 };
 

@@ -35,9 +35,13 @@
 #include <atomic>
 #include <cstdint>
 #include <cstdio>
-#include <random>
 
 namespace Gem::Hap {
+
+namespace detail {
+// Defined in GRandomFactory.cpp next to the process-wide GPU switch.
+[[nodiscard]] bool gpuRandomFailureSimulated() noexcept; ///< the failure seam for tests
+} /* namespace detail */
 
 namespace {
 
@@ -175,31 +179,27 @@ GCudaRNG::~GCudaRNG() {
  * @brief Fills dst[0..n) with n 64-bit random values via a single device generate plus host copy.
  *
  * Requests 2*n 32-bit words from cuRAND (two words form one 64-bit result_type),
- * growing the device buffer as needed, then copies them to the host. Does nothing
- * if n is zero or the CUDA runtime is shutting down.
+ * growing the device buffer as needed, then copies them to the host. A failed CUDA or
+ * cuRAND call is reported (checkCuda/checkCurand), sets failed() unless the CUDA runtime
+ * is shutting down, and leaves dst to the caller, which fills it from an engine of its own.
  *
  * @param dst Destination host buffer that receives n 64-bit values; must hold at least n entries
  * @param n The number of 64-bit values to generate
+ * @return true if dst was filled, false if a CUDA call failed or the runtime is shutting down
  */
-void GCudaRNG::generate(result_type *dst, std::size_t n) {
-    if(n == 0 || cudaShuttingDown())
-        return;
+bool GCudaRNG::generate(result_type *dst, std::size_t n) {
+    if(n == 0)
+        return true;
+    if(cudaShuttingDown())
+        return false;
 
-    // A failed GPU call must never leave dst unfilled: the caller would then ship stale/uninitialised
-    // memory as "random numbers" (corrupting any consumer, e.g. an optimizer fed non-random values).
-    // On any failure -- which under heavy concurrent demand can be a transient cuRAND launch failure --
-    // fall back to a thread-local CPU generator so the buffer is always filled with real randomness. The
-    // failure is still reported by checkCurand/checkCuda, so the GPU problem stays observable; a true
-    // shutdown is handled by the early return above (cudaShuttingDown()). The failure also sets failed_,
-    // and the owning GFillBackend then moves to its CPU engine for good.
-    auto cpuFallback = [this, dst, n]() {
+    auto failure = [this]() {
         if(!cudaShuttingDown())
             failed_ = true;
-        thread_local std::mt19937_64 eng{std::random_device{}()};
-        for(std::size_t i = 0; i < n; ++i) {
-            dst[i] = static_cast<result_type>(eng());
-        }
+        return false;
     };
+    if(detail::gpuRandomFailureSimulated())
+        return failure();
 
     // cuRAND's curandGenerate produces 32-bit words; two of them make one
     // 64-bit result_type, so we request 2*n words of raw uniform bits.
@@ -211,8 +211,7 @@ void GCudaRNG::generate(result_type *dst, std::size_t n) {
         if(!checkCuda(cudaMalloc(&d_buf_, words * sizeof(std::uint32_t)), "cudaMalloc")) {
             d_buf_ = nullptr;
             d_words_ = 0;
-            cpuFallback();
-            return;
+            return failure();
         }
         d_words_ = words;
     }
@@ -226,8 +225,7 @@ void GCudaRNG::generate(result_type *dst, std::size_t n) {
            ),
            "curandGenerate"
        )) {
-        cpuFallback();
-        return;
+        return failure();
     }
     if(!checkCuda(
            cudaMemcpyAsync(
@@ -239,12 +237,12 @@ void GCudaRNG::generate(result_type *dst, std::size_t n) {
            ),
            "cudaMemcpyAsync"
        )) {
-        cpuFallback();
-        return;
+        return failure();
     }
     if(!checkCuda(cudaStreamSynchronize(stream), "cudaStreamSynchronize")) {
-        cpuFallback();
+        return failure();
     }
+    return true;
 }
 
 } /* namespace Gem::Hap */

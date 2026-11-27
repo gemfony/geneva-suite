@@ -62,11 +62,13 @@ public:
     GCudaRNG &operator=(GCudaRNG const &) = delete;
 
     /** @brief Fills dst[0..n) with n 64-bit values (one device generate + copy).
-     *  @param dst Destination host buffer holding at least n 64-bit values. @param n The number of values to generate. */
-    void generate(result_type *dst, std::size_t n);
+     *  @param dst Destination host buffer holding at least n 64-bit values. @param n The number of values to generate.
+     *  @return true if dst was filled; false if a CUDA call failed or the runtime is shutting down,
+     *  and dst is then left to the caller */
+    [[nodiscard]] bool generate(result_type *dst, std::size_t n);
 
     /** @brief True once a CUDA or cuRAND call of this backend has failed (outside process shutdown).
-     *  generate() still fills dst after a failure, from a CPU generator.
+     *  The call of generate() that failed has returned false and left its buffer unfilled.
      *  @return true if any CUDA or cuRAND call has failed, false otherwise. */
     [[nodiscard]] bool failed() const noexcept {
         return failed_;
