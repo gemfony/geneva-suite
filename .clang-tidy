@@ -236,8 +236,7 @@ CheckOptions:
   # (build guards, config macros, GEM_DEPRECATED, GEM_DEBUG_CHECK -- only a macro
   # can leave its condition unevaluated -- and GEM_LOGEXIT, which captures the
   # source location at the exit site) and the geneva library's GENEVA_* macros.
-  # MIN_BOOST_VERSION is a preprocessor version gate that must be a #define (used in #if).
-  cppcoreguidelines-macro-usage.AllowedRegexp: '^(G_.*|GEM_.*|GENEVA_.*|MIN_BOOST_VERSION)$'
+  cppcoreguidelines-macro-usage.AllowedRegexp: '^(G_.*|GEM_.*|GENEVA_.*)$'
 
   # Performance.
   performance-for-range-copy.WarnOnAllAutoCopies: 'true'

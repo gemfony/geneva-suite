@@ -1082,6 +1082,7 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   | `IDENTITY(x, y)` | `GEM_IDENTITY(x, y)` |
   | `IDENTITY_CAST(t, x, y)` | `GEM_IDENTITY_CAST(t, x, y)` |
   | `G_DEPRECATED(message)` | `GEM_DEPRECATED(message)` |
+  | `MIN_BOOST_VERSION` | `GEM_MIN_BOOST_VERSION_NUMBER` |
 
   The logger's call operator had two meanings by the type of its argument, and a string literal
   fitted both (it did not compile). It is replaced by two named functions:

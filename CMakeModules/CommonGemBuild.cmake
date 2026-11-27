@@ -149,13 +149,13 @@ IF(NOT COMMON_GEM_BUILD_INCLUDED)
 	SET (Boost_USE_STATIC_LIBS OFF)
 
 	# The minimum Boost version required for building Geneva and Geneva applications. It is
-	# written only as MIN_BOOST_VERSION in GGlobalDefines.hpp (BOOST_VERSION encoding, e.g.
-	# 109100) and is read from there as "major.minor" (e.g. 1.91).
+	# written only as GEM_MIN_BOOST_VERSION_NUMBER in GGlobalDefines.hpp (BOOST_VERSION
+	# encoding, e.g. 109100) and is read from there as "major.minor" (e.g. 1.91).
 	SET (_GEM_BOOST_HEADER "${PROJECT_SOURCE_DIR}/libs/common/include/common/GGlobalDefines.hpp")
 	FILE (STRINGS "${_GEM_BOOST_HEADER}" _GEM_BOOST_LINE
-		REGEX "^#define[ \t]+MIN_BOOST_VERSION[ \t]+[0-9]+00[ \t]*$")
-	IF (NOT _GEM_BOOST_LINE MATCHES "MIN_BOOST_VERSION[ \t]+([0-9]+)")
-		MESSAGE (FATAL_ERROR "Cannot read MIN_BOOST_VERSION (a BOOST_VERSION-encoded number with patch level 00, such as 109100) from ${_GEM_BOOST_HEADER}")
+		REGEX "^#define[ \t]+GEM_MIN_BOOST_VERSION_NUMBER[ \t]+[0-9]+00[ \t]*$")
+	IF (NOT _GEM_BOOST_LINE MATCHES "GEM_MIN_BOOST_VERSION_NUMBER[ \t]+([0-9]+)")
+		MESSAGE (FATAL_ERROR "Cannot read GEM_MIN_BOOST_VERSION_NUMBER (a BOOST_VERSION-encoded number with patch level 00, such as 109100) from ${_GEM_BOOST_HEADER}")
 	ENDIF ()
 	MATH (EXPR _GEM_BOOST_MAJOR "${CMAKE_MATCH_1} / 100000")
 	MATH (EXPR _GEM_BOOST_MINOR "${CMAKE_MATCH_1} / 100 % 1000")

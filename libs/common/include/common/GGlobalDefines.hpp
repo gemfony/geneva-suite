@@ -98,10 +98,10 @@
  * This is the only place where the minimum is written: CMakeModules/CommonGemBuild.cmake reads
  * it from this macro.
  */
-#define MIN_BOOST_VERSION 109100
+#define GEM_MIN_BOOST_VERSION_NUMBER 109100
 
-#if BOOST_VERSION < MIN_BOOST_VERSION
-#error "Error: Boost is older than MIN_BOOST_VERSION in common/GGlobalDefines.hpp !"
+#if BOOST_VERSION < GEM_MIN_BOOST_VERSION_NUMBER
+#error "Error: Boost is older than GEM_MIN_BOOST_VERSION_NUMBER in common/GGlobalDefines.hpp !"
 #endif /* BOOST_VERSION */
 
 //-----------------------------------------------------------
