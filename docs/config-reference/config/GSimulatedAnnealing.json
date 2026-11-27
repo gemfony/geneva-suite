@@ -129,8 +129,8 @@
             "The format of checkpoint files:",
             "binary (3) or JSON (4)"
         ],
-        "default": "4",
-        "value": "4"
+        "default": 4,
+        "value": 4
     },
     "quality_termination": {
         "threshold": {
@@ -204,8 +204,8 @@
             "1: random selection from available parents",
             "2: selection according to the parent's value"
         ],
-        "default": "0",
-        "value": "0"
+        "default": 0,
+        "value": 0
     },
     "population_growth": {
         "growth_rate": {

@@ -39,6 +39,7 @@
 #include <functional>
 #include <iterator>
 #include <locale>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -612,11 +613,22 @@ TEST_CASE(
     "GParserBuilder::resetFileParameterDefaults: missing option throws",
     "[common][parser-builder]"
 ) {
+    // The message names the option and the kind of parameter that was looked for
     GParserBuilder gpb;
-    CHECK_THROWS_AS(gpb.resetFileParameterDefaults<int>("nope", 1), gem_exception);
-    CHECK_THROWS_AS(
+    CHECK_THROWS_WITH(
+        gpb.resetFileParameterDefaults<int>("nope", 1),
+        ContainsSubstring(R"(no file parameter "nope" of a single value)")
+    );
+    CHECK_THROWS_WITH(
         gpb.resetFileParameterDefaults<int>("nope", std::vector<int>{1}),
-        gem_exception
+        ContainsSubstring(R"(no vector file parameter "nope")")
+    );
+    // A parameter of another kind or type under the name is not taken for the one asked for
+    int k = 0;
+    gpb.registerFileParameter<int>("k", k, 1);
+    CHECK_THROWS_WITH(
+        gpb.resetFileParameterDefaults<double>("k", 1.5),
+        ContainsSubstring(R"(no file parameter "k")")
     );
 }
 
@@ -680,7 +692,10 @@ TEST_CASE(
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
+    CHECK_THROWS_WITH(
+        gpb.writeConfigFile(cfg),
+        ContainsSubstring("does not overwrite a file") && ContainsSubstring("updateConfigFile()")
+    );
     std::filesystem::remove(cfg);
 }
 
@@ -752,7 +767,10 @@ TEST_CASE(
     std::filesystem::remove(cfg);
 
     GParserBuilder gpb;
-    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
+    CHECK_THROWS_WITH(
+        gpb.writeConfigFile(cfg),
+        ContainsSubstring("No file parameters are registered")
+    );
     CHECK_FALSE(std::filesystem::exists(cfg));
     CHECK_THROWS_AS(gpb.parseConfigFile(cfg), gem_exception);
     CHECK_FALSE(std::filesystem::exists(cfg));
@@ -828,7 +846,10 @@ TEST_CASE(
     "[common][parser-builder]"
 ) {
     GParserBuilder gpb;
-    CHECK_THROWS_AS((gpb.resetFileParameterDefaults<int, double>("nope", 1, 2.0)), gem_exception);
+    CHECK_THROWS_WITH(
+        (gpb.resetFileParameterDefaults<int, double>("nope", 1, 2.0)),
+        ContainsSubstring(R"(no combined file parameter whose first option is "nope")")
+    );
 }
 
 TEST_CASE(
@@ -836,9 +857,9 @@ TEST_CASE(
     "[common][parser-builder]"
 ) {
     GParserBuilder gpb;
-    CHECK_THROWS_AS(
+    CHECK_THROWS_WITH(
         (gpb.resetFileParameterDefaults<int, 2>("nope", std::array<int, 2>{1, 2})),
-        gem_exception
+        ContainsSubstring(R"(no array file parameter "nope" of 2 values)")
     );
 }
 
@@ -858,9 +879,9 @@ TEST_CASE(
     // "scale", and a "stale_key" that the v2 schema below no longer registers.
     {
         json::object t;
-        t["answer"] = json::object{{"default", "42"}, {"value", "13"}}; // customized on disk
-        t["scale"] = json::object{{"default", "3.14"}, {"value", "3.14"}};
-        t["stale_key"] = json::object{{"default", "999"}, {"value", "999"}};
+        t["answer"] = json::object{{"default", 42}, {"value", 13}}; // customized on disk
+        t["scale"] = json::object{{"default", 3.14}, {"value", 3.14}};
+        t["stale_key"] = json::object{{"default", 999}, {"value", 999}};
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
     }
 
@@ -880,8 +901,7 @@ TEST_CASE(
     CHECK(scale == 3.14);
     CHECK(fresh == 7); // absent from v1 -> registered default
 
-    // On-disk shape after the rewrite. Arithmetic scalars are stored as native JSON numbers (the input
-    // above was hand-written in the earlier all-strings form, which the reader still accepts).
+    // On-disk shape after the rewrite. Arithmetic scalars are stored as native JSON numbers.
     const json::value after = Gem::Common::parseJsonFile(cfg);
     REQUIRE(after.is_object());
     const json::object &ao = after.get_object();
@@ -911,7 +931,7 @@ TEST_CASE(
     // A config with a scalar but WITHOUT the vector key "vints".
     {
         json::object t;
-        t["other"] = json::object{{"default", "5"}, {"value", "5"}};
+        t["other"] = json::object{{"default", 5}, {"value", 5}};
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
     }
 
@@ -953,8 +973,8 @@ TEST_CASE(
     {
         json::object t;
         t["vec"] = json::object{
-            {"default", json::array{"1", "1", "1", "1"}},
-            {"value", json::array{"7", "8", "9", "10"}}
+            {"default", json::array{1, 1, 1, 1}},
+            {"value", json::array{7, 8, 9, 10}}
         };
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
     }
@@ -977,12 +997,12 @@ TEST_CASE(
 
 // ---------------------------------------------------------------------------
 // Native scalar typing: arithmetic types and booleans are written as native JSON
-// numbers / bools (not quoted strings), while a config hand-written in the earlier
-// all-strings form still loads (back-compat of the read path).
+// numbers / bools (not quoted strings); a number or a boolean in quotes, the earlier
+// all-strings form, is refused.
 
 TEST_CASE(
-    "GParserBuilder: arithmetic and bool scalars write as native JSON and the old string form "
-    "still reads",
+    "GParserBuilder: arithmetic and bool scalars write as native JSON and a string in their place "
+    "is refused",
     "[common][parser-builder][regression]"
 ) {
     namespace json = boost::json;
@@ -1006,6 +1026,8 @@ TEST_CASE(
             VAR_IS_ESSENTIAL,
             "a string"
         );
+        sortOrder order = sortOrder::HIGHERISBETTER;
+        gpb.registerFileParameter<sortOrder>("o", order, sortOrder::HIGHERISBETTER);
         REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     }
 
@@ -1018,16 +1040,20 @@ TEST_CASE(
     CHECK(o.at("b").at("value").is_bool());   // native bool, not "true"
     CHECK(o.at("b").at("value").as_bool());
     CHECK(o.at("s").at("value").is_string()); // strings stay strings
+    CHECK(o.at("o").at("value").is_int64());  // a numeric enumeration is a number, not "1"
+    CHECK(o.at("o").at("value").to_number<int>() == 1);
 
-    // A config hand-written in the earlier all-strings form must still load.
-    {
+    // The native form reads back; a number or a boolean in quotes (the earlier all-strings form) is
+    // refused, naming the key and what the value must be.
+    auto write = [&cfg](json::value const &i, json::value const &d, json::value const &b) {
         json::object t;
-        t["i"] = json::object{{"default", "20"}, {"value", "33"}};
-        t["d"] = json::object{{"default", "3.5"}, {"value", "9.5"}};
-        t["b"] = json::object{{"default", "true"}, {"value", "false"}};
-        t["s"] = json::object{{"default", "hi"}, {"value", "world"}};
+        t["i"] = json::object{{"value", i}};
+        t["d"] = json::object{{"value", d}};
+        t["b"] = json::object{{"value", b}};
+        t["s"] = json::object{{"value", "world"}};
+        std::filesystem::remove(cfg);
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
-    }
+    };
     GParserBuilder reader;
     int i2 = 0;
     double d2 = 0.0;
@@ -1043,6 +1069,24 @@ TEST_CASE(
         VAR_IS_ESSENTIAL,
         "a string"
     );
+    write(json::value("33"), json::value(9.5), json::value(false));
+    CHECK_THROWS_WITH(
+        reader.parseConfigFile(cfg),
+        ContainsSubstring(R"("i" has the string "33", which is not an integer: a number is)")
+    );
+    write(json::value(33), json::value("9.5"), json::value(false));
+    CHECK_THROWS_WITH(
+        reader.parseConfigFile(cfg),
+        ContainsSubstring(R"("d" has the string "9.5")")
+    );
+    write(json::value(33), json::value(9.5), json::value("false"));
+    CHECK_THROWS_WITH(
+        reader.parseConfigFile(cfg),
+        ContainsSubstring(R"("b" has the string "false", which is not a boolean)") &&
+            ContainsSubstring("a boolean is written without quotes")
+    );
+
+    write(json::value(33), json::value(9.5), json::value(false));
     REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
     CHECK(i2 == 33);
     CHECK(d2 == 9.5);
@@ -1056,7 +1100,7 @@ TEST_CASE(
 // Regression: a std::uint8_t parameter (e.g. GEvolutionaryAlgorithm's step_control)
 // must round-trip by VALUE. Because (u)int8_t aliases a character type, a naive stream
 // conversion of "1" reads the character '1' (49) rather than the number 1; the scalar
-// helpers widen it so the numeric value survives, in both the native and the string form.
+// helpers widen it so the numeric value survives.
 
 TEST_CASE(
     "GParserBuilder: a uint8_t scalar round-trips by value and not as a character",
@@ -1099,10 +1143,11 @@ TEST_CASE(
         CHECK(int(code) == 1);
     }
 
-    // The earlier all-strings form ("1") must also read back as 1, not 49.
+    // The earlier all-strings form ("1") is refused, as for every number.
     {
         json::object t;
         t["code"] = json::object{{"default", "1"}, {"value", "1"}};
+        std::filesystem::remove(cfg);
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
         GParserBuilder reader;
         std::uint8_t code = 0;
@@ -1113,8 +1158,11 @@ TEST_CASE(
             VAR_IS_ESSENTIAL,
             "8-bit code"
         );
-        REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
-        CHECK(int(code) == 1);
+        CHECK_THROWS_WITH(
+            reader.parseConfigFile(cfg),
+            ContainsSubstring(R"("code" has the string "1")")
+        );
+        CHECK(int(code) == 0);
     }
 
     std::filesystem::remove(cfg);
@@ -1337,6 +1385,84 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// Regression: an array parameter took a list of the wrong length without a word -- the
+// surplus of a longer list was dropped, the missing values of a shorter one kept their defaults. A
+// list of any other length than the array's is refused, naming the key and both lengths.
+
+TEST_CASE(
+    "GParserBuilder: an array parameter refuses a list of the wrong length",
+    "[common][parser-builder][regression]"
+) {
+    GParserBuilder gpb;
+    std::array<int, 3> triple{};
+    gpb.registerFileParameter<int, 3>("triple", triple, std::array<int, 3>{1, 2, 3});
+    auto load = [&gpb](std::string const &text) { gpb.loadFromDocument(boost::json::parse(text)); };
+
+    CHECK_THROWS_WITH(
+        load(R"({ "triple": { "value": [4, 5, 6, 7] } })"),
+        ContainsSubstring(R"("triple" has the wrong form: [4,5,6,7])") &&
+            ContainsSubstring("exactly 3 values, not 4")
+    );
+    CHECK_THROWS_WITH(
+        load(R"({ "triple": { "value": [4, 5] } })"),
+        ContainsSubstring(R"("triple")") && ContainsSubstring("exactly 3 values, not 2")
+    );
+    CHECK(triple == std::array<int, 3>{});
+
+    load(R"({ "triple": { "value": [4, 5, 6] } })");
+    CHECK(triple == std::array<int, 3>{4, 5, 6});
+}
+
+// ---------------------------------------------------------------------------
+// Regression: a registration was refused only if its first option name was taken. A
+// combined parameter writes its group under its label, which was not checked, so two combined
+// parameters with one label -- or a parameter named like a label, or "header" -- wrote the same key
+// of the file, and the later one replaced the earlier one. Each such registration is refused.
+
+TEST_CASE(
+    "GParserBuilder: a registration whose configuration-file key is taken is refused",
+    "[common][parser-builder][regression]"
+) {
+    GParserBuilder gpb;
+    auto ignore = [](int, int) { /* nothing */ };
+    gpb.registerFileParameter<int, int>("a", "b", 1, 2, ignore, "group");
+
+    CHECK_THROWS_WITH(
+        (gpb.registerFileParameter<int, int>("c", "d", 3, 4, ignore, "group")),
+        ContainsSubstring(R"(The configuration-file key "group" is already taken)")
+    );
+    int single = 0;
+    CHECK_THROWS_WITH(
+        gpb.registerFileParameter<int>("group", single, 5),
+        ContainsSubstring(R"("group" is already taken)")
+    );
+    gpb.registerFileParameter<int>("single", single, 5);
+    CHECK_THROWS_WITH(
+        (gpb.registerFileParameter<int, int>("e", "f", 3, 4, ignore, "single")),
+        ContainsSubstring(R"("single" is already taken)")
+    );
+    std::vector<int> list;
+    CHECK_THROWS_WITH(
+        gpb.registerFileParameter<int>("header", list, std::vector<int>{1}),
+        ContainsSubstring(R"("header" is already taken by the header of the file)")
+    );
+    CHECK_THROWS_WITH(
+        (gpb.registerFileParameter<int, int>("g", "g", 3, 4, ignore, "other")),
+        ContainsSubstring(R"(two parameters named "g")")
+    );
+    CHECK(gpb.numberOfFileOptions() == 2);
+
+    // What was registered is written once each, under its own key
+    auto cfg = scratch("taken_keys");
+    std::filesystem::remove(cfg);
+    gpb.writeConfigFile(cfg);
+    boost::json::value const doc = Gem::Common::parseJsonFile(cfg);
+    CHECK(doc.at("group").at("a").at("value").to_number<int>() == 1);
+    CHECK(doc.at("single").at("value").to_number<int>() == 5);
+    std::filesystem::remove(cfg);
+}
+
+// ---------------------------------------------------------------------------
 // Regression: parseConfigFile() returned false on any error, and most callers ignored the
 // result (a direct readConfigFile() of an optimization algorithm among them), so a file that could not
 // be applied left the defaults in force without a word. It throws, naming the file and the cause.
@@ -1367,7 +1493,7 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // Regression: a boolean that was not "true" or "1" read as false, and a number that did not read
 // as its type was read as far as it went ("2.5" as 2) or left indeterminate ("two"). Such a value
-// is refused, naming the key; the all-strings form of a valid value still reads.
+// is refused, naming the key; so is a valid value in quotes (the earlier all-strings form).
 
 TEST_CASE(
     "GParserBuilder: a value that does not read as its type is refused with its key named",
@@ -1378,7 +1504,7 @@ TEST_CASE(
 
     CHECK_THROWS_WITH(
         k.load(R"({ "flag": { "value": "yes" } })"),
-        ContainsSubstring(R"("flag" has the value "yes", which is not a boolean)")
+        ContainsSubstring(R"("flag" has the string "yes", which is not a boolean)")
     );
     CHECK_THROWS_WITH(
         k.load(R"({ "group": { "alpha": { "value": 2.5 } } })"),
@@ -1386,15 +1512,28 @@ TEST_CASE(
     );
     CHECK_THROWS_WITH(
         k.load(R"({ "list": { "value": [1, "two"] } })"),
-        ContainsSubstring(R"("list" has the value "two", which is not an integer)")
+        ContainsSubstring(R"("list" has the string "two", which is not an integer)")
     );
     CHECK_THROWS_WITH(
         k.load(R"({ "pair": { "value": [1, "x"] } })"),
         ContainsSubstring(R"("pair")")
     );
 
-    k.load(R"({ "flag": { "value": "false" }, "group": { "beta": { "value": "1e-3" } },
-                "list": { "value": [" 4 ", 5] } })");
+    CHECK_THROWS_WITH(
+        k.load(R"({ "flag": { "value": "false" } })"),
+        ContainsSubstring(R"("flag")")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "group": { "beta": { "value": "1e-3" } } })"),
+        ContainsSubstring(R"("group/beta" has the string "1e-3")")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "list": { "value": [" 4 ", 5] } })"),
+        ContainsSubstring(R"("list")")
+    );
+
+    k.load(R"({ "flag": { "value": false }, "group": { "beta": { "value": 1e-3 } },
+                "list": { "value": [4, 5] } })");
     CHECK_FALSE(k.flag);
     CHECK(k.beta == 1e-3);
     CHECK(k.list == std::vector<int>{4, 5});
@@ -1431,11 +1570,12 @@ TEST_CASE(
     CHECK_THROWS_WITH(
         load(R"({ "order": { "value": "HIGHERISBETTER" } })"),
         ContainsSubstring(
-            R"("order" has the value "HIGHERISBETTER", which is not one of the values 0 or 1)"
+            R"("order" has the string "HIGHERISBETTER", which is not one of the values 0 or 1)"
         )
     );
-    CHECK_THROWS_WITH(load(R"({ "order": { "value": "1.5" } })"), ContainsSubstring(R"("order")"));
-    CHECK_THROWS_WITH(load(R"({ "order": { "value": "7" } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": 1.5 } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": 7 } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": "1" } })"), ContainsSubstring(R"("order")"));
     CHECK_THROWS_WITH(
         load(R"({ "dims": { "value": 0 } })"),
         ContainsSubstring(R"(which is not one of the values 1, 2, 3 or 4)")
@@ -1445,7 +1585,7 @@ TEST_CASE(
         ContainsSubstring(R"("count" has the value "-1", which is not an integer >= 0)")
     );
     CHECK_THROWS_WITH(
-        load(R"({ "sizes": { "value": [2, " -1"] } })"),
+        load(R"({ "sizes": { "value": [2, -1] } })"),
         ContainsSubstring(R"("sizes")")
     );
     CHECK_THROWS_WITH(
@@ -1455,7 +1595,7 @@ TEST_CASE(
     CHECK(order == Gem::Common::sortOrder::LOWERISBETTER);
     CHECK(count == 1);
 
-    load(R"({ "order": { "value": "1" }, "dims": { "value": 4 }, "count": { "value": 4294967295 },
+    load(R"({ "order": { "value": 1 }, "dims": { "value": 4 }, "count": { "value": 4294967295 },
               "sizes": { "value": [0, 3] }, "small": { "value": 255 } })");
     CHECK(order == Gem::Common::sortOrder::HIGHERISBETTER);
     CHECK(dims == Gem::Common::dimensions::Dim4);
@@ -1668,6 +1808,243 @@ TEST_CASE(
 
     Argv bad_value({"--rank=first"});
     CHECK_THROWS_AS(gpb.parseCommandLine(bad_value.argc(), bad_value.argv()), GCommandLineError);
+}
+
+// ---------------------------------------------------------------------------
+// The public functions of GParserBuilder that had no test of what they do
+
+namespace {
+/** Restores the process-wide switches of GParserBuilder when it goes out of scope */
+struct GProcessSettingsGuard {
+    GProcessSettingsGuard() = default;
+    ~GProcessSettingsGuard() { GParserBuilder::resetProcessSettings(); }
+    GProcessSettingsGuard(GProcessSettingsGuard const &) = delete;
+    GProcessSettingsGuard(GProcessSettingsGuard &&) = delete;
+    GProcessSettingsGuard &operator=(GProcessSettingsGuard const &) = delete;
+    GProcessSettingsGuard &operator=(GProcessSettingsGuard &&) = delete;
+};
+} // namespace
+
+TEST_CASE(
+    "GParserBuilder::parseConfigFile hands the parsed document to the caller",
+    "[common][parser-builder]"
+) {
+    auto cfg = scratch("captured");
+    std::filesystem::remove(cfg);
+    {
+        std::ofstream out(cfg);
+        out << R"({ "answer": { "value": 13 } })" << '\n';
+    }
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+    boost::json::value captured;
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg, &captured));
+    CHECK(answer == 13);
+    CHECK(captured.at("answer").at("value").to_number<int>() == 13);
+
+    // The captured document is applied again without the file
+    std::filesystem::remove(cfg);
+    answer = 0;
+    gpb.loadFromDocument(captured);
+    CHECK(answer == 13);
+}
+
+TEST_CASE(
+    "GParserBuilder::loadFromDocument refuses a document that is no object",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+    CHECK_THROWS_WITH(
+        gpb.loadFromDocument(boost::json::parse("[1, 2]"), "list.json"),
+        ContainsSubstring("list.json") && ContainsSubstring("does not contain a JSON object")
+    );
+    gpb.loadFromDocument(boost::json::parse("{}"));
+    CHECK(answer == 42); // an absent key keeps its default, and the call-back runs
+}
+
+TEST_CASE(
+    "GParserBuilder::setCheckUnknownKeys and setUnknownKeyIsError decide what an unknown key does",
+    "[common][parser-builder]"
+) {
+    GProcessSettingsGuard const guard;
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+    auto const doc = boost::json::parse(R"({ "answer": { "value": 1 }, "stale": { "value": 2 } })");
+
+    GParserBuilder::setUnknownKeyIsError(true);
+    CHECK_THROWS_WITH(
+        gpb.loadFromDocument(doc, "stale.json"),
+        ContainsSubstring(R"(contains the unknown key "stale")")
+    );
+    // The check runs for a genuine parse only: a re-application of a cached document skips it
+    CHECK_NOTHROW(gpb.loadFromDocument(doc, "stale.json", false));
+    CHECK(answer == 1);
+
+    GParserBuilder::setCheckUnknownKeys(false);
+    answer = 0;
+    CHECK_NOTHROW(gpb.loadFromDocument(doc, "stale.json"));
+    CHECK(answer == 1);
+
+    GParserBuilder::setCheckUnknownKeys(true);
+    GParserBuilder::setUnknownKeyIsError(false);
+    CHECK_NOTHROW(gpb.loadFromDocument(doc, "stale.json")); // a warning only
+}
+
+TEST_CASE(
+    "GParserBuilder::setUpdateInPlace makes parseConfigFile rewrite the file it reads",
+    "[common][parser-builder]"
+) {
+    GProcessSettingsGuard const guard;
+    auto cfg = scratch("update_in_place");
+    auto write = [&cfg] {
+        std::filesystem::remove(cfg);
+        std::ofstream out(cfg);
+        out << R"({ "answer": { "value": 13 }, "stale": { "value": 2 } })" << '\n';
+    };
+    GParserBuilder gpb;
+    int answer = 0;
+    gpb.registerFileParameter<int>("answer", answer, 42);
+
+    write();
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+    CHECK(Gem::Common::parseJsonFile(cfg).as_object().contains("stale")); // off: left as it is
+
+    GParserBuilder::setUpdateInPlace(true);
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+    boost::json::value const doc = Gem::Common::parseJsonFile(cfg);
+    CHECK_FALSE(doc.as_object().contains("stale"));
+    CHECK(doc.at("answer").at("value").to_number<int>() == 13);
+    CHECK(doc.at("answer").at("default").to_number<int>() == 42);
+    CHECK(answer == 13);
+    std::filesystem::remove(cfg);
+}
+
+TEST_CASE(
+    "GParserBuilder::resetFileParameterDefaults (combined form) resets both defaults",
+    "[common][parser-builder]"
+) {
+    auto cfg = scratch("reset_combined");
+    std::filesystem::remove(cfg);
+    GParserBuilder gpb;
+    int first = 0;
+    double second = 0.;
+    gpb.registerFileParameter<int, double>(
+        "first",
+        "second",
+        1,
+        2.5,
+        [&](int f, double s) {
+            first = f;
+            second = s;
+        },
+        "pair"
+    );
+    gpb.resetFileParameterDefaults<int, double>("first", 7, 8.5);
+    REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
+    CHECK(first == 7);
+    CHECK(second == 8.5);
+    boost::json::value const doc = Gem::Common::parseJsonFile(cfg);
+    CHECK(doc.at("pair").at("second").at("default").to_number<double>() == 8.5);
+    std::filesystem::remove(cfg);
+}
+
+TEST_CASE(
+    "GParserBuilder: setHidden and isHidden of a command-line option",
+    "[common][parser-builder]"
+) {
+    GParserBuilder gpb;
+    int count = 0;
+    auto &option = gpb.registerCLParameter<int>("count", count, 1);
+    CHECK_FALSE(option.isHidden());
+    CHECK(option.setHidden().isHidden());
+    CHECK_FALSE(option.setHidden(false).isHidden());
+}
+
+// ---------------------------------------------------------------------------
+// GEM_CONFIG_BASENAME: the environment variable places the configuration files of a
+// process below one directory. Regression: writeConfigFile() wrote to the path as given, so a file
+// a program wrote with it was not the file parseConfigFile() then read below that directory.
+
+namespace {
+/** Sets an environment variable for its lifetime and restores the earlier state afterwards */
+class GScopedEnvironmentVariable {
+public:
+    GScopedEnvironmentVariable(std::string name, std::string const &value)
+      : name_(std::move(name)) {
+        if(char const *earlier = std::getenv(name_.c_str())) {
+            earlier_ = std::string(earlier);
+        }
+        ::setenv(name_.c_str(), value.c_str(), 1);
+    }
+    ~GScopedEnvironmentVariable() {
+        if(earlier_) {
+            ::setenv(name_.c_str(), earlier_->c_str(), 1);
+        }
+        else {
+            ::unsetenv(name_.c_str());
+        }
+    }
+    GScopedEnvironmentVariable(GScopedEnvironmentVariable const &) = delete;
+    GScopedEnvironmentVariable(GScopedEnvironmentVariable &&) = delete;
+    GScopedEnvironmentVariable &operator=(GScopedEnvironmentVariable const &) = delete;
+    GScopedEnvironmentVariable &operator=(GScopedEnvironmentVariable &&) = delete;
+
+private:
+    std::string name_;
+    std::optional<std::string> earlier_;
+};
+} // namespace
+
+TEST_CASE(
+    "GParserBuilder: GEM_CONFIG_BASENAME places the configuration files below its directory",
+    "[common][parser-builder]"
+) {
+    auto const top = std::filesystem::temp_directory_path() / "gem_parserbuilder_tests" /
+                     ("basename_" + std::to_string(::getpid()));
+    auto const base = top / "configs";
+    std::filesystem::remove_all(top);
+    std::filesystem::create_directories(top);
+    auto const work_dir = std::filesystem::current_path();
+    std::filesystem::current_path(top); // a relative path that misses the base lands here
+
+    {
+        GScopedEnvironmentVariable const env("GEM_CONFIG_BASENAME", base.string());
+        GParserBuilder gpb;
+        int answer = 0;
+        gpb.registerFileParameter<int>("answer", answer, 42);
+
+        // parseConfigFile(): a relative path is resolved below the directory, which is created
+        REQUIRE_NOTHROW(gpb.parseConfigFile("sub/answer.json"));
+        CHECK(std::filesystem::is_regular_file(base / "sub" / "answer.json"));
+        CHECK_FALSE(std::filesystem::exists(top / "sub"));
+        CHECK(answer == 42);
+
+        // writeConfigFile() and updateConfigFile() place their files there as well
+        gpb.writeConfigFile("written.json");
+        CHECK(std::filesystem::is_regular_file(base / "written.json"));
+        CHECK_FALSE(std::filesystem::exists(top / "written.json"));
+        CHECK_THROWS_AS(gpb.writeConfigFile("written.json"), gem_exception);
+        REQUIRE_NOTHROW(gpb.updateConfigFile("updated.json"));
+        CHECK(std::filesystem::is_regular_file(base / "updated.json"));
+
+        // An absolute path is used as given
+        REQUIRE_NOTHROW(gpb.parseConfigFile(top / "absolute.json"));
+        CHECK(std::filesystem::is_regular_file(top / "absolute.json"));
+    }
+
+    // Without the variable, a relative path is the working directory's
+    GParserBuilder plain;
+    int answer = 0;
+    plain.registerFileParameter<int>("answer", answer, 42);
+    REQUIRE_NOTHROW(plain.parseConfigFile("plain.json"));
+    CHECK(std::filesystem::is_regular_file(top / "plain.json"));
+
+    std::filesystem::current_path(work_dir);
+    std::filesystem::remove_all(top);
 }
 
 // ---------------------------------------------------------------------------

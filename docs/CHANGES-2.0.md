@@ -132,6 +132,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Configuration files are now strict, standard JSON** (previously Boost.PropertyTree /
   XML). Boost.PropertyTree has been removed from Geneva entirely; the individual→tree
   dump moved to JSON as well. Configs use native JSON scalars (numbers, booleans).
+- **A number in quotes is refused.** A number, a boolean or an enumeration that is written as
+  a number (`cp_ser_mode`, `sorting_method`, `maxmode`, ...) is written without quotes,
+  `"value": 5`; the reader no longer takes `"value": "5"`, the all-strings form of older files,
+  as the number 5, but refuses it with a message that names the key and what is expected.
+  Enumerations were written in quotes until now: a configuration file written by an earlier
+  version is rewritten with `--update-configs` after the quotes around its numbers are removed,
+  or created anew.
 - **The external-evaluation protocol was rewritten** (a breaking change for external
   evaluators; the bundled `evaluator.py` was rewritten to match).
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
@@ -144,11 +151,20 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   known key in another form (the flat `"scan_randomly": false`, an object without `"value"`, a
   list where one value belongs) was skipped without a word, leaving the default in force; it is
   now an error that names the key and the form it needs. An absent key keeps its default.
+  An array parameter refuses a list of another length than its own; a longer list lost its
+  surplus, and the missing values of a shorter one kept their defaults. A registration whose
+  key in the file is taken is refused as well: two combined parameters with one group label, a
+  parameter named like a label or `header`, or a combined parameter with two equal names wrote
+  the same entry, and the later one replaced the earlier one.
   So is a value that does not read as its parameter's type: a boolean other than `true`,
   `false`, `1` or `0` (it read as `false`), a number with text or a remainder (`2.5` for an
   integer read as 2), a negative number for an unsigned key (`-1` wrapped around to
   4294967295), and for an enumeration text or a number that is none of its values
   (`"MAXIMIZE"` for `maxmode` read as 0, i.e. minimize). The error names what the value must be.
+- **The environment variable `GEM_CONFIG_BASENAME`** names a directory below which a
+  program's configuration files are placed (a relative path is resolved against it, the
+  directory is created). `GParserBuilder::writeConfigFile()` follows it too; it wrote to the path
+  as given, so the file a program wrote was not the one it then read.
 - **`GParserBuilder::parseConfigFile()` and `updateConfigFile()` throw** a `gem_exception`
   that names the file and the cause when the file cannot be read or applied, and return
   `void`. They used to log the error and return `false`, which most callers ignored -- a direct
@@ -803,7 +819,11 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `registerFileParameter(name, reference, default, ...)` overloads are **unchanged** —
   they now assign through the callback proxy internally; the on-disk config format is
   identical. The test-only helpers `configureFromFile()` and `GParserBuilder::cl_at()`
-  were removed as well.
+  were removed as well, and so were the base classes the two kinds of proxy had shared
+  (`GSingleParmT`, `GCombinedParT`, `GVectorParT`, `GArrayParT`): each is folded into its one
+  remaining proxy class (`GFileSingleParsableParameterT` and its siblings), whose constructors
+  without a comment are gone too, as is the helper `GParsableI::makeVector()` (a braced list
+  does the same).
 - **dietrich: the public headers no longer re-export all of `Gem::Common`** (the former
   `using namespace Gem::Common;` in every header). The specific common names dietrich's
   own API uses are still imported per-name; a consumer that relied on the blanket

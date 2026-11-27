@@ -115,8 +115,8 @@ std::size_t commentLevel::getCommentLevel() const {
  * @param comment_var The single comment describing this parsable item
  */
 GParsableI::GParsableI(std::string const &option_name_var, std::string const &comment_var)
-  : option_name_(GParsableI::makeVector(option_name_var))
-  , comment_(GParsableI::makeVector(comment_var))
+  : option_name_{option_name_var}
+  , comment_{comment_var}
   , cl_(0) { /* nothing */
 }
 
@@ -393,7 +393,9 @@ GCLParsableI::GCLParsableI(
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
- * The default constructor
+ * The default constructor. Reads the environment variable GEM_CONFIG_BASENAME: if it is set and not
+ * empty, the configuration files of this object are placed below the directory it names (see the
+ * class comment).
  */
 GParserBuilder::GParserBuilder() {
     auto basename_opt = Gem::Common::environmentVariableAs<std::string>("GEM_CONFIG_BASENAME");
@@ -555,9 +557,8 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
     std::filesystem::path const &config_file,
     bool &file_existed
 ) {
-    std::filesystem::path config_path;
-
     // Assemble a path object from the config file, possibly adding a base directory
+    std::filesystem::path const config_path = this->belowBaseDir_(config_file);
     if(not config_base_dir_.empty()) {
         // Make sure the base directory exists, creating it if necessary. As a missing config
         // file is auto-created below, a missing config directory must be created too, so the
@@ -583,11 +584,6 @@ std::filesystem::path GParserBuilder::resolveConfigPathAndEnsureFile(
                 << "Base-directory " << config_base_dir_.string() << " is not a directory" << '\n'
             );
         }
-
-        config_path = config_base_dir_ / config_file;
-    }
-    else {
-        config_path = config_file;
     }
 
     // Check that the configuration file exists.
@@ -761,7 +757,8 @@ bool GParserBuilder::emitTimestamp() {
 /******************************************************************************/
 /**
  * Writes out a configuration file. An existing file is refused: this function creates a file, it does
- * not replace one (the update of an existing file is updateConfigFile()).
+ * not replace one (the update of an existing file is updateConfigFile()). Like parseConfigFile(),
+ * it places a relative path below the directory GEM_CONFIG_BASENAME names, if it was set.
  *
  * @param config_file The name of the configuration file to be written
  * @param header A descriptive comment to be output at the top of the configuration file
@@ -772,22 +769,39 @@ void GParserBuilder::writeConfigFile(
     std::string const &header,
     bool write_all
 ) const {
-    // Is config_file a directory ?
-    if(std::filesystem::is_directory(config_file)) {
+    std::filesystem::path const config_path = this->belowBaseDir_(config_file);
+
+    // Is config_path a directory ?
+    if(std::filesystem::is_directory(config_path)) {
         throw gem_exception(
-            g_error_streamer() << config_file.string() << " is a directory." << '\n'
+            g_error_streamer() << config_path.string() << " is a directory." << '\n'
         );
     }
 
     // We do not allow to overwrite existing files
-    if(std::filesystem::exists(config_file) && std::filesystem::is_regular_file(config_file)) {
+    if(std::filesystem::exists(config_path) && std::filesystem::is_regular_file(config_path)) {
         throw gem_exception(
-            g_error_streamer() << "You have specified an existing file (" << config_file.string()
-                               << ")." << '\n'
+            g_error_streamer() << "The configuration file " << config_path.string()
+                               << " exists; writeConfigFile() does not overwrite a file "
+                               << "(updateConfigFile() rewrites an existing one)" << '\n'
         );
     }
 
-    this->createConfigFile_(config_file, header, write_all);
+    this->createConfigFile_(config_path, header, write_all);
+}
+
+/******************************************************************************/
+/**
+ * The path of a configuration file below the directory GEM_CONFIG_BASENAME names, if it was set
+ * when this object was constructed: a relative path is resolved against it, an absolute one stays
+ * as it is (std::filesystem's operator/).
+ *
+ * @param config_file The path of a configuration file as the caller gives it
+ * @return The path the file is read from or written to
+ */
+std::filesystem::path
+GParserBuilder::belowBaseDir_(std::filesystem::path const &config_file) const {
+    return config_base_dir_.empty() ? config_file : config_base_dir_ / config_file;
 }
 
 /******************************************************************************/
@@ -865,9 +879,11 @@ void GParserBuilder::createConfigFile_(
  */
 boost::json::value
 GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) const {
-    if(file_parameter_proxies_.empty()) {
-        throw gem_exception(g_error_streamer() << "No variables found!" << '\n');
-    }
+    checkThat(
+        not file_parameter_proxies_.empty(),
+        "No file parameters are registered, so there is no configuration file to write (they are "
+        "registered with registerFileParameter())"
+    );
 
     boost::json::object root;
 
@@ -1210,7 +1226,7 @@ boost::program_options::variables_map GParserBuilder::parseAgainst_(
     given_explicitly_.clear();
     po::variables_map vm;
     try {
-        po::command_line_parser parser(argc, (const char *const *)argv);
+        po::command_line_parser parser(argc, argv);
         parser.options(desc);
         if(permissive) {
             parser.allow_unregistered();
