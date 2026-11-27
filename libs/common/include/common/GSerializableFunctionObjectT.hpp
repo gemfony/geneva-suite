@@ -109,9 +109,6 @@ protected:
      */
     virtual bool process_(processable_type &p) = 0;
 
-    /** @brief Performs self tests that are expected to succeed. This is needed for testing purposes */
-    /** @brief Performs self tests that are expected to fail. This is needed for testing purposes */
-
 private:
     /***************************************************************************/
     /** @brief Creates a deep clone of this object */

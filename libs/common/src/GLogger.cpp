@@ -124,7 +124,7 @@ std::unique_lock<std::mutex> GLogger::lock_() const {
  * @brief Hands a message to every registered log target, or to the default target if none
  * is registered.
  *
- * Thread-safe; see deliver_(). Throws if neither a target nor a default target is available.
+ * Thread-safe; see deliver_().
  *
  * @param message The message to be forwarded to the log targets
  * @param severity The kind of message, passed on to the targets
@@ -138,7 +138,7 @@ void GLogger::log(std::string const &message, logType severity) const {
  * @brief Hands a message, together with an identifier of its source, to every registered log
  * target, or to the default target if none is registered.
  *
- * Thread-safe; see deliver_(). Throws if neither a target nor a default target is available.
+ * Thread-safe; see deliver_().
  *
  * @param message The message to be forwarded to the log targets
  * @param extension An identifier of the logging source forwarded alongside the message
@@ -184,16 +184,11 @@ void GLogger::deliver_(
             target.log(message, severity);
         }
     };
-    if(not log_cnt_.empty()) {
-        for(auto const &target : log_cnt_) {
-            call(*target);
-        }
-    }
-    else if(default_logger_) {
+    if(log_cnt_.empty()) {
         call(*default_logger_);
     }
-    else {
-        throw gem_exception(g_error_streamer() << "No loggers found" << '\n');
+    for(auto const &target : log_cnt_) {
+        call(*target);
     }
 }
 

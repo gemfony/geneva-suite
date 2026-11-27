@@ -436,8 +436,8 @@ private:
     std::vector<std::shared_ptr<GBaseLogTarget>> log_cnt_; ///< Contains the log targets
     mutable std::mutex logger_mutex_; ///< Needed for concurrent access to the log targets
 
-    std::shared_ptr<GBaseLogTarget> default_logger_ =
-        std::make_shared<GConsoleLogger>(); ///< The default log target
+    /// The default log target; never empty (setDefaultLogTarget() refuses an empty one)
+    std::shared_ptr<GBaseLogTarget> default_logger_ = std::make_shared<GConsoleLogger>();
 };
 
 /******************************************************************************/

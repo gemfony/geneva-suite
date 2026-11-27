@@ -239,14 +239,6 @@ public:
         return store_.values();
     }
 
-    // ----------------------------------------------------------------------
-    // Removed stateful-iterator API (rewind / goToNextPosition /
-    // getCurrentItem / getNextItem): the internal iterator `pos_` was
-    // invalidated by remove() and leaked across calls, producing a latent
-    // UB / silent-map-growth hazard whenever traversal was interleaved with
-    // mutation. Callers should now take a snapshot via getKeyVector() or
-    // getContentVector() and iterate that.
-
 private:
     /************************************************************************/
     // Holds the actual data — a shared thread-safe key->value store.

@@ -34,6 +34,7 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <iterator>
 #include <memory>
@@ -839,4 +840,78 @@ TEST_CASE(
     CHECK(lines[2].substr(21) == "LOGGING modA from a source");
     CHECK(lines[3].substr(21) == "WARNING"); // the banner of a warning begins on the next line
     CHECK(std::ranges::any_of(lines, [](std::string const &l) { return l.contains("careful"); }));
+}
+
+// ---------------------------------------------------------------------------
+// The rest of the public surface: LOGEXIT's manipulator, locationString(), glogger_ptr, the
+// manipulator overloads of GLogger and GLogStreamer, and what toStdOut() / toStdErr() write
+
+namespace {
+/** @brief A manipulator of the std::ios form, as a user may write one */
+std::ios &upperCase(std::ios &stream) {
+    stream.setf(std::ios::uppercase);
+    return stream;
+}
+
+/** @brief Calls locationString() from a function whose name the test knows */
+std::string placeOfThisFunction() {
+    return locationString();
+}
+} // namespace
+
+TEST_CASE(
+    "GManipulator: LOGEXIT stores the return code and the place",
+    "[common][logger][macros]"
+) {
+    GManipulator const m = LOGEXIT(7);
+    CHECK(m.getLogType() == logType::EXIT);
+    CHECK(m.getReturnCode() == 7);
+    CHECK(m.hasAccompInfo());
+    CHECK(m.getAccompInfo().contains("GLoggerTests.cpp"));
+
+    // Without a return code it is 0
+    CHECK(GManipulator(logType::LOGGING).getReturnCode() == 0);
+}
+
+TEST_CASE(
+    "locationString(): names the file and line and function of the call",
+    "[common][logger]"
+) {
+    std::string const where = placeOfThisFunction();
+    CHECK(where.starts_with("in file "));
+    CHECK(where.contains("GLoggerTests.cpp near line "));
+    CHECK(where.contains("placeOfThisFunction"));
+}
+
+TEST_CASE("glogger_ptr: is the logger that glogger names", "[common][logger]") {
+    CHECK(glogger_ptr.get() == &glogger);
+}
+
+TEST_CASE(
+    "GLogger and GLogStreamer: the three kinds of stream manipulators reach the message",
+    "[common][logger]"
+) {
+    GLogger g;
+    CHECK((g << std::endl).content() == "\n");
+    CHECK((g << std::hex << 255).content() == "ff");
+    CHECK((g << upperCase << std::hex << 255).content() == "FF");
+
+    GLogStreamer s;
+    s << std::hex << 255 << ' ' << upperCase << 255;
+    CHECK(s.content() == "ff FF");
+}
+
+TEST_CASE("GLogger::toStdOut / toStdErr write the message unchanged", "[common][logger]") {
+    std::ostringstream out;
+    std::ostringstream err;
+    std::streambuf *const old_out = std::cout.rdbuf(out.rdbuf());
+    std::streambuf *const old_err = std::cerr.rdbuf(err.rdbuf());
+    GLogger g;
+    g.toStdOut("to standard output\n");
+    g.toStdErr("to standard error\n");
+    std::cout.rdbuf(old_out);
+    std::cerr.rdbuf(old_err);
+
+    CHECK(out.str() == "to standard output\n");
+    CHECK(err.str() == "to standard error\n");
 }

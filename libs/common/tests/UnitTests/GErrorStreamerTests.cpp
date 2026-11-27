@@ -30,6 +30,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <iomanip>
+#include <ios>
+#include <ostream>
 #include <source_location>
 #include <string>
 
@@ -130,4 +132,21 @@ TEST_CASE(
     CHECK(tp.contains("in File "));
     CHECK(tp.contains("at line "));
     CHECK(tp.contains("GErrorStreamerTests.cpp"));
+}
+
+namespace {
+/** @brief A manipulator of the std::ios form, as a user may write one */
+std::ios &upperCase(std::ios &stream) {
+    stream.setf(std::ios::uppercase);
+    return stream;
+}
+} // namespace
+
+TEST_CASE(
+    "g_error_streamer: std::endl and a std::ios manipulator go through their overloads",
+    "[common][error-streamer]"
+) {
+    g_error_streamer s;
+    s << "line" << std::endl << upperCase << std::hex << 255;
+    CHECK(s.content() == "line\nFF");
 }
