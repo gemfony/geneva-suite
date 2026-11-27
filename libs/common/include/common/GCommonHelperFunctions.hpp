@@ -236,11 +236,5 @@ std::chrono::high_resolution_clock::time_point
 milliseconds_to_time_point(std::chrono::milliseconds::rep const &val);
 
 /******************************************************************************/
-/**
- * @brief Raises an exception if a given define wasn't set.
- */
-void condnotset(std::string const &f, std::string const &d);
-
-/******************************************************************************/
 
 } /* namespace Gem::Common */

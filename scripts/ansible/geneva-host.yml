@@ -180,7 +180,7 @@
               ./b2 -j{{ ansible_processor_nproc }} toolset={{ boost_toolset }}
               cxxflags=-std=c++23 variant=release link=shared threading=multi
               boost.process.fs=std
-              --with-atomic --with-json --with-program_options --with-process --with-regex
+              --with-json --with-program_options --with-process
               install
             chdir: "{{ boost_build.path }}/{{ boost_name }}"
 

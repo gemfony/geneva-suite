@@ -54,6 +54,7 @@
 // Boost header files go here
 
 // Geneva header files go here
+#include "common/GCommandLineParser.hpp"
 #include "common/GCommonHelperFunctions.hpp" // duration_from_string()
 #include "common/GConfigEmission.hpp"
 #include "common/GErrorStreamer.hpp"

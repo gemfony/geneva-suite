@@ -830,7 +830,7 @@ std::string histogramHeader(const rootSeries &s, const std::string &indent) {
     EmitStream out;
     const std::string hist = legendObjectOf(s);
     const std::string comment = dsMarkerComment(s.plotter->dsMarker());
-    const std::size_t n_x = s.spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD);
+    const std::size_t n_x = s.spec.n_bins_x.value_or(DEFAULTNBINSGPD);
     const auto range = [&s](
                            const std::optional<std::tuple<double, double>> &fixed,
                            std::size_t column,
@@ -843,7 +843,7 @@ std::string histogramHeader(const rootSeries &s, const std::string &indent) {
         return rangeHolding(s.columns[column], n_bins);
     };
     if(s.spec.kind == plotKind::hist_2d) {
-        const std::size_t n_y = s.spec.n_bins_y.value_or(Gem::Common::DEFAULTNBINSGPD);
+        const std::size_t n_y = s.spec.n_bins_y.value_or(DEFAULTNBINSGPD);
         // A fixed range needs both axes; otherwise both come from the data.
         const bool fixed = s.spec.range_x.has_value() and s.spec.range_y.has_value();
         const auto [lo_x, hi_x] = range(fixed ? s.spec.range_x : std::nullopt, 0, n_x);

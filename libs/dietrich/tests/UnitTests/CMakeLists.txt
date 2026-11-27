@@ -65,6 +65,7 @@ ENDFUNCTION()
 # Test executables.
 
 gem_dietrich_test(GPlotDesignerTests           S  GPlotDesignerTests.cpp)
+gem_dietrich_test(GPlotEnumsTests              S  GPlotEnumsTests.cpp)
 gem_dietrich_test(GPlotSinkTests               S  GPlotSinkTests.cpp)
 
 ################################################################################

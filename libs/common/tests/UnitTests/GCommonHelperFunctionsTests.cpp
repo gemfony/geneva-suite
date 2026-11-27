@@ -398,13 +398,6 @@ TEST_CASE("time_point round-trip via ms representation", "[common][helper-nonT][
 }
 
 // ---------------------------------------------------------------------------
-// condnotset
-
-TEST_CASE("condnotset: raises gem_exception", "[common][helper-nonT][condnotset]") {
-    CHECK_THROWS_AS(condnotset("SOME_DEFINE", "test-context"), gem_exception);
-}
-
-// ---------------------------------------------------------------------------
 // backupExistingFile
 //
 // Regression guard. The output sites of the optimization monitors once carried hand-copied

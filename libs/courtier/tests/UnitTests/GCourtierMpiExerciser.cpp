@@ -77,6 +77,7 @@
  *                     the batch: its client finds it silent and ends, and the job is ended.
  */
 
+#include "common/GCommandLineParser.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GGlobalDefines.hpp"
 

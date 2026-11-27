@@ -53,6 +53,7 @@
 
 // Geneva header files go here
 #include "GGridSlice.hpp"
+#include "common/GCommandLineParser.hpp"
 #include "common/GFatalReport.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GConsumerRegistry.hpp"

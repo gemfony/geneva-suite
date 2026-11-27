@@ -46,6 +46,7 @@
 // Boost header files go here
 
 // Geneva headers go here
+#include "common/GCommandLineParser.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"

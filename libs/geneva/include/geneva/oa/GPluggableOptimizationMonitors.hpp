@@ -1816,9 +1816,9 @@ private:
         std::tuple<std::uint32_t, std::uint32_t>(1600, 1200); ///< The dimensions of the canvas
 
     std::size_t n_bins_x_ =
-        Gem::Common::DEFAULTNBINSGPD; ///< The number of bins in the histograms in x-direction
+        Gem::Dietrich::DEFAULTNBINSGPD; ///< The number of bins in the histograms in x-direction
     std::size_t n_bins_y_ =
-        Gem::Common::DEFAULTNBINSGPD; ///< The number of bins in the histograms in y-direction
+        Gem::Dietrich::DEFAULTNBINSGPD; ///< The number of bins in the histograms in y-direction
 
     oa::GMonitorStream stream_; ///< transient: the stream of the running job; a copy has none
 };

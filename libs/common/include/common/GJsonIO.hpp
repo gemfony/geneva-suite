@@ -39,7 +39,7 @@
 #include <string_view>
 
 // Boost headers go here
-#include <boost/json.hpp>
+#include <boost/json/value.hpp>
 
 namespace Gem::Common {
 

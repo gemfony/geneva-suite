@@ -28,6 +28,7 @@
  ********************************************************************************/
 
 #include "geneva/oa/GParameterScanFactory.hpp"
+#include "common/GCommandLineParser.hpp"
 #include "common/GCommonHelperFunctionsT.hpp"
 #include "common/GFactoryT.hpp"
 #include "common/GParserBuilder.hpp"

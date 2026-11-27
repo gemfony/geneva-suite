@@ -24,6 +24,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Boost ≥ 1.91**, built in C++23 mode and with `boost.process.fs=std` (Boost.Process, which
   common now links, then uses `std::filesystem`; INSTALL, "Compiling Boost"); **CMake ≥ 4.0**;
   **Catch2 v3** for the tests.
+- **Boost.Regex and Boost.Atomic are no longer required.** Nothing in the collection used them;
+  the compiled Boost components a build needs are JSON, ProgramOptions and Process, and the
+  installed package and `common`'s link line no longer name the two.
 - **CUDA (optional) raised to ≥ 13.3, and now gated on the device too.** CUDA code (the
   CUDA examples/benchmark, the CUDA RNG backend, the GPU consumer) is enabled only when
   *both* the toolkit *and* the installed driver support CUDA ≥ 13.3; otherwise CUDA is
@@ -1115,6 +1118,24 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   |---|---|
   | `glogger(std::string{"name"})` | `GEM_LOGGER.withSource("name")` |
   | `glogger(std::filesystem::path{"file"})` | `GEM_LOGGER.toFile("file")` |
+- **dietrich: `dimensions` and `DEFAULTNBINSGPD` moved from common to dietrich**
+  (source-breaking). Only plotting used them; they are now `Gem::Dietrich::dimensions` and
+  `Gem::Dietrich::DEFAULTNBINSGPD` in `dietrich/plotting/GPlotEnums.hpp` (were
+  `Gem::Common::...` in `common/GCommonEnums.hpp`); values and streaming are unchanged.
+- **common: the command-line part of the parser builder has a header of its own,
+  `common/GCommandLineParser.hpp`** (source-breaking for programs that register command-line
+  options). It holds the command-line proxies (`GCLParsableI` and its two derived classes) and
+  Boost.ProgramOptions; `GParserBuilder.hpp`, which every class of the common interface includes
+  for its configuration files, no longer brings in Boost.ProgramOptions, nor the whole of
+  Boost.JSON. A program that calls `registerCLParameter()`, `registerCLFlag()` or
+  `registerCLRepeatableParameter()` includes `common/GCommandLineParser.hpp`; without it the
+  compiler reports an incomplete `GCLParsableI` (or the linker a missing
+  `registerCLRepeatableParameter()`). `courtier/GLauncherT.hpp` includes it, so a program whose
+  options are registered through the launcher needs nothing new. `GLogger.hpp` no longer includes
+  eight standard headers and `common/GTupleIO.hpp` that it did not use; a file that relied on
+  them includes them itself.
+- **common: `condnotset()` was removed.** It raised an error when a function was called although a
+  compile-time switch was not set; its callers left with the self-test mechanism.
 
 ## 8. Checkpointing
 
