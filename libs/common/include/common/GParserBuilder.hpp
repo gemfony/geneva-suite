@@ -472,38 +472,6 @@ public:
 
     /***************************************************************************/
     /**
-	  * Create a std::vector<T> from a single element
-	  *
-	  * @tparam T The element type of the resulting vector
-	  * @param item The single element to place into the vector
-	  * @return A vector containing the single element
-	  */
-    template <typename T>
-    static std::vector<T> makeVector(T const &item) {
-        std::vector<T> result;
-        result.push_back(item);
-        return result;
-    }
-
-    /***************************************************************************/
-    /**
-	  * Create a std::vector<T> from two elements
-	  *
-	  * @tparam T The element type of the resulting vector
-	  * @param item1 The first element to place into the vector
-	  * @param item2 The second element to place into the vector
-	  * @return A vector containing both elements, in order
-	  */
-    template <typename T>
-    static std::vector<T> makeVector(T const &item1, T const &item2) {
-        std::vector<T> result;
-        result.push_back(item1);
-        result.push_back(item2);
-        return result;
-    }
-
-    /***************************************************************************/
-    /**
 	  * This function will forward all arguments to a newly created ostringstream
 	  * and will then be added to the current comment_ entry.
 	  *
@@ -799,8 +767,8 @@ public:
         std::string combined_label
     )
       : GFileParsableI(
-            GFileParsableI::makeVector(option_name_var0, option_name_var1),
-            GFileParsableI::makeVector(comment_var0, comment_var1),
+            std::vector<std::string>{option_name_var0, option_name_var1},
+            std::vector<std::string>{comment_var0, comment_var1},
             is_essential_var
         )
       , par0_(def_val0)
@@ -1406,10 +1374,7 @@ public:
         bool implicit_allowed,
         parameter_type impl_val
     )
-      : GCLParsableI(
-            GCLParsableI::makeVector(option_name_var),
-            GCLParsableI::makeVector(comment_var)
-        )
+      : GCLParsableI(option_name_var, comment_var)
       , stored_reference_(stored_reference)
       , def_val_(std::move(def_val))
       , implicit_allowed_(implicit_allowed)
@@ -1734,11 +1699,12 @@ public:
         // Retrieve the parameter object with this name
         std::shared_ptr<GFileSingleParsableParameterT<parameter_type>> const parm_object =
             file_at<GFileSingleParsableParameterT<parameter_type>>(option_name);
-
-        // Check that we have indeed received an item
-        if(not parm_object) {
-            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
-        }
+        checkThat(
+            parm_object != nullptr,
+            "resetFileParameterDefaults(): no file parameter \"",
+            option_name,
+            "\" of a single value of the type of the new default is registered"
+        );
 
         // Reset the default value
         parm_object->resetDefault(def_val);
@@ -1827,11 +1793,12 @@ public:
         // Retrieve the parameter object with this name
         std::shared_ptr<GFileCombinedParsableParameterT<par1_type, par2_type>> const parm_object =
             file_at<GFileCombinedParsableParameterT<par1_type, par2_type>>(option_name1);
-
-        // Check that we have indeed received an item
-        if(not parm_object) {
-            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
-        }
+        checkThat(
+            parm_object != nullptr,
+            "resetFileParameterDefaults(): no combined file parameter whose first option is \"",
+            option_name1,
+            "\" is registered with the types of the two new defaults"
+        );
 
         // Reset the default value
         parm_object->resetDefault(def_val1, def_val2);
@@ -1925,11 +1892,12 @@ public:
         // Retrieve the parameter object with this name
         std::shared_ptr<GFileVectorParsableParameterT<parameter_type>> const parm_object =
             file_at<GFileVectorParsableParameterT<parameter_type>>(option_name);
-
-        // Check that we have indeed received an item
-        if(not parm_object) {
-            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
-        }
+        checkThat(
+            parm_object != nullptr,
+            "resetFileParameterDefaults(): no vector file parameter \"",
+            option_name,
+            "\" is registered with the element type of the new defaults"
+        );
 
         // Reset the default value
         parm_object->resetDefault(def_val);
@@ -2032,11 +2000,14 @@ public:
         // Retrieve the parameter object with this name
         std::shared_ptr<GFileArrayParsableParameterT<parameter_type, N>> const parm_object =
             file_at<GFileArrayParsableParameterT<parameter_type, N>>(option_name);
-
-        // Check that we have indeed received an item
-        if(not parm_object) {
-            throw gem_exception(g_error_streamer() << "Parameter object couldn't be found" << '\n');
-        }
+        checkThat(
+            parm_object != nullptr,
+            "resetFileParameterDefaults(): no array file parameter \"",
+            option_name,
+            "\" of ",
+            N,
+            " values is registered with the element type of the new defaults"
+        );
 
         // Reset the default value
         parm_object->resetDefault(def_val);

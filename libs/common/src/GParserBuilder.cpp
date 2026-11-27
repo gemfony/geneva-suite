@@ -115,8 +115,8 @@ std::size_t commentLevel::getCommentLevel() const {
  * @param comment_var The single comment describing this parsable item
  */
 GParsableI::GParsableI(std::string const &option_name_var, std::string const &comment_var)
-  : option_name_(GParsableI::makeVector(option_name_var))
-  , comment_(GParsableI::makeVector(comment_var))
+  : option_name_{option_name_var}
+  , comment_{comment_var}
   , cl_(0) { /* nothing */
 }
 
@@ -781,8 +781,9 @@ void GParserBuilder::writeConfigFile(
     // We do not allow to overwrite existing files
     if(std::filesystem::exists(config_path) && std::filesystem::is_regular_file(config_path)) {
         throw gem_exception(
-            g_error_streamer() << "You have specified an existing file (" << config_path.string()
-                               << ")." << '\n'
+            g_error_streamer() << "The configuration file " << config_path.string()
+                               << " exists; writeConfigFile() does not overwrite a file "
+                               << "(updateConfigFile() rewrites an existing one)" << '\n'
         );
     }
 
@@ -878,9 +879,11 @@ void GParserBuilder::createConfigFile_(
  */
 boost::json::value
 GParserBuilder::buildConfigDocument_(std::string const &header, bool write_all) const {
-    if(file_parameter_proxies_.empty()) {
-        throw gem_exception(g_error_streamer() << "No variables found!" << '\n');
-    }
+    checkThat(
+        not file_parameter_proxies_.empty(),
+        "No file parameters are registered, so there is no configuration file to write (they are "
+        "registered with registerFileParameter())"
+    );
 
     boost::json::object root;
 
@@ -1223,7 +1226,7 @@ boost::program_options::variables_map GParserBuilder::parseAgainst_(
     given_explicitly_.clear();
     po::variables_map vm;
     try {
-        po::command_line_parser parser(argc, (const char *const *)argv);
+        po::command_line_parser parser(argc, argv);
         parser.options(desc);
         if(permissive) {
             parser.allow_unregistered();

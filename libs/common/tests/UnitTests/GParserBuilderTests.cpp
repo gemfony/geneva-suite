@@ -613,11 +613,22 @@ TEST_CASE(
     "GParserBuilder::resetFileParameterDefaults: missing option throws",
     "[common][parser-builder]"
 ) {
+    // The message names the option and the kind of parameter that was looked for (R138-60)
     GParserBuilder gpb;
-    CHECK_THROWS_AS(gpb.resetFileParameterDefaults<int>("nope", 1), gem_exception);
-    CHECK_THROWS_AS(
+    CHECK_THROWS_WITH(
+        gpb.resetFileParameterDefaults<int>("nope", 1),
+        ContainsSubstring(R"(no file parameter "nope" of a single value)")
+    );
+    CHECK_THROWS_WITH(
         gpb.resetFileParameterDefaults<int>("nope", std::vector<int>{1}),
-        gem_exception
+        ContainsSubstring(R"(no vector file parameter "nope")")
+    );
+    // A parameter of another kind or type under the name is not taken for the one asked for
+    int k = 0;
+    gpb.registerFileParameter<int>("k", k, 1);
+    CHECK_THROWS_WITH(
+        gpb.resetFileParameterDefaults<double>("k", 1.5),
+        ContainsSubstring(R"(no file parameter "k")")
     );
 }
 
@@ -681,7 +692,10 @@ TEST_CASE(
     GParserBuilder gpb;
     int v = 0;
     gpb.registerFileParameter<int>("v", v, 1);
-    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
+    CHECK_THROWS_WITH(
+        gpb.writeConfigFile(cfg),
+        ContainsSubstring("does not overwrite a file") && ContainsSubstring("updateConfigFile()")
+    );
     std::filesystem::remove(cfg);
 }
 
@@ -753,7 +767,10 @@ TEST_CASE(
     std::filesystem::remove(cfg);
 
     GParserBuilder gpb;
-    CHECK_THROWS_AS(gpb.writeConfigFile(cfg), gem_exception);
+    CHECK_THROWS_WITH(
+        gpb.writeConfigFile(cfg),
+        ContainsSubstring("No file parameters are registered")
+    );
     CHECK_FALSE(std::filesystem::exists(cfg));
     CHECK_THROWS_AS(gpb.parseConfigFile(cfg), gem_exception);
     CHECK_FALSE(std::filesystem::exists(cfg));
@@ -829,7 +846,10 @@ TEST_CASE(
     "[common][parser-builder]"
 ) {
     GParserBuilder gpb;
-    CHECK_THROWS_AS((gpb.resetFileParameterDefaults<int, double>("nope", 1, 2.0)), gem_exception);
+    CHECK_THROWS_WITH(
+        (gpb.resetFileParameterDefaults<int, double>("nope", 1, 2.0)),
+        ContainsSubstring(R"(no combined file parameter whose first option is "nope")")
+    );
 }
 
 TEST_CASE(
@@ -837,9 +857,9 @@ TEST_CASE(
     "[common][parser-builder]"
 ) {
     GParserBuilder gpb;
-    CHECK_THROWS_AS(
+    CHECK_THROWS_WITH(
         (gpb.resetFileParameterDefaults<int, 2>("nope", std::array<int, 2>{1, 2})),
-        gem_exception
+        ContainsSubstring(R"(no array file parameter "nope" of 2 values)")
     );
 }
 
