@@ -41,6 +41,7 @@
 
 #include "common/GArchiveNamed.hpp" // archive_named (archive-generic member emitter)
 #include "common/GCommonEnums.hpp"
+#include "common/GExceptions.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 
 using namespace Gem::Common;
@@ -133,4 +134,27 @@ TEST_CASE(
         sharedPtrFromString<TestPayload>("not-a-valid-archive-blob", serializationMode::GEM_JSON),
         std::exception
     );
+}
+
+TEST_CASE(
+    "GSerializationHelperFunctionsT: a serialization mode that is not one of the two is refused",
+    "[common][serialization-helpers]"
+) {
+    // sharedPtrFromString() returned an empty pointer for it; both functions now throw alike
+    auto const unknown = static_cast<serializationMode>(99);
+    CHECK_THROWS_AS(
+        sharedPtrToString(std::make_shared<TestPayload>(1, 2.0, "x"), unknown),
+        gem_exception
+    );
+    CHECK_THROWS_AS(sharedPtrFromString<TestPayload>("", unknown), gem_exception);
+}
+
+TEST_CASE(
+    "GSerializationHelperFunctionsT: an empty shared_ptr round-trips as empty",
+    "[common][serialization-helpers]"
+) {
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        std::string const s = sharedPtrToString(std::shared_ptr<TestPayload>{}, mode);
+        CHECK_FALSE(sharedPtrFromString<TestPayload>(s, mode));
+    }
 }

@@ -44,6 +44,7 @@
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GSerializationHelperFunctionsT.hpp"
 
 using namespace Gem::Common;
 
@@ -235,6 +236,59 @@ TEST_CASE(
     TestObj dst(0);
     dst.fromString(s, serializationMode::GEM_JSON);
     CHECK(dst.v() == -789);
+}
+
+// The object streams and the two free functions write one format (R138-37): a string of toString() is
+// read by sharedPtrFromString<>(), a string of sharedPtrToString() by fromString(), in both modes.
+TEST_CASE(
+    "GCommonInterfaceT: strings of toString() and sharedPtrToString() are interchangeable",
+    "[common][interface][serialize]"
+) {
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        TestObj const src(123);
+        auto const restored = sharedPtrFromString<TestObj>(src.toString(mode), mode);
+        REQUIRE(restored);
+        CHECK(restored->v() == 123);
+
+        TestObj dst(0);
+        dst.fromString(sharedPtrToString(std::make_shared<TestObj>(321), mode), mode);
+        CHECK(dst.v() == 321);
+
+        CHECK(src.toString(mode) == sharedPtrToString(std::make_shared<TestObj>(123), mode));
+    }
+}
+
+// Regression (R138-17): an archive whose root pointer is empty is a valid archive; fromStream() handed
+// the empty pointer on to load_(), which dereferences it in a generated load_().
+TEST_CASE(
+    "GCommonInterfaceT::fromString: an archive that holds no object is refused",
+    "[common][interface][serialize]"
+) {
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        std::string const empty = sharedPtrToString(std::shared_ptr<TestObj>{}, mode);
+        TestObj dst(5);
+        CHECK_THROWS_AS(dst.fromString(empty, mode), gem_exception);
+        CHECK(dst.v() == 5);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// toStream / fromStream directly, in both modes
+
+TEST_CASE(
+    "GCommonInterfaceT: toStream/fromStream round-trip in both modes",
+    "[common][interface][serialize]"
+) {
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        TestObj const src(271);
+        std::stringstream stream;
+        src.toStream(stream, mode);
+        CHECK(stream.str() == src.toString(mode));
+
+        TestObj dst(0);
+        dst.fromStream(stream, mode);
+        CHECK(dst.v() == 271);
+    }
 }
 
 // ---------------------------------------------------------------------------

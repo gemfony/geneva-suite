@@ -204,8 +204,8 @@ struct SharedPtrStorage {
  *
  * The unique_ptr counterpart of SharedPtrStorage: same clone()/load() deep-copy protocol, but the
  * stored handles carry sole ownership, so copying/moving/destroying the container costs no atomic
- * reference counting. Deep copy goes through the unique_ptr overload of
- * copyCloneableSmartPointerContainer() (which uses clone()/load()).
+ * reference counting. Deep copy goes through copyCloneableSmartPointerContainer() (which uses
+ * clone()/load()), as for SharedPtrStorage.
  *
  * @tparam T         The element type (must expose the Gemfony common interface).
  * @tparam container_type The underlying sequence container; defaults to std::vector<std::unique_ptr<T>>.
@@ -803,11 +803,12 @@ public:
     }
 
     /**
-     * @brief Transitional overload for unique_ptr storage: appends an INDEPENDENT deep clone of a
-     * shared_ptr-held object. This lets code that still builds elements as shared_ptr (e.g. a
-     * container filled with push_back(std::make_shared<...>())) keep working while the container
-     * owns its elements by unique_ptr. The shared_ptr is only read; the container stores a clone.
-     * New code can instead push a std::unique_ptr (moved in) to avoid the clone.
+     * @brief Appends an independent deep clone of a shared_ptr-held object (UniquePtrStorage only).
+     *
+     * A container that owns its elements by unique_ptr cannot share an object with a
+     * std::shared_ptr, so it stores a clone of the object, of its dynamic type; the shared_ptr is
+     * only read, and later changes through it do not reach the container. Pushing a
+     * std::unique_ptr (moved in) stores the object itself, without a clone.
      *
      * @tparam U The (derived-of-ValueType) pointee type of the supplied shared_ptr.
      * @param item A shared_ptr to a (derived-of-ValueType) object to clone into the container.
@@ -1042,51 +1043,46 @@ public:
     }
 
     // ------------------------------------------------------------------
-    // SharedPtrStorage-specific: count / find
+    // Pointer storage (SharedPtrStorage or UniquePtrStorage): count / find
     // ------------------------------------------------------------------
 
     /**
      * @brief Counts elements whose dereferenced value equals @p item.
      *
-     * Compares via operator== on the pointed-to objects, not on pointer identity.
+     * Compares via operator== on the pointed-to objects, not on pointer identity. Only elements
+     * whose dynamic type is @p item_type or derives from it can match; empty slots match nothing.
      * A null pointer in @p item is not accepted.
      *
      * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return The number of matching elements.
      * @throws gem_exception when @p item is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] size_type count(const std::shared_ptr<item_type> &item) const {
         checkThat(item != nullptr, "Tried to count with an empty smart pointer.");
-        return Gem::Common::narrow<size_type>(
-            std::ranges::count_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
-                auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
-                return cast && (*item == *cast);
-            })
-        );
+        return Gem::Common::narrow<size_type>(std::ranges::count_if(data_cnt_, equalTo_(item)));
     }
 
     /**
      * @brief Returns an iterator to the first element whose dereferenced value
      *        equals @p item.
      *
+     * Matching follows count(): only elements of @p item_type (or derived from it) can match.
+     *
      * @tparam item_type A type derived from or equal to ValueType.
      * @param item A shared_ptr to the reference value.
      * @return A const_iterator to the found element, or end() if not found.
      * @throws gem_exception when @p item is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename item_type>
         requires (!std::same_as<StoredType, ValueType> && std::derived_from<item_type, ValueType>)
     [[nodiscard]] const_iterator find(const std::shared_ptr<item_type> &item) const {
         checkThat(item != nullptr, "Tried to find an empty smart pointer.");
-        return std::ranges::find_if(data_cnt_, [&item](const StoredType &cont_item) -> bool {
-            auto cast = std::dynamic_pointer_cast<item_type>(cont_item);
-            return cast && (*item == *cast);
-        });
+        return std::ranges::find_if(data_cnt_, equalTo_(item));
     }
 
     // ------------------------------------------------------------------
@@ -1096,9 +1092,9 @@ public:
     /**
      * @brief Clones the pointee of a stored handle into a fresh StoredType.
      *
-     * Policy-aware deep clone used by the clone-based pointer operations: shared_ptr storage clones
-     * via clone() (an independent, separately-owned copy), unique_ptr storage via clone()
-     * (sole ownership). Caller must ensure @p p is non-null.
+     * The deep clone of the clone-based pointer operations: clone() returns a std::unique_ptr,
+     * which becomes the stored handle of either pointer storage. Caller must ensure @p p is
+     * non-null.
      *
      * @param p A non-null stored handle whose pointee is to be cloned.
      * @return A fresh StoredType handle owning the cloned object.
@@ -1107,12 +1103,7 @@ public:
     static StoredType clone_into_stored(const StoredType &p)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if constexpr(std::same_as<StoredType, std::unique_ptr<ValueType>>) {
-            return p->template clone<ValueType>();
-        }
-        else {
-            return p->template clone<ValueType>();
-        }
+        return p->template clone<ValueType>();
     }
 
     /**
@@ -1579,24 +1570,33 @@ public:
     }
 
 protected:
-    // ------------------------------------------------------------------
-    // Test hooks (protected virtual)
-    // ------------------------------------------------------------------
-
     ContainerType data_cnt_; ///< The underlying sequence container holding the data.
+
+private:
+    /**
+     * @brief The predicate of count() and find(): a stored element of @p item_type whose value
+     *        equals the one @p item points to.
+     *
+     * @tparam item_type The type the stored elements are cast to before the comparison.
+     * @param item A non-null shared_ptr to the reference value; it must outlive the predicate.
+     * @return A predicate over a stored handle.
+     */
+    template <typename item_type>
+    [[nodiscard]] static auto equalTo_(const std::shared_ptr<item_type> &item) {
+        return [&item](const StoredType &cont_item) -> bool {
+            auto const cast = viewCast_<item_type>(cont_item);
+            return cast && (*item == *cast);
+        };
+    }
 };
 
 /******************************************************************************/
 /**
- * @brief Out-of-line definition of the pure-virtual destructor.
- *
- * Clears the data container so that derived-class destructors run cleanly
- * even if the base destructor is invoked directly.
+ * @brief Out-of-line definition of the pure-virtual destructor, which a pure-virtual destructor
+ *        needs; the data container destroys its elements itself.
  */
 template <typename T, typename storage_policy_type>
-inline GContainerT<T, storage_policy_type>::~GContainerT() {
-    data_cnt_.clear();
-}
+inline GContainerT<T, storage_policy_type>::~GContainerT() = default;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
