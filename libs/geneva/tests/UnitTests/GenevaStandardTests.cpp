@@ -448,6 +448,52 @@ TEST_CASE(
     }
 }
 
+// Regression: the exchange files of an external evaluation were named by the individual's address,
+// which is unique inside one process only -- clients sharing a working directory could write the same
+// files, and one object reused the same names. Each evaluation must name its files by an identifier of
+// its own. Runs "false" as the external program in a directory of its own and keeps the files.
+TEST_CASE(
+    "GExternalEvaluatorIndividual names its exchange files without the object address",
+    "[geneva][individuals]"
+) {
+    auto const previous = std::filesystem::current_path();
+    auto const scratch =
+        std::filesystem::temp_directory_path() / ("gem_exchange_names_" + Gem::Common::generate_uuid_v4());
+    std::filesystem::create_directories(scratch);
+    std::filesystem::current_path(scratch);
+
+    std::vector<std::string> names;
+    {
+        gind::GExternalEvaluatorIndividual ind;
+        ind.setProgramName("false");
+        ind.setExchangeBaseName("params");
+        ind.setRemoveExecTemporaries(false);
+        for(int i = 0; i < 2; ++i) {
+            ind.mark_as_due_for_processing();
+            try {
+                ind.process();
+            }
+            catch(...) { // the failing program flags the individual; only the file names matter here
+            }
+        }
+        std::string const address = Gem::Common::to_string(&ind);
+        for(auto const &entry : std::filesystem::directory_iterator(scratch)) {
+            std::string const name = entry.path().filename().string();
+            if(name.starts_with("params-")) {
+                names.push_back(name);
+                CHECK(name.find(address) == std::string::npos);
+            }
+        }
+    }
+
+    std::error_code ec;
+    std::filesystem::current_path(previous, ec);
+    std::filesystem::remove_all(scratch, ec);
+
+    REQUIRE(names.size() == 2);
+    CHECK(names[0] != names[1]);
+}
+
 // Safety net for the oa::GOptimizationAlgorithmBase serialize() refactor: oa::GOptimizationAlgorithmBase is the central
 // serialised class for all optimization algorithms (checkpoints + network
 // transport). Its split save()/load() was collapsed into a single serialize()

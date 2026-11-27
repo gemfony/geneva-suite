@@ -147,7 +147,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   version is rewritten with `--update-configs` after the quotes around its numbers are removed,
   or created anew.
 - **The external-evaluation protocol was rewritten** (a breaking change for external
-  evaluators; the bundled `evaluator.py` was rewritten to match).
+  evaluators; the bundled `evaluator.py` was rewritten to match). The exchange files of an
+  evaluation are named by an identifier of their own instead of the individual's address, so
+  clients that share a working directory no longer write to the same files.
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
   materialize/refresh their config files with `--update-configs` (programs without Geneva's
   launcher honor it too: `Gem::Common::finishConfigEmission()` logs the end of the pass and the
