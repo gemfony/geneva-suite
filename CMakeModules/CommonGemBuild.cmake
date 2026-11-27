@@ -164,9 +164,7 @@ IF(NOT COMMON_GEM_BUILD_INCLUDED)
 	# These are the libraries required for any Geneva build
 	SET (
 			GEM_BOOST_LIBS
-			atomic
 			json
-			regex
 			program_options
 	)
 

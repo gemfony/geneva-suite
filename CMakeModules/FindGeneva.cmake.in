@@ -314,7 +314,7 @@ IF (GENEVA_FOUND)
 			INTERFACE_INCLUDE_DIRECTORIES "${GENEVA_INCLUDE_DIR}"
 			INTERFACE_COMPILE_FEATURES "cxx_std_23"
 			INTERFACE_LINK_LIBRARIES
-				"Geneva::weft;Boost::json;Boost::program_options;Boost::regex;Boost::atomic"
+				"Geneva::weft;Boost::json;Boost::program_options"
 		)
 	ENDIF ()
 

@@ -93,7 +93,7 @@ TARGET_INCLUDE_DIRECTORIES(
 )
 
 # Propagate the Boost dependencies that appear in the public headers
-# (json/program_options/regex/atomic). The C++ standard is
+# (json/program_options). The C++ standard is
 # selected centrally in CMakeModules/CommonGemBuild.cmake.
 TARGET_LINK_LIBRARIES(
     ${COMMON_LIBNAME}
@@ -101,8 +101,6 @@ TARGET_LINK_LIBRARIES(
     ${WEFT_LIBNAME}
     Boost::json
     Boost::program_options
-    Boost::regex
-    Boost::atomic
 )
 
 # runExternalCommand starts programs through Boost.Process v2. PRIVATE: no public header names it,

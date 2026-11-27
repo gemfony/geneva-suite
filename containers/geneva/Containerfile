@@ -113,7 +113,7 @@ RUN set -eu; \
     ./bootstrap.sh --prefix=/opt/boost --with-toolset="${toolset}"; \
     ./b2 -j"${JOBS:-$(nproc)}" toolset="${toolset}" \
         cxxflags="-std=c++23" variant=release link=shared threading=multi boost.process.fs=std \
-        --with-atomic --with-json --with-program_options --with-process --with-regex \
+        --with-json --with-program_options --with-process \
         install; \
     cd /; rm -rf /tmp/boost_*; \
     ldconfig

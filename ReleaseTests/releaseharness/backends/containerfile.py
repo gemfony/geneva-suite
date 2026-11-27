@@ -37,7 +37,7 @@ IMAGE_BOOST_ROOT = "/opt/boost"
 # built with boost.process.fs=std, so it needs no Boost.Filesystem (INSTALL).
 # (Serialization and Filesystem are gone since the move to Gem::Weft; the tests
 # use Catch2, not Boost.Test.)
-BOOST_LIBRARIES = "atomic,json,process,program_options,regex"
+BOOST_LIBRARIES = "json,process,program_options"
 
 
 def _base_packages(with_mpi: bool) -> str:

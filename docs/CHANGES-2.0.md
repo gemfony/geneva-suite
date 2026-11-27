@@ -24,6 +24,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Boost ≥ 1.91**, built in C++23 mode and with `boost.process.fs=std` (Boost.Process, which
   common now links, then uses `std::filesystem`; INSTALL, "Compiling Boost"); **CMake ≥ 4.0**;
   **Catch2 v3** for the tests.
+- **Boost.Regex and Boost.Atomic are no longer required.** Nothing in the collection used them;
+  the compiled Boost components a build needs are JSON, ProgramOptions and Process, and the
+  installed package and `common`'s link line no longer name the two.
 - **CUDA (optional) raised to ≥ 13.3, and now gated on the device too.** CUDA code (the
   CUDA examples/benchmark, the CUDA RNG backend, the GPU consumer) is enabled only when
   *both* the toolkit *and* the installed driver support CUDA ≥ 13.3; otherwise CUDA is

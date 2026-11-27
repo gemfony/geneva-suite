@@ -1097,10 +1097,8 @@ SET(CPACK_DEBIAN_PACKAGE_PRIORITY "Extra")
 SET(
 	CPACK_DEBIAN_PACKAGE_DEPENDS
 	"libboost-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
-	libboost-atomic-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
 	libboost-json-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
 	libboost-program-options-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
-	libboost-regex-dev (>= ${GEM_MIN_BOOST_VERSION}.0),
 	libcatch2-dev (>= 3.0)"
 )
 
