@@ -1545,13 +1545,29 @@ TEST_CASE(
 // a negative number for an unsigned key wrapped around ("-1" as 4294967295); an 8-bit key kept
 // the low byte of a larger number. Each is refused, naming the key and what the value must be.
 
+namespace {
+/** @brief A numeric enumeration whose values do not start at 0 */
+enum class oneToFour : Gem::Common::ENUMBASETYPE {
+    ONE = 1,
+    TWO = 2,
+    THREE = 3,
+    FOUR = 4
+};
+} // namespace
+
+namespace Gem::Common {
+template <>
+inline constexpr auto numeric_enum_values_v<oneToFour> =
+    numeric_enum_range<oneToFour::ONE, oneToFour::FOUR>();
+} /* namespace Gem::Common */
+
 TEST_CASE(
     "GParserBuilder: a value outside the range of its type is refused",
     "[common][parser-builder]"
 ) {
     using Catch::Matchers::ContainsSubstring;
     Gem::Common::sortOrder order = Gem::Common::sortOrder::LOWERISBETTER;
-    Gem::Common::dimensions dims = Gem::Common::dimensions::Dim1;
+    oneToFour dims = oneToFour::ONE;
     std::uint32_t count = 0;
     std::vector<std::size_t> sizes;
     std::uint8_t small = 0;
@@ -1561,7 +1577,7 @@ TEST_CASE(
         order,
         Gem::Common::sortOrder::LOWERISBETTER
     );
-    gpb.registerFileParameter<Gem::Common::dimensions>("dims", dims, Gem::Common::dimensions::Dim1);
+    gpb.registerFileParameter<oneToFour>("dims", dims, oneToFour::ONE);
     gpb.registerFileParameter<std::uint32_t>("count", count, 1);
     gpb.registerFileParameter<std::size_t>("sizes", sizes, std::vector<std::size_t>{1});
     gpb.registerFileParameter<std::uint8_t>("small", small, 1);
@@ -1598,7 +1614,7 @@ TEST_CASE(
     load(R"({ "order": { "value": 1 }, "dims": { "value": 4 }, "count": { "value": 4294967295 },
               "sizes": { "value": [0, 3] }, "small": { "value": 255 } })");
     CHECK(order == Gem::Common::sortOrder::HIGHERISBETTER);
-    CHECK(dims == Gem::Common::dimensions::Dim4);
+    CHECK(dims == oneToFour::FOUR);
     CHECK(count == 4294967295U);
     CHECK(sizes == std::vector<std::size_t>{0, 3});
     CHECK(small == 255);

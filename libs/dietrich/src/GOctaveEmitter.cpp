@@ -251,7 +251,7 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
         // A 1-d histogram of the raw samples (float64 or int32); same base call.
         // A histogram spec always carries its bin counts; the fallback is unreachable
         call << "hist(" << bracketedRowCol(cols[0]) << ", "
-             << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ");" << '\n'
+             << spec.n_bins_x.value_or(DEFAULTNBINSGPD) << ");" << '\n'
              << "b_ = findobj(gca, 'Type', 'patch'); c_ = get(b_(1), 'FaceColor');"
              << '\n'
              // bars coloured from the colour map name no colour of their own
@@ -263,8 +263,8 @@ std::string octPlotCall(const GBasePlotter &p, scriptKind k) {
         // -- it needs the statistics toolbox / package).
         call << "_x = " << bracketedRowCol(cols[0]) << "; _y = " << bracketedRowCol(cols[1]) << ";"
              << '\n'
-             << "_nbx = " << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD)
-             << "; _nby = " << spec.n_bins_y.value_or(Gem::Common::DEFAULTNBINSGPD) << ";" << '\n'
+             << "_nbx = " << spec.n_bins_x.value_or(DEFAULTNBINSGPD)
+             << "; _nby = " << spec.n_bins_y.value_or(DEFAULTNBINSGPD) << ";" << '\n'
              << "_ex = linspace(min(_x), max(_x), _nbx + 1); "
              << "_ey = linspace(min(_y), max(_y), _nby + 1);" << '\n'
              << "[~, _bx] = histc(_x, _ex); [~, _by] = histc(_y, _ey);" << '\n'

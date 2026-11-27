@@ -1118,6 +1118,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   |---|---|
   | `glogger(std::string{"name"})` | `GEM_LOGGER.withSource("name")` |
   | `glogger(std::filesystem::path{"file"})` | `GEM_LOGGER.toFile("file")` |
+- **dietrich: `dimensions` and `DEFAULTNBINSGPD` moved from common to dietrich**
+  (source-breaking). Only plotting used them; they are now `Gem::Dietrich::dimensions` and
+  `Gem::Dietrich::DEFAULTNBINSGPD` in `dietrich/plotting/GPlotEnums.hpp` (were
+  `Gem::Common::...` in `common/GCommonEnums.hpp`); values and streaming are unchanged.
 - **common: `condnotset()` was removed.** It raised an error when a function was called although a
   compile-time switch was not set; its callers left with the self-test mechanism.
 

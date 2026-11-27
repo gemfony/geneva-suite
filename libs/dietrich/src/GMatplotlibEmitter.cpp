@@ -232,7 +232,7 @@ mplPlotCall(const GBasePlotter &p, scriptKind k, const std::string &ax, const st
         // A 1-d histogram of the raw samples (float64 or int32); same matplotlib call.
         // A histogram spec always carries its bin counts; the fallback is unreachable
         call << "_a = " << ax << ".hist(" << bracketedRowCol(cols[0])
-             << ", bins=" << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", label=\""
+             << ", bins=" << spec.n_bins_x.value_or(DEFAULTNBINSGPD) << ", label=\""
              << label << "\")" << '\n'
              << "_c = _a[2][0].get_facecolor()" << '\n';
     } break;
@@ -240,8 +240,8 @@ mplPlotCall(const GBasePlotter &p, scriptKind k, const std::string &ax, const st
         // A histogram spec always carries its bin counts; the fallbacks are unreachable
         call << "_h = " << ax << ".hist2d(" << bracketedRowCol(cols[0]) << ", "
              << bracketedRowCol(cols[1]) << ", bins=["
-             << spec.n_bins_x.value_or(Gem::Common::DEFAULTNBINSGPD) << ", "
-             << spec.n_bins_y.value_or(Gem::Common::DEFAULTNBINSGPD) << "])" << '\n'
+             << spec.n_bins_x.value_or(DEFAULTNBINSGPD) << ", "
+             << spec.n_bins_y.value_or(DEFAULTNBINSGPD) << "])" << '\n'
              << fig << ".colorbar(_h[3], ax=" << ax << ")" << '\n'
              << "_c = matplotlib.colormaps[\"viridis\"](0.5)" << '\n';
     } break;

@@ -72,12 +72,10 @@ using Gem::Common::operator<<;
 using Gem::Common::operator>>;
 
 // dietrich builds on a small, explicit set of common's names that participate in its
-// own API surface (enum base type, comparison tokens, member reflection, dimension
-// tags). They are imported per-name here -- the public headers deliberately do NOT
+// own API surface (enum base type, comparison tokens, member reflection). They are imported per-name here -- the public headers deliberately do NOT
 // re-export all of Gem::Common with a using-directive (that leaked every common name
 // to all consumers and has already caused a shadowing incident with to_string).
 using Gem::Common::compare_t;
-using Gem::Common::dimensions;
 using Gem::Common::ENUMBASETYPE;
 using Gem::Common::expectation;
 using Gem::Common::g_convert_and_compare;
@@ -87,6 +85,19 @@ using Gem::Common::getMinMax;
 using Gem::Common::GPtrContainerT;
 using Gem::Common::GToken;
 using Gem::Common::make_member;
+
+/******************************************************************************/
+////////////////////////////////////////////////////////////////////////////////
+/******************************************************************************/
+/**
+ * The number of dimensions of a plot; it selects the decorators of a 2-d or a 3-d plot (GDecorator)
+ */
+enum class dimensions : ENUMBASETYPE {
+    Dim1 = 1,
+    Dim2 = 2,
+    Dim3 = 3,
+    Dim4 = 4
+};
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,6 +239,9 @@ constexpr std::size_t DEFNINDENTIONSPACES = 3;
 
 constexpr std::size_t DEFNSAMPLES = 100;
 
+/** @brief The default number of bins of a histogram */
+constexpr std::size_t DEFAULTNBINSGPD = 100;
+
 const graphPlotMode DEFPLOTMODE = graphPlotMode::CURVE;
 
 constexpr double DEFMINMARKERSIZE = 0.001;
@@ -247,6 +261,9 @@ class GPlotDesigner;
 // own namespace; the operators themselves are re-exported into Gem::Dietrich
 // above).
 namespace Gem::Common {
+template <>
+inline constexpr auto numeric_enum_values_v<Gem::Dietrich::dimensions> =
+    numeric_enum_range<Gem::Dietrich::dimensions::Dim1, Gem::Dietrich::dimensions::Dim4>();
 template <>
 inline constexpr auto numeric_enum_values_v<Gem::Dietrich::gColor> = std::array{
     Gem::Dietrich::gColor::white,

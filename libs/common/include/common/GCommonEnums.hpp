@@ -91,8 +91,7 @@ using ENUMBASETYPE = std::uint16_t;
  * enumerator that does not exist. A contiguous enum lists its values with
  * numeric_enum_range(); one with gaps lists them one by one. A namespace other
  * than Gem::Common additionally re-exports the operators once via
- * using-declarations so that ADL finds them for its own enums (see e.g.
- * GPlotEnums.hpp).
+ * using-declarations so that ADL finds them for its own enums.
  *
  * Enums with textual (non-numeric) streaming -- Gem::Common::tribool, and
  * such enums of the libraries above common -- simply do not opt in and keep
@@ -296,22 +295,6 @@ template <named_enum enum_type>
 
 /******************************************************************************/
 /**
- * This enum denotes different dimensions (used particularly by GDecoratorCollection
- */
-enum class dimensions : Gem::Common::ENUMBASETYPE {
-    Dim1 = 1,
-    Dim2 = 2,
-    Dim3 = 3,
-    Dim4 = 4
-};
-
-/** @brief dimensions streams as its underlying numeric value (see numeric_enum_values_v) */
-template <>
-inline constexpr auto numeric_enum_values_v<dimensions> =
-    numeric_enum_range<dimensions::Dim1, dimensions::Dim4>();
-
-/******************************************************************************/
-/**
  * The limit for similarity checks of floating point numbers
  */
 constexpr double CE_DEF_SIMILARITY_DIFFERENCE = 1e-5;
@@ -363,12 +346,6 @@ inline constexpr auto enum_names_v<logType> = std::to_array<std::pair<logType, s
      {logType::STDERR, "STDERR"},
      {logType::EXIT, "EXIT"}}
 );
-
-/******************************************************************************/
-/**
- * The default number of bins in histograms, used in GPlotDesigner
- */
-constexpr std::size_t DEFAULTNBINSGPD = 100;
 
 /******************************************************************************/
 /**
