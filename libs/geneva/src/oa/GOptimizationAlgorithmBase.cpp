@@ -41,6 +41,7 @@
 #include "common/GParserBuilder.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
 #include "common/GStopRequest.hpp" // stopRequested()
+#include "common/GTupleIO.hpp"     // g_to_string()
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GSubmissionStatusT.hpp"
 #include "geneva/GOptimizationDescription.hpp" // consumerModules() -- where the default consumer lies

@@ -41,7 +41,7 @@
 
 // Boost header files go here
 #include <boost/core/demangle.hpp>
-#include <boost/json.hpp>
+#include <boost/json/value.hpp>
 
 // Geneva header files go here
 #include "common/GChecks.hpp"

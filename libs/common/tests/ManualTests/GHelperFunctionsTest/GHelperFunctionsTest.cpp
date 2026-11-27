@@ -40,6 +40,7 @@
 
 // Geneva headers go here
 #include "common/GCommonHelperFunctions.hpp"
+#include "common/GTupleIO.hpp"
 
 using namespace Gem::Common;
 

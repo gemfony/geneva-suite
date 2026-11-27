@@ -55,13 +55,8 @@
 #include <vector>
 
 // Boost headers go here
-// nvcc (CUDA host compiler) does not suppress warnings from system/third-party
-// headers the way GCC does.  The three diagnostics below are Boost-internal
-// false positives that are irrelevant to Geneva code:
-//   #68-D  – integer conversion sign change    (boost/mpl/print.hpp)
-//   #186-D – unsigned comparison with zero     (boost/mp11, via boost/json)
-//   #191-D – meaningless cast qualifier        (boost/archive/detail/iserializer.hpp)
-#include <boost/json.hpp>
+#include <boost/json/serialize.hpp>
+#include <boost/json/value.hpp>
 #include <boost/program_options.hpp>
 
 // Geneva header files go here

@@ -35,6 +35,11 @@
 #include <sstream>
 #include <system_error>
 
+// Boost headers used directly in this translation unit
+#include <boost/json/parse.hpp>
+#include <boost/json/parse_options.hpp>
+#include <boost/json/serialize.hpp>
+
 // Other Geneva headers whose symbols are used directly
 #include "common/GCommonHelperFunctions.hpp" // replaceFileAtomically()
 #include "common/GErrorStreamer.hpp"
