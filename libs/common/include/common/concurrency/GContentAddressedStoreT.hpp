@@ -40,6 +40,7 @@
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 // Boost headers go here
 
@@ -66,7 +67,10 @@ namespace Gem::Common::Concurrency {
  *
  * An optional capacity bound (LRU over the blob store) keeps a long run with many distinct ids from
  * growing without limit. Eviction never breaks correctness: evicting a blob also drops that id from
- * EVERY peer's ack set, so the next send of that blob to any peer inlines it in full again.
+ * EVERY peer's ack set, so the next send of that blob to any peer inlines it in full again. A sender
+ * uses internFor(), which caches, acknowledges and decides in one step under one lock: done one
+ * after the other (has, put, peerHas, markPeerHas), an eviction by another thread in between can
+ * leave an acknowledgement for a blob the store no longer holds.
  *
  * @tparam id_type   The content id (the content-derived key). Needs equality and a hash (see @p hash_type).
  * @tparam blob_type The stored value type (default @c std::string -- an opaque serialized blob).
@@ -121,9 +125,26 @@ public:
             touch_locked(it->second.lru_pos);
             return;
         }
-        lru_.push_front(id);
-        blobs_.emplace(id, Entry{.blob = std::move(blob), .lru_pos = lru_.begin()});
-        evict_locked();
+        insert_locked(id, std::move(blob));
+    }
+
+    /** @brief Interns a blob for a peer in one step, under one lock (see the class comment): caches
+     *  it if absent (refreshing its recency otherwise), records that @p peer holds it, and tells
+     *  whether it must be sent in full.
+     *  @param peer The peer (session) it is sent to. @param id The content id.
+     *  @param make_blob Called only if the blob is absent, under the store's lock (so it must not
+     *  call into the store), to build it.
+     *  @return true if the peer did not hold the blob yet (send it in full); false: refer to it by id */
+    template <typename make_blob_type>
+    bool internFor(const peer_type &peer, const id_type &id, make_blob_type &&make_blob) {
+        std::scoped_lock const lk(mtx_);
+        if(auto it = blobs_.find(id); it != blobs_.end()) {
+            touch_locked(it->second.lru_pos);
+        }
+        else {
+            insert_locked(id, std::forward<make_blob_type>(make_blob)());
+        }
+        return peer_acked_[peer].insert(id).second;
     }
 
     /***************************************************************************/
@@ -138,7 +159,8 @@ public:
         return it != peer_acked_.end() && it->second.contains(id);
     }
 
-    /** @brief Records that a peer now holds a given id (so it is referenced by id thereafter).
+    /** @brief Records that a peer now holds a given id (so it is referenced by id thereafter), as it
+     *  is told, whether or not the store holds the blob; a sender uses internFor() instead.
      *  @param peer The peer (session). @param id The content id the peer now holds. */
     void markPeerHas(const peer_type &peer, const id_type &id) {
         std::scoped_lock const lk(mtx_);
@@ -200,6 +222,15 @@ private:
     void touch_locked(typename std::list<id_type>::iterator &pos) const {
         lru_.splice(lru_.begin(), lru_, pos);
         pos = lru_.begin();
+    }
+
+    /** @brief Caches a blob that is absent as the most recently used one, then enforces the capacity
+     *  bound (which never evicts it: it is the newest). Caller holds mtx_.
+     *  @param id The content id. @param blob The blob. */
+    void insert_locked(const id_type &id, blob_type blob) {
+        lru_.push_front(id);
+        blobs_.emplace(id, Entry{.blob = std::move(blob), .lru_pos = lru_.begin()});
+        evict_locked();
     }
 
     /** @brief Evicts least-recently-used blobs until the capacity bound is met. Evicting a blob also

@@ -243,7 +243,7 @@ TEST_CASE("GSingletonT::reset() is disabled for never-destroy singletons", "[com
 }
 
 TEST_CASE(
-    "GSingletonT: never-destroy instance is a stable singleton with an extra pinned reference",
+    "GSingletonT: never-destroy instance is a stable singleton held by its storage",
     "[common][singleton]"
 ) {
     // Singleton identity still holds.
@@ -251,20 +251,17 @@ TEST_CASE(
     REQUIRE(on);
     CHECK(GSingletonT<Payload_Leaky>::instance().get() == on.get());
 
-    // The never-destroy variant carries exactly one extra owning reference (the
-    // deliberately leaked pin) compared to a default singleton built the same
-    // way: both are held by their storage plus our single local, but the leaky
-    // one additionally has the pin -> use_count is higher by exactly one.
+    // The never-destroy variant is held like a default singleton built the same way -- by its
+    // storage plus our single local -- only its storage is never destroyed (not observable here).
     auto off = GSingletonT<Payload_LeakyOff>::instance();
     REQUIRE(off);
-    CHECK(on.use_count() == off.use_count() + 1);
+    CHECK(on.use_count() == off.use_count());
 
-    // The pin survives dropping all external references: a later instance()
-    // still returns the very same object, and the extra reference is still there.
+    // Dropping all external references keeps it: a later instance() returns the very same object.
     auto *raw = on.get();
     on.reset();
     auto again = GSingletonT<Payload_Leaky>::instance();
     REQUIRE(again);
-    CHECK(again.get() == raw);                       // never rebuilt -> same object
-    CHECK(again.use_count() == off.use_count() + 1); // pin still present
+    CHECK(again.get() == raw); // never rebuilt -> same object
+    CHECK(again.use_count() == off.use_count());
 }

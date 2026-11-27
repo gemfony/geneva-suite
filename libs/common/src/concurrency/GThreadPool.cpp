@@ -28,11 +28,14 @@
  ********************************************************************************/
 
 #include "common/concurrency/GThreadPool.hpp"
+#include "common/GChecks.hpp"
 #include "common/GCommonHelperFunctions.hpp" // getNHardwareThreads
 #include "common/GLogger.hpp"
+#include <exception>
 #include <mutex>
 #include <shared_mutex>
 #include <stop_token>
+#include <string_view>
 #include <utility>
 
 namespace Gem::Common::Concurrency {
@@ -129,16 +132,27 @@ bool GThreadPool::enqueue(std::move_only_function<void()> task) {
         std::scoped_lock<std::mutex> const cnt_lck(counter_mutex_);
         ++tasks_in_flight_;
     }
-    // task_queue_ is engaged from construction on; setNThreads() re-emplaces it under the
-    // exclusive submission lock this function holds shared, so the deref cannot race a gap.
-    // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
-    if(task_queue_->push(std::move(task))) {
-        return true;
+    std::exception_ptr failure;
+    try {
+        // task_queue_ is engaged from construction on; setNThreads() re-emplaces it under the
+        // exclusive submission lock this function holds shared, so the deref cannot race a gap.
+        // NOLINTNEXTLINE(bugprone-unchecked-optional-access)
+        if(task_queue_->push(std::move(task))) {
+            return true;
+        }
     }
-    // The queue is closed: undo the speculative increment.
-    std::scoped_lock<std::mutex> const cnt_lck(counter_mutex_);
-    if(0 == --tasks_in_flight_) {
-        all_done_.notify_all();
+    catch(...) { // e.g. out of memory: undone below as well, or wait() would never return
+        failure = std::current_exception();
+    }
+    // The queue is closed (or the push failed): undo the speculative increment.
+    {
+        std::scoped_lock<std::mutex> const cnt_lck(counter_mutex_);
+        if(0 == --tasks_in_flight_) {
+            all_done_.notify_all();
+        }
+    }
+    if(failure) {
+        std::rethrow_exception(failure);
     }
     return false;
 }
@@ -152,22 +166,36 @@ bool GThreadPool::enqueue(std::move_only_function<void()> task) {
  * the loop and terminates.
  */
 namespace {
-// True while THIS thread is executing a task inside a GThreadPool worker loop. Thread-local, so it
-// reflects only the current thread. Set around each task so nested work (e.g. a computation started
-// from within a task) can detect that it is already running on a pool worker.
-thread_local bool t_in_worker_thread = false;
+// The pool whose worker THIS thread is (nullptr on any other thread), set at the start of the
+// worker loop. It lets nested work see that it runs on a pool worker, and a pool refuse a call
+// from its own workers that waits for its own tasks.
+thread_local GThreadPool const *t_worker_pool = nullptr;
 } // namespace
 
 /**
- * @brief Reports whether the calling thread is currently executing inside a pool worker loop.
+ * @brief Reports whether the calling thread is a worker of some GThreadPool (of any pool).
  *
  * Lets nested work (e.g. a computation launched from within a task) detect that it is
- * already running on a pool worker, so it can avoid re-submitting to the same pool.
+ * already running on a pool worker, so it can avoid starting a second pool there.
  *
- * @return true if the current thread is a GThreadPool worker running a task, false otherwise
+ * @return true if the current thread is a GThreadPool worker, false otherwise
  */
 bool GThreadPool::inWorkerThread() noexcept {
-    return t_in_worker_thread;
+    return t_worker_pool != nullptr;
+}
+
+/**
+ * @brief Refuses a call that waits for this pool's tasks when it comes from one of its workers.
+ *
+ * @param caller The name of the refused call, for the message
+ */
+void GThreadPool::refuseFromOwnWorker(std::string_view caller) const {
+    checkThat(
+        t_worker_pool != this,
+        caller,
+        " was called from a task of the same GThreadPool: it waits for tasks only the pool's own "
+        "workers can run and could deadlock; call it from another thread or another pool's task"
+    );
 }
 
 /**
@@ -189,7 +217,7 @@ void GThreadPool::worker_loop(const std::stop_token &st) {
     // NOLINTNEXTLINE(bugprone-unchecked-optional-access) -- engaged for the workers' whole lifetime
     const std::stop_callback stop_cb(st, [this]() { task_queue_->close(); });
 
-    t_in_worker_thread = true; // this thread spends its life running pool tasks
+    t_worker_pool = this; // this thread spends its life running this pool's tasks
 
     // NOLINTNEXTLINE(bugprone-unchecked-optional-access) -- engaged for the workers' whole lifetime
     while(auto task = task_queue_->pop()) {
@@ -220,10 +248,11 @@ void GThreadPool::drain() {
 /**
  * @brief Blocks until all submitted tasks have been processed.
  *
- * Blocks new submissions for the duration. Must NOT be called from a task running inside
- * the pool (would deadlock).
+ * Blocks new submissions for the duration. Refused from a task of this pool (it would wait for
+ * itself).
  */
 void GThreadPool::wait() {
+    this->refuseFromOwnWorker("wait()");
     std::unique_lock<std::shared_mutex> const sub_lck(submission_mutex_);
     drain();
 }
@@ -246,11 +275,12 @@ unsigned int GThreadPool::getNThreads() const {
  *
  * Blocks new submissions and lets the pool run empty first. Growing simply adds workers to
  * the same queue; shrinking recreates the queue (its close() is terminal) and restarts the
- * worker set. Must NOT be called from a task running inside the pool (would deadlock).
+ * worker set. Refused from a task of this pool (it would wait for itself).
  *
  * @param n_threads The desired number of worker threads (0: getNHardwareThreads())
  */
 void GThreadPool::setNThreads(unsigned int n_threads) {
+    this->refuseFromOwnWorker("setNThreads()");
     const unsigned int n = n_threads > 0 ? n_threads : getNHardwareThreads();
 
     std::unique_lock<std::shared_mutex> const sub_lck(submission_mutex_);
@@ -261,7 +291,7 @@ void GThreadPool::setNThreads(unsigned int n_threads) {
 
     if(n > n_threads_) {
         // Grow: add workers; they pull from the same (still-open) queue.
-        start_workers(n - n_threads_);
+        start_workers(n - n_threads_.load());
     }
     else {
         // Shrink: stop the current workers via the stop_token (join_all -> request_stop ->

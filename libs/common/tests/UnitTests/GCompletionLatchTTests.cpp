@@ -36,6 +36,7 @@
 #include <type_traits>
 #include <vector>
 
+#include "common/GExceptions.hpp"
 #include "common/concurrency/GCompletionLatchT.hpp"
 
 using namespace Gem::Common::Concurrency;
@@ -174,4 +175,17 @@ TEST_CASE(
             t.join();
         }
     }
+}
+
+TEST_CASE("GCompletionLatchT: a count_down beyond the armed count is refused", "[common][latch]") {
+    // Regression: the count wrapped below zero, and wait() would never have returned
+    GCompletionLatchT latch(1);
+    CHECK(latch.count_down());
+    CHECK_THROWS_AS(latch.count_down(), gem_exception);
+    CHECK(latch.remaining() == 0);
+    CHECK(latch.wait_for(0ms));
+
+    GCompletionLatchT never_armed;
+    CHECK_THROWS_AS(never_armed.count_down(), gem_exception);
+    CHECK(never_armed.remaining() == 0);
 }

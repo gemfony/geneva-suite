@@ -207,15 +207,14 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
         Gem::Courtier::GWireBlobId wid{lid.hi, lid.lo};
         archive_named(ar, "blob_id_hi", wid[0]);
         archive_named(ar, "blob_id_lo", wid[1]);
-        if(not ctx->registry->has(wid)) {
-            ctx->registry->put(wid, layoutToWireBlob(*layout_));
-        }
-        bool layout_present = not ctx->registry->peerHasBlob(ctx->peer, wid);
+        // Cached if new, the peer marked as holding it, and whether it is sent: one step
+        bool layout_present = ctx->registry->internFor(ctx->peer, wid, [this]() {
+            return layoutToWireBlob(*layout_);
+        });
         archive_named(ar, "layout_present", layout_present);
         if(layout_present) {
             GGenomeLayout layout_copy = *layout_;
             archive_named(ar, "layout_", layout_copy);
-            ctx->registry->markPeerHasBlob(ctx->peer, wid);
         }
     }
 

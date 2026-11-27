@@ -251,14 +251,14 @@ consteval bool enumNamesAreComplete() {
 }
 
 /**
- * @brief The name of an enum's value, from its table (see enum_names_v). It does not throw, since
- * names are printed mostly in log lines and error messages: a number cast to the enum that is none
- * of its values is named "<invalid value N>".
+ * @brief The name of an enum's value, from its table (see enum_names_v). A number cast to the enum
+ * that is none of its values is not refused but named "<invalid value N>", since names are printed
+ * mostly in log lines and error messages. (Building the text allocates, so it is not noexcept.)
  * @param value The value
  * @return Its name, or "<invalid value N>" for a value without one
  */
 template <named_enum enum_type>
-[[nodiscard]] constexpr std::string enumName(enum_type value) noexcept {
+[[nodiscard]] constexpr std::string enumName(enum_type value) {
     static_assert(
         enumNamesAreComplete<enum_type>(),
         "enum_names_v names a value twice, uses a name twice, or does not name exactly the values "

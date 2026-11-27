@@ -30,8 +30,12 @@
 // Standard headers go here
 #include <atomic>
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <future>
+#include <memory>
+#include <new>
 #include <span>
 #include <stdexcept>
 #include <thread>
@@ -43,11 +47,51 @@
 
 // Geneva headers go here
 #include "common/GCommonHelperFunctions.hpp"
+#include "common/GExceptions.hpp"
 #include "common/concurrency/GThreadBudget.hpp"
 #include "common/concurrency/GThreadPool.hpp"
 
 using Gem::Common::Concurrency::GThreadPool;
 using namespace std::chrono_literals;
+
+// ---------------------------------------------------------------------------
+// A seam for one test: this executable replaces the global allocation functions, so that a
+// thread can count its allocations and make one of them fail.
+
+namespace {
+/// The allocations of this thread so far (counted while counting() is true)
+std::size_t &allocationsCounted() {
+    thread_local std::size_t n = 0;
+    return n;
+}
+/// Whether this thread counts its allocations
+bool &counting() {
+    thread_local bool on = false;
+    return on;
+}
+/// The number of the counted allocation that fails; 0: none
+std::size_t &failingAllocation() {
+    thread_local std::size_t n = 0;
+    return n;
+}
+} // namespace
+
+void *operator new(std::size_t size) {
+    if(counting() && ++allocationsCounted() == failingAllocation()) {
+        throw std::bad_alloc();
+    }
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    if(void *p = std::malloc(size == 0 ? 1 : size)) {
+        return p;
+    }
+    throw std::bad_alloc();
+}
+void operator delete(void *p) noexcept {
+    std::free(p); // NOLINT(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+}
+void operator delete(void *p, [[maybe_unused]] std::size_t size) noexcept {
+    std::free(p); // NOLINT(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+}
 
 // NOTE: Catch2 assertion macros are NOT thread-safe, so callables running inside
 // the pool never call REQUIRE/CHECK; they return values (checked via futures on
@@ -443,4 +487,315 @@ TEST_CASE(
     }
 
     CHECK(threadBudget().reserved() == baseline);
+}
+
+/******************************************************************************/
+// Calls from a task of the same pool, and the pool's own-worker mark.
+
+/**
+ * Regression: blocking_for_each() from a task of the same pool waited for tasks that only the
+ * pool's own workers can run. With both workers of a pool of 2 inside such a call, no worker was
+ * left and both calls hung for good. They are refused now. The futures are waited for with a time
+ * limit; on a hang the pool is leaked, since its stuck workers could never be joined.
+ */
+TEST_CASE(
+    "GThreadPool::blocking_for_each from a task of the same pool is refused",
+    "[common][thread-pool]"
+) {
+    auto pool = std::make_unique<GThreadPool>(2);
+    std::atomic<int> nested_runs{0};
+    auto nested = [&pool, &nested_runs]() -> bool {
+        std::vector<int> data(4, 0);
+        try {
+            pool->blocking_for_each(std::span<int>(data), [&nested_runs](int &x) {
+                x = 1;
+                nested_runs.fetch_add(1);
+            });
+            return false;
+        }
+        catch(gem_exception const &) {
+            return true;
+        }
+    };
+    auto f1 = pool->async_schedule(nested);
+    auto f2 = pool->async_schedule(nested);
+    const bool done = f1.wait_for(10s) == std::future_status::ready &&
+                      f2.wait_for(10s) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        (void)pool.release(); // leaked on purpose: its stuck workers can never be joined
+        return;
+    }
+    CHECK(f1.get());
+    CHECK(f2.get());
+    CHECK(nested_runs.load() == 0);
+}
+
+/**
+ * Regression: wait() and setNThreads() from a task of the same pool waited for the task that
+ * called them to end. Both are refused now (time limit and leak on a hang as above).
+ */
+TEST_CASE(
+    "GThreadPool wait() and setNThreads() from a task of the same pool are refused",
+    "[common][thread-pool]"
+) {
+    auto pool = std::make_unique<GThreadPool>(2);
+    auto calls_wait = [&pool]() -> bool {
+        try {
+            pool->wait();
+            return false;
+        }
+        catch(gem_exception const &) {
+            return true;
+        }
+    };
+    auto calls_resize = [&pool]() -> bool {
+        try {
+            pool->setNThreads(3);
+            return false;
+        }
+        catch(gem_exception const &) {
+            return true;
+        }
+    };
+    auto f_wait = pool->async_schedule(calls_wait);
+    auto f_resize = pool->async_schedule(calls_resize);
+    const bool done = f_wait.wait_for(10s) == std::future_status::ready &&
+                      f_resize.wait_for(10s) == std::future_status::ready;
+    CHECK(done);
+    if(not done) {
+        (void)pool.release(); // leaked on purpose: its stuck workers can never be joined
+        return;
+    }
+    CHECK(f_wait.get());
+    CHECK(f_resize.get());
+    CHECK(pool->getNThreads() == 2);
+}
+
+TEST_CASE(
+    "GThreadPool::inWorkerThread is true only on a worker running a task",
+    "[common][thread-pool]"
+) {
+    CHECK_FALSE(GThreadPool::inWorkerThread());
+    GThreadPool pool(2);
+    auto f = pool.async_schedule([]() { return GThreadPool::inWorkerThread(); });
+    CHECK(f.get());
+    CHECK_FALSE(GThreadPool::inWorkerThread());
+}
+
+TEST_CASE(
+    "GThreadPool::blocking_for_each from a task of another pool runs",
+    "[common][thread-pool]"
+) {
+    GThreadPool outer(2);
+    GThreadPool inner(2);
+    auto f = outer.async_schedule([&inner]() {
+        std::vector<int> data(8, 0);
+        inner.blocking_for_each(std::span<int>(data), [](int &x) { x = 1; });
+        int sum = 0;
+        for(int const v : data) {
+            sum += v;
+        }
+        return sum;
+    });
+    REQUIRE(f.wait_for(10s) == std::future_status::ready);
+    CHECK(f.get() == 8);
+}
+
+/******************************************************************************/
+// Submissions to a closing pool.
+
+/**
+ * Regression: when the pool was closing, blocking_for_each() dropped the refused tasks without
+ * counting its latch down, and then waited for them for good. Now it waits for the queued ones
+ * and throws. The pool is destroyed in a second thread while one worker is held in a task, so the
+ * queue is closed while the pool still exists; the call runs in a thread of its own with a time
+ * limit (detached on a hang, it owns all it uses).
+ */
+TEST_CASE(
+    "GThreadPool submissions to a closing pool are refused without a hang",
+    "[common][thread-pool]"
+) {
+    auto pool = std::make_unique<GThreadPool>(1);
+    std::promise<void> gate;
+    auto gate_f = gate.get_future().share();
+    std::atomic<bool> held{false};
+    pool->post([gate_f, &held]() {
+        held.store(true);
+        gate_f.wait();
+    });
+    while(not held.load()) {
+        std::this_thread::yield();
+    }
+
+    GThreadPool *raw = pool.get();
+    std::thread destroyer([&pool]() { pool.reset(); }); // closes the queue, then joins
+
+    // Wait until the queue is closed: async_schedule() then reports it through the future
+    bool closed = false;
+    for(int i = 0; i < 5000 && not closed; ++i) {
+        auto probe = raw->async_schedule([]() { return 0; });
+        if(probe.wait_for(0s) == std::future_status::ready) {
+            try {
+                (void)probe.get();
+            }
+            catch(gem_exception const &) {
+                closed = true;
+            }
+        }
+        if(not closed) {
+            std::this_thread::sleep_for(1ms);
+        }
+    }
+    REQUIRE(closed);
+
+    // post() to the closed pool drops the task (with a warning): it never runs
+    std::atomic<bool> posted_ran{false};
+    raw->post([&posted_ran]() { posted_ran.store(true); });
+
+    auto outcome = std::make_shared<std::promise<bool>>();
+    auto outcome_f = outcome->get_future();
+    std::thread caller([raw, outcome]() {
+        std::vector<int> data(3, 0);
+        try {
+            raw->blocking_for_each(std::span<int>(data), [](int &x) { x = 1; });
+            outcome->set_value(false);
+        }
+        catch(gem_exception const &) {
+            outcome->set_value(true);
+        }
+    });
+    const bool returned = outcome_f.wait_for(10s) == std::future_status::ready;
+    CHECK(returned);
+    if(returned) {
+        caller.join();
+        CHECK(outcome_f.get()); // the refusal is reported to the caller
+    }
+    else {
+        caller.detach(); // owns all it uses; hangs for good on the defect
+    }
+
+    gate.set_value();
+    destroyer.join();
+    CHECK_FALSE(posted_ran.load());
+}
+
+/******************************************************************************/
+// Resizing while other threads submit, and a task that throws something else.
+
+TEST_CASE(
+    "GThreadPool setNThreads while other threads submit loses no task",
+    "[common][thread-pool]"
+) {
+    GThreadPool pool(2);
+    std::atomic<int> done{0};
+    constexpr int PER_SUBMITTER = 500;
+    std::vector<std::thread> submitters;
+    for(int s = 0; s < 3; ++s) {
+        submitters.emplace_back([&pool, &done]() {
+            for(int i = 0; i < PER_SUBMITTER; ++i) {
+                pool.post([&done]() { done.fetch_add(1); });
+            }
+        });
+    }
+    const unsigned int sizes[] = {4u, 1u, 3u, 2u};
+    for(unsigned int const n : sizes) {
+        pool.setNThreads(n);
+    }
+    for(auto &t : submitters) {
+        t.join();
+    }
+    pool.wait();
+    CHECK(done.load() == 3 * PER_SUBMITTER);
+    CHECK(pool.getNThreads() == 2);
+}
+
+/**
+ * Regression: getNThreads() read n_threads_ without a lock while setNThreads() wrote it, a data
+ * race by the rules of the language (seen by ThreadSanitizer). The atomics of the test are
+ * relaxed, so that they order nothing a race detector could rely on.
+ */
+TEST_CASE("GThreadPool getNThreads may be read while setNThreads runs", "[common][thread-pool]") {
+    GThreadPool pool(2);
+    std::atomic<bool> stop{false};
+    std::atomic<bool> reading{false};
+    std::atomic<unsigned int> seen_max{0};
+    std::thread reader([&pool, &stop, &seen_max, &reading]() {
+        while(not stop.load(std::memory_order_relaxed)) {
+            const unsigned int n = pool.getNThreads();
+            if(n > seen_max.load(std::memory_order_relaxed)) {
+                seen_max.store(n, std::memory_order_relaxed);
+            }
+            reading.store(true, std::memory_order_relaxed);
+        }
+    });
+    while(not reading.load(std::memory_order_relaxed)) {
+        std::this_thread::yield();
+    }
+    for(int i = 0; i < 20; ++i) {
+        pool.setNThreads(1 + static_cast<unsigned int>(i % 4));
+    }
+    stop.store(true, std::memory_order_relaxed);
+    reader.join();
+    CHECK(pool.getNThreads() == 4);
+    CHECK(seen_max.load() <= 4u);
+}
+
+TEST_CASE(
+    "GThreadPool async_schedule carries an exception that is no std::exception",
+    "[common][thread-pool]"
+) {
+    GThreadPool pool(2);
+    auto f = pool.async_schedule([]() -> int { throw 42; });
+    CHECK_THROWS_AS(f.get(), int);
+    auto g = pool.async_schedule([]() { return 3; });
+    CHECK(g.get() == 3);
+}
+
+/**
+ * Regression: when a submission of blocking_for_each() threw (out of memory), the exception left
+ * the call while the tasks already queued still ran on pointers into the caller's items and on
+ * its per_item. Now they are waited for first. One allocation of the calling thread during the
+ * submissions fails (the seam above); the number of the first allocation of the second element's
+ * submission is taken from a run with one element.
+ */
+TEST_CASE(
+    "GThreadPool::blocking_for_each waits for its queued tasks before a failed submission leaves",
+    "[common][thread-pool]"
+) {
+    GThreadPool pool(2);
+    std::atomic<int> started{0};
+    std::atomic<int> finished{0};
+    auto per_item = [&started, &finished](int &x) {
+        started.fetch_add(1);
+        std::this_thread::sleep_for(20ms);
+        x = 1;
+        finished.fetch_add(1);
+    };
+
+    std::vector<int> one(1, 0);
+    allocationsCounted() = 0;
+    counting() = true;
+    pool.blocking_for_each(std::span<int>(one), per_item);
+    counting() = false;
+    const std::size_t for_one = allocationsCounted();
+
+    std::vector<int> data(64, 0);
+    allocationsCounted() = 0;
+    failingAllocation() = for_one + 1;
+    counting() = true;
+    bool threw = false;
+    int running_at_exit = -1;
+    try {
+        pool.blocking_for_each(std::span<int>(data), per_item);
+    }
+    catch(std::bad_alloc const &) {
+        threw = true;
+        running_at_exit = started.load() - finished.load();
+    }
+    counting() = false;
+    failingAllocation() = 0;
+    CHECK(threw);
+    CHECK(running_at_exit == 0); // no task of the call ran on after it had left
+    pool.wait();
 }

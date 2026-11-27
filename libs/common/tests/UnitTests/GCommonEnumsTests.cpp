@@ -185,7 +185,8 @@ TEST_CASE(
     CHECK_FALSE(enumFromName<serializationMode>("gem_binary").has_value()); // spelled exactly
     CHECK_FALSE(enumFromName<serializationMode>("").has_value());
     // A number that is none of the values prints as itself, without an exception
-    static_assert(noexcept(enumName(serializationMode::GEM_BINARY)));
+    // Not noexcept: the text for a value without a name is built, which allocates
+    static_assert(not noexcept(enumName(serializationMode::GEM_BINARY)));
     CHECK(enumName(static_cast<serializationMode>(99)) == "<invalid value 99>");
 }
 

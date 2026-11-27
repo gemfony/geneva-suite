@@ -50,6 +50,7 @@
 
 #include "common/GExceptions.hpp"
 #include "common/GJsonIO.hpp"
+#include "common/GLogger.hpp"
 #include "common/record/GCsvSink.hpp"
 #include "common/record/GJsonLinesSink.hpp"
 #include "common/record/GRecorder.hpp"
@@ -596,6 +597,37 @@ TEST_CASE("a sink that throws no std::exception is reported by the handle and by
     {
         auto s = declare("by_destructor");
     }
+}
+
+TEST_CASE("a stream whose close fails ends no program when its report fails as well", "[common][record]") {
+    // Regression: the report of a failed close went to the log from a function that does not throw
+    // (the handle's move assignment and destructor); a log target that threw ended the program
+    // through std::terminate()
+    struct ThrowingTarget final : Gem::Common::GBaseLogTarget {
+        void log(std::string const &) const override { throw std::runtime_error("the log fails"); }
+        void logWithSource(std::string const &, std::string const &) const override {
+            throw std::runtime_error("the log fails");
+        }
+    };
+    ScratchDirectory const dir("failing_log");
+    std::vector<GColumn> const columns{GColumn{.name = "n", .type = columnType::INTEGER}};
+    auto const declare = [&columns](std::string const &name) {
+        auto s = recorder().stream(
+            name,
+            columns,
+            withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<ProbeSink>(ProbeSink::FailIn::CLOSE)}}
+        );
+        s.append(GRow{std::int64_t{1}});
+        return s;
+    };
+    auto moved_onto = declare("failing_log_move");
+    auto destroyed = std::make_unique<GStream>(declare("failing_log_destructor"));
+    glogger.addLogTarget(std::make_shared<ThrowingTarget>());
+    moved_onto = GStream();
+    destroyed.reset();
+    glogger.resetLogTargets();
+    CHECK_FALSE(moved_onto.isOpen());
 }
 
 TEST_CASE("a handle moved onto an open stream closes that stream and takes over the other", "[common][record]") {

@@ -32,6 +32,7 @@
 // Standard header files go here
 #include <exception>
 #include <format>
+#include <iostream>
 #include <string>
 
 // Geneva header files go here
@@ -185,9 +186,15 @@ void GStreamCore::closeOrLog() noexcept {
     catch(...) {
         what = "an exception that is no std::exception";
     }
-    glogger << "the stream \"" << info_.name << "\" could not be closed cleanly:" << '\n'
-            << what << '\n'
-            << GWARNING;
+    try {
+        glogger << "the stream \"" << info_.name << "\" could not be closed cleanly:" << '\n'
+                << what << '\n'
+                << GWARNING;
+    }
+    catch(...) { // a log target failed as well: this function does not throw, so std::cerr has it
+        std::cerr << "the stream \"" << info_.name << "\" could not be closed cleanly: " << what
+                  << " (and the log failed)" << '\n';
+    }
 }
 
 /******************************************************************************/

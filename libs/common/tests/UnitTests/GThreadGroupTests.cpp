@@ -39,6 +39,7 @@
 #include <thread>
 #include <vector>
 
+#include "common/GExceptions.hpp"
 #include "common/concurrency/GThreadGroup.hpp"
 
 using namespace Gem::Common;
@@ -325,4 +326,35 @@ TEST_CASE(
     // Pre-join, the worker should still be executing (small but real delay).
     g.join_all();
     CHECK(done.load());
+}
+
+TEST_CASE(
+    "GThreadGroup::join_all from a thread of the group is refused",
+    "[common][thread-group]"
+) {
+    // Regression: the thread tried to join itself, which ended in a std::system_error
+    GThreadGroup group;
+    std::atomic<bool> go{false};
+    std::atomic<int> outcome{0}; // 1: refused with gem_exception, 2: another exception, 3: returned
+    group.create_thread([&group, &go, &outcome]() {
+        while(not go.load()) { // until the thread is in the group
+            std::this_thread::yield();
+        }
+        try {
+            group.join_all();
+            outcome.store(3);
+        }
+        catch(gem_exception const &) {
+            outcome.store(1);
+        }
+        catch(...) {
+            outcome.store(2);
+        }
+    });
+    go.store(true);
+    while(outcome.load() == 0) {
+        std::this_thread::yield();
+    }
+    group.join_all();
+    CHECK(outcome.load() == 1);
 }

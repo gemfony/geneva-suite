@@ -48,9 +48,11 @@
  */
 
 #include "common/concurrency/GThreadGroup.hpp"
+#include "common/GChecks.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <mutex>
+#include <thread>
 
 namespace Gem::Common::Concurrency {
 
@@ -78,13 +80,21 @@ void GThreadGroup::add_thread(const thread_ptr &thrd) {
  * The mutex is released before the join loop so that any thread that calls back into the
  * group (e.g. add_thread from inside its functor) does not deadlock against us. Stop is
  * requested on all threads first, then they are joined, so a functor observing its
- * std::stop_token gets the signal before we block on the first join.
+ * std::stop_token gets the signal before we block on the first join. A call from a thread of the
+ * group is refused with gem_exception, before any stop is requested.
  */
 void GThreadGroup::join_all() {
     thread_vector to_join;
     {
         std::scoped_lock const guard(mutex_);
         to_join = threads_; // shared_ptrs — cheap copy, keeps threads alive
+    }
+    for(auto const &t : to_join) {
+        checkThat(
+            not t || t->get_id() != std::this_thread::get_id(),
+            "GThreadGroup::join_all() was called from a thread of the group, which cannot join "
+            "itself"
+        );
     }
     // Request cooperative stop on every thread FIRST, then join. A functor that observes its
     // std::stop_token (e.g. GWorkerT, or GThreadPool via a stop_callback) thus gets the signal

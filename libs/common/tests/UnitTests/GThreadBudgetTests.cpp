@@ -107,6 +107,48 @@ TEST_CASE(
 }
 
 /******************************************************************************/
+// What can throw, and the move assignment of a reservation
+
+/**
+ * Regression: reserved() (it locks a mutex) and ceiling() (it may log a warning on its first call)
+ * were noexcept, so an exception from either ended the program through std::terminate().
+ */
+TEST_CASE(
+    "GThreadBudget: the queries that lock or log may throw",
+    "[common][concurrency][thread-budget]"
+) {
+    auto const &budget = threadBudget();
+    CHECK_FALSE(noexcept(budget.reserved()));
+    CHECK_FALSE(noexcept(budget.ceiling()));
+    CHECK_FALSE(noexcept(budget.oversubscribed()));
+}
+
+TEST_CASE(
+    "GThreadBudget: move assignment releases the held reservation and takes over the other",
+    "[common][concurrency][thread-budget]"
+) {
+    auto &budget = threadBudget();
+    const unsigned int base = budget.reserved();
+
+    GThreadBudget::Reservation empty;
+    CHECK(empty.granted() == 0);
+    auto a = budget.reserve("test:assign-a", 2, ThreadElasticity::Fixed);
+    auto b = budget.reserve("test:assign-b", 3, ThreadElasticity::Elastic);
+    CHECK(budget.reserved() == base + 5);
+
+    a = std::move(b); // a's 2 threads are returned, b's 3 move over
+    CHECK(a.granted() == 3);
+    CHECK(b.granted() == 0); // NOLINT(bugprone-use-after-move): a moved-from handle is empty
+    CHECK(budget.reserved() == base + 3);
+
+    empty = std::move(a);
+    CHECK(empty.granted() == 3);
+    CHECK(budget.reserved() == base + 3);
+    empty.release();
+    CHECK(budget.reserved() == base);
+}
+
+/******************************************************************************/
 // The budgeted GThreadPool constructor
 
 TEST_CASE(

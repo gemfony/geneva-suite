@@ -30,6 +30,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <atomic>
+#include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
@@ -244,4 +245,91 @@ TEST_CASE(
     }
     CHECK(bad.load() == 0);
     CHECK(s.size() <= static_cast<std::size_t>(kCap));
+}
+
+// ---------------------------------------------------------------------------
+// internFor: cache, acknowledge and decide in one step
+
+TEST_CASE(
+    "GContentAddressedStoreT: internFor caches a blob and tells which peer must get it in full",
+    "[common][content-store]"
+) {
+    Store s;
+    int built = 0;
+    auto const make = [&built]() {
+        ++built;
+        return std::string("blob");
+    };
+    CHECK(s.internFor(7, 1, make)); // new: cached, and peer 7 gets it in full
+    CHECK(s.has(1));
+    CHECK(s.peerHas(7, 1));
+    CHECK_FALSE(s.internFor(7, 1, make)); // peer 7 holds it: referred to by id
+    CHECK(s.internFor(8, 1, make));       // another peer gets it in full, from the cache
+    CHECK(built == 1);                    // built only while it was absent
+    std::string out;
+    CHECK(s.tryGet(1, out));
+    CHECK(out == "blob");
+}
+
+/**
+ * Regression: a sender that cached and acknowledged with four calls (has, put, peerHas,
+ * markPeerHas) could, with an eviction by another thread in between, leave an acknowledgement for
+ * a blob the store no longer held. Capacity 1, two ids, two threads; at the end of each round
+ * no acknowledgement names an id the store does not hold.
+ */
+TEST_CASE(
+    "GContentAddressedStoreT: internFor never leaves an acknowledgement without its blob",
+    "[common][content-store][concurrency]"
+) {
+    int orphans = 0;
+    for(int round = 0; round < 200; ++round) {
+        Store s;
+        s.setCapacity(1);
+        auto const sender = [&s](int first) {
+            for(int i = 0; i < 200; ++i) {
+                const int id = (first + i) % 2;
+                (void)s.internFor(7, id, [id]() { return std::to_string(id); });
+            }
+        };
+        std::thread a(sender, 0);
+        std::thread b(sender, 1);
+        a.join();
+        b.join();
+        for(int id = 0; id < 2; ++id) {
+            if(s.peerHas(7, id) && not s.has(id)) {
+                ++orphans;
+            }
+        }
+    }
+    CHECK(orphans == 0);
+}
+
+/**
+ * The same, deterministic: an eviction by another thread is started from within the step (from
+ * make_blob) and has to wait for it, so it comes after the acknowledgement and drops it with its
+ * blob. Done as four calls, it came between the caching and the acknowledgement.
+ */
+TEST_CASE(
+    "GContentAddressedStoreT: an eviction during internFor drops the acknowledgement with its blob",
+    "[common][content-store][concurrency]"
+) {
+    Store s;
+    s.setCapacity(1);
+    std::thread evictor;
+    std::atomic<bool> evicting{false};
+    CHECK(s.internFor(7, 0, [&s, &evictor, &evicting]() {
+        evictor = std::thread([&s, &evicting]() {
+            evicting.store(true);
+            s.put(1, "1"); // waits for the step's lock
+        });
+        while(not evicting.load()) {
+            std::this_thread::yield();
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        return std::string("0");
+    }));
+    evictor.join();
+    CHECK(s.has(1));
+    CHECK_FALSE(s.has(0));
+    CHECK_FALSE(s.peerHas(7, 0)); // no acknowledgement without its blob
 }
