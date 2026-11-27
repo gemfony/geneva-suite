@@ -161,15 +161,15 @@
             "(2) unbounded, one group per parameter",
             "(3) bounded, one group per parameter"
         ],
-        "default": "3",
-        "value": "3"
+        "default": 3,
+        "value": 3
     },
     "demo_function": {
         "comment": [
             "Specifies which benchmark function to minimise (maximise for NEGPARABOLA), by integer ID"
         ],
-        "default": "0",
-        "value": "0"
+        "default": 0,
+        "value": 0
     },
     "eval_policy": {
         "comment": [
@@ -178,8 +178,8 @@
             "1 (a.k.a. USEWORSTCASEFORINVALID) : Assign the worst possible value to our fitness and evaluate only valid solutions",
             "2 (a.k.a. USESIGMOID): Assign a multiple of validity_level_ and sigmoid barrier to invalid solutions, apply a sigmoid function to valid evaluations"
         ],
-        "default": "0",
-        "value": "0"
+        "default": 0,
+        "value": 0
     },
     "steepness": {
         "comment": [
@@ -204,7 +204,7 @@
             "Specifies whether the individual should be maximized (1) or minimized (0)",
             "Note that minimization is the by far most common option."
         ],
-        "default": "0",
-        "value": "0"
+        "default": 0,
+        "value": 0
     }
 }

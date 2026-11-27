@@ -129,8 +129,8 @@
             "The format of checkpoint files:",
             "binary (3) or JSON (4)"
         ],
-        "default": "4",
-        "value": "4"
+        "default": 4,
+        "value": 4
     },
     "quality_termination": {
         "threshold": {
@@ -229,8 +229,8 @@
             "Specifies whether a linear (0) or classical (1)",
             "update rule should be used"
         ],
-        "default": "1",
-        "value": "1"
+        "default": 1,
+        "value": 1
     },
     "random_fill_up": {
         "comment": [

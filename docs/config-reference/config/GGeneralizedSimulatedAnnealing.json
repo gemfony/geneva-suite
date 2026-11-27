@@ -129,8 +129,8 @@
             "The format of checkpoint files:",
             "binary (3) or JSON (4)"
         ],
-        "default": "4",
-        "value": "4"
+        "default": 4,
+        "value": 4
     },
     "quality_termination": {
         "threshold": {

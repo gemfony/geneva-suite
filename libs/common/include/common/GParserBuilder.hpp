@@ -83,12 +83,12 @@ class GParserBuilder;
 /**
  * Internal helpers shared by the file-parameter proxies for reading and writing the JSON
  * configuration format. A parameter node is a JSON object `{ "comment": [ ... ], "default": ...,
- * "value": ... }`; scalars are stored natively (arithmetic types as JSON numbers, booleans as JSON
- * bools, strings as JSON strings, and enums / durations / other custom types as strings via
- * Gem::Common::to_string), and vectors / arrays store their elements as JSON arrays under the
- * "default"/"value" keys. The read path accepts either the native or the earlier all-strings form, so
- * a config written before the switch to native scalars still loads. Comments are write-only decoration
- * (regenerated from each proxy's registered comment on every write) and are never read back.
+ * "value": ... }`; scalars are stored natively (arithmetic types and numeric enumerations as JSON
+ * numbers, booleans as JSON bools, strings as JSON strings, and durations / other custom types as
+ * strings via Gem::Common::to_string), and vectors / arrays store their elements as JSON arrays
+ * under the "default"/"value" keys. A number, a boolean or a numeric enumeration in quotes is
+ * refused (cfgScalarFromJson()). Comments are write-only decoration (regenerated from each proxy's
+ * registered comment on every write) and are never read back.
  */
 namespace detail {
 
@@ -176,11 +176,11 @@ T cfgScalarFromString(std::string const &s, std::string const &key) {
 /******************************************************************************/
 /** @brief Converts a scalar configuration value to its on-disk JSON form.
  *
- *  Plain arithmetic types and booleans are stored as native JSON numbers / bools; strings are stored
- *  as JSON strings; everything else (enums, durations, other custom types) is stored as a JSON string
- *  produced by cfgScalarToString, preserving that type's to_string/from_string round-trip. The read
- *  path (cfgValueToString + cfgScalarFromString) accepts either form, so a config written in the
- *  earlier all-strings layout still loads.
+ *  Plain arithmetic types and booleans are stored as native JSON numbers / bools, and a numeric
+ *  enumeration (numeric_io_enum) as the JSON number of its value; strings are stored as JSON
+ *  strings; everything else (durations, other custom types) is stored as a JSON string produced by
+ *  cfgScalarToString, preserving that type's to_string/from_string round-trip. The read path is
+ *  cfgScalarFromJson().
  *  @tparam T The scalar parameter type
  *  @param v The value to convert
  *  @return The JSON value stored under a parameter's "value"/"default" key */
@@ -200,6 +200,10 @@ boost::json::value cfgScalarToJson(T const &v) {
     }
     else if constexpr(std::is_arithmetic_v<T>) {
         return boost::json::value(v);
+    }
+    else if constexpr(numeric_io_enum<T>) {
+        // Wide, so that an enumeration based on a (u)int8_t is a number and not a character
+        return boost::json::value(static_cast<std::int64_t>(std::to_underlying(v)));
     }
     else {
         return boost::json::value(cfgScalarToString(v));
@@ -291,8 +295,7 @@ inline boost::json::value const *cfgEntryValue(
 
 /******************************************************************************/
 /** @brief Renders a JSON value expected to hold a scalar as a std::string; a non-string value is
- *  rendered via its serialized token so a natively-typed value (Phase 8) still yields a parseable
- *  string.
+ *  rendered via its serialized token, so a native number or boolean yields a parseable string.
  *  @param v The JSON value
  *  @return The string form */
 inline std::string cfgValueToString(boost::json::value const &v) {
@@ -301,6 +304,36 @@ inline std::string cfgValueToString(boost::json::value const &v) {
         return std::string(s.data(), s.size());
     }
     return boost::json::serialize(v);
+}
+
+/******************************************************************************/
+/** @brief Reads the JSON value of a configuration entry as its parameter type. A number, a boolean
+ *  and a numeric enumeration (numeric_io_enum) are written without quotes; a string in their place
+ *  is refused, so that "5" is never read as the number 5. Every other type (a string, a duration, a
+ *  custom type) is stored as a string and read through cfgScalarFromString().
+ *  @tparam T The scalar parameter type
+ *  @param v The JSON value of the entry
+ *  @param key The configuration key the value belongs to (named in the error text)
+ *  @return The value read
+ *  @throws gem_exception if @p v is a string for a number, a boolean or a numeric enumeration,
+ *          or is not a value of type T */
+template <typename T>
+T cfgScalarFromJson(boost::json::value const &v, std::string const &key) {
+    if constexpr(std::is_arithmetic_v<T> || numeric_io_enum<T>) {
+        checkThat(
+            not v.is_string(),
+            "The configuration entry \"",
+            key,
+            "\" has the string ",
+            boost::json::serialize(v),
+            ", which is not ",
+            cfgExpectedValue<T>(),
+            ": ",
+            std::is_same_v<T, bool> ? "a boolean" : "a number",
+            " is written without quotes"
+        );
+    }
+    return cfgScalarFromString<T>(cfgValueToString(v), key);
 }
 
 /******************************************************************************/
@@ -673,10 +706,7 @@ private:
         // An absent key keeps the value seeded from the default in the constructor; a present one
         // of the wrong form is refused.
         if(auto const *v = detail::cfgEntryValue(root, GParsableI::optionName(0), false)) {
-            par_ = detail::cfgScalarFromString<parameter_type>(
-                detail::cfgValueToString(*v),
-                GParsableI::optionName(0)
-            );
+            par_ = detail::cfgScalarFromJson<parameter_type>(*v, GParsableI::optionName(0));
         }
     }
 
@@ -855,15 +885,15 @@ private:
         }
         if(auto const *v =
                detail::cfgEntryValue(*group, GParsableI::optionName(0), false, combined_label_)) {
-            par0_ = detail::cfgScalarFromString<par0_type>(
-                detail::cfgValueToString(*v),
+            par0_ = detail::cfgScalarFromJson<par0_type>(
+                *v,
                 combined_label_ + "/" + GParsableI::optionName(0)
             );
         }
         if(auto const *v =
                detail::cfgEntryValue(*group, GParsableI::optionName(1), false, combined_label_)) {
-            par1_ = detail::cfgScalarFromString<par1_type>(
-                detail::cfgValueToString(*v),
+            par1_ = detail::cfgScalarFromJson<par1_type>(
+                *v,
                 combined_label_ + "/" + GParsableI::optionName(1)
             );
         }
@@ -1036,10 +1066,7 @@ private:
         par_cnt_.clear();
         for(auto const &v : values->get_array()) {
             par_cnt_.push_back(
-                detail::cfgScalarFromString<parameter_type>(
-                    detail::cfgValueToString(v),
-                    GParsableI::optionName(0)
-                )
+                detail::cfgScalarFromJson<parameter_type>(v, GParsableI::optionName(0))
             );
         }
     }
@@ -1216,10 +1243,8 @@ private:
             );
         }
         for(std::size_t i = 0; i < N; ++i) {
-            par_arr_.at(i) = detail::cfgScalarFromString<parameter_type>(
-                detail::cfgValueToString(values[i]),
-                GParsableI::optionName(0)
-            );
+            par_arr_.at(i) =
+                detail::cfgScalarFromJson<parameter_type>(values[i], GParsableI::optionName(0));
         }
     }
 

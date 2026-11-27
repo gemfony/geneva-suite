@@ -858,9 +858,9 @@ TEST_CASE(
     // "scale", and a "stale_key" that the v2 schema below no longer registers.
     {
         json::object t;
-        t["answer"] = json::object{{"default", "42"}, {"value", "13"}}; // customized on disk
-        t["scale"] = json::object{{"default", "3.14"}, {"value", "3.14"}};
-        t["stale_key"] = json::object{{"default", "999"}, {"value", "999"}};
+        t["answer"] = json::object{{"default", 42}, {"value", 13}}; // customized on disk
+        t["scale"] = json::object{{"default", 3.14}, {"value", 3.14}};
+        t["stale_key"] = json::object{{"default", 999}, {"value", 999}};
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
     }
 
@@ -880,8 +880,7 @@ TEST_CASE(
     CHECK(scale == 3.14);
     CHECK(fresh == 7); // absent from v1 -> registered default
 
-    // On-disk shape after the rewrite. Arithmetic scalars are stored as native JSON numbers (the input
-    // above was hand-written in the earlier all-strings form, which the reader still accepts).
+    // On-disk shape after the rewrite. Arithmetic scalars are stored as native JSON numbers.
     const json::value after = Gem::Common::parseJsonFile(cfg);
     REQUIRE(after.is_object());
     const json::object &ao = after.get_object();
@@ -911,7 +910,7 @@ TEST_CASE(
     // A config with a scalar but WITHOUT the vector key "vints".
     {
         json::object t;
-        t["other"] = json::object{{"default", "5"}, {"value", "5"}};
+        t["other"] = json::object{{"default", 5}, {"value", 5}};
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
     }
 
@@ -953,8 +952,8 @@ TEST_CASE(
     {
         json::object t;
         t["vec"] = json::object{
-            {"default", json::array{"1", "1", "1", "1"}},
-            {"value", json::array{"7", "8", "9", "10"}}
+            {"default", json::array{1, 1, 1, 1}},
+            {"value", json::array{7, 8, 9, 10}}
         };
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
     }
@@ -977,12 +976,12 @@ TEST_CASE(
 
 // ---------------------------------------------------------------------------
 // Native scalar typing: arithmetic types and booleans are written as native JSON
-// numbers / bools (not quoted strings), while a config hand-written in the earlier
-// all-strings form still loads (back-compat of the read path).
+// numbers / bools (not quoted strings); a number or a boolean in quotes, the earlier
+// all-strings form, is refused.
 
 TEST_CASE(
-    "GParserBuilder: arithmetic and bool scalars write as native JSON and the old string form "
-    "still reads",
+    "GParserBuilder: arithmetic and bool scalars write as native JSON and a string in their place "
+    "is refused",
     "[common][parser-builder][regression]"
 ) {
     namespace json = boost::json;
@@ -1006,6 +1005,8 @@ TEST_CASE(
             VAR_IS_ESSENTIAL,
             "a string"
         );
+        sortOrder order = sortOrder::HIGHERISBETTER;
+        gpb.registerFileParameter<sortOrder>("o", order, sortOrder::HIGHERISBETTER);
         REQUIRE_NOTHROW(gpb.parseConfigFile(cfg));
     }
 
@@ -1018,16 +1019,20 @@ TEST_CASE(
     CHECK(o.at("b").at("value").is_bool());   // native bool, not "true"
     CHECK(o.at("b").at("value").as_bool());
     CHECK(o.at("s").at("value").is_string()); // strings stay strings
+    CHECK(o.at("o").at("value").is_int64());  // a numeric enumeration is a number, not "1"
+    CHECK(o.at("o").at("value").to_number<int>() == 1);
 
-    // A config hand-written in the earlier all-strings form must still load.
-    {
+    // The native form reads back; a number or a boolean in quotes (the earlier all-strings form) is
+    // refused, naming the key and what the value must be.
+    auto write = [&cfg](json::value const &i, json::value const &d, json::value const &b) {
         json::object t;
-        t["i"] = json::object{{"default", "20"}, {"value", "33"}};
-        t["d"] = json::object{{"default", "3.5"}, {"value", "9.5"}};
-        t["b"] = json::object{{"default", "true"}, {"value", "false"}};
-        t["s"] = json::object{{"default", "hi"}, {"value", "world"}};
+        t["i"] = json::object{{"value", i}};
+        t["d"] = json::object{{"value", d}};
+        t["b"] = json::object{{"value", b}};
+        t["s"] = json::object{{"value", "world"}};
+        std::filesystem::remove(cfg);
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
-    }
+    };
     GParserBuilder reader;
     int i2 = 0;
     double d2 = 0.0;
@@ -1043,6 +1048,24 @@ TEST_CASE(
         VAR_IS_ESSENTIAL,
         "a string"
     );
+    write(json::value("33"), json::value(9.5), json::value(false));
+    CHECK_THROWS_WITH(
+        reader.parseConfigFile(cfg),
+        ContainsSubstring(R"("i" has the string "33", which is not an integer: a number is)")
+    );
+    write(json::value(33), json::value("9.5"), json::value(false));
+    CHECK_THROWS_WITH(
+        reader.parseConfigFile(cfg),
+        ContainsSubstring(R"("d" has the string "9.5")")
+    );
+    write(json::value(33), json::value(9.5), json::value("false"));
+    CHECK_THROWS_WITH(
+        reader.parseConfigFile(cfg),
+        ContainsSubstring(R"("b" has the string "false", which is not a boolean)") &&
+            ContainsSubstring("a boolean is written without quotes")
+    );
+
+    write(json::value(33), json::value(9.5), json::value(false));
     REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
     CHECK(i2 == 33);
     CHECK(d2 == 9.5);
@@ -1056,7 +1079,7 @@ TEST_CASE(
 // Regression: a std::uint8_t parameter (e.g. GEvolutionaryAlgorithm's step_control)
 // must round-trip by VALUE. Because (u)int8_t aliases a character type, a naive stream
 // conversion of "1" reads the character '1' (49) rather than the number 1; the scalar
-// helpers widen it so the numeric value survives, in both the native and the string form.
+// helpers widen it so the numeric value survives.
 
 TEST_CASE(
     "GParserBuilder: a uint8_t scalar round-trips by value and not as a character",
@@ -1099,10 +1122,11 @@ TEST_CASE(
         CHECK(int(code) == 1);
     }
 
-    // The earlier all-strings form ("1") must also read back as 1, not 49.
+    // The earlier all-strings form ("1") is refused, as for every number.
     {
         json::object t;
         t["code"] = json::object{{"default", "1"}, {"value", "1"}};
+        std::filesystem::remove(cfg);
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
         GParserBuilder reader;
         std::uint8_t code = 0;
@@ -1113,8 +1137,11 @@ TEST_CASE(
             VAR_IS_ESSENTIAL,
             "8-bit code"
         );
-        REQUIRE_NOTHROW(reader.parseConfigFile(cfg));
-        CHECK(int(code) == 1);
+        CHECK_THROWS_WITH(
+            reader.parseConfigFile(cfg),
+            ContainsSubstring(R"("code" has the string "1")")
+        );
+        CHECK(int(code) == 0);
     }
 
     std::filesystem::remove(cfg);
@@ -1445,7 +1472,7 @@ TEST_CASE(
 // ---------------------------------------------------------------------------
 // Regression: a boolean that was not "true" or "1" read as false, and a number that did not read
 // as its type was read as far as it went ("2.5" as 2) or left indeterminate ("two"). Such a value
-// is refused, naming the key; the all-strings form of a valid value still reads.
+// is refused, naming the key; so is a valid value in quotes (the earlier all-strings form).
 
 TEST_CASE(
     "GParserBuilder: a value that does not read as its type is refused with its key named",
@@ -1456,7 +1483,7 @@ TEST_CASE(
 
     CHECK_THROWS_WITH(
         k.load(R"({ "flag": { "value": "yes" } })"),
-        ContainsSubstring(R"("flag" has the value "yes", which is not a boolean)")
+        ContainsSubstring(R"("flag" has the string "yes", which is not a boolean)")
     );
     CHECK_THROWS_WITH(
         k.load(R"({ "group": { "alpha": { "value": 2.5 } } })"),
@@ -1464,15 +1491,28 @@ TEST_CASE(
     );
     CHECK_THROWS_WITH(
         k.load(R"({ "list": { "value": [1, "two"] } })"),
-        ContainsSubstring(R"("list" has the value "two", which is not an integer)")
+        ContainsSubstring(R"("list" has the string "two", which is not an integer)")
     );
     CHECK_THROWS_WITH(
         k.load(R"({ "pair": { "value": [1, "x"] } })"),
         ContainsSubstring(R"("pair")")
     );
 
-    k.load(R"({ "flag": { "value": "false" }, "group": { "beta": { "value": "1e-3" } },
-                "list": { "value": [" 4 ", 5] } })");
+    CHECK_THROWS_WITH(
+        k.load(R"({ "flag": { "value": "false" } })"),
+        ContainsSubstring(R"("flag")")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "group": { "beta": { "value": "1e-3" } } })"),
+        ContainsSubstring(R"("group/beta" has the string "1e-3")")
+    );
+    CHECK_THROWS_WITH(
+        k.load(R"({ "list": { "value": [" 4 ", 5] } })"),
+        ContainsSubstring(R"("list")")
+    );
+
+    k.load(R"({ "flag": { "value": false }, "group": { "beta": { "value": 1e-3 } },
+                "list": { "value": [4, 5] } })");
     CHECK_FALSE(k.flag);
     CHECK(k.beta == 1e-3);
     CHECK(k.list == std::vector<int>{4, 5});
@@ -1509,11 +1549,12 @@ TEST_CASE(
     CHECK_THROWS_WITH(
         load(R"({ "order": { "value": "HIGHERISBETTER" } })"),
         ContainsSubstring(
-            R"("order" has the value "HIGHERISBETTER", which is not one of the values 0 or 1)"
+            R"("order" has the string "HIGHERISBETTER", which is not one of the values 0 or 1)"
         )
     );
-    CHECK_THROWS_WITH(load(R"({ "order": { "value": "1.5" } })"), ContainsSubstring(R"("order")"));
-    CHECK_THROWS_WITH(load(R"({ "order": { "value": "7" } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": 1.5 } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": 7 } })"), ContainsSubstring(R"("order")"));
+    CHECK_THROWS_WITH(load(R"({ "order": { "value": "1" } })"), ContainsSubstring(R"("order")"));
     CHECK_THROWS_WITH(
         load(R"({ "dims": { "value": 0 } })"),
         ContainsSubstring(R"(which is not one of the values 1, 2, 3 or 4)")
@@ -1523,7 +1564,7 @@ TEST_CASE(
         ContainsSubstring(R"("count" has the value "-1", which is not an integer >= 0)")
     );
     CHECK_THROWS_WITH(
-        load(R"({ "sizes": { "value": [2, " -1"] } })"),
+        load(R"({ "sizes": { "value": [2, -1] } })"),
         ContainsSubstring(R"("sizes")")
     );
     CHECK_THROWS_WITH(
@@ -1533,7 +1574,7 @@ TEST_CASE(
     CHECK(order == Gem::Common::sortOrder::LOWERISBETTER);
     CHECK(count == 1);
 
-    load(R"({ "order": { "value": "1" }, "dims": { "value": 4 }, "count": { "value": 4294967295 },
+    load(R"({ "order": { "value": 1 }, "dims": { "value": 4 }, "count": { "value": 4294967295 },
               "sizes": { "value": [0, 3] }, "small": { "value": 255 } })");
     CHECK(order == Gem::Common::sortOrder::HIGHERISBETTER);
     CHECK(dims == Gem::Common::dimensions::Dim4);

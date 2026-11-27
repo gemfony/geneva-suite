@@ -132,6 +132,13 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **Configuration files are now strict, standard JSON** (previously Boost.PropertyTree /
   XML). Boost.PropertyTree has been removed from Geneva entirely; the individual→tree
   dump moved to JSON as well. Configs use native JSON scalars (numbers, booleans).
+- **A number in quotes is refused.** A number, a boolean or an enumeration that is written as
+  a number (`cp_ser_mode`, `sorting_method`, `maxmode`, ...) is written without quotes,
+  `"value": 5`; the reader no longer takes `"value": "5"`, the all-strings form of older files,
+  as the number 5, but refuses it with a message that names the key and what is expected.
+  Enumerations were written in quotes until now: a configuration file written by an earlier
+  version is rewritten with `--update-configs` after the quotes around its numbers are removed,
+  or created anew.
 - **The external-evaluation protocol was rewritten** (a breaking change for external
   evaluators; the bundled `evaluator.py` was rewritten to match).
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
