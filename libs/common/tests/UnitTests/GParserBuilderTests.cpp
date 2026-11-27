@@ -85,8 +85,12 @@ public:
         }
         pointers_.push_back(nullptr);
     }
-    [[nodiscard]] int argc() const { return static_cast<int>(args_.size()); }
-    [[nodiscard]] char **argv() { return pointers_.data(); }
+    [[nodiscard]] int argc() const {
+        return static_cast<int>(args_.size());
+    }
+    [[nodiscard]] char **argv() {
+        return pointers_.data();
+    }
 
 private:
     std::vector<std::string> args_;
@@ -97,13 +101,18 @@ private:
 class CoutCapture {
 public:
     CoutCapture()
-      : old_(std::cout.rdbuf(captured_.rdbuf())) {}
-    ~CoutCapture() { std::cout.rdbuf(old_); }
+      : old_(std::cout.rdbuf(captured_.rdbuf())) {
+    }
+    ~CoutCapture() {
+        std::cout.rdbuf(old_);
+    }
     CoutCapture(CoutCapture const &) = delete;
     CoutCapture(CoutCapture &&) = delete;
     CoutCapture &operator=(CoutCapture const &) = delete;
     CoutCapture &operator=(CoutCapture &&) = delete;
-    [[nodiscard]] std::string text() const { return captured_.str(); }
+    [[nodiscard]] std::string text() const {
+        return captured_.str();
+    }
 
 private:
     std::ostringstream captured_;
@@ -973,10 +982,8 @@ TEST_CASE(
     // Hand-write a config whose vector "value" is a 4-element JSON array of non-default values.
     {
         json::object t;
-        t["vec"] = json::object{
-            {"default", json::array{1, 1, 1, 1}},
-            {"value", json::array{7, 8, 9, 10}}
-        };
+        t["vec"] =
+            json::object{{"default", json::array{1, 1, 1, 1}}, {"value", json::array{7, 8, 9, 10}}};
         Gem::Common::writeJsonFile(cfg, json::value(std::move(t)));
     }
 
@@ -1236,7 +1243,8 @@ TEST_CASE(
     GParserBuilder::setCheckUnknownKeys(false);
     GParserBuilder::setUnknownKeyIsError(true);
     const bool all_set = GParserBuilder::updateInPlace() && not GParserBuilder::emitTimestamp() &&
-                         not GParserBuilder::checkUnknownKeys() && GParserBuilder::unknownKeyIsError();
+                         not GParserBuilder::checkUnknownKeys() &&
+                         GParserBuilder::unknownKeyIsError();
 
     GParserBuilder::resetProcessSettings();
     CHECK(all_set);
@@ -1688,7 +1696,8 @@ TEST_CASE(
         "Global algorithm- and consumer-options",
         "Hidden algorithm- and consumer-options"
     );
-    gpb.registerCLParameter<int>("eaMaxIterations", max_iterations, 0, "the iterations").setHidden();
+    gpb.registerCLParameter<int>("eaMaxIterations", max_iterations, 0, "the iterations")
+        .setHidden();
     gpb.registerCLParameter<int>("port", port, 10000, "the port");
 
     // GOptimizer's construction (GOptimizer::parseCommandLine(),
@@ -1834,7 +1843,9 @@ namespace {
 /** Restores the process-wide switches of GParserBuilder when it goes out of scope */
 struct GProcessSettingsGuard {
     GProcessSettingsGuard() = default;
-    ~GProcessSettingsGuard() { GParserBuilder::resetProcessSettings(); }
+    ~GProcessSettingsGuard() {
+        GParserBuilder::resetProcessSettings();
+    }
     GProcessSettingsGuard(GProcessSettingsGuard const &) = delete;
     GProcessSettingsGuard(GProcessSettingsGuard &&) = delete;
     GProcessSettingsGuard &operator=(GProcessSettingsGuard const &) = delete;
@@ -2116,7 +2127,15 @@ TEST_CASE(
 
     // Options registered later (--consumer with its value, --port), --help: ignored, no output
     Argv args(
-        {"--consumer", "mpi", "-m", "a.so", "--port=3", "--individual", "x.so", "--help", "--module=b.so"}
+        {"--consumer",
+         "mpi",
+         "-m",
+         "a.so",
+         "--port=3",
+         "--individual",
+         "x.so",
+         "--help",
+         "--module=b.so"}
     );
     {
         CoutCapture capture;

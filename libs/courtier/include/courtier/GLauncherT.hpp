@@ -59,9 +59,9 @@
 #include "common/GConfigEmission.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
+#include "common/GLogger.hpp"
 #include "common/GModuleLoader.hpp"
 #include "common/GParserBuilder.hpp"
-#include "common/GLogger.hpp"
 #include "common/GStopRequest.hpp"
 #include "common/record/GRecorder.hpp" // --recordDir, closeAll() at the end of run()
 #include "courtier/GBaseClientT.hpp"
@@ -482,13 +482,13 @@ private:
     std::string cl_consumer_;               ///< --consumer
     std::vector<std::string> cl_modules_;   ///< --module
     bool cl_client_ = false;                ///< --client
-    bool cl_update_configs_ = false;     ///< --update-configs (read by configEmissionRequested())
-    std::string cl_max_client_duration_; ///< --max_client_duration
-    std::size_t cl_wait_for_clients_ = 0;                        ///< --waitForClients
+    bool cl_update_configs_ = false;      ///< --update-configs (read by configEmissionRequested())
+    std::string cl_max_client_duration_;  ///< --max_client_duration
+    std::size_t cl_wait_for_clients_ = 0; ///< --waitForClients
     std::size_t cl_client_wait_limit_ = GDEFAULTCLIENTWAITLIMIT; ///< --clientWaitLimit
     std::string cl_record_dir_;                                  ///< --recordDir
-    std::string mnemonic_;               ///< The chosen consumer
-    processRole role_ = processRole::SUBMITTER; ///< The role of this process
+    std::string mnemonic_;                                       ///< The chosen consumer
+    processRole role_ = processRole::SUBMITTER;                  ///< The role of this process
 };
 
 /******************************************************************************/
@@ -562,7 +562,8 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
         "recordDir",
         cl_record_dir_,
         Gem::Common::Record::recorder().directory().string(),
-        "The directory into which the streams of the recorder write their files (Gem::Common::Record), "
+        "The directory into which the streams of the recorder write their files "
+        "(Gem::Common::Record), "
         "created when needed; in it, a networked consumer's end-of-run report courtier.csv"
     );
     std::vector<GConsumerProviderPtrT<processable_type>> providers =

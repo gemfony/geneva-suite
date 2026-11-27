@@ -1135,12 +1135,14 @@ GCLParsableI &GParserBuilder::registerCLFlag(
     std::string const &comment
 ) {
     checkNotRegistered_(option_name, cl_parameter_proxies_);
-    return addCLProxy_(std::make_shared<GCLSemanticParsableParameter>(
-        option_name,
-        comment,
-        [&flag] { return boost::program_options::bool_switch(&flag); },
-        [&flag] { return std::string(flag ? "true" : "false"); }
-    ));
+    return addCLProxy_(
+        std::make_shared<GCLSemanticParsableParameter>(
+            option_name,
+            comment,
+            [&flag] { return boost::program_options::bool_switch(&flag); },
+            [&flag] { return std::string(flag ? "true" : "false"); }
+        )
+    );
 }
 
 /******************************************************************************/
@@ -1188,13 +1190,18 @@ void GParserBuilder::describeCLOptions_(
         po::options_description &target = under_usage ? desc : listed;
 
         if(0 == pos and with_help) {
-            target.add_options()("help,h", "Emit help message")("showAll", "Show all available options");
+            target.add_options()("help,h", "Emit help message")(
+                "showAll",
+                "Show all available options"
+            );
         }
         for(auto const &p_ptr : cl_parameter_proxies_) {
             if(p_ptr->section_ != pos or (p_ptr->hidden_ and not show_all)) {
                 continue;
             }
-            p_ptr->save_to((p_ptr->hidden_ and not section.hiddenCaption.empty()) ? hidden : target);
+            p_ptr->save_to(
+                (p_ptr->hidden_ and not section.hiddenCaption.empty()) ? hidden : target
+            );
         }
 
         if(not under_usage and not listed.options().empty()) {

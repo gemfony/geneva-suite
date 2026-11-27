@@ -133,8 +133,9 @@ public:
     }
     Fault evaluate(const GGenome &item, Gem::Hap::GRandomBase & /*gr*/) override {
         const auto traits = std::dynamic_pointer_cast<
-            Gem::Geneva::OptimizationAlgorithms::GSwarmAlgorithm_PersonalityTraits
-        >(item.scratch().personalityRef());
+            Gem::Geneva::OptimizationAlgorithms::GSwarmAlgorithm_PersonalityTraits>(
+            item.scratch().personalityRef()
+        );
         if(traits && traits->getNeighborhood() == neighborhood_ &&
            item.getAssignedIteration() == iteration_) {
             n_failed_.fetch_add(1);

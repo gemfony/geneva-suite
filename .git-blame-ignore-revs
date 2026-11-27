@@ -1,2 +1,5 @@
 # The tree-wide clang-format pass: layout only, no change of behaviour.
 487d5d150e3d1cee5901a96cfa0dd41a07e2ca1d
+
+# The format commit that brought new code back to .clang-format (LLVM 23.1.6): layout only.
+2770f9bc9b6562c2720afb21defda8de33c2479a

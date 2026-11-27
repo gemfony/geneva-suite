@@ -457,8 +457,8 @@ TEST_CASE(
     "[geneva][individuals]"
 ) {
     auto const previous = std::filesystem::current_path();
-    auto const scratch =
-        std::filesystem::temp_directory_path() / ("gem_exchange_names_" + Gem::Common::generate_uuid_v4());
+    auto const scratch = std::filesystem::temp_directory_path() /
+                         ("gem_exchange_names_" + Gem::Common::generate_uuid_v4());
     std::filesystem::create_directories(scratch);
     std::filesystem::current_path(scratch);
 
@@ -473,7 +473,9 @@ TEST_CASE(
             try {
                 ind.process();
             }
-            catch(...) { // the failing program flags the individual; only the file names matter here
+            catch(
+                ...
+            ) { // the failing program flags the individual; only the file names matter here
             }
         }
         std::string const address = Gem::Common::to_string(&ind);

@@ -53,8 +53,8 @@
 
 // Geneva headers
 #include "common/GBuildFingerprint.hpp" // GEM_BUILD_FINGERPRINT
-#include "common/GModuleManifest.hpp" // GemContribution / GemModuleManifest / version string
-#include "geneva/GMarshallerPlugin.hpp"         // GMarshallerProviderPtr, its kind
+#include "common/GModuleManifest.hpp"   // GemContribution / GemModuleManifest / version string
+#include "geneva/GMarshallerPlugin.hpp" // GMarshallerProviderPtr, its kind
 #include "geneva/genome/GIndividualFactory.hpp" // Gem::Geneva::Genome::GIndividualFactory<>
 #include "geneva/genome/GIndividualPlugin.hpp"  // GIndividualFactoryPtr, its kind
 

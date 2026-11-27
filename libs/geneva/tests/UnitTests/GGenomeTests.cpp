@@ -2753,7 +2753,9 @@ TEST_CASE(
     REQUIRE(contribution.make_factory != nullptr);
     void *raw = contribution.make_factory();
     REQUIRE(raw != nullptr);
-    const std::unique_ptr<GMarshallerProviderPtr> holder(static_cast<GMarshallerProviderPtr *>(raw));
+    const std::unique_ptr<GMarshallerProviderPtr> holder(
+        static_cast<GMarshallerProviderPtr *>(raw)
+    );
     GMarshallerProviderPtr provider = std::move(*holder);
     REQUIRE(provider);
     CHECK(provider->getMnemonic() == "cuda");

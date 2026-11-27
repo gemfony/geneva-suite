@@ -97,7 +97,9 @@ public:
         return *this;
     }
     /** @brief Whether this option is listed only under --showAll */
-    [[nodiscard]] bool isHidden() const { return hidden_; }
+    [[nodiscard]] bool isHidden() const {
+        return hidden_;
+    }
 
 protected:
     /** @brief Registers this option with a Boost.ProgramOptions options description
@@ -109,8 +111,9 @@ protected:
     [[nodiscard]] virtual std::string content() const = 0;
 
 private:
-    bool hidden_ = false;     ///< Whether --help leaves this option out (--showAll lists it)
-    std::size_t section_ = 0; ///< The section of the help text it is listed in (GParserBuilder::beginCLSection())
+    bool hidden_ = false; ///< Whether --help leaves this option out (--showAll lists it)
+    std::size_t section_ =
+        0; ///< The section of the help text it is listed in (GParserBuilder::beginCLSection())
 };
 
 /******************************************************************************/
@@ -241,7 +244,11 @@ public:
 private:
     /** @brief Registers this option with a Boost.ProgramOptions options description */
     void save_to(boost::program_options::options_description &desc) const override {
-        desc.add_options()((this->optionName()).c_str(), make_semantic_(), (this->comment()).c_str());
+        desc.add_options()(
+            (this->optionName()).c_str(),
+            make_semantic_(),
+            (this->comment()).c_str()
+        );
     }
     /** @brief Returns the option's name and value as a std::string */
     [[nodiscard]] std::string content() const override {
@@ -273,23 +280,25 @@ GCLParsableI &GParserBuilder::registerCLRepeatableParameter(
 ) {
     checkNotRegistered_(option_name, cl_parameter_proxies_);
     namespace po = boost::program_options;
-    return addCLProxy_(std::make_shared<GCLSemanticParsableParameter>(
-        option_name,
-        comment,
-        [&values] {
-            return po::value<std::vector<parameter_type>>(&values)->default_value(
-                std::vector<parameter_type>{},
-                "" // No text for the empty default in the help
-            );
-        },
-        [&values] {
-            std::ostringstream text;
-            for(auto const &value : values) {
-                text << value << ' ';
+    return addCLProxy_(
+        std::make_shared<GCLSemanticParsableParameter>(
+            option_name,
+            comment,
+            [&values] {
+                return po::value<std::vector<parameter_type>>(&values)->default_value(
+                    std::vector<parameter_type>{},
+                    "" // No text for the empty default in the help
+                );
+            },
+            [&values] {
+                std::ostringstream text;
+                for(auto const &value : values) {
+                    text << value << ' ';
+                }
+                return text.str();
             }
-            return text.str();
-        }
-    ));
+        )
+    );
 }
 
 /******************************************************************************/

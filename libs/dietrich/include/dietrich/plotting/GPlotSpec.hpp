@@ -45,7 +45,7 @@
 #include <boost/json/array.hpp>
 #include <boost/json/object.hpp>
 
-#include "common/GJsonIO.hpp" // prettyPrintJson()
+#include "common/GJsonIO.hpp"               // prettyPrintJson()
 #include "dietrich/plotting/GPlotEnums.hpp" // graphPlotMode, surfaceProjection, legendPosition
 
 namespace Gem::Dietrich {

@@ -384,7 +384,9 @@ public:
     }
 
     /** @brief The text --help prints: the usage line and the options --help lists */
-    [[nodiscard]] std::string const &usage() const noexcept { return usage_; }
+    [[nodiscard]] std::string const &usage() const noexcept {
+        return usage_;
+    }
 
 private:
     std::string usage_; ///< The text --help prints
@@ -1815,14 +1817,16 @@ public:
     ) {
         checkNotRegistered_(option_name, cl_parameter_proxies_);
 
-        return addCLProxy_(std::make_shared<GCLReferenceParsableParameterT<parameter_type>>(
-            parameter,
-            option_name,
-            comment,
-            def_val,
-            implicit_allowed,
-            impl_val
-        ));
+        return addCLProxy_(
+            std::make_shared<GCLReferenceParsableParameterT<parameter_type>>(
+                parameter,
+                option_name,
+                comment,
+                def_val,
+                implicit_allowed,
+                impl_val
+            )
+        );
     }
 
     /***************************************************************************/
@@ -1905,8 +1909,9 @@ private:
             "The configuration-file key \"",
             top_level_key,
             "\" is already taken",
-            is_header ? " by the header of the file"
-                      : " by another parameter (a parameter name or the label of a combined parameter)"
+            is_header
+                ? " by the header of the file"
+                : " by another parameter (a parameter name or the label of a combined parameter)"
         );
     }
 
@@ -1925,8 +1930,9 @@ private:
 
     /** A section of the help text (beginCLSection()) */
     struct CLSection {
-        std::string caption;       ///< The heading of the options --help lists
-        std::string hiddenCaption; ///< The heading of the hidden options; empty: listed under caption
+        std::string caption; ///< The heading of the options --help lists
+        std::string
+            hiddenCaption; ///< The heading of the hidden options; empty: listed under caption
     };
     std::vector<CLSection>
         cl_sections_; ///< The sections of the help text, in the order they were begun

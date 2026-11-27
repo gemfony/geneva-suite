@@ -319,7 +319,8 @@ namespace {
 /** @brief A mapped value without a default constructor. */
 struct NoDefault {
     explicit NoDefault(int v)
-      : value(v) { /* nothing */ }
+      : value(v) { /* nothing */
+    }
     int value;
 };
 } // namespace

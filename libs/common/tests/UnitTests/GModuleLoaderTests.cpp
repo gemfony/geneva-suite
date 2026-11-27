@@ -245,7 +245,9 @@ TEST_CASE(
              .take = {}},
         }};
         const std::string msg = rejectionMessage(noSuchModule(), handlers);
-        CHECK(mentions(msg, "The handler for kind \"test.first\" (first thing) has no take function."));
+        CHECK(
+            mentions(msg, "The handler for kind \"test.first\" (first thing) has no take function.")
+        );
         CHECK_FALSE(mentions(msg, "Could not load the module"));
     }
 

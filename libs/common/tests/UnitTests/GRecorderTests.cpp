@@ -39,8 +39,8 @@
 #include <map>
 #include <memory>
 #include <span>
-#include <stdexcept>
 #include <sstream>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -65,8 +65,11 @@ namespace {
 class ScratchDirectory {
 public:
     explicit ScratchDirectory(std::string const &tag)
-      : dir_(std::filesystem::temp_directory_path() / "gem_record_tests" /
-             (tag + "_" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))) {
+      : dir_(
+            std::filesystem::temp_directory_path() / "gem_record_tests" /
+            (tag + "_" +
+             std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()))
+        ) {
         recorder().setDirectory(dir_);
     }
     ScratchDirectory(ScratchDirectory const &) = delete;
@@ -76,8 +79,12 @@ public:
         std::error_code ec;
         std::filesystem::remove_all(dir_, ec);
     }
-    operator std::filesystem::path const &() const { return dir_; }
-    std::filesystem::path operator/(std::string const &name) const { return dir_ / name; }
+    operator std::filesystem::path const &() const {
+        return dir_;
+    }
+    std::filesystem::path operator/(std::string const &name) const {
+        return dir_ / name;
+    }
 
 private:
     std::filesystem::path dir_;
@@ -139,15 +146,24 @@ std::size_t backupsOf(std::filesystem::path const &file) {
 // something that is none
 class ProbeSink final : public GSink {
 public:
-    enum class FailIn { NOWHERE, OPEN, CLOSE };
+    enum class FailIn {
+        NOWHERE,
+        OPEN,
+        CLOSE
+    };
     explicit ProbeSink(FailIn fail = FailIn::NOWHERE, bool foreign = false)
       : fail_(fail)
-      , foreign_(foreign) {}
-    void open(GStreamInfo const &) override { this->note_("open", FailIn::OPEN); }
+      , foreign_(foreign) {
+    }
+    void open(GStreamInfo const &) override {
+        this->note_("open", FailIn::OPEN);
+    }
     void write(std::span<GRow const> rows) override {
         calls.push_back("write " + std::to_string(rows.size()));
     }
-    void close() override { this->note_("close", FailIn::CLOSE); }
+    void close() override {
+        this->note_("close", FailIn::CLOSE);
+    }
 
     std::vector<std::string> calls; ///< The calls, in their order
 
@@ -177,21 +193,27 @@ GTimeStamp parseTimeStamp(std::string const &text) {
 
 /******************************************************************************/
 
-TEST_CASE("every column type goes through both sinks and reads back unchanged", "[common][record]") {
+TEST_CASE(
+    "every column type goes through both sinks and reads back unchanged",
+    "[common][record]"
+) {
     ScratchDirectory const dir("roundtrip");
     const GTimeStamp stamp = std::chrono::system_clock::now();
     const std::string text = "a \"quoted\", text\twith tab";
     const double value = 0.1 + 0.2; // no short decimal form
     {
-        auto csv = recorder().stream<std::int32_t, std::uint64_t, double, bool, std::string, GTimeStamp>(
-            "roundtrip", {"i", "u", "d", "b", "s", "t"}
-        );
-        auto json = recorder().stream<std::int32_t, std::uint64_t, double, bool, std::string, GTimeStamp>(
-            "roundtrip_json",
-            {"i", "u", "d", "b", "s", "t"},
-            withTime::none,
-            GStreamOptions{.sinks = {std::make_shared<GJsonLinesSink>()}}
-        );
+        auto csv =
+            recorder().stream<std::int32_t, std::uint64_t, double, bool, std::string, GTimeStamp>(
+                "roundtrip",
+                {"i", "u", "d", "b", "s", "t"}
+            );
+        auto json =
+            recorder().stream<std::int32_t, std::uint64_t, double, bool, std::string, GTimeStamp>(
+                "roundtrip_json",
+                {"i", "u", "d", "b", "s", "t"},
+                withTime::none,
+                GStreamOptions{.sinks = {std::make_shared<GJsonLinesSink>()}}
+            );
         csv.append(-7, std::numeric_limits<std::uint64_t>::max(), value, true, text, stamp);
         json.append(-7, std::numeric_limits<std::uint64_t>::max(), value, true, text, stamp);
         csv.append(0, 0, std::numeric_limits<double>::infinity(), false, "", stamp);
@@ -235,7 +257,10 @@ TEST_CASE("a value that is not finite is null in JSON Lines", "[common][record]"
     ScratchDirectory const dir("nan");
     {
         auto s = recorder().stream<double>(
-            "nan", {"d"}, withTime::none, GStreamOptions{.sinks = {std::make_shared<GJsonLinesSink>()}}
+            "nan",
+            {"d"},
+            withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<GJsonLinesSink>()}}
         );
         s.append(std::nan(""));
     }
@@ -246,7 +271,8 @@ TEST_CASE("a stream with columns given at run time checks each row", "[common][r
     ScratchDirectory const dir("runtime");
     auto s = recorder().stream(
         "runtime",
-        {GColumn{.name = "x", .type = columnType::FLOATING}, GColumn{.name = "n", .type = columnType::UNSIGNED}}
+        {GColumn{.name = "x", .type = columnType::FLOATING},
+         GColumn{.name = "n", .type = columnType::UNSIGNED}}
     );
     s.append(GRow{1.5, std::uint64_t{3}});
     CHECK_THROWS_AS(s.append(GRow{1.5}), Gem::Common::gem_exception);
@@ -259,7 +285,8 @@ TEST_CASE("a stream with columns given at run time checks each row", "[common][r
 TEST_CASE("the time column comes first: of the wall or the steady clock", "[common][record]") {
     ScratchDirectory const dir("time");
     {
-        auto wall = recorder().stream<std::string, double>("quotes", {"symbol", "price"}, withTime::wall);
+        auto wall =
+            recorder().stream<std::string, double>("quotes", {"symbol", "price"}, withTime::wall);
         auto steady = recorder().stream<int>("ticks", {"n"}, withTime::steady);
         CHECK(wall.isOpen());
         const auto before = std::chrono::system_clock::now();
@@ -283,7 +310,10 @@ TEST_CASE("the time column comes first: of the wall or the steady clock", "[comm
     );
 }
 
-TEST_CASE("a second open stream of a name is refused and both declarers are named", "[common][record]") {
+TEST_CASE(
+    "a second open stream of a name is refused and both declarers are named",
+    "[common][record]"
+) {
     ScratchDirectory const dir("duplicate");
     auto first = recorder().stream<int>("twice", {"n"});
     try {
@@ -292,7 +322,10 @@ TEST_CASE("a second open stream of a name is refused and both declarers are name
     }
     catch(Gem::Common::gem_exception const &e) {
         const std::string what = e.what();
-        CHECK_THAT(what, Catch::Matchers::ContainsSubstring("GRecorderTests.cpp", Catch::CaseSensitive::No));
+        CHECK_THAT(
+            what,
+            Catch::Matchers::ContainsSubstring("GRecorderTests.cpp", Catch::CaseSensitive::No)
+        );
         CHECK(what.find("GRecorderTests.cpp") != what.rfind("GRecorderTests.cpp")); // named twice
         CHECK_THAT(what, Catch::Matchers::ContainsSubstring("two objects of one class"));
     }
@@ -318,7 +351,10 @@ TEST_CASE("an existing file is backed up at the first write and not before", "[c
     CHECK(linesOf(dir / "kept.csv") == std::vector<std::string>{"n", "1"});
 }
 
-TEST_CASE("a resuming stream appends when its columns match and else starts anew", "[common][record]") {
+TEST_CASE(
+    "a resuming stream appends when its columns match and else starts anew",
+    "[common][record]"
+) {
     ScratchDirectory const dir("resume");
     for(bool const json : {false, true}) {
         auto const sinks = [json]() {
@@ -327,12 +363,17 @@ TEST_CASE("a resuming stream appends when its columns match and else starts anew
         };
         auto const file = dir / (json ? "run.jsonl" : "run.csv");
         {
-            auto s = recorder().stream<int>("run", {"n"}, withTime::none, GStreamOptions{.sinks = sinks()});
+            auto s =
+                recorder()
+                    .stream<int>("run", {"n"}, withTime::none, GStreamOptions{.sinks = sinks()});
             s.append(1);
         }
         {
             auto s = recorder().stream<int>(
-                "run", {"n"}, withTime::none, GStreamOptions{.sinks = sinks(), .resume = true}
+                "run",
+                {"n"},
+                withTime::none,
+                GStreamOptions{.sinks = sinks(), .resume = true}
             );
             s.append(2);
         }
@@ -340,7 +381,10 @@ TEST_CASE("a resuming stream appends when its columns match and else starts anew
         CHECK(linesOf(file).size() == (json ? 2 : 3));
         {
             auto s = recorder().stream<int, int>(
-                "run", {"n", "m"}, withTime::none, GStreamOptions{.sinks = sinks(), .resume = true}
+                "run",
+                {"n", "m"},
+                withTime::none,
+                GStreamOptions{.sinks = sinks(), .resume = true}
             );
             s.append(3, 4);
         }
@@ -362,7 +406,10 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
         auto const file = dir / (json ? "cut.jsonl" : "cut.csv");
         {
             auto s = recorder().stream<std::uint64_t, std::string>(
-                "cut", {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks()}
+                "cut",
+                {"n", "note"},
+                withTime::none,
+                GStreamOptions{.sinks = sinks()}
             );
             for(std::uint64_t n = 0; n < 5; ++n) {
                 s.append(n, "earlier");
@@ -377,7 +424,10 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
                 {"n", "note"},
                 withTime::none,
                 GStreamOptions{
-                    .sinks = sinks(), .resume = true, .resumeColumn = "n", .resumeAfter = 2.
+                    .sinks = sinks(),
+                    .resume = true,
+                    .resumeColumn = "n",
+                    .resumeAfter = 2.
                 }
             );
             s.append(3, "resumed");
@@ -386,19 +436,23 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
         const auto lines = linesOf(file);
         if(json) {
             CHECK(
-                lines ==
-                std::vector<std::string>{
-                    R"({"n":0,"note":"earlier"})",
-                    R"({"n":1,"note":"earlier"})",
-                    R"({"n":2,"note":"earlier"})",
-                    R"({"n":3,"note":"resumed"})"
-                }
+                lines == std::vector<std::string>{
+                             R"({"n":0,"note":"earlier"})",
+                             R"({"n":1,"note":"earlier"})",
+                             R"({"n":2,"note":"earlier"})",
+                             R"({"n":3,"note":"resumed"})"
+                         }
             );
         }
         else {
             CHECK(
-                lines ==
-                std::vector<std::string>{"n,note", "0,earlier", "1,earlier", "2,earlier", "3,resumed"}
+                lines == std::vector<std::string>{
+                             "n,note",
+                             "0,earlier",
+                             "1,earlier",
+                             "2,earlier",
+                             "3,resumed"
+                         }
             );
         }
     }
@@ -423,7 +477,10 @@ TEST_CASE("a resuming stream first cuts its file back to the checkpoint", "[comm
     );
 }
 
-TEST_CASE("a resuming stream without a resumeColumn removes a last row cut by a crash", "[common][record]") {
+TEST_CASE(
+    "a resuming stream without a resumeColumn removes a last row cut by a crash",
+    "[common][record]"
+) {
     // A row without its final line break is never data: the resumed stream drops it before it
     // appends, also where the cut lies in a CSV text of several lines, and keeps every whole row
     ScratchDirectory const dir("torn");
@@ -443,7 +500,10 @@ TEST_CASE("a resuming stream without a resumeColumn removes a last row cut by a 
         auto const file = dir / (c.name + (c.json ? ".jsonl" : ".csv"));
         {
             auto s = recorder().stream<std::uint64_t, std::string>(
-                c.name, {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks()}
+                c.name,
+                {"n", "note"},
+                withTime::none,
+                GStreamOptions{.sinks = sinks()}
             );
             s.append(0, "earlier");
             s.append(1, "two\nlines");
@@ -453,17 +513,21 @@ TEST_CASE("a resuming stream without a resumeColumn removes a last row cut by a 
         }
         {
             auto s = recorder().stream<std::uint64_t, std::string>(
-                c.name, {"n", "note"}, withTime::none, GStreamOptions{.sinks = sinks(), .resume = true}
+                c.name,
+                {"n", "note"},
+                withTime::none,
+                GStreamOptions{.sinks = sinks(), .resume = true}
             );
             s.append(3, "resumed");
         }
         CHECK(backupsOf(file) == 0);
         if(c.json) {
             CHECK(
-                linesOf(file) ==
-                std::vector<std::string>{
-                    R"({"n":0,"note":"earlier"})", R"({"n":1,"note":"two\nlines"})", R"({"n":3,"note":"resumed"})"
-                }
+                linesOf(file) == std::vector<std::string>{
+                                     R"({"n":0,"note":"earlier"})",
+                                     R"({"n":1,"note":"two\nlines"})",
+                                     R"({"n":3,"note":"resumed"})"
+                                 }
             );
         }
         else {
@@ -472,13 +536,20 @@ TEST_CASE("a resuming stream without a resumeColumn removes a last row cut by a 
                     file,
                     {GColumn{.name = "n", .type = columnType::UNSIGNED},
                      GColumn{.name = "note", .type = columnType::TEXT}}
-                ) == std::vector<std::vector<std::string>>{{"0", "earlier"}, {"1", "two\nlines"}, {"3", "resumed"}}
+                ) == std::vector<std::vector<std::string>>{
+                         {"0", "earlier"},
+                         {"1", "two\nlines"},
+                         {"3", "resumed"}
+                     }
             );
         }
     }
 }
 
-TEST_CASE("a CSV row whose text spans several lines survives a resume and reads back whole", "[common][record]") {
+TEST_CASE(
+    "a CSV row whose text spans several lines survives a resume and reads back whole",
+    "[common][record]"
+) {
     // A text with a line break is written in quotes over several lines of the file (RFC 4180).
     // Cutting the file back and readRows() read such a row as one record, not line by line.
     ScratchDirectory const dir("multiline");
@@ -488,7 +559,11 @@ TEST_CASE("a CSV row whose text spans several lines survives a resume and reads 
     };
     const std::string tricky = "he said \"x, y\"\r\nand left\n";
     auto const options = [](bool resume) {
-        return GStreamOptions{.resume = resume, .resumeColumn = resume ? "n" : "", .resumeAfter = 2.};
+        return GStreamOptions{
+            .resume = resume,
+            .resumeColumn = resume ? "n" : "",
+            .resumeAfter = 2.
+        };
     };
     {
         auto s = recorder().stream("multiline", columns, withTime::none, options(false));
@@ -506,14 +581,18 @@ TEST_CASE("a CSV row whose text spans several lines survives a resume and reads 
     REQUIRE(rows);
     CHECK(
         *rows == std::vector<std::vector<std::string>>{
-                     {"0", "a\nb"}, {"1", tricky}, {"2", "plain"}, {"3", "resumed"}
+                     {"0", "a\nb"},
+                     {"1", tricky},
+                     {"2", "plain"},
+                     {"3", "resumed"}
                  }
     );
 
     // A column name with a line break makes a header of several lines: still the stream's own
     const std::vector<GColumn> named{GColumn{.name = "two\nlines", .type = columnType::INTEGER}};
     for(bool const resume : {false, true}) {
-        auto s = recorder().stream("header", named, withTime::none, GStreamOptions{.resume = resume});
+        auto s =
+            recorder().stream("header", named, withTime::none, GStreamOptions{.resume = resume});
         s.append(GRow{std::int64_t{resume ? 2 : 1}});
     }
     CHECK(backupsOf(dir / "header.csv") == 0);
@@ -523,11 +602,15 @@ TEST_CASE("a CSV row whose text spans several lines survives a resume and reads 
     );
 }
 
-TEST_CASE("GCsvSink::readRows() returns the complete rows of a file written for its columns", "[common][record]") {
+TEST_CASE(
+    "GCsvSink::readRows() returns the complete rows of a file written for its columns",
+    "[common][record]"
+) {
     ScratchDirectory const dir("readrows");
     std::filesystem::create_directories(dir / "");
     const std::vector<GColumn> columns{
-        GColumn{.name = "n", .type = columnType::INTEGER}, GColumn{.name = "note", .type = columnType::TEXT}
+        GColumn{.name = "n", .type = columnType::INTEGER},
+        GColumn{.name = "note", .type = columnType::TEXT}
     };
     {
         // A row with a missing field and a last row cut by a crash -- with the right number of
@@ -553,7 +636,10 @@ TEST_CASE("GCsvSink::readRows() returns the complete rows of a file written for 
     CHECK(none->empty());
 }
 
-TEST_CASE("a stream whose sink fails to open takes no further row and closes only the sinks it opened", "[common][record]") {
+TEST_CASE(
+    "a stream whose sink fails to open takes no further row and closes only the sinks it opened",
+    "[common][record]"
+) {
     // The GSink contract: write() and close() only after open(); close() also when open() threw
     ScratchDirectory const dir("failopen");
     auto const first = std::make_shared<ProbeSink>();
@@ -579,7 +665,10 @@ TEST_CASE("a stream whose sink fails to open takes no further row and closes onl
     CHECK(third->calls.empty());
 }
 
-TEST_CASE("a sink that throws no std::exception is reported by the handle and by closeAll()", "[common][record]") {
+TEST_CASE(
+    "a sink that throws no std::exception is reported by the handle and by closeAll()",
+    "[common][record]"
+) {
     // The handle's end and its move assignment do not throw, and closeAll() reports through the log
     ScratchDirectory const dir("foreign_exception");
     std::vector<GColumn> const columns{GColumn{.name = "n", .type = columnType::INTEGER}};
@@ -606,12 +695,17 @@ TEST_CASE("a sink that throws no std::exception is reported by the handle and by
     }
 }
 
-TEST_CASE("a stream whose close fails ends no program when its report fails as well", "[common][record]") {
+TEST_CASE(
+    "a stream whose close fails ends no program when its report fails as well",
+    "[common][record]"
+) {
     // Regression: the report of a failed close went to the log from a function that does not throw
     // (the handle's move assignment and destructor); a log target that threw ended the program
     // through std::terminate()
     struct ThrowingTarget final : Gem::Common::GBaseLogTarget {
-        void log(std::string const &) const override { throw std::runtime_error("the log fails"); }
+        void log(std::string const &) const override {
+            throw std::runtime_error("the log fails");
+        }
         void logWithSource(std::string const &, std::string const &) const override {
             throw std::runtime_error("the log fails");
         }
@@ -637,7 +731,10 @@ TEST_CASE("a stream whose close fails ends no program when its report fails as w
     CHECK_FALSE(moved_onto.isOpen());
 }
 
-TEST_CASE("a handle moved onto an open stream closes that stream and takes over the other", "[common][record]") {
+TEST_CASE(
+    "a handle moved onto an open stream closes that stream and takes over the other",
+    "[common][record]"
+) {
     ScratchDirectory const dir("move");
     auto target = recorder().stream<int>("target", {"n"});
     auto source = recorder().stream<int>("source", {"n"});
@@ -647,7 +744,7 @@ TEST_CASE("a handle moved onto an open stream closes that stream and takes over 
     CHECK(target.name() == "source");
     CHECK(target.isOpen());
     CHECK_FALSE(source.isOpen()); // NOLINT(bugprone-use-after-move): a moved-from handle is empty
-    CHECK(source.name().empty());  // NOLINT(bugprone-use-after-move)
+    CHECK(source.name().empty()); // NOLINT(bugprone-use-after-move)
     CHECK(linesOf(dir / "target.csv") == std::vector<std::string>{"n", "1"});
     auto again = recorder().stream<int>("target", {"n"}); // its name is free again
     CHECK(again.isOpen());
@@ -687,7 +784,8 @@ TEST_CASE("a sink added by name joins the next declaration of that stream", "[co
 
 TEST_CASE("rows held back reach the file when the stream closes", "[common][record]") {
     ScratchDirectory const dir("flush");
-    auto s = recorder().stream<int>("held", {"n"}, withTime::none, GStreamOptions{.flushEvery = 100});
+    auto s =
+        recorder().stream<int>("held", {"n"}, withTime::none, GStreamOptions{.flushEvery = 100});
     s.append(1);
     s.append(2);
     CHECK(not std::filesystem::exists(dir / "held.csv"));
@@ -696,13 +794,19 @@ TEST_CASE("rows held back reach the file when the stream closes", "[common][reco
     CHECK(linesOf(dir / "held.csv") == std::vector<std::string>{"n", "1", "2"});
 }
 
-TEST_CASE("rows appended from several threads are whole and keep each thread's order", "[common][record]") {
+TEST_CASE(
+    "rows appended from several threads are whole and keep each thread's order",
+    "[common][record]"
+) {
     ScratchDirectory const dir("threads");
     constexpr int N_THREADS = 8;
     constexpr int N_ROWS = 500;
     {
         auto s = recorder().stream<int, int, std::string>(
-            "threads", {"thread", "row", "text"}, withTime::none, GStreamOptions{.flushEvery = 7}
+            "threads",
+            {"thread", "row", "text"},
+            withTime::none,
+            GStreamOptions{.flushEvery = 7}
         );
         std::vector<std::jthread> threads;
         for(int t = 0; t < N_THREADS; ++t) {
@@ -736,26 +840,33 @@ TEST_CASE("GTextSink: one row per line with the values separated by a space", "[
     ScratchDirectory const dir("text");
     {
         auto s = recorder().stream<std::uint64_t, double, bool, std::string>(
-            "plain", {"n", "x", "ok", "note"}, withTime::none,
-            GStreamOptions{.sinks = {std::make_shared<GTextSink>()}});
+            "plain",
+            {"n", "x", "ok", "note"},
+            withTime::none,
+            GStreamOptions{.sinks = {std::make_shared<GTextSink>()}}
+        );
         s.append(7, 2.5, true, "some text\n");
         s.append(8, 0.5, false, "");
     }
-    CHECK(linesOf(dir / "plain.log") == std::vector<std::string>{"7 2.5 true some text", "8 0.5 false"});
+    CHECK(
+        linesOf(dir / "plain.log") ==
+        std::vector<std::string>{"7 2.5 true some text", "8 0.5 false"}
+    );
     CHECK_FALSE(std::filesystem::exists(dir / "plain.csv")); // the sinks given replace the default
 }
 TEST_CASE("a handle tells its name and columns and an empty one has none", "[common][record]") {
     ScratchDirectory const dir("handle");
     auto s = recorder().stream(
-        "described", {GColumn{.name = "x", .type = columnType::FLOATING}}, withTime::wall
+        "described",
+        {GColumn{.name = "x", .type = columnType::FLOATING}},
+        withTime::wall
     );
     CHECK(s.name() == "described");
     CHECK(
-        s.columns() ==
-        std::vector<GColumn>{
-            GColumn{.name = "time", .type = columnType::TIMESTAMP},
-            GColumn{.name = "x", .type = columnType::FLOATING}
-        }
+        s.columns() == std::vector<GColumn>{
+                           GColumn{.name = "time", .type = columnType::TIMESTAMP},
+                           GColumn{.name = "x", .type = columnType::FLOATING}
+                       }
     );
     auto typed = recorder().stream<int>("typed", {"n"});
     CHECK(typed.name() == "typed");
@@ -772,7 +883,10 @@ TEST_CASE("a handle tells its name and columns and an empty one has none", "[com
     CHECK_THROWS_AS(empty_typed.append(1), Gem::Common::gem_exception);
 }
 
-TEST_CASE("a file sink names its file by the output rule and knows it once open", "[common][record]") {
+TEST_CASE(
+    "a file sink names its file by the output rule and knows it once open",
+    "[common][record]"
+) {
     ScratchDirectory const dir("paths");
     auto const csv = std::make_shared<GCsvSink>();
     GStreamInfo const info{.name = "where", .directory = dir};
@@ -780,7 +894,8 @@ TEST_CASE("a file sink names its file by the output rule and knows it once open"
     CHECK(GJsonLinesSink().fileFor(info) == dir / "where.jsonl");
     CHECK(GTextSink().fileFor(info) == dir / "where.log");
     {
-        auto s = recorder().stream<int>("where", {"n"}, withTime::none, GStreamOptions{.sinks = {csv}});
+        auto s =
+            recorder().stream<int>("where", {"n"}, withTime::none, GStreamOptions{.sinks = {csv}});
         CHECK(csv->path().empty()); // opened at the first write
         s.append(1);
         CHECK(csv->path() == dir / "where.csv");
@@ -808,8 +923,17 @@ TEST_CASE("the types of the values: typeOf() columnTypeOf() and toValue()", "[co
     CHECK(typeOf(GValue(std::string())) == columnType::TEXT);
     CHECK(typeOf(GValue(stamp)) == columnType::TIMESTAMP);
 
-    CHECK(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "a", .type = columnType::TEXT});
-    CHECK_FALSE(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "a", .type = columnType::BOOLEAN});
-    CHECK_FALSE(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "b", .type = columnType::TEXT});
+    CHECK(
+        GColumn{.name = "a", .type = columnType::TEXT} ==
+        GColumn{.name = "a", .type = columnType::TEXT}
+    );
+    CHECK_FALSE(
+        GColumn{.name = "a", .type = columnType::TEXT} ==
+        GColumn{.name = "a", .type = columnType::BOOLEAN}
+    );
+    CHECK_FALSE(
+        GColumn{.name = "a", .type = columnType::TEXT} ==
+        GColumn{.name = "b", .type = columnType::TEXT}
+    );
     CHECK(Gem::Common::enumName(columnType::TIMESTAMP) == "timestamp");
 }

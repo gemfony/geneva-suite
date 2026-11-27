@@ -97,11 +97,12 @@ private:
     /** @brief Adds the rows of the stream's CSV file that a resumed stream keeps */
     void plotEarlierRows_(Gem::Common::Record::GStreamInfo const &info);
 
-    GDataLog log_;                                ///< The plot
-    plotBackend backend_;                         ///< The backend it is written through
-    std::vector<std::vector<std::size_t>> feeds_; ///< Per series: the stream columns it is drawn from
-    std::filesystem::path path_;                  ///< The file
-    bool opened_ = false;                         ///< open() was called
+    GDataLog log_;        ///< The plot
+    plotBackend backend_; ///< The backend it is written through
+    std::vector<std::vector<std::size_t>>
+        feeds_;                  ///< Per series: the stream columns it is drawn from
+    std::filesystem::path path_; ///< The file
+    bool opened_ = false;        ///< open() was called
 };
 
 /******************************************************************************/

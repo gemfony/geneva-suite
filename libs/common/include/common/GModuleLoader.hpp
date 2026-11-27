@@ -108,10 +108,10 @@ struct GContributionHandler {
     using function_type =
         std::function<void(const GemContribution &, const GContributionContext &)>;
 
-    std::string kind; ///< The kind it serves: a name with its library's prefix ("mylib.solver")
-    std::string noun;       ///< What a contribution of the kind is, for messages ("consumer")
-    function_type check;    ///< Refuses a contribution without calling into the module
-    function_type take;     ///< Calls the contribution's factory and takes the result over
+    std::string kind;    ///< The kind it serves: a name with its library's prefix ("mylib.solver")
+    std::string noun;    ///< What a contribution of the kind is, for messages ("consumer")
+    function_type check; ///< Refuses a contribution without calling into the module
+    function_type take;  ///< Calls the contribution's factory and takes the result over
 };
 
 /******************************************************************************/

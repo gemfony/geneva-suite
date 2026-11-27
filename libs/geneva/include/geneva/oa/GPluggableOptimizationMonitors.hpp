@@ -353,7 +353,7 @@ private:
         }
     }
 
-    Gem::Dietrich::GDataLog::SeriesId map_;  ///< The series of the map
+    Gem::Dietrich::GDataLog::SeriesId map_;   ///< The series of the map
     std::vector<std::array<double, 3>> grid_; ///< The latest grid
 };
 
@@ -843,7 +843,10 @@ private:
         columns.push_back({.name = "fitness", .type = columnType::FLOATING});
 
         Gem::Dietrich::GDataLog layout(canvas_label_, 1, 1);
-        layout.setCanvasDimensions(std::get<0>(canvas_dimensions_), std::get<1>(canvas_dimensions_));
+        layout.setCanvasDimensions(
+            std::get<0>(canvas_dimensions_),
+            std::get<1>(canvas_dimensions_)
+        );
         layout.setAddPrintCommand(add_print_command_);
         // The figure has one pad and one title: the canvas label is the title of the pad
         layout.setShowCanvasLabel(false);
@@ -891,7 +894,8 @@ private:
                 points.columns = {names[0], names[1], "fitness"};
                 points.floor_shadow = true;
                 layout.overlaySeries(map_id, points);
-                landscape_sink_ = std::make_shared<detail::GLandscapePlotSink>(std::move(layout), map_id);
+                landscape_sink_ =
+                    std::make_shared<detail::GLandscapePlotSink>(std::move(layout), map_id);
                 plot = landscape_sink_;
             }
         } break;
@@ -1011,7 +1015,8 @@ private:
             row.emplace_back(static_cast<double>(v));
         }
         row.emplace_back(
-            oa::GBasePluggableOM::use_raw_evaluation_ ? ind.raw_fitness(0) : ind.transformed_fitness(0)
+            oa::GBasePluggableOM::use_raw_evaluation_ ? ind.raw_fitness(0)
+                                                      : ind.transformed_fitness(0)
         );
         stream_.append(std::move(row));
     }
@@ -1204,10 +1209,10 @@ private:
     // Data
 
     std::string stream_name_ = "all_solutions"; ///< The name of the stream
-    std::vector<double> boundaries_;  ///< Value boundaries used to filter recorded solutions
-    bool boundaries_active_ = false;  ///< Set to true if boundaries have been set
+    std::vector<double> boundaries_; ///< Value boundaries used to filter recorded solutions
+    bool boundaries_active_ = false; ///< Set to true if boundaries have been set
     bool use_raw_fitness_ =
-        true;                   ///< Indicates whether true- or transformed fitness should be recorded
+        true; ///< Indicates whether true- or transformed fitness should be recorded
     bool show_validity_ = true; ///< Indicates whether the validity of a solution should be recorded
     bool print_initial_ = false; ///< Indicates whether the initial population should be recorded
     bool fitness_only_ = false;  ///< Records the individual and its fitness values only
@@ -1604,7 +1609,10 @@ private:
         columns.push_back({.name = "best_fitness", .type = columnType::FLOATING});
 
         Gem::Dietrich::GDataLog layout("Adaptor properties", 1, 2);
-        layout.setCanvasDimensions(std::get<0>(canvas_dimensions_), std::get<1>(canvas_dimensions_));
+        layout.setCanvasDimensions(
+            std::get<0>(canvas_dimensions_),
+            std::get<1>(canvas_dimensions_)
+        );
         layout.setAddPrintCommand(add_print_command_);
         GPlotSpec spec(plotKind::hist_2d);
         spec.x_label = "Iteration";
@@ -1660,7 +1668,8 @@ private:
         if(monitor_best_only_) {
             gen::GAuxiliaryStore seed_scratch;
             cfg_ptr->installInto(seed_scratch);
-            for(double const sigma : oa::readAdaptionSigmas(seed_scratch, *cfg_ptr, adaptor_name_)) {
+            for(double const sigma :
+                oa::readAdaptionSigmas(seed_scratch, *cfg_ptr, adaptor_name_)) {
                 record(sigma);
             }
         }

@@ -59,7 +59,7 @@
 #include "courtier/GBaseClientT.hpp"
 #include "courtier/GCommandContainerT.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GWireCodec.hpp"               // scope-wrapped (de)serialization, HELLO
+#include "courtier/GWireCodec.hpp" // scope-wrapped (de)serialization, HELLO
 #include "courtier/GWireSerializationContext.hpp"
 #include "courtier/transport/GPeerI.hpp" // the connection and how to get one
 

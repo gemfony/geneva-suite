@@ -50,12 +50,13 @@ namespace Gem::Common::Record {
  * What a sink is told about its stream when it is opened.
  */
 struct GStreamInfo {
-    std::string name;                ///< The name of the stream; a file sink names its file after it
-    std::vector<GColumn> columns;    ///< The columns, the automatic time column included
+    std::string name;             ///< The name of the stream; a file sink names its file after it
+    std::vector<GColumn> columns; ///< The columns, the automatic time column included
     std::filesystem::path directory; ///< The directory of the recorder when the stream was declared
-    bool resume = false;             ///< The stream continues a run that was resumed (GStreamOptions)
-    std::string resumeColumn; ///< With resume: the column by which a file is cut back (GStreamOptions)
-    double resumeAfter = 0.;  ///< With resume: the last value of resumeColumn whose rows are kept
+    bool resume = false; ///< The stream continues a run that was resumed (GStreamOptions)
+    std::string
+        resumeColumn; ///< With resume: the column by which a file is cut back (GStreamOptions)
+    double resumeAfter = 0.; ///< With resume: the last value of resumeColumn whose rows are kept
     std::filesystem::path csvFile; ///< The file of the stream's GCsvSink; empty if it has none
 };
 
