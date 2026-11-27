@@ -42,6 +42,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -648,4 +649,73 @@ TEST_CASE("GTextSink: one row per line with the values separated by a space", "[
     }
     CHECK(linesOf(dir / "plain.log") == std::vector<std::string>{"7 2.5 true some text", "8 0.5 false"});
     CHECK_FALSE(std::filesystem::exists(dir / "plain.csv")); // the sinks given replace the default
+}
+TEST_CASE("a handle tells its name and columns and an empty one has none", "[common][record]") {
+    ScratchDirectory const dir("handle");
+    auto s = recorder().stream(
+        "described", {GColumn{.name = "x", .type = columnType::FLOATING}}, withTime::wall
+    );
+    CHECK(s.name() == "described");
+    CHECK(
+        s.columns() ==
+        std::vector<GColumn>{
+            GColumn{.name = "time", .type = columnType::TIMESTAMP},
+            GColumn{.name = "x", .type = columnType::FLOATING}
+        }
+    );
+    auto typed = recorder().stream<int>("typed", {"n"});
+    CHECK(typed.name() == "typed");
+
+    GStream empty;
+    CHECK_FALSE(empty.isOpen());
+    CHECK(empty.name().empty());
+    CHECK(empty.columns().empty());
+    CHECK_THROWS_AS(empty.append(GRow{1.}), gem_exception);
+    CHECK_NOTHROW(empty.close());
+    GStreamT<int> empty_typed;
+    CHECK_FALSE(empty_typed.isOpen());
+    CHECK(empty_typed.name().empty());
+    CHECK_THROWS_AS(empty_typed.append(1), gem_exception);
+}
+
+TEST_CASE("a file sink names its file by the output rule and knows it once open", "[common][record]") {
+    ScratchDirectory const dir("paths");
+    auto const csv = std::make_shared<GCsvSink>();
+    GStreamInfo const info{.name = "where", .directory = dir};
+    CHECK(csv->fileFor(info) == dir / "where.csv");
+    CHECK(GJsonLinesSink().fileFor(info) == dir / "where.jsonl");
+    CHECK(GTextSink().fileFor(info) == dir / "where.log");
+    {
+        auto s = recorder().stream<int>("where", {"n"}, withTime::none, GStreamOptions{.sinks = {csv}});
+        CHECK(csv->path().empty()); // opened at the first write
+        s.append(1);
+        CHECK(csv->path() == dir / "where.csv");
+    }
+}
+
+TEST_CASE("the types of the values: typeOf() columnTypeOf() and toValue()", "[common][record]") {
+    static_assert(columnTypeOf<bool>() == columnType::BOOLEAN);
+    static_assert(columnTypeOf<std::int8_t>() == columnType::INTEGER);
+    static_assert(columnTypeOf<unsigned short>() == columnType::UNSIGNED);
+    static_assert(columnTypeOf<float>() == columnType::FLOATING);
+    static_assert(columnTypeOf<char const *>() == columnType::TEXT);
+    static_assert(columnTypeOf<std::string const &>() == columnType::TEXT);
+    static_assert(columnTypeOf<GTimeStamp>() == columnType::TIMESTAMP);
+
+    CHECK(toValue(std::int16_t{-3}) == GValue(std::int64_t{-3}));
+    CHECK(toValue(std::uint8_t{200}) == GValue(std::uint64_t{200}));
+    CHECK(toValue(0.5F) == GValue(0.5));
+    CHECK(toValue(true) == GValue(true));
+    CHECK(toValue(std::string_view("text")) == GValue(std::string("text")));
+    const GTimeStamp stamp = std::chrono::system_clock::now();
+    CHECK(toValue(stamp) == GValue(stamp));
+    CHECK(typeOf(toValue(std::int16_t{-3})) == columnType::INTEGER);
+    CHECK(typeOf(GValue(std::uint64_t{1})) == columnType::UNSIGNED);
+    CHECK(typeOf(GValue(std::string())) == columnType::TEXT);
+    CHECK(typeOf(GValue(stamp)) == columnType::TIMESTAMP);
+
+    CHECK(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "a", .type = columnType::TEXT});
+    CHECK_FALSE(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "a", .type = columnType::BOOLEAN});
+    CHECK_FALSE(GColumn{.name = "a", .type = columnType::TEXT} == GColumn{.name = "b", .type = columnType::TEXT});
+    CHECK(Gem::Common::enumName(columnType::TIMESTAMP) == "timestamp");
 }
