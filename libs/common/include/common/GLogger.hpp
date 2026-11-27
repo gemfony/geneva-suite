@@ -211,7 +211,7 @@ public:
     GLogger() = default;
     GLogger(GLogger const &) = delete;
     // The mutex member makes the class immovable; say so explicitly (a defaulted move would be
-    // implicitly deleted anyway -- the former class template only hid that diagnostic).
+    // implicitly deleted anyway).
     GLogger(GLogger &&) = delete;
     ~GLogger() = default;
 

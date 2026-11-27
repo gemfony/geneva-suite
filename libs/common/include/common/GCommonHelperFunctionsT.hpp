@@ -785,7 +785,7 @@ splitStringT(const std::string &raw, const char *sep1, const char *sep2) {
 /**
  * @brief Returns a reference to the value at key in m, preserving the map's const/ref qualification.
  *
- * A single forwarding template replaces the former mutable+const overload pair: @c std::forward_like
+ * One forwarding template serves mutable and const maps: @c std::forward_like
  * transfers the value category and constness of @p m onto the returned reference, so a mutable map
  * yields a mutable reference and a const map a const reference.
  *

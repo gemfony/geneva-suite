@@ -242,14 +242,14 @@ struct UniquePtrStorage {
  * GContainerT is an abstract base class (pure-virtual destructor) that wraps
  * a configurable sequence container and provides the full STL sequence-container
  * API together with extensions such as crossOver(), compare_base(),
- * clone-aware push/insert/resize operations (for SharedPtrStorage), and a
+ * clone-aware push/insert/resize operations (for the pointer storages), and a
  * type-filtered range view.
  *
  * The underlying storage strategy is chosen at compile time via the
  * @p storage_policy_type parameter:
- *  - PodStorage<T>         — for POD element types (equivalent to GPODVectorT)
- *  - SharedPtrStorage<T>   — for polymorphic objects (equivalent to
- *                             GPtrVectorT)
+ *  - PodStorage<T>         — for POD element types
+ *  - SharedPtrStorage<T>   — for polymorphic objects held by std::shared_ptr
+ *  - UniquePtrStorage<T>   — for polymorphic objects held by std::unique_ptr
  *
  * Container-capability concepts (HasContiguousStorage, HasCapacity,
  * HasRandomAccess, HasFrontInsertion) gate methods that are not universally
@@ -257,8 +257,8 @@ struct UniquePtrStorage {
  * operation is attempted.
  *
  * @tparam T             The logical element type.
- * @tparam storage_policy_type The storage policy. Must be either PodStorage<T,...>
- *                       or SharedPtrStorage<T,...>.
+ * @tparam storage_policy_type The storage policy: PodStorage<T,...>, SharedPtrStorage<T,...>
+ *                       or UniquePtrStorage<T,...>.
  */
 template <typename T, typename storage_policy_type = PodStorage<T>>
 class GContainerT {
@@ -266,7 +266,7 @@ class GContainerT {
     friend struct Gem::Weft::access;
 
     /**
-     * @brief (De)serialises the underlying data container, against a Boost archive or a GArchive codec.
+     * @brief (De)serialises the underlying data container through a GArchive codec.
      *
      * The trailing unsigned int is the class version; it is intentionally unnamed and unused.
      *
@@ -376,7 +376,7 @@ public:
     /**
      * @brief Assignment from the raw underlying container (PodStorage only).
      *
-     * Enables `podContainer = someStdVector;` which was supported by GPODVectorT.
+     * Enables `podContainer = someStdVector;`.
      *
      * @param cont The source container.
      * @return A reference to this object.
@@ -1113,7 +1113,7 @@ public:
      *
      * @param item_ptr A shared_ptr to the object to clone and append.
      * @throws gem_exception when @p item_ptr is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void push_back_clone(const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1130,7 +1130,7 @@ public:
      *
      * @param item_ptr A shared_ptr to the object to append.
      * @throws gem_exception when @p item_ptr is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void push_back_noclone(StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1150,7 +1150,7 @@ public:
      * @param item_ptr The object to clone and insert.
      * @return An iterator to the inserted element.
      * @throws gem_exception when @p item_ptr is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     iterator insert_clone(const_iterator pos, const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1166,7 +1166,7 @@ public:
      * @param count   The number of clones to insert.
      * @param item_ptr The object to clone and insert.
      * @throws gem_exception when @p item_ptr is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void insert_clone(const_iterator pos, size_type count, const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1194,7 +1194,7 @@ public:
      * @param item_ptr The object to insert (not cloned).
      * @return An iterator to the inserted element.
      * @throws gem_exception when @p item_ptr is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     iterator insert_noclone(const_iterator pos, StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1207,14 +1207,13 @@ public:
      * @brief Inserts @p count references to @p item_ptr (clones all but the first)
      *        before @p pos.
      *
-     * Inserts @p item_ptr itself followed by (count-1) clones. This matches the
-     * semantics of GPtrVectorT::insert_noclone(pos, amount, item).
+     * Inserts @p item_ptr itself followed by (count-1) clones.
      *
      * @param pos     An iterator pointing to the insertion position.
      * @param count   The number of elements to insert.
      * @param item_ptr The object to insert.
      * @throws gem_exception when @p item_ptr is null.
-     * @note Only available for SharedPtrStorage or UniquePtrStorage (not PodStorage).
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void insert_noclone(const_iterator pos, size_type count, StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1250,7 +1249,7 @@ public:
      * @param amount  The desired number of elements.
      * @param item_ptr The prototype object used to fill new slots.
      * @throws gem_exception when growing and @p item_ptr is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void resize_clone(size_type amount, const StoredType &item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1281,7 +1280,7 @@ public:
      * @param amount  The desired number of elements.
      * @param item_ptr The prototype object used to fill new slots.
      * @throws gem_exception when growing and @p item_ptr is null.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void resize_noclone(size_type amount, StoredType item_ptr)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1306,7 +1305,7 @@ public:
      * Intended for pre-allocation followed by manual assignment to each slot.
      *
      * @param amount The desired number of elements.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void resize_empty(size_type amount)
         requires (!std::same_as<StoredType, ValueType>)
@@ -1361,7 +1360,7 @@ public:
      * @param pos The zero-based index.
      * @return A shared_ptr<target_type> owning an independent clone.
      * @throws std::out_of_range when @p pos >= size().
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename target_type = ValueType>
     [[nodiscard]] std::shared_ptr<target_type> clone_at(std::size_t pos) const
@@ -1378,7 +1377,7 @@ public:
      *
      * @tparam derived_type The derived type to filter for.
      * @param target A vector that receives the filtered pointers.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename derived_type>
     void attachViewTo(std::vector<std::shared_ptr<derived_type>> &target)
@@ -1403,7 +1402,7 @@ public:
      *
      * @tparam derived_type The derived type to filter for.
      * @return A range of std::shared_ptr<derived_type> (nulls excluded).
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename derived_type>
     [[nodiscard]] auto filteredView()
@@ -1423,7 +1422,7 @@ public:
      *
      * @tparam derived_type The derived type to filter for.
      * @return A const range of std::shared_ptr<derived_type> (nulls excluded).
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     template <typename derived_type>
     [[nodiscard]] auto filteredView() const
@@ -1462,7 +1461,7 @@ public:
      * ownership with this container.
      *
      * @param cp The destination container. Its previous content is discarded.
-     * @note Only available for SharedPtrStorage.
+     * @note Only available for pointer storage (SharedPtrStorage / UniquePtrStorage).
      */
     void getDataCopy(ContainerType &cp) const
         requires (!std::same_as<StoredType, ValueType>)
@@ -1488,7 +1487,7 @@ public:
      * @param cp  The partner container.
      * @param pos The starting position of the cross-over.
      * @note Only available when ContainerType satisfies HasRandomAccess.
-     * @note In debug builds: throws when @p pos >= min(size(), cp.size()).
+     * @throws gem_exception when @p pos >= min(size(), cp.size()).
      */
     void crossOver(GContainerT &cp, const std::size_t &pos)
         requires HasRandomAccess<ContainerType>
@@ -1605,8 +1604,6 @@ inline GContainerT<T, storage_policy_type>::~GContainerT() = default;
 /**
  * @brief Convenience alias: a GContainerT for POD types backed by @p container_type.
  *
- * Equivalent to the old GPODVectorT but with an exchangeable backend.
- *
  * @tparam T         The POD element type.
  * @tparam container_type The underlying sequence container. Defaults to std::vector<T>.
  */
@@ -1616,8 +1613,6 @@ using GPodContainerT = GContainerT<T, PodStorage<T, container_type>>;
 /**
  * @brief Convenience alias: a GContainerT for polymorphic objects
  *        held via shared_ptr, backed by @p container_type.
- *
- * Equivalent to the old GPtrVectorT but with an exchangeable backend.
  *
  * @tparam T         The base element type (must expose the Gemfony common interface).
  * @tparam container_type The underlying sequence container.
@@ -1632,7 +1627,7 @@ using GPtrContainerT = GContainerT<T, SharedPtrStorage<T, container_type>>;
  *
  * The unique_ptr counterpart of GPtrContainerT: same policy-based interface, but elements are
  * sole-owned, so copy/move/destroy incur no atomic reference counting. Deep copy clones via
- * clone()/load(). Boost serialises std::unique_ptr, so serialisation works unchanged.
+ * clone()/load(). The GArchive codecs serialise std::unique_ptr as they do std::shared_ptr.
  *
  * @tparam T         The base element type (must expose the Gemfony common interface).
  * @tparam container_type The underlying sequence container.

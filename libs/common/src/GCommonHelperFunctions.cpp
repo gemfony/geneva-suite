@@ -102,8 +102,7 @@ unsigned int askNHardwareThreads() {
 /******************************************************************************/
 /**
  * Parses a non-empty, separator-delimited list of numbers, tolerating arbitrary
- * surrounding whitespace -- a hand-written replacement for the former
- * `qi::phrase_parse(from, to, (num % sep), qi::space, result)`. Returns true on a
+ * surrounding whitespace. Returns true on a
  * full parse; on failure it returns false and reports the unconsumed remainder in
  * @p rest (so the caller can say where the text stops being a list).
  *
@@ -549,9 +548,7 @@ std::vector<double> stringToDoubleVec(std::string const &raw) {
  * @return A std::vector holding the parsed (unsigned int, unsigned int) tuples
  */
 std::vector<std::tuple<unsigned int, unsigned int>> stringToUIntTupleVec(std::string const &raw) {
-    // Hand-written replacement for the former Spirit grammar
-    // (('(' >> uint_ >> ',' >> uint_ >> ')') % ','), qi::space skipper: a non-empty,
-    // comma-separated list of "(a,b)" unsigned-int pairs with arbitrary whitespace.
+    // A non-empty, comma-separated list of "(a,b)" unsigned-int pairs with arbitrary whitespace.
     std::vector<std::tuple<unsigned int, unsigned int>> result;
 
     const std::string_view s(raw);

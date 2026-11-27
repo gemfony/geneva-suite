@@ -120,12 +120,11 @@ struct ser_skip {
 };
 
 /**
- * @brief Serialize policy for a *base subobject*: emit it as boost base_object<base_type>.
+ * @brief Serialize policy for a *base subobject*: emit its slice as a named, nested sub-object.
  *
  * Unlike the other serialize policies, the descriptor's referenced value is the *derived* object itself
- * (not a data member), so base_object<base_type>(derived) both serialises the base_type slice and registers the
- * derived_type<->base_type void-cast Boost needs to (de)serialise the derived type through a base_type pointer. Use it
- * for a stateful, non-container base that cannot be tied in through a single data member.
+ * (not a data member), and archive_named_base<base_type>(derived) serialises its base_type slice.
+ * Use it for a stateful, non-container base that cannot be tied in through a single data member.
  *
  * @tparam base_type The base class whose slice is serialised
  */
@@ -362,7 +361,7 @@ cloneable_container_member_t<T> make_cloneable_container_member(const char *name
 /**
  * @brief Builds one named atomic member for a localMembers() tuple.
  *
- * Boost serialises std::atomic<bool> via a free serialization, so it is emitted like any other member;
+ * The GArchive codecs serialise a std::atomic by its value, so it is emitted like any other member;
  * but an atomic is neither copy-assignable nor directly comparable, so it is loaded via .store(.load())
  * and compared by its loaded value.
  *
@@ -462,7 +461,7 @@ make_uncompared_cloneable_member(const char *name, T &ref) {
 /**
  * @brief Builds a descriptor for a stateful, non-container BASE subobject.
  *
- * The base is serialised as boost base_object<base_type> (which also registers the derived_type<->base_type void-cast),
+ * The base is serialised as a named, nested sub-object (archive_named_base<base_type>),
  * copy-assigned on load via base_type::operator= (its own value semantics), and excluded from comparison
  * (compare the base's state separately if it is part of identity -- for the cases folded so far it is
  * not). The referenced value is the derived object itself, so pass `self`. This is the general tool for

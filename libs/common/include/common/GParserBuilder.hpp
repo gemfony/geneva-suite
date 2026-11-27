@@ -1027,7 +1027,7 @@ private:
 
     /***************************************************************************/
     /**
-	  * Saves data to a property tree object, including comments. Default
+	  * Saves data to a JSON object, including comments. Default
 	  * values are taken from the def_val_ vector, which may be empty (it is
 	  * then written out as an empty "default"/"value" array).
 	  *
@@ -1197,7 +1197,7 @@ private:
 
     /***************************************************************************/
     /**
-	  * Saves data to a property tree object, including comments. Default
+	  * Saves data to a JSON object, including comments. Default
 	  * values are taken from the def_val_ vector.
 	  *
 	  * @param root The JSON object to which data should be saved
@@ -1451,9 +1451,8 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-        // Assigning to the caller's reference is just a special case of the callback proxy (the former
-        // dedicated reference proxy byte-duplicated it apart from this one line). The reference must
-        // outlive this parser builder, as it always had to.
+        // Assigning to the caller's reference is a special case of the callback proxy. The
+        // reference must outlive this parser builder.
         return registerFileParameter<parameter_type>(
             option_name,
             std::move(def_val),
@@ -1642,8 +1641,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-        // Assigning to the caller's reference is just a special case of the callback proxy (the former
-        // dedicated reference proxy byte-duplicated it apart from this one line).
+        // Assigning to the caller's reference is a special case of the callback proxy.
         return registerFileParameter<parameter_type>(
             option_name,
             def_val,
@@ -1746,8 +1744,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-        // Assigning to the caller's reference is just a special case of the callback proxy (the former
-        // dedicated reference proxy byte-duplicated it apart from this one line).
+        // Assigning to the caller's reference is a special case of the callback proxy.
         return registerFileParameter<parameter_type, N>(
             option_name,
             def_val,
