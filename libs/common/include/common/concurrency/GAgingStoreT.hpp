@@ -56,9 +56,12 @@ namespace Gem::Common::Concurrency {
  *     with the epoch at which it was parked.
  *
  * Both faces age against one monotonic @e epoch counter advanced by @ref advanceEpochAndEvict (call it
- * once per logical round): an entry older than @c ttl_rounds epochs is evicted, and each face is bounded
- * to @c cap entries (the oldest by epoch evicted first -- FIFO front for the queue, min-epoch for the
- * map). @c cap @c == @c 0 disables retention (the parked face holds nothing).
+ * once per logical round): an entry is evicted once it is @c ttl_rounds epochs old, and each face is
+ * bounded to @c cap entries (the oldest by epoch evicted first -- FIFO front for the queue, min-epoch
+ * for the map). The FIFO face is bounded at every park() and advance, the keyed face at every advance
+ * only, so that a retain() stays cheap: between two advances it may hold more than @c cap entries.
+ * @c cap 0 or @c ttl_rounds 0 keep nothing: park() evicts the value at once (and counts it), retain()
+ * drops it. Bounds set by configure() apply from the next park(), retain() or advance on.
  *
  * A typical use: a result that arrives after its batch retired is @e parked for a reader to reap,
  * and a clone of each un-returned original is @e retained (keyed by correlation id) so a late
@@ -81,8 +84,9 @@ public:
     GAgingStoreT &operator=(const GAgingStoreT &) = delete;
 
     /** @brief Sets the capacity and TTL bound shared by both faces.
-     *  @param cap Maximum entries held per face; 0 disables the parked (FIFO) face's retention.
-     *  @param ttl_rounds An entry is evicted this many epoch advances after it was stored. */
+     *  @param cap Maximum entries held per face; 0 keeps nothing (see the class comment).
+     *  @param ttl_rounds An entry is evicted this many epoch advances after it was stored; 0 keeps
+     *  nothing. */
     void configure(std::size_t cap, std::uint64_t ttl_rounds) {
         std::scoped_lock const lk(mtx_);
         cap_ = cap;
@@ -97,10 +101,15 @@ public:
 
     // ---- keyed face ----------------------------------------------------------
 
-    /** @brief Retains @p v under @p k, stamped with the current epoch (overwrites any existing entry).
+    /** @brief Retains @p v under @p k, stamped with the current epoch (overwrites any existing entry);
+     *  with @c cap 0 or @c ttl_rounds 0 the value is dropped.
      *  @param k The key. @param v The value to retain (moved in). */
     void retain(const key_type &k, value_type v) {
         std::scoped_lock const lk(mtx_);
+        if(cap_ == 0 || ttl_rounds_ == 0) { // nothing is kept (see the class comment)
+            retained_.erase(k);
+            return;
+        }
         retained_.insert_or_assign(k, std::make_pair(epoch_, std::move(v)));
     }
 
@@ -227,7 +236,7 @@ private:
 
     mutable std::mutex mtx_;
     std::uint64_t epoch_ = 0;      ///< Monotonic round counter; both faces age against it
-    std::size_t cap_ = 0;          ///< Per-face capacity bound (0 disables the parked face)
+    std::size_t cap_ = 0;          ///< Per-face capacity bound (0 keeps nothing)
     std::uint64_t ttl_rounds_ = 8; ///< An entry is evicted this many epochs after it was stored
 
     std::deque<std::pair<std::uint64_t, value_type>>

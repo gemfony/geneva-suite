@@ -34,6 +34,7 @@
 #include <memory>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "common/concurrency/GAgingStoreT.hpp"
@@ -187,6 +188,57 @@ TEST_CASE(
     CHECK(s.buffering());
     s.configure(0, 8);
     CHECK_FALSE(s.buffering());
+}
+
+// ---------------------------------------------------------------------------
+// The bounds at their edges
+
+TEST_CASE(
+    "GAgingStoreT: cap 0 and ttl_rounds 0 keep nothing in either face",
+    "[common][aging-store]"
+) {
+    // Regression: retain() kept its value until the next advance, against the stated contract
+    // that cap 0 disables retention
+    const std::pair<std::size_t, std::uint64_t> bounds[] = {{0, 8}, {8, 0}};
+    for(auto const &[cap, ttl] : bounds) {
+        MoStore s;
+        s.configure(cap, ttl);
+        s.retain(1, std::make_unique<int>(1));
+        CHECK(s.retainedSize() == 0);
+        CHECK_FALSE(s.takeRetained(1).has_value());
+        CHECK(s.park(std::make_unique<int>(2)) == 1); // evicted at once, and counted
+        CHECK(s.parkedSize() == 0);
+    }
+}
+
+TEST_CASE(
+    "GAgingStoreT: the keyed face may exceed cap until the next advance",
+    "[common][aging-store]"
+) {
+    MoStore s;
+    s.configure(/*cap*/ 1, /*ttl*/ 100);
+    s.retain(1, std::make_unique<int>(1));
+    s.retain(2, std::make_unique<int>(2));
+    CHECK(s.retainedSize() == 2); // retain() does not bound the keyed face
+    s.advanceEpochAndEvict();
+    CHECK(s.retainedSize() == 1);
+}
+
+TEST_CASE(
+    "GAgingStoreT: clear empties both faces and keeps the epoch and the bounds",
+    "[common][aging-store]"
+) {
+    MoStore s;
+    s.configure(4, 100);
+    s.retain(1, std::make_unique<int>(1));
+    s.park(std::make_unique<int>(2));
+    s.advanceEpochAndEvict();
+    CHECK(s.epoch() == 1);
+    s.clear();
+    CHECK(s.retainedSize() == 0);
+    CHECK(s.parkedSize() == 0);
+    CHECK(s.epoch() == 1);
+    CHECK(s.buffering());
 }
 
 // ---------------------------------------------------------------------------
