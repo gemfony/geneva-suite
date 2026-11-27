@@ -145,7 +145,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   list where one value belongs) was skipped without a word, leaving the default in force; it is
   now an error that names the key and the form it needs. An absent key keeps its default.
   An array parameter refuses a list of another length than its own; a longer list lost its
-  surplus, and the missing values of a shorter one kept their defaults.
+  surplus, and the missing values of a shorter one kept their defaults. A registration whose
+  key in the file is taken is refused as well: two combined parameters with one group label, a
+  parameter named like a label or `header`, or a combined parameter with two equal names wrote
+  the same entry, and the later one replaced the earlier one.
   So is a value that does not read as its parameter's type: a boolean other than `true`,
   `false`, `1` or `0` (it read as `false`), a number with text or a remainder (`2.5` for an
   integer read as 2), a negative number for an unsigned key (`-1` wrapped around to

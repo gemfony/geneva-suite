@@ -1639,7 +1639,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-        checkNotRegistered_(option_name, file_parameter_proxies_);
+        checkFileKeyFree_(option_name, option_name);
 
         auto single_parm_ptr = std::make_shared<GFileSingleParsableParameterT<parameter_type>>(
             option_name,
@@ -1746,7 +1746,13 @@ public:
         std::string const &comment1 = std::string(),
         std::string const &comment2 = std::string()
     ) {
-        checkNotRegistered_(option_name1, file_parameter_proxies_);
+        checkFileKeyFree_(option_name1, combined_label);
+        checkThat(
+            option_name1 != option_name2,
+            "A combined parameter cannot hold two parameters named \"",
+            option_name1,
+            "\""
+        );
 
         auto comb_parm_ptr =
             std::make_shared<GFileCombinedParsableParameterT<par1_type, par2_type>>(
@@ -1822,7 +1828,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-        checkNotRegistered_(option_name, file_parameter_proxies_);
+        checkFileKeyFree_(option_name, option_name);
 
         auto vec_parm_ptr = std::make_shared<GFileVectorParsableParameterT<parameter_type>>(
             option_name,
@@ -1922,7 +1928,7 @@ public:
         bool is_essential = Gem::Common::VAR_IS_ESSENTIAL,
         std::string const &comment = std::string()
     ) {
-        checkNotRegistered_(option_name, file_parameter_proxies_);
+        checkFileKeyFree_(option_name, option_name);
 
         auto array_parm_ptr = std::make_shared<GFileArrayParsableParameterT<parameter_type, N>>(
             option_name,
@@ -2099,8 +2105,9 @@ private:
     }
 
     /***************************************************************************/
-    /** @brief The check shared by every registration overload: throws if an option of the given
-     *  name was already registered in @p proxies.
+    /** @brief The check shared by every registration overload (a file parameter's through
+     *  checkFileKeyFree_()): throws if an option of the given name was already registered in
+     *  @p proxies.
      *  @tparam proxy_vector_type The proxy-vector type (file or command-line proxies)
      *  @param option_name The (first) option name about to be registered
      *  @param proxies The proxy store to look in
@@ -2116,6 +2123,40 @@ private:
             "Parameter ",
             option_name,
             " has already been registered"
+        );
+    }
+
+    /***************************************************************************/
+    /** @brief The check of every file-parameter registration: besides the option name (see
+     *  checkNotRegistered_()), the key the new parameter writes at the top of the configuration file
+     *  -- its option name, or the group label of a combined parameter -- must be free: neither the
+     *  key of another file parameter nor "header", the key of the file's header. Two parameters with
+     *  one key would write the same entry, and the later one would replace the earlier one.
+     *  @param option_name The (first) option name about to be registered
+     *  @param top_level_key The configuration-file key the new parameter writes
+     *  @param place The place of the registration (defaulted to the caller's location) */
+    void checkFileKeyFree_(
+        std::string const &option_name,
+        std::string const &top_level_key,
+        std::source_location const &place = std::source_location::current()
+    ) const {
+        checkNotRegistered_(option_name, file_parameter_proxies_, place);
+        bool const is_header = (top_level_key == "header");
+        checkThat(
+            GCheckCondition(
+                not is_header && std::ranges::none_of(
+                                     file_parameter_proxies_,
+                                     [&](auto const &proxy_ptr) {
+                                         return proxy_ptr->topLevelConfigKey() == top_level_key;
+                                     }
+                                 ),
+                place
+            ),
+            "The configuration-file key \"",
+            top_level_key,
+            "\" is already taken",
+            is_header ? " by the header of the file"
+                      : " by another parameter (a parameter name or the label of a combined parameter)"
         );
     }
 

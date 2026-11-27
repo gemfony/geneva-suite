@@ -1366,6 +1366,55 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// Regression (R138-23): a registration was refused only if its first option name was taken. A
+// combined parameter writes its group under its label, which was not checked, so two combined
+// parameters with one label -- or a parameter named like a label, or "header" -- wrote the same key
+// of the file, and the later one replaced the earlier one. Each such registration is refused.
+
+TEST_CASE(
+    "GParserBuilder: a registration whose configuration-file key is taken is refused",
+    "[common][parser-builder][regression]"
+) {
+    GParserBuilder gpb;
+    auto ignore = [](int, int) { /* nothing */ };
+    gpb.registerFileParameter<int, int>("a", "b", 1, 2, ignore, "group");
+
+    CHECK_THROWS_WITH(
+        (gpb.registerFileParameter<int, int>("c", "d", 3, 4, ignore, "group")),
+        ContainsSubstring(R"(The configuration-file key "group" is already taken)")
+    );
+    int single = 0;
+    CHECK_THROWS_WITH(
+        gpb.registerFileParameter<int>("group", single, 5),
+        ContainsSubstring(R"("group" is already taken)")
+    );
+    gpb.registerFileParameter<int>("single", single, 5);
+    CHECK_THROWS_WITH(
+        (gpb.registerFileParameter<int, int>("e", "f", 3, 4, ignore, "single")),
+        ContainsSubstring(R"("single" is already taken)")
+    );
+    std::vector<int> list;
+    CHECK_THROWS_WITH(
+        gpb.registerFileParameter<int>("header", list, std::vector<int>{1}),
+        ContainsSubstring(R"("header" is already taken by the header of the file)")
+    );
+    CHECK_THROWS_WITH(
+        (gpb.registerFileParameter<int, int>("g", "g", 3, 4, ignore, "other")),
+        ContainsSubstring(R"(two parameters named "g")")
+    );
+    CHECK(gpb.numberOfFileOptions() == 2);
+
+    // What was registered is written once each, under its own key
+    auto cfg = scratch("taken_keys");
+    std::filesystem::remove(cfg);
+    gpb.writeConfigFile(cfg);
+    boost::json::value const doc = Gem::Common::parseJsonFile(cfg);
+    CHECK(doc.at("group").at("a").at("value").to_number<int>() == 1);
+    CHECK(doc.at("single").at("value").to_number<int>() == 5);
+    std::filesystem::remove(cfg);
+}
+
+// ---------------------------------------------------------------------------
 // Regression: parseConfigFile() returned false on any error, and most callers ignored the
 // result (a direct readConfigFile() of an optimization algorithm among them), so a file that could not
 // be applied left the defaults in force without a word. It throws, naming the file and the cause.
