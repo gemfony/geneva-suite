@@ -48,9 +48,9 @@
 
 // Geneva headers go here
 #include "common/GArchiveNamed.hpp" // archive_named (named-member emitter)
+#include "common/GExceptions.hpp"   // describeException()
 #include "common/GLogger.hpp"       // the warning of processWorkFrame()
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GProcessable.hpp"
 #include "courtier/GProcessingOutcome.hpp"
 #include "courtier/GWireProtocolT.hpp"  // the library seam (tag + payload type)
@@ -611,7 +611,7 @@ std::string_view frameHeadFromString(
         container.reset();
         throw gem_exception(
             g_error_streamer() << "The head of a message cannot be read: "
-                               << describeException(std::current_exception()) << '\n'
+                               << Gem::Common::describeException(std::current_exception()) << '\n'
         );
     }
 }
@@ -638,8 +638,8 @@ void framePayloadFromString(
     catch(...) {
         throw gem_exception(
             g_error_streamer() << "The payload of a " << Gem::Common::enumName(container.kind())
-                               << " cannot be read: " << describeException(std::current_exception())
-                               << '\n'
+                               << " cannot be read: "
+                               << Gem::Common::describeException(std::current_exception()) << '\n'
         );
     }
 }
@@ -674,7 +674,7 @@ std::string container_to_string(
     }
     catch(...) {
         throw gem_exception(
-            g_error_streamer() << describeException(std::current_exception()) << '\n'
+            g_error_streamer() << Gem::Common::describeException(std::current_exception()) << '\n'
                                << "with serializationMode == " << Gem::Common::enumName(serMode)
                                << '\n'
         );

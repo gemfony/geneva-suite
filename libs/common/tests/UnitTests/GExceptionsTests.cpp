@@ -29,6 +29,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <exception>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -98,4 +99,26 @@ TEST_CASE(
     CHECK(what.contains("b=3.14"));
     CHECK(what.contains("c=foo"));
     CHECK(what.contains("GExceptionsTests.cpp at line "));
+}
+
+TEST_CASE(
+    "describeException(): the what() of a std::exception or that it is none",
+    "[common][exceptions][describe]"
+) {
+    using Gem::Common::describeException;
+    CHECK(describeException(std::make_exception_ptr(std::runtime_error("no file"))) == "no file");
+    CHECK(describeException(std::make_exception_ptr(gem_exception("bad entry"))) == "bad entry");
+    CHECK(
+        describeException(std::make_exception_ptr(42)) ==
+        "an exception that is not a std::exception"
+    );
+    CHECK(describeException(nullptr) == "no exception");
+
+    // The exception in flight, as a catch(...) clause hands it over
+    try {
+        throw std::logic_error("in flight");
+    }
+    catch(...) {
+        CHECK(describeException(std::current_exception()) == "in flight");
+    }
 }

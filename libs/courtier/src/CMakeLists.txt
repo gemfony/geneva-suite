@@ -28,7 +28,7 @@
 ################################################################################
 
 SET(COMMUNICATIONSOURCES
-        GCourtierHelperFunctions.cpp
+        GProcessable.cpp
         GCourtierEnums.cpp
         GLauncher.cpp
         GMPIPeerTransport.cpp

@@ -47,7 +47,6 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatch.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
 
@@ -178,7 +177,7 @@ void GWebsocketListener::start(boost::asio::any_io_executor executor, on_peer_ty
         // The reservation, or one of the threads, could not be made: the threads that run are
         // stopped and joined, and the listener is as if it had not been started
         // (GListenerI::start()).
-        const std::string why = Gem::Courtier::describeException(std::current_exception());
+        const std::string why = Gem::Common::describeException(std::current_exception());
         work_guard_.reset();
         io_context_.stop();
         threads_.join_all();

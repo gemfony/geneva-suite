@@ -44,7 +44,6 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
 
@@ -284,7 +283,7 @@ std::size_t GMPIPollCore::drainSends(std::chrono::milliseconds limit) {
     catch(...) {
         glogger << "GMPIPollCore (rank " << calls_->rank()
                 << "): a look at the sends under way failed: "
-                << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                << Gem::Common::describeException(std::current_exception()) << '\n'
                 << GWARNING;
     }
     return requests_.size();
@@ -325,7 +324,7 @@ std::size_t GMPIPollCore::shutdown() {
     catch(...) {
         glogger << "GMPIPollCore (rank " << calls_->rank()
                 << "): the last look at the sends failed: "
-                << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                << Gem::Common::describeException(std::current_exception()) << '\n'
                 << GWARNING;
     }
     const std::size_t n_given_up = requests_.size();
@@ -336,7 +335,7 @@ std::size_t GMPIPollCore::shutdown() {
         catch(...) {
             glogger << "GMPIPollCore (rank " << calls_->rank()
                     << "): a send could not be given up: "
-                    << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                    << Gem::Common::describeException(std::current_exception()) << '\n'
                     << GWARNING;
         }
     }
@@ -501,7 +500,7 @@ bool GMPIPollCore::receiveOne_() {
  */
 void GMPIPollCore::fail_(const std::exception_ptr &cause) noexcept {
     chain_ended_.store(true);
-    const std::string reason = Gem::Courtier::describeException(cause);
+    const std::string reason = Gem::Common::describeException(cause);
     timer_.cancel();
     tick_timer_.cancel();
     glogger << "GMPIPollCore (rank " << calls_->rank()

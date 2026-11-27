@@ -43,7 +43,6 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatch.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
 
@@ -663,7 +662,7 @@ void GMPIListener::handOver_(std::vector<std::shared_ptr<GMPIPeer>> peers) {
             catch(...) {
                 glogger << "In " << options_.name << ": the session of rank " << peer_id
                         << " could not be made: "
-                        << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                        << Gem::Common::describeException(std::current_exception()) << '\n'
                         << GWARNING;
                 peer->close(GPeerClose::ERROR);
             }

@@ -224,15 +224,9 @@ public:
             try {
                 (void)f(std::move(args)...); // any return value is discarded
             }
-            catch(std::exception const &e) {
-                glogger << "A fire-and-forget task ended with an error:" << '\n'
-                        << e.what() << '\n'
-                        << GERROR;
-            }
             catch(...) {
-                glogger << "A fire-and-forget task ended with an exception that is not a "
-                           "std::exception."
-                        << '\n'
+                glogger << "A fire-and-forget task ended with an error:" << '\n'
+                        << Gem::Common::describeException(std::current_exception()) << '\n'
                         << GERROR;
             }
         };
@@ -291,15 +285,9 @@ public:
                         per_item(*elem);
                     }
                     // Reported here, where the task ends; the element records its own failure
-                    catch(std::exception const &e) {
-                        glogger << "A task of a bulk fork/join ended with an error:" << '\n'
-                                << e.what() << '\n'
-                                << GERROR;
-                    }
                     catch(...) {
-                        glogger << "A task of a bulk fork/join ended with an exception that is "
-                                   "not a std::exception."
-                                << '\n'
+                        glogger << "A task of a bulk fork/join ended with an error:" << '\n'
+                                << Gem::Common::describeException(std::current_exception()) << '\n'
                                 << GERROR;
                     }
                 };

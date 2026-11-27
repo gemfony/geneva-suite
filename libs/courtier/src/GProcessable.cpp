@@ -27,29 +27,24 @@
  *
  ********************************************************************************/
 
-#pragma once
-
-// Global checks, defines and includes needed for all of Geneva
-#include "common/GGlobalDefines.hpp"
-
-// Standard headers go here
+#include "courtier/GProcessable.hpp" // detail::lineageSalt
 #include <cstdint>
-#include <exception>
-#include <string>
 
-// Boost headers go here
-
-// Geneva headers go here
-#include "courtier/GCourtierEnums.hpp"
+#include "common/GCommonHelperFunctions.hpp" // randomBits64
 
 namespace Gem::Courtier {
 
 /******************************************************************************/
 /**
- * @brief Says what an exception says, for the log and for an item's error descriptions: the
- * what() of a std::exception, or that it is not one.
+ * @brief The random salt of this process: the first half of every lineage id minted in it. Drawn
+ * once, on first use, from Gem::Common::randomBits64(). Defined here rather than in the header so
+ * that a module loaded at run time and its host share one instance.
+ * @return The salt of this process
  */
-std::string describeException(const std::exception_ptr &failure);
+std::uint64_t detail::lineageSalt() noexcept {
+    static const std::uint64_t SALT = Gem::Common::randomBits64();
+    return SALT;
+}
 
 /******************************************************************************/
 

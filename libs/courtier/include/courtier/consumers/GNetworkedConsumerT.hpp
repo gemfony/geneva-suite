@@ -59,7 +59,6 @@
 #include "courtier/GBaseConsumerT.hpp"
 #include "courtier/GCommandContainerT.hpp"       // the RESULT frame checkin() consumes
 #include "courtier/GCourtierEnums.hpp"           // CORRELATION_ID_TYPE, dispatchState
-#include "courtier/GCourtierHelperFunctions.hpp" // describeException()
 #include "courtier/GProcessable.hpp"             // detail::lineageSalt (the foreign-return check)
 #include "courtier/GServerSessionLogic.hpp"      // GWakeFn, GCheckoutResult
 #include "courtier/GWireProtocolT.hpp"           // the library seam that interprets a return
@@ -486,7 +485,7 @@ protected:
                 slot,
                 frame.outcome(),
                 "The returned result could not be applied to its slot: " +
-                    Gem::Courtier::describeException(std::current_exception()),
+                    Gem::Common::describeException(std::current_exception()),
                 "checkin()"
             );
             return;
@@ -821,7 +820,7 @@ private:
         catch(...) {
             glogger << "The late result with the id " << id << '\n'
                     << "could not be applied to its retained original and is dropped: "
-                    << Gem::Courtier::describeException(std::current_exception()) << '\n'
+                    << Gem::Common::describeException(std::current_exception()) << '\n'
                     << GWARNING;
             recordLateDrop_locked(1);
             return;
@@ -935,7 +934,7 @@ private:
                         k,
                         b.items[k]->processingOutcome(),
                         "The work item could not be cloned for dispatch: " +
-                            Gem::Courtier::describeException(std::current_exception()),
+                            Gem::Common::describeException(std::current_exception()),
                         "checkout()"
                     );
                     continue; // on to the next PENDING slot of this batch

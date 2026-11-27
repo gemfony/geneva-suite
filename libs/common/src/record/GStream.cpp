@@ -180,11 +180,8 @@ void GStreamCore::closeOrLog() noexcept {
         this->close();
         return;
     }
-    catch(std::exception const &e) {
-        what = e.what();
-    }
     catch(...) {
-        what = "an exception that is no std::exception";
+        what = describeException(std::current_exception());
     }
     try {
         glogger << "the stream \"" << info_.name << "\" could not be closed cleanly:" << '\n'

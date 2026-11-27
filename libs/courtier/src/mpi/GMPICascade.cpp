@@ -59,7 +59,6 @@
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
 #include "courtier/GCourtierEnums.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
 #include "courtier/mpi/GMPIEnvironmentAccess.hpp"
 #include "courtier/mpi/GMPIPolledCalls.hpp"
 
@@ -885,7 +884,8 @@ void GMPICascade::endJob_(
 ) const noexcept {
     std::string reason;
     try {
-        reason = "an exception left " + std::string(where) + ": " + describeException(failure) +
+        reason = "an exception left " + std::string(where) + ": " +
+                 Gem::Common::describeException(failure) +
                  "\nThe group can no longer be assumed to be in step.";
     }
     catch(...) { // NOLINT(bugprone-empty-catch): the job ends in any case

@@ -625,20 +625,14 @@ void GRandomFactory::producer(seed_type seed, std::shared_ptr<GProducerStart> st
     // and crashes the whole process. We log the condition (so it is not silent)
     // and return, letting this producer thread exit cleanly; the remaining
     // producer threads keep supplying random numbers.
-    catch(const std::exception &e) {
-        glogger << "Caught an exception with message" << '\n'
-                << e.what() << '\n'
-                << "This producer thread will now terminate cleanly. Random-number" << '\n'
-                << "production continues on the remaining producer threads, if any." << '\n'
-                << GWARNING;
-        keep_error(e.what());
-    }
     catch(...) {
-        glogger << "Caught an unknown exception." << '\n'
+        const std::string what = Gem::Common::describeException(std::current_exception());
+        glogger << "Caught an exception with message" << '\n'
+                << what << '\n'
                 << "This producer thread will now terminate cleanly. Random-number" << '\n'
                 << "production continues on the remaining producer threads, if any." << '\n'
                 << GWARNING;
-        keep_error("an unknown exception");
+        keep_error(what);
     }
 
     // Counted out after its error is kept, so that a draw that sees no producer left finds the error

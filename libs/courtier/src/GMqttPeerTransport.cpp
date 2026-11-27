@@ -54,7 +54,6 @@
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
 #include "common/concurrency/GCompletionLatch.hpp"
-#include "courtier/GCourtierHelperFunctions.hpp"
 
 namespace Gem::Courtier::Consumers {
 
@@ -1020,7 +1019,7 @@ void GMqttListener::start(boost::asio::any_io_executor executor, on_peer_type on
     }
     catch(...) {
         why = "could not start the I/O thread: " +
-              Gem::Courtier::describeException(std::current_exception());
+              Gem::Common::describeException(std::current_exception());
     }
     if(why.empty()) {
         boost::asio::post(strand_, [this] { this->connect_(); });
