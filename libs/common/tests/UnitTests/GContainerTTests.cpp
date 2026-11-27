@@ -2105,3 +2105,119 @@ TEST_CASE(
     );
     CHECK(unique_to.empty());
 }
+
+/******************************************************************************/
+// push_back(shared_ptr) of the unique storage is a normal overload: it appends an independent deep
+// clone of the object, of its dynamic type, and leaves the shared object alone.
+TEST_CASE(
+    "GContainerT: push_back of a shared_ptr into unique storage appends an independent clone",
+    "[GContainerT][ptr][unique]"
+) {
+    ConcreteUniquePtrVec v;
+    std::shared_ptr<TestBase> const shared = std::make_shared<TestDerived>(4, 5);
+    v.push_back(shared);
+    REQUIRE(v.size() == 1);
+    auto *stored = dynamic_cast<TestDerived *>(v[0].get());
+    REQUIRE(stored != nullptr); // the dynamic type, not a slice
+    CHECK(stored->val == 4);
+    CHECK(stored->derivedVal == 5);
+    CHECK(stored != shared.get());  // a clone, not the shared object
+    CHECK(shared.use_count() == 1); // nothing kept a reference
+
+    shared->val = 99; // a later change through the shared_ptr does not reach the container
+    CHECK(v[0]->val == 4);
+}
+
+/******************************************************************************/
+// The public functions the catalogues above do not call (F5: each public function has a test).
+TEST_CASE("GContainerT: the remaining public functions", "[GContainerT]") {
+    SECTION("PodStorage: assignment from the underlying container, by copy and by move") {
+        ConcretePodVec c;
+        // A derived class's own operator= hides these two; they are reached through the base
+        Gem::Common::GPodContainerT<int> &base = c;
+        std::vector<int> const values{1, 2, 3};
+        base = values;
+        REQUIRE(c.size() == 3);
+        CHECK(c[2] == 3);
+
+        std::vector<int> moved{7, 8};
+        base = std::move(moved);
+        REQUIRE(c.size() == 2);
+        CHECK(c[0] == 7);
+    }
+
+    SECTION("deque: push_front of a moved value") {
+        ConcretePodDeque c;
+        c.push_back(2);
+        int v = 1;
+        c.push_front(std::move(v));
+        REQUIRE(c.size() == 2);
+        CHECK(c.front() == 1);
+    }
+
+    SECTION("pointer storage: resize() shrinks and refuses to grow") {
+        ConcretePtrVec s;
+        ConcreteUniquePtrVec u;
+        for(int i = 0; i < 3; ++i) {
+            s.push_back(std::make_shared<TestBase>(i));
+            u.push_back(std::make_unique<TestBase>(i));
+        }
+        s.resize(1);
+        u.resize(1);
+        CHECK(s.size() == 1);
+        CHECK(u.size() == 1);
+        CHECK_THROWS_AS(s.resize(2), Gem::Common::gem_exception);
+        CHECK_THROWS_AS(u.resize(2), Gem::Common::gem_exception);
+        CHECK(s.size() == 1);
+        CHECK(u.size() == 1);
+    }
+
+    SECTION("clone_into_stored() clones the dynamic type for both pointer storages") {
+        std::shared_ptr<TestBase> const s = std::make_shared<TestDerived>(1, 2);
+        auto const s_clone = ConcretePtrVec::clone_into_stored(s);
+        REQUIRE(dynamic_cast<TestDerived *>(s_clone.get()) != nullptr);
+        CHECK(s_clone.get() != s.get());
+
+        std::unique_ptr<TestBase> const u = std::make_unique<TestDerived>(3, 4);
+        auto const u_clone = ConcreteUniquePtrVec::clone_into_stored(u);
+        REQUIRE(dynamic_cast<TestDerived *>(u_clone.get()) != nullptr);
+        CHECK(u_clone->val == 3);
+        CHECK(u_clone.get() != u.get());
+    }
+
+    SECTION("viewCast_() co-owns for shared storage and only views for unique storage") {
+        std::shared_ptr<TestBase> const s = std::make_shared<TestDerived>(1, 2);
+        auto const s_view = ConcretePtrVec::viewCast_<TestDerived>(s);
+        REQUIRE(s_view);
+        CHECK(s.use_count() == 2); // co-owning
+
+        std::unique_ptr<TestBase> const u = std::make_unique<TestDerived>(3, 4);
+        {
+            auto const u_view = ConcreteUniquePtrVec::viewCast_<TestDerived>(u);
+            REQUIRE(u_view);
+            CHECK(u_view.get() == u.get());
+        } // the non-owning view ends without deleting the object
+        CHECK(u->val == 3);
+
+        std::unique_ptr<TestBase> const base = std::make_unique<TestBase>(5);
+        CHECK_FALSE(ConcreteUniquePtrVec::viewCast_<TestDerived>(base)); // no such dynamic type
+        CHECK_FALSE(ConcretePtrVec::viewCast_<TestDerived>(std::shared_ptr<TestBase>{}));
+    }
+
+    SECTION("unique storage: attachViewTo() and filteredView() see the derived elements") {
+        ConcreteUniquePtrVec u;
+        u.push_back(std::make_unique<TestBase>(1));
+        u.push_back(std::make_unique<TestDerived>(2, 3));
+        std::vector<std::shared_ptr<TestDerived>> target;
+        u.attachViewTo(target);
+        REQUIRE(target.size() == 1);
+        CHECK(target[0]->derivedVal == 3);
+
+        std::size_t n = 0;
+        for(auto const &d : std::as_const(u).filteredView<TestDerived>()) {
+            CHECK(d->val == 2);
+            ++n;
+        }
+        CHECK(n == 1);
+    }
+}

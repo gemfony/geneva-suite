@@ -803,11 +803,12 @@ public:
     }
 
     /**
-     * @brief Transitional overload for unique_ptr storage: appends an INDEPENDENT deep clone of a
-     * shared_ptr-held object. This lets code that still builds elements as shared_ptr (e.g. a
-     * container filled with push_back(std::make_shared<...>())) keep working while the container
-     * owns its elements by unique_ptr. The shared_ptr is only read; the container stores a clone.
-     * New code can instead push a std::unique_ptr (moved in) to avoid the clone.
+     * @brief Appends an independent deep clone of a shared_ptr-held object (UniquePtrStorage only).
+     *
+     * A container that owns its elements by unique_ptr cannot share an object with a
+     * std::shared_ptr, so it stores a clone of the object, of its dynamic type; the shared_ptr is
+     * only read, and later changes through it do not reach the container. Pushing a
+     * std::unique_ptr (moved in) stores the object itself, without a clone.
      *
      * @tparam U The (derived-of-ValueType) pointee type of the supplied shared_ptr.
      * @param item A shared_ptr to a (derived-of-ValueType) object to clone into the container.
@@ -1091,9 +1092,9 @@ public:
     /**
      * @brief Clones the pointee of a stored handle into a fresh StoredType.
      *
-     * Policy-aware deep clone used by the clone-based pointer operations: shared_ptr storage clones
-     * via clone() (an independent, separately-owned copy), unique_ptr storage via clone()
-     * (sole ownership). Caller must ensure @p p is non-null.
+     * The deep clone of the clone-based pointer operations: clone() returns a std::unique_ptr,
+     * which becomes the stored handle of either pointer storage. Caller must ensure @p p is
+     * non-null.
      *
      * @param p A non-null stored handle whose pointee is to be cloned.
      * @return A fresh StoredType handle owning the cloned object.
@@ -1102,12 +1103,7 @@ public:
     static StoredType clone_into_stored(const StoredType &p)
         requires (!std::same_as<StoredType, ValueType>)
     {
-        if constexpr(std::same_as<StoredType, std::unique_ptr<ValueType>>) {
-            return p->template clone<ValueType>();
-        }
-        else {
-            return p->template clone<ValueType>();
-        }
+        return p->template clone<ValueType>();
     }
 
     /**
@@ -1596,15 +1592,11 @@ private:
 
 /******************************************************************************/
 /**
- * @brief Out-of-line definition of the pure-virtual destructor.
- *
- * Clears the data container so that derived-class destructors run cleanly
- * even if the base destructor is invoked directly.
+ * @brief Out-of-line definition of the pure-virtual destructor, which a pure-virtual destructor
+ *        needs; the data container destroys its elements itself.
  */
 template <typename T, typename storage_policy_type>
-inline GContainerT<T, storage_policy_type>::~GContainerT() {
-    data_cnt_.clear();
-}
+inline GContainerT<T, storage_policy_type>::~GContainerT() = default;
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

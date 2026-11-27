@@ -273,6 +273,25 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
+// toStream / fromStream directly, in both modes
+
+TEST_CASE(
+    "GCommonInterfaceT: toStream/fromStream round-trip in both modes",
+    "[common][interface][serialize]"
+) {
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        TestObj const src(271);
+        std::stringstream stream;
+        src.toStream(stream, mode);
+        CHECK(stream.str() == src.toString(mode));
+
+        TestObj dst(0);
+        dst.fromStream(stream, mode);
+        CHECK(dst.v() == 271);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // toFile / fromFile round-trip
 
 TEST_CASE(
