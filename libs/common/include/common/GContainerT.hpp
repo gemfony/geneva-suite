@@ -204,8 +204,8 @@ struct SharedPtrStorage {
  *
  * The unique_ptr counterpart of SharedPtrStorage: same clone()/load() deep-copy protocol, but the
  * stored handles carry sole ownership, so copying/moving/destroying the container costs no atomic
- * reference counting. Deep copy goes through the unique_ptr overload of
- * copyCloneableSmartPointerContainer() (which uses clone()/load()).
+ * reference counting. Deep copy goes through copyCloneableSmartPointerContainer() (which uses
+ * clone()/load()), as for SharedPtrStorage.
  *
  * @tparam T         The element type (must expose the Gemfony common interface).
  * @tparam container_type The underlying sequence container; defaults to std::vector<std::unique_ptr<T>>.
