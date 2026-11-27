@@ -1136,6 +1136,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   them includes them itself.
 - **common: `condnotset()` was removed.** It raised an error when a function was called although a
   compile-time switch was not set; its callers left with the self-test mechanism.
+- **common: `GEM_DEPRECATED(message)` is the standard `[[deprecated]]`.** It stands in front of the
+  declaration it marks (`GEM_DEPRECATED("Use g() instead") void f();`); behind the declarator, where
+  the compiler-specific attribute it was before also fitted, it no longer compiles.
 
 ## 8. Checkpointing
 

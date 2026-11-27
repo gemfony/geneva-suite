@@ -121,13 +121,11 @@ template <typename T>
 } // namespace Gem::Common
 
 //-----------------------------------------------------------
-// Allow to mark functions as deprecated on supported compilers
-#ifdef __GNUC__
-#define GEM_DEPRECATED(message) __attribute__((deprecated(#message)))
-#elif defined(__clang__)
-#define GEM_DEPRECATED(message) __attribute__((deprecated(#message)))
-#elif defined(_MSC_VER)
-#define GEM_DEPRECATED(message) __declspec(deprecated(#message))
-#else
-#define GEM_DEPRECATED(message)
-#endif
+/**
+ * @brief Marks a declaration as deprecated: the standard attribute @c [[deprecated]], with
+ * @p message turned into its text. It stands in front of the declaration, as the attribute does:
+ * @code
+ * GEM_DEPRECATED("Use newFunction() instead") void oldFunction();
+ * @endcode
+ */
+#define GEM_DEPRECATED(message) [[deprecated(#message)]]
