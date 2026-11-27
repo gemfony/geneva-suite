@@ -63,6 +63,12 @@ namespace Gem::Common {
  * work needs to be done in functions that are implemented in derived classes for each target
  * object individually, or in specializations of this class.
  *
+ * Threads: get() and get_as() may be called from several threads at once as far as this class
+ * is concerned -- the first initialization (init_()) and the parse of the configuration file are
+ * guarded -- but the hooks of the derived factory (describeLocalOptions_(), getObject_(),
+ * postProcess_()) run without a lock, so they must be safe to run concurrently, or the callers
+ * serialize get(). setConfigFile(), load() and writeConfigFile() must not run during a get().
+ *
  * @tparam prod_type The type of object produced by this factory
  */
 template <typename prod_type>

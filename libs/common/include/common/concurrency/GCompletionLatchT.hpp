@@ -42,6 +42,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/GChecks.hpp"
 
 namespace Gem::Common::Concurrency {
 
@@ -61,6 +62,12 @@ namespace Gem::Common::Concurrency {
  * outlives the last @c count_down(). Do not stack-allocate it across that boundary.
  *
  * The latch is re-armable (@c arm()) for reuse once a previous round has fully completed.
+ *
+ * @par Threads
+ * count_down() may be called from any number of threads and wait() / wait_for() from any thread;
+ * arm() only while no count_down() or wait() of a previous round is under way. A count_down()
+ * beyond the armed count is refused with gem_exception (the count would wrap, and wait() would
+ * not return).
  */
 class GCompletionLatchT { // NOLINT(cppcoreguidelines-special-member-functions)
 public:
@@ -80,9 +87,18 @@ public:
     }
 
     /** @brief Records one completion. Must be called exactly @c n times after @c arm(n) (or construction
-     *  with n). @return true iff this call brought the count to zero (i.e. it was the last completion). */
+     *  with n); a further call is refused with gem_exception. @return true iff this call brought the
+     *  count to zero (i.e. it was the last completion). */
     bool count_down() {
-        if(remaining_.fetch_sub(1) == 1) { // this was the last outstanding completion
+        std::size_t old = remaining_.load();
+        do {
+            Gem::Common::checkThat(
+                old != 0,
+                "GCompletionLatchT::count_down() beyond the armed count"
+            );
+        }
+        while(not remaining_.compare_exchange_weak(old, old - 1));
+        if(old == 1) { // this was the last outstanding completion
             std::scoped_lock const lk(m_);
             cv_.notify_all();
             return true;

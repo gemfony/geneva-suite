@@ -83,6 +83,10 @@ class GThreadPool;
  * system call, and a new thread that calls into the group at once (size(), add_thread()) would
  * wait for it. Room for the thread in the group is reserved under the lock before the thread is
  * started, so that adding it afterwards cannot fail (see create_thread()).
+ *
+ * Threads: every public function may be called from any thread. join_all() joins outside the
+ * lock; a call from a thread of the group is refused with gem_exception (a thread cannot join
+ * itself). Joined threads stay in the group, and size() counts them, until it is destroyed.
  */
 class GThreadGroup {
     friend class GThreadPool;

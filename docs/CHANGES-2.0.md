@@ -506,7 +506,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `blocking_for_each()` called from a task of the same pool throw `gem_exception` (they could
   deadlock; from a task of another pool they run). `blocking_for_each()` on a pool whose
   destructor runs no longer hangs: it waits for the elements the pool still took and throws,
-  naming how many were left out.
+  naming how many were left out. Likewise `GThreadGroup::join_all()` from a thread of the group
+  and a `GCompletionLatchT::count_down()` beyond the armed count throw `gem_exception` (they
+  ended in a `std::system_error` and in a latch that never opened again).
 
 ## 6. Packaging: libraries and runtime-loadable modules
 
