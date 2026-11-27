@@ -151,8 +151,9 @@ std::string GExternalEvaluatorIndividual::getCustomOptions() const {
  */
 void GExternalEvaluatorIndividual::setExchangeBaseName(const std::string &parameter_file) {
     if(parameter_file.empty() || parameter_file == "empty") {
-        throw gem_exception(
-            g_error_streamer() << "Invalid file name \"" << parameter_file << "\"" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid file name \"" << parameter_file << "\"" << '\n'
         );
     }
 
@@ -177,8 +178,9 @@ std::string GExternalEvaluatorIndividual::getExchangeBaseName() const {
  */
 void GExternalEvaluatorIndividual::setNExpectedResults(const std::size_t &n_results) {
     if(0 == n_results) {
-        throw gem_exception(
-            g_error_streamer() << "Got invalid number of expected results: " << n_results << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Got invalid number of expected results: " << n_results << '\n'
         );
     }
 
@@ -333,9 +335,9 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
 
     // Check that the result file exists
     if(not std::filesystem::exists(result_file_name)) {
-        throw gem_exception(
-            g_error_streamer() << "Result file " << result_file_name << " does not seem to exist."
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Result file " << result_file_name << " does not seem to exist." << '\n'
         );
     }
 
@@ -348,8 +350,8 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
         // Check that only a single result individual was returned
         auto n_external_individuals = root.at("n_individuals").to_number<std::size_t>();
         if(1 != n_external_individuals) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Number of result individuals != 1: " << n_external_individuals << '\n'
             );
         }
@@ -359,8 +361,8 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
         // Check that the number of results provided by the result file matches the number of expected results
         auto external_n_results = result_individual.at("n_results").to_number<std::size_t>();
         if(external_n_results != n_results_) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Result file provides n_results = " << external_n_results << '\n'
                 << "while we expected " << n_results_ << '\n'
             );
@@ -389,13 +391,13 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
             }
         }
     }
-    catch(const gem_exception &) {
+    catch(const Gem::Common::gem_exception &) {
         throw; // re-throw our own diagnostics untouched
     }
     catch(const std::exception &e) {
-        throw gem_exception(
-            g_error_streamer() << "Error reading " << result_file_name << '\n'
-                               << "with message " << e.what() << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Error reading " << result_file_name << '\n'
+                                            << "with message " << e.what() << '\n'
         );
     }
 }
@@ -408,8 +410,9 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
  */
 void GExternalEvaluatorIndividual::setRunId(const std::string &run_id) {
     if(run_id.empty() || "empty" == run_id) {
-        throw gem_exception(
-            g_error_streamer() << "Attempt to set an invalid run id: \"" << run_id << "\"" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Attempt to set an invalid run id: \"" << run_id << "\"" << '\n'
         );
     }
 
@@ -549,10 +552,10 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
             command
         );
         if(error_code) {
-            throw gem_exception(
-                g_error_streamer() << "Execution of external command failed." << '\n'
-                                   << "Command: " << command << '\n'
-                                   << "Error code: " << error_code << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
+                                                << "Command: " << command << '\n'
+                                                << "Error code: " << error_code << '\n'
             );
         }
     }
@@ -572,10 +575,10 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
             command
         );
         if(error_code) {
-            throw gem_exception(
-                g_error_streamer() << "Execution of external command failed." << '\n'
-                                   << "Command: " << command << '\n'
-                                   << "Error code: " << error_code << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
+                                                << "Command: " << command << '\n'
+                                                << "Error code: " << error_code << '\n'
             );
         }
         setup_doc = Gem::Common::parseJsonFile(setup_file_name);
@@ -583,8 +586,9 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
     }
 
     if(not setup_doc.is_object()) {
-        throw gem_exception(
-            g_error_streamer() << "Setup document is empty or not a JSON object." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Setup document is empty or not a JSON object." << '\n'
         );
     }
 
@@ -616,8 +620,8 @@ static gen::GenomeData authorFlatGenomeFromSetup(
 
         auto n_individuals = root.at("n_individuals").to_number<std::size_t>();
         if(1 != n_individuals) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Received invalid number of setup-individuals: " << n_individuals << '\n'
             );
         }
@@ -629,7 +633,9 @@ static gen::GenomeData authorFlatGenomeFromSetup(
 
         json::array const &var_set_node = setup_individual.at("vars").as_array();
         if(var_set_node.empty()) {
-            throw gem_exception(g_error_streamer() << "No variables were specified" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "No variables were specified" << '\n'
+            );
         }
 
         for(std::size_t var_counter = 0; var_counter < n_var && var_counter < var_set_node.size();
@@ -654,19 +660,21 @@ static gen::GenomeData authorFlatGenomeFromSetup(
                 }
             }
             else {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << var_type << " provided as type name." << '\n'
                     << "Currently only GConstrainedDoubleObject is supported." << '\n'
                 );
             }
         }
     }
-    catch(const gem_exception &) {
+    catch(const Gem::Common::gem_exception &) {
         throw; // Re-throw the original object (a copy would slice a derived type)
     }
     catch(...) {
-        throw gem_exception(g_error_streamer() << "Caught unknown exception!" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Caught unknown exception!" << '\n'
+        );
     }
 
     return gb.build();
@@ -687,12 +695,14 @@ static gen::GenomeData authorFlatGenomeFromSetup(
  */
 gen::GenomeData GExternalEvaluatorIndividual::buildGenome(Config &c) {
     if(c.program_name.empty()) {
-        throw gem_exception(g_error_streamer() << "Program name was empty" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Program name was empty" << '\n'
+        );
     }
     if(not std::filesystem::exists(c.program_name)) {
-        throw gem_exception(
-            g_error_streamer() << "External program " << c.program_name << " does not seem to exist"
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "External program " << c.program_name << " does not seem to exist" << '\n'
         );
     }
 
@@ -863,10 +873,10 @@ void GExternalEvaluatorIndividual::archive(
         command
     );
     if(error_code) {
-        throw gem_exception(
-            g_error_streamer() << "Execution of external command failed." << '\n'
-                               << "Command: " << command << '\n'
-                               << "Error code: " << error_code << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
+                                            << "Command: " << command << '\n'
+                                            << "Error code: " << error_code << '\n'
         );
     }
 

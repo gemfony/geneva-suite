@@ -223,8 +223,8 @@ private:
         const std::size_t dim_sz = marshaller_->itemDimension(items.front());
         for(std::size_t i = 1; i < items.size(); ++i) {
             if(marshaller_->itemDimension(items[i]) != dim_sz) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "The GPU consumer requires a UNIFORM item geometry across a batch, but item "
                     << i << " has " << marshaller_->itemDimension(items[i])
                     << " parameters while item 0"
@@ -277,8 +277,8 @@ private:
         }
         BackendKind const kind = cfg_.backendKind();
         if(not backendAvailable(kind)) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "The '" << Gem::Common::enumName(kind)
                 << "' backend was not compiled into this build (its"
                 << " toolkit was not found at configure time)." << '\n'

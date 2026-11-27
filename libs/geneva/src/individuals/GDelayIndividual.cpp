@@ -190,10 +190,10 @@ void GDelayIndividual::setRandomSleep(
     // Enforce that the sanity of the lower and upper boundaries
     if(std::get<0>(rand_sleep_boundaries) < 0. ||
        std::get<0>(rand_sleep_boundaries) >= std::get<1>(rand_sleep_boundaries)) {
-        throw gem_exception(
-            g_error_streamer() << "Got invalid boundaries for the sleep time: "
-                               << std::get<0>(rand_sleep_boundaries) << " / "
-                               << std::get<1>(rand_sleep_boundaries) << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Got invalid boundaries for the sleep time: " << std::get<0>(rand_sleep_boundaries)
+            << " / " << std::get<1>(rand_sleep_boundaries) << '\n'
         );
     }
 

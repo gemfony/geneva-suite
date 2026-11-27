@@ -136,7 +136,9 @@ std::size_t GConjugateGradientDescent::getNStartingPoints() const {
  */
 void GConjugateGradientDescent::setNStartingPoints(std::size_t n_starting_points) {
     if(n_starting_points == 0) {
-        throw gem_exception(g_error_streamer() << "Got invalid number of starting points." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got invalid number of starting points." << '\n'
+        );
     }
 
     n_starting_points_ = n_starting_points;
@@ -151,9 +153,10 @@ void GConjugateGradientDescent::setNStartingPoints(std::size_t n_starting_points
 void GConjugateGradientDescent::setFiniteStep(double finite_step) {
     if(finite_step <= 0. ||
        finite_step > 1000.) { // Specified in per mill of the allowed or preferred value range
-        throw gem_exception(
-            g_error_streamer() << "Invalid value of finite_step: " << finite_step << '\n'
-                               << "Must be in the range ]0.:1000.]" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid value of finite_step: " << finite_step << '\n'
+            << "Must be in the range ]0.:1000.]" << '\n'
         );
     }
 
@@ -182,9 +185,9 @@ double GConjugateGradientDescent::getFiniteStep() const {
 void GConjugateGradientDescent::setStepSize(double step_size) {
     if(step_size <= 0. ||
        step_size > 1000.) { // Specified in per mill of the allowed or preferred value range
-        throw gem_exception(
-            g_error_streamer() << "Invalid value of step_size: " << step_size << '\n'
-                               << "Must be in the range ]0.:1000.]" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Invalid value of step_size: " << step_size << '\n'
+                                            << "Must be in the range ]0.:1000.]" << '\n'
         );
     }
 
@@ -312,7 +315,9 @@ errorEstimationMode GConjugateGradientDescent::getErrorEstimation() const {
  */
 void GConjugateGradientDescent::setErrorDefinition(double up) {
     if(up <= 0.) {
-        throw gem_exception(g_error_streamer() << "UP must be positive, got " << up << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "UP must be positive, got " << up << '\n'
+        );
     }
     error_up_ = up;
 }

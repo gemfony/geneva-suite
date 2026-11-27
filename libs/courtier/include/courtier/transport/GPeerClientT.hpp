@@ -661,10 +661,11 @@ private:
         try {
             std::string bytes = Gem::Courtier::wireEncode(frame, &wire_ctx_, options_.mode);
             if(bytes.size() > limit) {
-                throw gem_exception(
-                    g_error_streamer() << "the message of " << bytes.size()
-                                       << " bytes is longer than the transport can carry (" << limit
-                                       << " bytes)" << '\n'
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
+                    << "the message of " << bytes.size()
+                    << " bytes is longer than the transport can carry (" << limit << " bytes)"
+                    << '\n'
                 );
             }
             return bytes;
@@ -799,8 +800,8 @@ private:
         options.prefetchDepth = std::max<std::size_t>(options.prefetchDepth, 1);
         if(options.parallelEvaluations == 0 ||
            options.parallelEvaluations > options.prefetchDepth) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In " << options.name << ": Error!" << '\n'
                 << "The client is to evaluate " << options.parallelEvaluations
                 << " items at the same time (parallel evaluations), but it holds at most "

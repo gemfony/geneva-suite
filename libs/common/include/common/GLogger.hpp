@@ -656,17 +656,18 @@ template <>
 struct gsingleton_never_destroy<GLogger> : std::true_type {};
 
 /******************************************************************************/
-
-} /* namespace Gem::Common */
-
-/******************************************************************************/
 /**
 * The logger is process-wide: its targets (the console, a log file) are resources of the process,
 * set up once and written to from every thread and library
 */
-using log_singleton = Gem::Common::GSingletonT<Gem::Common::GLogger>;
-#define glogger_ptr log_singleton::instance()
-#define glogger     (*(log_singleton::instance()))
+using log_singleton = GSingletonT<GLogger>;
+
+/******************************************************************************/
+
+} /* namespace Gem::Common */
+
+#define glogger_ptr Gem::Common::log_singleton::instance()
+#define glogger     (*(Gem::Common::log_singleton::instance()))
 
 /******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////

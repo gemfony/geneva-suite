@@ -79,7 +79,7 @@ GStarterIndividual::GStarterIndividual(
             upperBoundaries
         );
     }
-    catch(const gem_exception &e) {
+    catch(const Gem::Common::gem_exception &e) {
         glogger << e.what() << GTERMINATION;
     }
     catch(...) {

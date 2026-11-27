@@ -92,8 +92,8 @@ thread_local bool building = false; // NOLINT(cppcoreguidelines-avoid-non-const-
  *  @throws gem_exception on the thread that builds the environment */
 void refuseWhileBuilding(const char *where) {
     if(building) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "In " << where << ": Error!" << '\n'
             << where << " was called while the MPI environment is being built on this thread, "
             << "from the callable of mpiEnvironmentOn() (for a cascade: its configuration "
@@ -168,8 +168,8 @@ mpiEnvironmentOn(const std::function<MPI_Comm()> &make_base) {
     refuseWhileBuilding("mpiEnvironmentOn()");
     const std::scoped_lock lock(environmentMutex);
     if(not environment.expired()) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "An MPI environment exists already; mpiEnvironmentOn() must be the first call "
             << "that builds it" << '\n'
         );

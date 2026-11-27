@@ -264,8 +264,8 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
         const bool have =
             (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->tryGet(wid, blob);
         if(not have || blob.empty()) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "An id-only layout reference could not be resolved: the layout is not held here."
                 << '\n'
             );
@@ -557,8 +557,8 @@ private:
             const bool below = x < ch.lower[k];
             const bool above = allow_upper_bound ? (x > ch.upper[k]) : not(x < ch.upper[k]);
             if(below || above) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "External value " << x << " is outside the "
                     << (allow_upper_bound ? "range [" : "half-open range [") << ch.lower[k] << ", "
                     << ch.upper[k] << (allow_upper_bound ? "]" : ")") << " of bounded parameter "
@@ -1163,7 +1163,9 @@ public:
      *  @throw gem_exception if gpt is empty */
     void setPersonality(std::shared_ptr<GPersonalityTraits> gpt) {
         if(not gpt) {
-            throw gem_exception(g_error_streamer() << "Empty personality pointer passed" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Empty personality pointer passed" << '\n'
+            );
         }
         scratch_->personalityRef() = std::move(gpt);
     }

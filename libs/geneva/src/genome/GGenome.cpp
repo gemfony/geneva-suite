@@ -74,10 +74,10 @@ void GGenome::setGenome(GenomeData const &g) {
     auto checkBounds = [](auto const &ch, const char *type_name) {
         for(std::size_t k = 0; k < ch.size(); ++k) {
             if(ch.fold[k] && ch.lower[k] > ch.upper[k]) {
-                throw gem_exception(
-                    g_error_streamer() << "Bounded " << type_name << " parameter " << k
-                                       << " has inverted bounds (lower " << ch.lower[k]
-                                       << " > upper " << ch.upper[k] << ")." << '\n'
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer() << "Bounded " << type_name << " parameter " << k
+                                                    << " has inverted bounds (lower " << ch.lower[k]
+                                                    << " > upper " << ch.upper[k] << ")." << '\n'
                 );
             }
         }
@@ -222,12 +222,14 @@ bool GGenome::randomInitBool(activityMode const &am, Gem::Hap::GRandomBase &gr) 
  */
 std::size_t GGenome::getCrossOverPos(const std::size_t lower, const std::size_t upper) {
     if(lower == 0) {
-        throw gem_exception(g_error_streamer() << "lower boundary is 0, but must be > 0" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "lower boundary is 0, but must be > 0" << '\n'
+        );
     }
     if(upper <= lower) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid range: upper (" << upper << ") must be > lower ("
-                               << lower << ")" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid range: upper (" << upper << ") must be > lower (" << lower << ")" << '\n'
         );
     }
     auto lease = Gem::Hap::randomLeasePool().acquire();
@@ -290,7 +292,9 @@ std::shared_ptr<GGenome> GGenome::crossOverWith(GGenome const &cp_base) const {
 void GGenome::cannibalize(GGenome &cp_base) {
     auto &cp = dynamic_cast<GGenome &>(cp_base);
     if(cp.is_due_for_processing() || cp.has_errors()) {
-        throw gem_exception(g_error_streamer() << "cp isn't processed or has errors" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "cp isn't processed or has errors" << '\n'
+        );
     }
 
     dv_ = std::move(cp.dv_);
@@ -531,8 +535,8 @@ GGenome::GGenome(GGenome const &cp) {
  */
 void GGenome::setPolicy(std::shared_ptr<GProblemPolicy> policy) {
     if(not policy) {
-        throw gem_exception(
-            g_error_streamer() << "Tried to install an empty problem policy" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Tried to install an empty problem policy" << '\n'
         );
     }
     policy_ = std::move(policy);
@@ -582,10 +586,10 @@ GGenome::markAsProcessedWith(std::vector<individual_processing_result> const &re
  */
 individual_processing_result GGenome::getStoredResult(const std::size_t id) const {
     if(not this->is_processed()) {
-        throw gem_exception(
-            g_error_streamer() << "Tried to" << '\n'
-                               << "retrieve stored result while the PROCESSED flag was not set"
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Tried to" << '\n'
+            << "retrieve stored result while the PROCESSED flag was not set" << '\n'
         );
     }
 
@@ -616,7 +620,9 @@ GGenome::process(const std::vector<individual_processing_result> &res_vec) {
  */
 individual_processing_result GGenome::process(evaluation_function evaluation) {
     if(not evaluation) {
-        throw gem_exception(g_error_streamer() << "The evaluation is empty" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "The evaluation is empty" << '\n'
+        );
     }
     return this->processWith_({}, &evaluation);
 }
@@ -699,8 +705,9 @@ void GGenome::processingCore_(
     }
 
     if(injected_fault == GFaultInjector::Fault::THROW) {
-        throw gem_exception(
-            g_error_streamer() << "Fault injected into the processing of a GGenome (THROW)" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Fault injected into the processing of a GGenome (THROW)" << '\n'
         );
     }
 
@@ -732,8 +739,8 @@ double GGenome::adoptRawResults_(
     // no comparison would ever replace it. It is an evaluation error, like an exception of evaluate().
     const auto require_number = [](double value, std::size_t pos) {
         if(std::isnan(value)) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Result " << pos << " of the evaluation is not a number (NaN)." << '\n'
             );
         }
@@ -742,9 +749,10 @@ double GGenome::adoptRawResults_(
     try {
         if(not res_vec.empty()) {
             if(res_vec.size() != this->getNStoredResults()) {
-                throw gem_exception(
-                    g_error_streamer() << "res_vec has invalid size. Got " << res_vec.size() << '\n'
-                                       << "Expected " << this->getNStoredResults() << '\n'
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
+                    << "res_vec has invalid size. Got " << res_vec.size() << '\n'
+                    << "Expected " << this->getNStoredResults() << '\n'
                 );
             }
 
@@ -772,8 +780,8 @@ double GGenome::adoptRawResults_(
             const std::vector<double> raw =
                 evaluation != nullptr ? (*evaluation)(std::as_const(*this)) : this->evaluate();
             if(raw.size() != this->getNStoredResults()) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << (evaluation != nullptr ? "The evaluation given to process()" : "evaluate()")
                     << " returned " << raw.size() << " result(s), but " << '\n'
                     << this->getNStoredResults() << " were expected." << '\n'
@@ -1118,9 +1126,10 @@ double GGenome::squaredSumCombiner() const {
  */
 double GGenome::weighedSquaredSumCombiner(std::vector<double> const &weights) const {
     if(this->getNStoredResults() != weights.size()) {
-        throw gem_exception(
-            g_error_streamer() << "Sizes of results and the weights vector don't match: "
-                               << this->getNStoredResults() << " / " << weights.size() << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Sizes of results and the weights vector don't match: " << this->getNStoredResults()
+            << " / " << weights.size() << '\n'
         );
     }
 

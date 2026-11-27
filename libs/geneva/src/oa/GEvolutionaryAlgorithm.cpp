@@ -322,7 +322,9 @@ void GType::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
 
 void GType::populationSanityChecks_() const {
     if(this->n_parents_ == 0) {
-        throw gem_exception(g_error_streamer() << "Number of parents is set to 0");
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Number of parents is set to 0"
+        );
     }
 
     std::size_t const pop_size = this->getPopulationSize();
@@ -337,7 +339,7 @@ void GType::populationSanityChecks_() const {
         error << "In GEvolutionaryAlgorithm::populationSanityChecks() :" << '\n'
               << "Requested size of population is too small :" << pop_size << " "
               << this->n_parents_ << '\n';
-        throw gem_exception(g_error_streamer() << error.str());
+        throw Gem::Common::gem_exception(Gem::Common::g_error_streamer() << error.str());
     }
 }
 

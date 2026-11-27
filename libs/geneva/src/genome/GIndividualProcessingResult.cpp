@@ -90,8 +90,8 @@ individual_processing_result::individual_processing_result(
         transformed_fitness_set_ = true;
     }
     else {
-        throw gem_exception(
-            g_error_streamer() << "Received an empty transformation function." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Received an empty transformation function." << '\n'
         );
     }
 }
@@ -132,7 +132,9 @@ void individual_processing_result::setTransformedFitnessWith(
         transformed_fitness_set_ = true;
     }
     else {
-        throw gem_exception(g_error_streamer() << "Function object f is empty." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Function object f is empty." << '\n'
+        );
     }
 }
 
@@ -215,7 +217,9 @@ void individual_processing_result::reset(
         transformed_fitness_set_ = true;
     }
     else {
-        throw gem_exception(g_error_streamer() << "Function object f is empty." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Function object f is empty." << '\n'
+        );
     }
 }
 

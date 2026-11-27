@@ -118,8 +118,8 @@ bool GSepCmaEvolutionStrategy::getParetoMode() const {
 
 void GSepCmaEvolutionStrategy::setInitialSigma(double initial_sigma) {
     if(initial_sigma <= 0.) {
-        throw gem_exception(
-            g_error_streamer() << "Got invalid initial sigma " << initial_sigma << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got invalid initial sigma " << initial_sigma << '\n'
         );
     }
     initial_sigma_ = initial_sigma;
@@ -207,10 +207,10 @@ void GSepCmaEvolutionStrategy::determineDimension() {
     n_ = this->at(0)->countFPParameters(activityMode::ACTIVEONLY);
 
     if(n_ == 0) {
-        throw gem_exception(
-            g_error_streamer() << "The individual exposes no floating point parameters; sep-CMA-ES"
-                               << '\n'
-                               << "requires a continuous (double / float) genome." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "The individual exposes no floating point parameters; sep-CMA-ES" << '\n'
+            << "requires a continuous (double / float) genome." << '\n'
         );
     }
 }
@@ -298,10 +298,10 @@ void GSepCmaEvolutionStrategy::setUpStrategyParameters() {
  */
 void GSepCmaEvolutionStrategy::adjustPopulation_() {
     if(this->empty()) {
-        throw gem_exception(
-            g_error_streamer() << "No individuals found in the population. You need to add at least"
-                               << '\n'
-                               << "one individual before the call to optimize()." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "No individuals found in the population. You need to add at least" << '\n'
+            << "one individual before the call to optimize()." << '\n'
         );
     }
 

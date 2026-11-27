@@ -1100,11 +1100,12 @@ private:
             std::chrono::duration_cast<std::chrono::milliseconds>(clock::duration::max()).count() /
             2;
         if(ms < 0 || ms > max_ms) {
-            throw gem_exception(
-                g_error_streamer() << "The value " << ms << " of \"" << key
-                                   << "\" is not a time limit: it must be" << '\n'
-                                   << "0 (no limit) or a positive number of milliseconds up to "
-                                   << max_ms << "." << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "The value " << ms << " of \"" << key << "\" is not a time limit: it must be"
+                << '\n'
+                << "0 (no limit) or a positive number of milliseconds up to " << max_ms << "."
+                << '\n'
             );
         }
         return std::chrono::milliseconds(ms);

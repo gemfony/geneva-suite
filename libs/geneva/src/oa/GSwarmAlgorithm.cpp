@@ -1045,8 +1045,8 @@ void GSwarmAlgorithm::sortNeighborhoodsAndUpdateBests(maxMode m) {
         // the population. adjustNeighborhoods() refills it afterwards.
         if(first_counter == last_counter) {
             if(inFirstIteration()) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "No item of neighborhood " << n
                     << " returned in the first iteration; cannot seed its best." << '\n'
                 );
@@ -1159,10 +1159,11 @@ void GSwarmAlgorithm::adjustPopulation_() {
     const std::size_t n_neighborhoods = getNNeighborhoods();
 
     if(current_size == 0) {
-        throw gem_exception(
-            g_error_streamer() << "No individuals found in the population." << '\n'
-                               << "You need to add at least one individual before" << '\n'
-                               << "the call to optimize<>()" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "No individuals found in the population." << '\n'
+            << "You need to add at least one individual before" << '\n'
+            << "the call to optimize<>()" << '\n'
         );
     }
     if(current_size == 1) {
@@ -1262,9 +1263,9 @@ void GSwarmAlgorithm::adjustPopulation_() {
 void GSwarmAlgorithm::fillUpNeighborhood1() {
     // Do some error checking
     if(this->size() != n_neighborhoods_) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid size: " << this->size() << " Expected "
-                               << n_neighborhoods_ << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid size: " << this->size() << " Expected " << n_neighborhoods_ << '\n'
         );
     }
 
@@ -1382,9 +1383,9 @@ double GSwarmAlgorithm::getCVelocity() const {
 void GSwarmAlgorithm::setVelocityRangePercentage(double velocity_range_percentage) {
     // Do some error checking
     if(velocity_range_percentage <= 0. || velocity_range_percentage > 1.) {
-        throw gem_exception(
-            g_error_streamer() << "Invalid velocity_range_percentage: " << velocity_range_percentage
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid velocity_range_percentage: " << velocity_range_percentage << '\n'
         );
     }
 

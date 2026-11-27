@@ -1043,6 +1043,19 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   share one statement of the range rules; `checkRangeCompliance()` and `checkValueRange()` are one
   template each for all arithmetic types, and the integral `checkValueRange()` takes a variable
   name like the floating-point one.
+- **common: its names live in `Gem::Common`.** The exception classes, the error streamer, the
+  logger's singleton type and the stream operator of `gem_exception` were in the global
+  namespace; they keep their names and move into `Gem::Common`. Code outside that namespace
+  qualifies them (`catch(const Gem::Common::gem_exception &e)`); the stream operator is found
+  through its argument.
+
+  | Before | Now |
+  |---|---|
+  | `gem_exception` | `Gem::Common::gem_exception` |
+  | `g_expectation_violation` | `Gem::Common::g_expectation_violation` |
+  | `g_error_streamer` | `Gem::Common::g_error_streamer` |
+  | `log_singleton` | `Gem::Common::log_singleton` |
+  | `operator<<(std::ostream &, const gem_exception &)` | the same, in `Gem::Common` |
 
 ## 8. Checkpointing
 

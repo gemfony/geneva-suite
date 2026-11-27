@@ -246,7 +246,7 @@ TEST_CASE(
 ) {
     gind::GTestIndividual1 p_test;
     CHECK_NOTHROW(p_test.mark_as_due_for_processing());
-    CHECK_THROWS_AS(p_test.transformed_fitness(0), gem_exception);
+    CHECK_THROWS_AS(p_test.transformed_fitness(0), Gem::Common::gem_exception);
 }
 
 TEST_CASE(
@@ -258,15 +258,15 @@ TEST_CASE(
     CHECK_NOTHROW(ind.resetPersonality());
     CHECK_THROWS_AS(
         ind.getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>(),
-        gem_exception
+        Gem::Common::gem_exception
     );
-    CHECK_THROWS_AS(ind.getPersonalityTraits(), gem_exception);
+    CHECK_THROWS_AS(ind.getPersonalityTraits(), Gem::Common::gem_exception);
 
 #ifndef NDEBUG // a personality of another type is found by GEM_DEBUG_CHECK (g_ptr_conversion)
     CHECK_NOTHROW(ind.setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>()));
     CHECK_THROWS_AS(
         ind.getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>(),
-        gem_exception
+        Gem::Common::gem_exception
     );
 #endif
 }

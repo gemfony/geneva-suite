@@ -38,41 +38,43 @@
 #include "common/GExceptions.hpp"
 
 TEST_CASE("gem_exception: basic construction and what()", "[common][exceptions]") {
-    gem_exception const e("custom message");
+    Gem::Common::gem_exception const e("custom message");
     CHECK(std::string{e.what()} == "custom message");
 
     // Inheritance: gem_exception is a std::runtime_error.
-    static_assert(std::is_base_of_v<std::runtime_error, gem_exception>);
-    static_assert(std::is_base_of_v<std::exception, gem_exception>);
+    static_assert(std::is_base_of_v<std::runtime_error, Gem::Common::gem_exception>);
+    static_assert(std::is_base_of_v<std::exception, Gem::Common::gem_exception>);
 }
 
 TEST_CASE("gem_exception: stream-out operator prints what()", "[common][exceptions]") {
-    gem_exception const e("payload-text");
+    Gem::Common::gem_exception const e("payload-text");
     std::ostringstream oss;
     oss << e;
     CHECK(oss.str() == "payload-text");
 }
 
 TEST_CASE("g_expectation_violation: derives from gem_exception", "[common][exceptions]") {
-    static_assert(std::is_base_of_v<gem_exception, g_expectation_violation>);
+    static_assert(
+        std::is_base_of_v<Gem::Common::gem_exception, Gem::Common::g_expectation_violation>
+    );
 
     // Can be caught as gem_exception, as runtime_error, and as exception.
     try {
-        throw g_expectation_violation("mismatch");
+        throw Gem::Common::g_expectation_violation("mismatch");
     }
-    catch(const gem_exception &g) {
+    catch(const Gem::Common::gem_exception &g) {
         CHECK(std::string{g.what()} == "mismatch");
     }
 
     try {
-        throw g_expectation_violation("mismatch-2");
+        throw Gem::Common::g_expectation_violation("mismatch-2");
     }
     catch(const std::runtime_error &r) {
         CHECK(std::string{r.what()} == "mismatch-2");
     }
 
     try {
-        throw g_expectation_violation("mismatch-3");
+        throw Gem::Common::g_expectation_violation("mismatch-3");
     }
     catch(const std::exception &e) {
         CHECK(std::string{e.what()} == "mismatch-3");
@@ -86,11 +88,12 @@ TEST_CASE(
     bool caught = false;
     std::string what;
     try {
-        throw gem_exception(
-            g_error_streamer() << "a=" << 42 << " b=" << 3.14 << " c=" << std::string{"foo"}
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "a=" << 42 << " b=" << 3.14 << " c=" << std::string{"foo"}
         );
     }
-    catch(const gem_exception &g) {
+    catch(const Gem::Common::gem_exception &g) {
         caught = true;
         what = g.what();
     }
@@ -107,7 +110,10 @@ TEST_CASE(
 ) {
     using Gem::Common::describeException;
     CHECK(describeException(std::make_exception_ptr(std::runtime_error("no file"))) == "no file");
-    CHECK(describeException(std::make_exception_ptr(gem_exception("bad entry"))) == "bad entry");
+    CHECK(
+        describeException(std::make_exception_ptr(Gem::Common::gem_exception("bad entry"))) ==
+        "bad entry"
+    );
     CHECK(
         describeException(std::make_exception_ptr(42)) ==
         "an exception that is not a std::exception"

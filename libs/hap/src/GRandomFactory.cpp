@@ -375,8 +375,8 @@ std::unique_ptr<random_container> GRandomFactory::getNewRandomContainer() {
                 std::unique_lock<std::mutex> const tc_lk(thread_creation_mutex_);
                 last_error = last_producer_error_;
             }
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "No producer thread of the random-number factory is left: each has ended with an"
                 << " error, so no further random numbers will come." << '\n'
                 << (last_error.empty() ? std::string("The error of the last one is not known.")

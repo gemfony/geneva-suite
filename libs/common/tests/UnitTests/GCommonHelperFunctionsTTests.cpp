@@ -142,7 +142,9 @@ struct TCommon : Gem::Common::gemfony_common_interface_indicator {
     compare(const TCommon &cp, Gem::Common::expectation e, [[maybe_unused]] double limit) const {
         const bool equal = val == cp.val;
         if(e == Gem::Common::expectation::INEQUALITY ? equal : not equal) {
-            throw g_expectation_violation("TCommon::compare: the expectation does not hold");
+            throw Gem::Common::g_expectation_violation(
+                "TCommon::compare: the expectation does not hold"
+            );
         }
     }
 };
@@ -170,7 +172,7 @@ TEST_CASE(
 
 TEST_CASE("ptrDifferenceCheck raw: same pointer throws", "[common][helper][ptrDifferenceCheck]") {
     int a = 1;
-    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(&a, &a), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(&a, &a), Gem::Common::gem_exception);
 }
 
 TEST_CASE(
@@ -178,7 +180,7 @@ TEST_CASE(
     "[common][helper][ptrDifferenceCheck]"
 ) {
     auto p = std::make_shared<int>(42);
-    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(p, p), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::ptrDifferenceCheck(p, p), Gem::Common::gem_exception);
 }
 
 TEST_CASE(
@@ -216,7 +218,10 @@ TEST_CASE(
 ) {
     TOther other;
     const TBase *base_ptr = &other;
-    REQUIRE_THROWS_AS((Gem::Common::g_ptr_conversion<TBase, TDerived>(base_ptr)), gem_exception);
+    REQUIRE_THROWS_AS(
+        (Gem::Common::g_ptr_conversion<TBase, TDerived>(base_ptr)),
+        Gem::Common::gem_exception
+    );
 }
 #endif
 
@@ -247,7 +252,10 @@ TEST_CASE(
 ) {
     auto sp = std::make_shared<TOther>();
     auto base_sp = std::static_pointer_cast<TBase>(sp);
-    REQUIRE_THROWS_AS((Gem::Common::g_ptr_conversion<TBase, TDerived>(base_sp)), gem_exception);
+    REQUIRE_THROWS_AS(
+        (Gem::Common::g_ptr_conversion<TBase, TDerived>(base_sp)),
+        Gem::Common::gem_exception
+    );
 }
 #endif
 
@@ -265,7 +273,7 @@ TEST_CASE(
     CHECK(Gem::Common::g_convert_and_compare<TBase, TDerived>(base, other).get() == derived.get());
     CHECK_THROWS_AS(
         (Gem::Common::g_convert_and_compare<TBase, TDerived>(base, derived)),
-        gem_exception
+        Gem::Common::gem_exception
     );
 
     // raw-pointer overload
@@ -275,7 +283,7 @@ TEST_CASE(
     );
     CHECK_THROWS_AS(
         (Gem::Common::g_convert_and_compare<TBase, TDerived>(base_raw, derived.get())),
-        gem_exception
+        Gem::Common::gem_exception
     );
 
     // reference overload
@@ -285,7 +293,7 @@ TEST_CASE(
     );
     CHECK_THROWS_AS(
         (Gem::Common::g_convert_and_compare<TBase, TDerived>(base_ref, derived.get())),
-        gem_exception
+        Gem::Common::gem_exception
     );
 }
 
@@ -472,7 +480,10 @@ TEST_CASE(
 }
 
 TEST_CASE("splitStringT two-sep: identical separators throw", "[common][helper][splitStringT2]") {
-    REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1", "/", "/")), gem_exception);
+    REQUIRE_THROWS_AS(
+        (Gem::Common::splitStringT<int, int>("0/1", "/", "/")),
+        Gem::Common::gem_exception
+    );
 }
 
 // A fragment without its second sub-field was indexed past the end in a release build (the check
@@ -481,8 +492,14 @@ TEST_CASE(
     "splitStringT two-sep: a fragment without two sub-fields throws",
     "[common][helper][splitStringT2]"
 ) {
-    REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1 2", " ", "/")), gem_exception);
-    REQUIRE_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1/2", " ", "/")), gem_exception);
+    REQUIRE_THROWS_AS(
+        (Gem::Common::splitStringT<int, int>("0/1 2", " ", "/")),
+        Gem::Common::gem_exception
+    );
+    REQUIRE_THROWS_AS(
+        (Gem::Common::splitStringT<int, int>("0/1/2", " ", "/")),
+        Gem::Common::gem_exception
+    );
 }
 
 // --- getMapItem ----------------------------------------------------------
@@ -508,12 +525,12 @@ TEST_CASE(
 
 TEST_CASE("getMapItem: missing key throws", "[common][helper][getMapItem]") {
     std::map<std::string, int> m{{"a", 1}};
-    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "z"), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "z"), Gem::Common::gem_exception);
 }
 
 TEST_CASE("getMapItem: empty map throws", "[common][helper][getMapItem]") {
     std::map<std::string, int> m;
-    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "a"), gem_exception);
+    REQUIRE_THROWS_AS(Gem::Common::getMapItem(m, "a"), Gem::Common::gem_exception);
 }
 
 // --- to_string -----------------------------------------------------------
@@ -633,12 +650,12 @@ TEST_CASE(
     "[common][helper][from_string]"
 ) {
     using Catch::Matchers::ContainsSubstring;
-    CHECK_THROWS_AS(Gem::Common::from_string<int>("abc"), gem_exception);
-    CHECK_THROWS_AS(Gem::Common::from_string<int>("12abc"), gem_exception);
-    CHECK_THROWS_AS(Gem::Common::from_string<int>("1.5"), gem_exception);
-    CHECK_THROWS_AS(Gem::Common::from_string<unsigned>("-1"), gem_exception);
-    CHECK_THROWS_AS(Gem::Common::from_string<double>(""), gem_exception);
-    CHECK_THROWS_AS(Gem::Common::from_string<std::uint8_t>("300"), gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("abc"), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("12abc"), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<int>("1.5"), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<unsigned>("-1"), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<double>(""), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(Gem::Common::from_string<std::uint8_t>("300"), Gem::Common::gem_exception);
     CHECK_THROWS_WITH(
         Gem::Common::from_string<int>("12abc"),
         ContainsSubstring("\"12abc\"") && ContainsSubstring("int")
@@ -656,9 +673,18 @@ TEST_CASE(
     "splitStringT: a fragment that is not a value of the type throws",
     "[common][helper][splitStringT]"
 ) {
-    CHECK_THROWS_AS(Gem::Common::splitStringT<std::size_t>("2-x-1", "-"), gem_exception);
-    CHECK_THROWS_AS(Gem::Common::splitStringT<std::size_t>("2-4.5-1", "-"), gem_exception);
-    CHECK_THROWS_AS((Gem::Common::splitStringT<int, int>("0/1 2/y", " ", "/")), gem_exception);
+    CHECK_THROWS_AS(
+        Gem::Common::splitStringT<std::size_t>("2-x-1", "-"),
+        Gem::Common::gem_exception
+    );
+    CHECK_THROWS_AS(
+        Gem::Common::splitStringT<std::size_t>("2-4.5-1", "-"),
+        Gem::Common::gem_exception
+    );
+    CHECK_THROWS_AS(
+        (Gem::Common::splitStringT<int, int>("0/1 2/y", " ", "/")),
+        Gem::Common::gem_exception
+    );
 }
 
 // --- environmentVariableAs -----------------------------------------------

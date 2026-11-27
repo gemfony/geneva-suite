@@ -344,8 +344,8 @@ public:
     getIterators() const {
         // Make sure parsing has happened.
         if(not parsed_) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Tried to retrieve iterators when parsing hasn't happened yet" << '\n'
             );
         }

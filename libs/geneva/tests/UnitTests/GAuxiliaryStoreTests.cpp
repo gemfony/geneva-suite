@@ -92,11 +92,11 @@ TEST_CASE(
 // iterator for a missing key. Both checks now run in every build.
 TEST_CASE("GAuxiliaryStore POD blocks: a missing key or another POD type throws", "[aux]") {
     GAuxiliaryStore s;
-    CHECK_THROWS_AS(s.metaRecords<AuxGaussRecord>(KEY), gem_exception);
+    CHECK_THROWS_AS(s.metaRecords<AuxGaussRecord>(KEY), Gem::Common::gem_exception);
 
     s.installAuxBlock<AuxGaussRecord>(KEY, 3);
     CHECK_NOTHROW(s.metaRecords<AuxGaussRecord>(KEY));
-    CHECK_THROWS_AS(s.metaRecords<std::uint8_t>(KEY), gem_exception);
+    CHECK_THROWS_AS(s.metaRecords<std::uint8_t>(KEY), Gem::Common::gem_exception);
 }
 
 /******************************************************************************/

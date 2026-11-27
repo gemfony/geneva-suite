@@ -128,8 +128,8 @@ void applyNetworkedTimeouts(GBaseConsumerT<processable_type> &consumer) {
 }
 
 /** @brief An error of the free functions @param what Why @return The exception to throw */
-inline gem_exception consumerError(const std::string &what) {
-    return gem_exception(g_error_streamer() << what << '\n');
+inline Gem::Common::gem_exception consumerError(const std::string &what) {
+    return Gem::Common::gem_exception(Gem::Common::g_error_streamer() << what << '\n');
 }
 
 } // namespace detail
@@ -455,8 +455,8 @@ private:
      *  producer @return "a, b, c" */
     [[nodiscard]] std::string listing_(const GProducerDescriptionI &description) const;
     /** @brief A refusal of the launcher @param what Why @return The exception to throw */
-    static gem_exception refusal_(const std::string &what) {
-        return gem_exception(g_error_streamer() << what << '\n');
+    static Gem::Common::gem_exception refusal_(const std::string &what) {
+        return Gem::Common::gem_exception(Gem::Common::g_error_streamer() << what << '\n');
     }
 
     int argc_;                          ///< The command line

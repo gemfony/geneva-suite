@@ -262,9 +262,9 @@ void networkData::saveToDisk(const std::string &network_data_file) const {
     std::ofstream tr_dat(network_data_file);
 
     if(not tr_dat) {
-        throw gem_exception(
-            g_error_streamer() << "Data file " << network_data_file
-                               << " could not be opened for writing." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Data file " << network_data_file << " could not be opened for writing." << '\n'
         );
     }
 
@@ -296,7 +296,7 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
             error << "File does not exist." << '\n';
         }
 
-        throw gem_exception(g_error_streamer() << error.str() << '\n');
+        throw Gem::Common::gem_exception(Gem::Common::g_error_streamer() << error.str() << '\n');
     }
 
     // Load the data via the GArchive JSON codec. A deserialization failure (a truncated file, or --
@@ -312,8 +312,8 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
         ia &Gem::Weft::make_nvp("networkData", loaded);
     }
     catch(const std::exception &e) {
-        throw gem_exception(
-            g_error_streamer()
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
             << "Failed to deserialise the training-data file" << '\n'
             << "  " << network_data_file << '\n'
             << "as a GArchive JSON archive. Reason:" << '\n'
@@ -339,9 +339,9 @@ void networkData::loadFromDisk(const std::string &network_data_file) {
  */
 void networkData::addTrainingSet(std::shared_ptr<trainingSet> t_s, const std::size_t &pos) {
     if(pos >= data_.size()) {
-        throw gem_exception(
-            g_error_streamer() << "pos = " << pos
-                               << " exceeds end of array (size = " << data_.size() << ")" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "pos = " << pos << " exceeds end of array (size = " << data_.size() << ")" << '\n'
         );
     }
     data_[pos] = std::move(t_s);
@@ -1080,7 +1080,9 @@ double GNeuralNetworkIndividual::transfer(const double &value) const {
     } break;
 
     default: {
-        throw gem_exception(g_error_streamer() << "Got invalid tranfer function " << t_f_ << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got invalid tranfer function " << t_f_ << '\n'
+        );
     } break;
     }
 
@@ -1196,9 +1198,10 @@ gen::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
     auto n_d = nnTrainingDataStore();
     const std::size_t n_layers = n_d->size();
     if(n_layers < 2) { // Two layers are required at the minimum (3 and 4 layers are useful)
-        throw gem_exception(
-            g_error_streamer() << "Invalid number of layers supplied (" << n_layers << ")." << '\n'
-                               << "Did you set up the network architecture ?" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Invalid number of layers supplied (" << n_layers << ")." << '\n'
+            << "Did you set up the network architecture ?" << '\n'
         );
     }
 
@@ -1210,8 +1213,8 @@ gen::GenomeData GNeuralNetworkIndividual::buildGenome(const Config &c) {
     std::size_t n_nodes_previous = 0;
     for(const auto &layer_n_nodes : *n_d) {
         if(layer_n_nodes == 0) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Found invalid number of nodes in layer: " << layer_n_nodes << '\n'
                 << "Did you set up the network architecture ?" << '\n'
             );

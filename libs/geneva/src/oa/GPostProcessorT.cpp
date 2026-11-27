@@ -103,7 +103,9 @@ std::string GEvolutionaryAlgorithmPostOptimizer::getOAConfigFile() const {
 bool GEvolutionaryAlgorithmPostOptimizer::raw_processing_(gen::GGenome &p) {
     // Make sure p is processed
     if(not p.is_processed()) {
-        throw gem_exception(g_error_streamer() << "Provided base_type has dirty flag set." << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Provided base_type has dirty flag set." << '\n'
+        );
     }
 
     // Clone the individual for post-processing

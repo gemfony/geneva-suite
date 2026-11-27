@@ -293,8 +293,8 @@ public:
 	  */
     [[nodiscard]] processing_result_type getStoredResult(std::size_t id = 0) const {
         if(not this->is_processed()) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Tried to" << '\n'
                 << "retrieve stored result while the PROCESSED flag was not set" << '\n'
             );

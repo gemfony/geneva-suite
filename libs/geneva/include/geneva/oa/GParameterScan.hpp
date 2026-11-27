@@ -818,9 +818,10 @@ private:
     addDataPoint(const singleParameter<data_type> &data_point, std::vector<data_type> &data_vec) {
         // Check that we haven't exceeded the size of the data vector
         if(data_point.pos >= data_vec.size()) {
-            throw gem_exception(
-                g_error_streamer() << "Got position beyond end of data vector: " << data_point.pos
-                                   << " / " << data_vec.size() << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Got position beyond end of data vector: " << data_point.pos << " / "
+                << data_vec.size() << '\n'
             );
         }
 

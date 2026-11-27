@@ -279,7 +279,7 @@ TEST_CASE("configOf() refuses the configuration of another family", "[courtier][
     try {
         (void)Gem::Courtier::configOf<GWebsocketConsumerConfig>(mismatched);
     }
-    catch(const gem_exception &e) {
+    catch(const Gem::Common::gem_exception &e) {
         message = e.what();
     }
     REQUIRE_FALSE(message.empty());
@@ -368,7 +368,7 @@ TEST_CASE(
         const auto file = dir / "broken.json";
         std::ofstream(file) << "{ this is not JSON";
         Gem::Courtier::GMPICascadeConfig config;
-        CHECK_THROWS_AS(config.load(file.string()), gem_exception);
+        CHECK_THROWS_AS(config.load(file.string()), Gem::Common::gem_exception);
     }
 
     std::error_code ignored;
@@ -382,14 +382,20 @@ TEST_CASE(
     using Gem::Courtier::GMPICascadeConfig;
     using std::chrono::microseconds;
     CHECK_NOTHROW(GMPICascadeConfig{}.check());
-    CHECK_THROWS_AS(GMPICascadeConfig{.groupSize = 0}.check(), gem_exception);
-    CHECK_THROWS_AS(GMPICascadeConfig{.pauseMin = microseconds(0)}.check(), gem_exception);
+    CHECK_THROWS_AS(GMPICascadeConfig{.groupSize = 0}.check(), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(
+        GMPICascadeConfig{.pauseMin = microseconds(0)}.check(),
+        Gem::Common::gem_exception
+    );
     // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): the value that is refused
     constexpr auto UNKNOWN_LAYOUT = static_cast<Gem::Courtier::GMPICascadeLayout>(7);
-    CHECK_THROWS_AS((GMPICascadeConfig{.layout = UNKNOWN_LAYOUT}.check()), gem_exception);
+    CHECK_THROWS_AS(
+        (GMPICascadeConfig{.layout = UNKNOWN_LAYOUT}.check()),
+        Gem::Common::gem_exception
+    );
     CHECK_THROWS_AS(
         (GMPICascadeConfig{.pauseMin = microseconds(20), .pauseMax = microseconds(10)}.check()),
-        gem_exception
+        Gem::Common::gem_exception
     );
     CHECK_NOTHROW(
         (GMPICascadeConfig{.groupSize = 1, .pauseMin = microseconds(1), .pauseMax = microseconds(1)}

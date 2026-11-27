@@ -275,8 +275,9 @@ void GCollectiveMonitor::registerPluggableOM(const std::shared_ptr<oa::GBasePlug
         pluggable_monitors_.push_back(om_ptr);
     }
     else {
-        throw gem_exception(
-            g_error_streamer() << "Got empty pointer to pluggable optimization monitor." << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Got empty pointer to pluggable optimization monitor." << '\n'
         );
     }
 }
@@ -838,7 +839,9 @@ std::tuple<std::uint32_t, std::uint32_t> GProcessingTimesLogger::getCanvasDimens
  */
 void GProcessingTimesLogger::setNBinsX(std::size_t n_bins_x) {
     if(n_bins_x == 0) {
-        throw gem_exception(g_error_streamer() << "n_bins_x is set to 0" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "n_bins_x is set to 0" << '\n'
+        );
     }
     n_bins_x_ = n_bins_x;
 }
@@ -861,7 +864,9 @@ std::size_t GProcessingTimesLogger::getNBinsX() const {
  */
 void GProcessingTimesLogger::setNBinsY(std::size_t n_bins_y) {
     if(n_bins_y == 0) {
-        throw gem_exception(g_error_streamer() << "n_bins_y is set to 0" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "n_bins_y is set to 0" << '\n'
+        );
     }
     n_bins_y_ = n_bins_y;
 }

@@ -61,9 +61,10 @@ void cuCheck(CUresult r, const char *what) {
         const char *desc = nullptr;
         cudaDriver().getErrorName(r, &name);
         cudaDriver().getErrorString(r, &desc);
-        throw gem_exception(
-            g_error_streamer() << "GCUDABackend: CUDA driver error in " << what << ": "
-                               << (name ? name : "?") << " -- " << (desc ? desc : "?") << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "GCUDABackend: CUDA driver error in " << what << ": " << (name ? name : "?")
+            << " -- " << (desc ? desc : "?") << '\n'
         );
     }
 }
@@ -76,11 +77,10 @@ void cuCheck(CUresult r, const char *what) {
  */
 void nvrtcCheck(nvrtcResult r, const char *what, const std::string &log = {}) {
     if(r != NVRTC_SUCCESS) {
-        throw gem_exception(
-            g_error_streamer() << "GCUDABackend: NVRTC error in " << what << ": "
-                               << nvrtcGetErrorString(r) << '\n'
-                               << (log.empty() ? std::string{}
-                                               : ("NVRTC build log:\n" + log + "\n"))
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "GCUDABackend: NVRTC error in " << what << ": " << nvrtcGetErrorString(r) << '\n'
+            << (log.empty() ? std::string{} : ("NVRTC build log:\n" + log + "\n"))
         );
     }
 }
@@ -93,9 +93,9 @@ void nvrtcCheck(nvrtcResult r, const char *what, const std::string &log = {}) {
 std::string readFile(const std::string &path) {
     std::ifstream const in(path, std::ios::binary);
     if(not in) {
-        throw gem_exception(
-            g_error_streamer() << "GCUDABackend: could not open kernel file '" << path << "'"
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "GCUDABackend: could not open kernel file '" << path << "'" << '\n'
         );
     }
     std::ostringstream ss;
@@ -231,12 +231,14 @@ void GCUDABackend<scalar_type>::initialize(const KernelSpec &spec) {
     int n_devices = 0;
     cuCheck(drv.deviceGetCount(&n_devices), "cuDeviceGetCount");
     if(n_devices <= 0) {
-        throw gem_exception(g_error_streamer() << "GCUDABackend: no CUDA devices found" << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "GCUDABackend: no CUDA devices found" << '\n'
+        );
     }
     if(spec.device_id < 0 || spec.device_id >= n_devices) {
-        throw gem_exception(
-            g_error_streamer() << "GCUDABackend: device_id " << spec.device_id
-                               << " out of range [0," << n_devices << ")" << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "GCUDABackend: device_id " << spec.device_id
+                                            << " out of range [0," << n_devices << ")" << '\n'
         );
     }
     cuCheck(drv.deviceGet(&p_->device, spec.device_id), "cuDeviceGet");

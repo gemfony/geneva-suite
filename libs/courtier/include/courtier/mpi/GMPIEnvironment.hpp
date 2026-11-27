@@ -157,8 +157,8 @@ public:
         int finalized = 0;
         MPI_Finalized(&finalized);
         if(finalized != 0) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "MPI has been finalized in this process and cannot be used again." << '\n'
             );
         }
@@ -177,8 +177,8 @@ public:
             if(i_initialized_mpi_) {
                 MPI_Finalize(); // nobody else will: the destructor does not run for this object
             }
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "courtier's MPI transport requires MPI with the thread level "
                 << "MPI_THREAD_MULTIPLE (a.k.a. " << MPI_THREAD_MULTIPLE << "), but "
                 << (i_initialized_mpi_ ? "the runtime environment only supports level "
@@ -313,8 +313,8 @@ private:
      *  @param what The function that was asked */
     void requireCommunicator_(const char *what) const {
         if(communicator_ == MPI_COMM_NULL) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In GMPIEnvironment::" << what << ": Error!" << '\n'
                 << "This process takes no part in courtier's MPI protocol and has no "
                 << "communicator." << '\n'

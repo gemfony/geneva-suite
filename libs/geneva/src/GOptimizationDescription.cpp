@@ -146,8 +146,8 @@ void GOptimizationDescription::addOptions(Gem::Common::GParserBuilder &gpb) {
             return std::filesystem::weakly_canonical(a) == std::filesystem::weakly_canonical(b);
         };
         if(not taken_.individual or not same(named.front(), taken_.individual_module)) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "'" << named.front().string()
                 << "' was given as the optimization problem (--individual), but the module"
                 << " carries no individual." << '\n'

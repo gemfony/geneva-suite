@@ -146,8 +146,8 @@ public:
         for(std::size_t i = 0; i < items.size(); ++i) {
             const auto *flat = dynamic_cast<const Gem::Geneva::Genome::GGenome *>(items[i].get());
             if(flat == nullptr) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "A work item is not a GGenome; a GPU marshaller requires flat-genome"
                     << " individuals." << '\n'
                 );
@@ -166,8 +166,8 @@ public:
             // The consumer checked the uniform dimension before the pre-processors ran; a
             // pre-processor that changed it would make copyParameterValuesTo() write past the item's row.
             if(const std::size_t item_dim = this->itemDimension(items[i]); item_dim != dim) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "Work item " << i << " has " << item_dim << " parameters after its"
                     << " pre-processing, the batch " << dim << "." << '\n'
                     << "A pre-processor must not change the number of parameters of an item"

@@ -513,7 +513,7 @@ TEST_CASE(
             });
             return false;
         }
-        catch(gem_exception const &) {
+        catch(Gem::Common::gem_exception const &) {
             return true;
         }
     };
@@ -545,7 +545,7 @@ TEST_CASE(
             pool->wait();
             return false;
         }
-        catch(gem_exception const &) {
+        catch(Gem::Common::gem_exception const &) {
             return true;
         }
     };
@@ -554,7 +554,7 @@ TEST_CASE(
             pool->setNThreads(3);
             return false;
         }
-        catch(gem_exception const &) {
+        catch(Gem::Common::gem_exception const &) {
             return true;
         }
     };
@@ -639,7 +639,7 @@ TEST_CASE(
             try {
                 (void)probe.get();
             }
-            catch(gem_exception const &) {
+            catch(Gem::Common::gem_exception const &) {
                 closed = true;
             }
         }
@@ -661,7 +661,7 @@ TEST_CASE(
             raw->blocking_for_each(std::span<int>(data), [](int &x) { x = 1; });
             outcome->set_value(false);
         }
-        catch(gem_exception const &) {
+        catch(Gem::Common::gem_exception const &) {
             outcome->set_value(true);
         }
     });

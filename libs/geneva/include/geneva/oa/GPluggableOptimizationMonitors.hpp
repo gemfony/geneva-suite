@@ -490,8 +490,9 @@ public:
     void setProfileSpec(std::string const &par_str) {
         // Check that the parameter string isn't empty
         if(par_str.empty()) {
-            throw gem_exception(
-                g_error_streamer() << "Parameter string " << par_str << " is empty" << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "Parameter string " << par_str << " is empty" << '\n'
             );
         }
 

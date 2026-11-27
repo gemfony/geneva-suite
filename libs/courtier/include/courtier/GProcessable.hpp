@@ -172,8 +172,8 @@ class GBaseConsumerT;
 // non-generic lifecycle base so both the courtier transports (which catch it around a process() call) and
 // any processable (GProcessingContainerT or a work item that derives GProcessable directly)
 // throw and catch the SAME type.
-class g_processing_exception : public gem_exception {
-    using gem_exception::gem_exception;
+class g_processing_exception : public Gem::Common::gem_exception {
+    using Gem::Common::gem_exception::gem_exception;
 };
 
 /******************************************************************************/
@@ -299,8 +299,8 @@ public:
 
         // We do not accept setting a target state of PROCESSED via this function
         if(target_ps == processingStatus::PROCESSED) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "An attempt was made to set the processing state to PROCESSED" << '\n'
                 << "which is not allowed through this function." << '\n'
             );
@@ -325,8 +325,8 @@ public:
         }();
 
         if(not allowed) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "Got invalid target processing status " << Gem::Common::enumName(target_ps)
                 << '\n'
                 << "for the current state of " << Gem::Common::enumName(processing_status_) << '\n'
@@ -633,8 +633,8 @@ protected:
         post_fn_type &&post
     ) {
         if(results_given && processing_begun_.begun) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In " << context << ": Results were given to an item whose processing was"
                 << " begun with beginProcessing()." << '\n'
                 << "Complete it with completeProcessing() instead; process() would run the"
@@ -666,8 +666,8 @@ protected:
     void beginProcessingLifecycle_(std::string_view context) {
         // We only accept items that are due for processing
         if(processingStatus::DO_PROCESS != processing_status_) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In " << context << ": Function called while processing_status_ was set to "
                 << processing_status_ << '\n'
                 << "Expected " << processingStatus::DO_PROCESS << '\n'
@@ -689,8 +689,8 @@ protected:
             // An error flagged during pre-processing is the funnel's to handle. Any other change
             // of the status means the pre-processing step took the item out of processing.
             if(processingStatus::DO_PROCESS != processing_status_ && not this->has_errors()) {
-                throw gem_exception(
-                    g_error_streamer()
+                throw Gem::Common::gem_exception(
+                    Gem::Common::g_error_streamer()
                     << "The pre-processing step changed the processing status to "
                     << processing_status_ << "; expected " << processingStatus::DO_PROCESS << '\n'
                 );
@@ -721,8 +721,8 @@ protected:
         post_fn_type &&post
     ) {
         if(processingStatus::DO_PROCESS != processing_status_ || not processing_begun_.begun) {
-            throw gem_exception(
-                g_error_streamer()
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
                 << "In " << context << ": Processing was completed without having been begun"
                 << " (processing_status_ is " << processing_status_ << ")" << '\n'
             );
@@ -762,9 +762,9 @@ protected:
      */
     static void requireResults_(std::string_view context, bool results_given) {
         if(not results_given) {
-            throw gem_exception(
-                g_error_streamer() << "In " << context << ": Error!" << '\n'
-                                   << "No results were given" << '\n'
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "In " << context << ": Error!" << '\n'
+                                                << "No results were given" << '\n'
             );
         }
     }
@@ -818,7 +818,7 @@ protected:
             }
 
             throw g_processing_exception( // A specific exception type flagging errors during processing
-                g_error_streamer() << stored_error_descriptions_
+                Gem::Common::g_error_streamer() << stored_error_descriptions_
             );
         }
     }
@@ -896,7 +896,9 @@ protected:
      */
     void force_set_error(const std::string &error_info) {
         if(error_info.empty()) {
-            throw gem_exception(g_error_streamer() << "Error info is empty" << '\n');
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer() << "Error info is empty" << '\n'
+            );
         }
         // There may already be information stored in this variable. Hence we attach via +=
         stored_error_descriptions_ += error_info;

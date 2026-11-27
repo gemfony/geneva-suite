@@ -158,7 +158,7 @@ TEST_CASE("the backend is chosen per sink and names the extension", "[dietrich][
         s.append(1., 2.);
     }
     CHECK(std::filesystem::exists(dir / "curve.gp"));
-    CHECK_THROWS_AS(GPlotSink(layout, plotBackend::DATA), gem_exception);
+    CHECK_THROWS_AS(GPlotSink(layout, plotBackend::DATA), Gem::Common::gem_exception);
 }
 
 TEST_CASE(
@@ -226,7 +226,7 @@ TEST_CASE(
             withTime::none,
             GStreamOptions{.sinks = {std::make_shared<GPlotSink>(layout)}}
         );
-        CHECK_THROWS_AS(s.append(1., "a"), gem_exception);
+        CHECK_THROWS_AS(s.append(1., "a"), Gem::Common::gem_exception);
     }
     {
         GDataLog layout("Partly", 1, 1);
@@ -237,7 +237,7 @@ TEST_CASE(
             withTime::none,
             GStreamOptions{.sinks = {std::make_shared<GPlotSink>(layout)}}
         );
-        CHECK_THROWS_AS(s.append(1.), gem_exception);
+        CHECK_THROWS_AS(s.append(1.), Gem::Common::gem_exception);
     }
 }
 

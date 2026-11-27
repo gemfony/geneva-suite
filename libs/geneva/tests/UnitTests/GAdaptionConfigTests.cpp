@@ -126,8 +126,8 @@ TEST_CASE("GAdaptionConfig: built from a genome it addresses existing groups", "
 
     // Authoring a group that exists is fine; an out-of-range index throws.
     CHECK_NOTHROW(cfg.groupDouble(0).gauss(0.4, 0.8, 1e-3, 2., 1.));
-    CHECK_THROWS_AS(cfg.groupDouble(3), gem_exception);
-    CHECK_THROWS_AS(cfg.groupInt32(5), gem_exception);
+    CHECK_THROWS_AS(cfg.groupDouble(3), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(cfg.groupInt32(5), Gem::Common::gem_exception);
 }
 
 /******************************************************************************/
@@ -141,7 +141,7 @@ TEST_CASE("GAdaptionConfig: label resolution is one-to-many", "[flat][adaptcfg]"
     CHECK(cfg.groupsForLabel("absent").empty());
 
     // Authoring by an absent label throws; by a present one spans every tagged group.
-    CHECK_THROWS_AS(cfg.forLabel("absent"), gem_exception);
+    CHECK_THROWS_AS(cfg.forLabel("absent"), Gem::Common::gem_exception);
     CHECK_NOTHROW(cfg.forLabel("position").gauss(0.3, 0.8, 1e-3, 2., 1.));
 
     // The setting reached BOTH "position" groups (group 0 and group 1), not just the first.
@@ -165,7 +165,7 @@ TEST_CASE(
     GGenomeBuilder other;
     other.addDouble(0., -1., 1.); // structure only
     std::shared_ptr<const GGenomeLayout> const other_layout = other.buildLayout();
-    CHECK_THROWS_AS(cfg.checkConsistency(*other_layout), gem_exception);
+    CHECK_THROWS_AS(cfg.checkConsistency(*other_layout), Gem::Common::gem_exception);
 }
 
 /******************************************************************************/

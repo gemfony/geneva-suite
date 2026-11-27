@@ -2718,10 +2718,13 @@ TEST_CASE(
                 Catch::Matchers::ContainsSubstring("is not a step count")
         );
     }
-    CHECK_THROWS_AS(oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"), gem_exception);
+    CHECK_THROWS_AS(
+        oa::GParameterScan().setParameterSpecs("d(0, -1., 1., 10, x)"),
+        Gem::Common::gem_exception
+    );
 
     // An empty field is refused, not skipped: read without it, "d(0,,-1.,1.)" would be a valid spec
-    CHECK_THROWS_AS(gen::GParameterPropertyParser("d(0,,-1.,1.)"), gem_exception);
+    CHECK_THROWS_AS(gen::GParameterPropertyParser("d(0,,-1.,1.)"), Gem::Common::gem_exception);
 
     // A number is read as a whole and refused with the parser's message otherwise. Defects: std::stod
     // read "1.x" as 1, std::stoi read "2.5" as 2, and text or a number out of range escaped as
@@ -3464,9 +3467,9 @@ TEST_CASE("an algorithm factory refuses an empty product on every path", "[oa][f
     std::filesystem::remove(dir / "EmptyProduct.json");
     EmptyProductFactory factory(dir / "EmptyProduct.json");
 
-    CHECK_THROWS_AS(factory.provide(), gem_exception);
-    CHECK_THROWS_AS(factory.get(), gem_exception);
-    CHECK_THROWS_AS(factory.get<oa::GEvolutionaryAlgorithm>(), gem_exception);
+    CHECK_THROWS_AS(factory.provide(), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(factory.get(), Gem::Common::gem_exception);
+    CHECK_THROWS_AS(factory.get<oa::GEvolutionaryAlgorithm>(), Gem::Common::gem_exception);
 }
 
 TEST_CASE("isBetter under a maxMode follows the direction and orders NaN last", "[helpers]") {

@@ -132,8 +132,9 @@ void GSimulatedAnnealing::addConfigurationOptions_(Gem::Common::GParserBuilder &
   */
 void GSimulatedAnnealing::setTDegradationStrength(double alpha) {
     if(alpha <= 0. || alpha >= 1.) {
-        throw gem_exception(
-            g_error_streamer() << "alpha must be in (0,1) for SA cooling; got: " << alpha << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "alpha must be in (0,1) for SA cooling; got: " << alpha << '\n'
         );
     }
 
@@ -158,7 +159,9 @@ double GSimulatedAnnealing::getTDegradationStrength() const {
   */
 void GSimulatedAnnealing::setT0(double t0) {
     if(t0 <= 0.) {
-        throw gem_exception(g_error_streamer() << "Got negative start temperature: " << t0 << '\n');
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Got negative start temperature: " << t0 << '\n'
+        );
     }
 
     t0_ = t0;
@@ -193,18 +196,20 @@ void GSimulatedAnnealing::populationSanityChecks_() const {
     // Note that a number of checks (e.g. population size != 0) has already been done
     // in the parent class.
     if(this->n_parents_ == 0) {
-        throw gem_exception(g_error_streamer() << "Number of parents is set to 0");
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << "Number of parents is set to 0"
+        );
     }
 
     // We need at least as many children as parents: sortSAMode() pairs each parent with one of the
     // n_parents_ best children
     std::size_t const pop_size = this->getPopulationSize();
     if(pop_size < 2 * this->n_parents_) {
-        throw gem_exception(
-            g_error_streamer() << "Requested size of population is too small :" << pop_size << " "
-                               << this->n_parents_ << '\n'
-                               << "Simulated annealing needs at least as many children as parents."
-                               << '\n'
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "Requested size of population is too small :" << pop_size << " " << this->n_parents_
+            << '\n'
+            << "Simulated annealing needs at least as many children as parents." << '\n'
         );
     }
 }
