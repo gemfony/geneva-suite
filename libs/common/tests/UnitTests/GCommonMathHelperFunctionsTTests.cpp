@@ -264,7 +264,10 @@ TEST_CASE("getWorstCase/getBestCase sortOrder overloads", "[common][math][worstB
     REQUIRE(Gem::Common::getBestCase<double>(so::LOWERISBETTER) < 0.);
 }
 
-TEST_CASE("isBetter: strict under both sort orders and NaN worse than every number", "[common][math][isBetter]") {
+TEST_CASE(
+    "isBetter: strict under both sort orders and NaN worse than every number",
+    "[common][math][isBetter]"
+) {
     using so = Gem::Common::sortOrder;
     double const nan = std::numeric_limits<double>::quiet_NaN();
     double const inf = std::numeric_limits<double>::infinity();
@@ -726,16 +729,47 @@ TEST_CASE(
     REQUIRE(sb == Approx(0.).margin(1e-10));
 }
 
-// --- getRatioError / getRatioErrors --------------------------------------
+// --- ratioWithError ------------------------------------------------------
 
-TEST_CASE("getRatioError: known ratio and propagated error", "[common][math][getRatioError]") {
-    auto s = std::tuple<double, double, double, double>{2., 0., 6., 0.3};
-    auto p = std::tuple<double, double, double, double>{2., 0., 2., 0.1};
-    auto [t, te, ratio, err] = Gem::Common::getRatioError(s, p);
-    REQUIRE(t == Approx(2.));
-    REQUIRE(te == Approx(0.));
+TEST_CASE("ratioWithError: known ratio and propagated error", "[common][math][ratioWithError]") {
+    auto [ratio, err] = Gem::Common::ratioWithError(6., 0.3, 2., 0.1);
     REQUIRE(ratio == Approx(3.));
     REQUIRE(err == Approx(0.15 * std::sqrt(2.)));
+}
+
+TEST_CASE("ratioWithError: each error contributes on its own", "[common][math][ratioWithError]") {
+    // Only the numerator is uncertain: the error is s_error / p
+    auto [r1, e1] = Gem::Common::ratioWithError(6., 0.4, 2., 0.);
+    CHECK(r1 == Approx(3.));
+    CHECK(e1 == Approx(0.2));
+    // Only the denominator is uncertain: the error is s * p_error / p^2
+    auto [r2, e2] = Gem::Common::ratioWithError(6., 0., 2., 0.2);
+    CHECK(r2 == Approx(3.));
+    CHECK(e2 == Approx(0.3));
+    // Exact quantities have an exact ratio
+    auto [r3, e3] = Gem::Common::ratioWithError(1.f, 0.f, 4.f, 0.f);
+    CHECK(r3 == Approx(0.25f));
+    CHECK(e3 == 0.f);
+}
+
+TEST_CASE("ratioWithError: division by zero throws", "[common][math][ratioWithError]") {
+    REQUIRE_THROWS_AS(Gem::Common::ratioWithError(4., 0.1, 0., 0.1), gem_exception);
+}
+
+// --- getRatioError / getRatioErrors --------------------------------------
+
+TEST_CASE(
+    "getRatioError: carries the position and takes the ratio of ratioWithError()",
+    "[common][math][getRatioError]"
+) {
+    auto s = std::tuple<double, double, double, double>{2., 0.5, 6., 0.3};
+    auto p = std::tuple<double, double, double, double>{2., 0.5, 2., 0.1};
+    auto [x, xe, ratio, err] = Gem::Common::getRatioError(s, p);
+    auto [expected_ratio, expected_err] = Gem::Common::ratioWithError(6., 0.3, 2., 0.1);
+    REQUIRE(x == Approx(2.));
+    REQUIRE(xe == Approx(0.));
+    REQUIRE(ratio == Approx(expected_ratio));
+    REQUIRE(err == Approx(expected_err));
 }
 
 TEST_CASE("getRatioError: division by zero throws", "[common][math][getRatioError]") {
@@ -744,7 +778,7 @@ TEST_CASE("getRatioError: division by zero throws", "[common][math][getRatioErro
     REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), gem_exception);
 }
 
-TEST_CASE("getRatioError: mismatched sleep times throws", "[common][math][getRatioError]") {
+TEST_CASE("getRatioError: different positions throw", "[common][math][getRatioError]") {
     auto s = std::tuple<double, double, double, double>{1., 0., 4., 0.1};
     auto p = std::tuple<double, double, double, double>{2., 0., 2., 0.1};
     REQUIRE_THROWS_AS(Gem::Common::getRatioError(s, p), gem_exception);

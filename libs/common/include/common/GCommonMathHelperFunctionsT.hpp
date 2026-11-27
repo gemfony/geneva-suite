@@ -682,77 +682,76 @@ auto getRegressionParameters(const std::vector<std::tuple<fp_type, fp_type>> &da
 
 /******************************************************************************/
 /**
- * @brief Calculates the value and error of f = s/p for two independent measured quantities.
+ * @brief Calculates the ratio f = s/p of two independent quantities, and its error.
  *
- * Each input is a tuple {sleep_time, sleep_time_error, value, value_error}; s and p must
- * carry the same sleep_time, and p's value must be non-zero (otherwise this throws).
- * The error is propagated assuming s and p are independent.
+ * The error is that of Gaussian error propagation for independent s and p:
+ * sigma_f = sqrt((sigma_s / p)^2 + (s * sigma_p / p^2)^2).
+ *
+ * @tparam fp_type The floating point type of the quantities and their errors
+ * @param s The numerator
+ * @param s_error The error of the numerator
+ * @param p The denominator (must not be 0)
+ * @param p_error The error of the denominator
+ * @return A std::tuple {s/p, error of s/p}
+ * @throw gem_exception if p is 0
+ */
+template <std::floating_point fp_type>
+std::tuple<fp_type, fp_type>
+ratioWithError(fp_type s, fp_type s_error, fp_type p, fp_type p_error) {
+    checkThat(p != fp_type(0), "ratioWithError(): division by 0");
+
+    const fp_type s_term = s_error / p;
+    const fp_type p_term = s * p_error / (p * p);
+    return {s / p, std::sqrt((s_term * s_term) + (p_term * p_term))};
+}
+
+/******************************************************************************/
+/**
+ * @brief Calculates the ratio of two measurements taken at the same position, and its error.
+ *
+ * Each input is a tuple {x, x_error, value, value_error}: a value with its error, measured at the
+ * position x (given with its own error). s and p must carry the same x, and p's value must be
+ * non-zero, otherwise this throws. The ratio of the values and its error are those of
+ * ratioWithError(), which assumes s and p to be independent.
  *
  * @tparam fp_type The floating point type of the tuple components
- * @param s The numerator measurement as {sleep_time, sleep_time_error, value, value_error}
- * @param p The denominator measurement as {sleep_time, sleep_time_error, value, value_error}
- * @return A std::tuple {sleep_time, 0, s/p, error_on_s/p}
+ * @param s The numerator measurement as {x, x_error, value, value_error}
+ * @param p The denominator measurement as {x, x_error, value, value_error}
+ * @return A std::tuple {x, 0, s/p, error of s/p}
+ * @throw gem_exception if the positions differ or p's value is 0
  */
 template <typename fp_type>
 auto getRatioError(
     const std::tuple<fp_type, fp_type, fp_type, fp_type> &s,
     const std::tuple<fp_type, fp_type, fp_type, fp_type> &p
 ) {
-    // p may not be 0
-    if(0. == std::get<2>(p)) {
-        throw gem_exception(g_error_streamer() << "Attempted division by 0." << '\n');
-    }
+    const fp_type x = std::get<0>(s);
+    checkThat(x == std::get<0>(p), "getRatioError(): positions differ: ", x, " / ", std::get<0>(p));
 
-    fp_type sleep_time = std::get<0>(s);
-
-    // Check that the sleep-times for s and p are the same
-    if(sleep_time != std::get<0>(p)) {
-        throw gem_exception(
-            g_error_streamer() << "Sleep times differ: " << sleep_time << " / " << std::get<0>(p)
-                               << '\n'
-        );
-    }
-
-    const fp_type s_val = std::get<2>(s);
-    const fp_type s_err = std::get<3>(s);
-    const fp_type p_val = std::get<2>(p);
-    const fp_type p_err = std::get<3>(p);
-
-    const fp_type s_err_term = s_err / p_val;
-    const fp_type p_err_term = s_val * p_err / (p_val * p_val);
-
-    return std::tuple<fp_type, fp_type, fp_type, fp_type>{
-        sleep_time,
-        fp_type(0.),
-        s_val / p_val,
-        std::sqrt((s_err_term * s_err_term) + (p_err_term * p_err_term))
-    };
+    const auto [ratio, error] =
+        ratioWithError(std::get<2>(s), std::get<3>(s), std::get<2>(p), std::get<3>(p));
+    return std::tuple<fp_type, fp_type, fp_type, fp_type>{x, fp_type(0.), ratio, error};
 }
 
 /******************************************************************************/
 /**
- * @brief Calculates value and error of f = s/p for matched vectors of independent measurements.
+ * @brief Calculates the ratios and their errors for matched vectors of measurements.
  *
  * Applies getRatioError() element-wise to corresponding entries of @p sn and @p pn.
  * Both vectors must have the same size, otherwise this throws.
  *
  * @tparam fp_type The floating point type of the tuple components
- * @param sn The vector of numerator measurements {sleep_time, sleep_time_error, value, value_error}
- * @param pn The vector of denominator measurements {sleep_time, sleep_time_error, value, value_error}
- * @return A vector of {sleep_time, 0, s/p, error_on_s/p} tuples, one per input pair
+ * @param sn The vector of numerator measurements {x, x_error, value, value_error}
+ * @param pn The vector of denominator measurements {x, x_error, value, value_error}
+ * @return A vector of {x, 0, s/p, error of s/p} tuples, one per input pair
+ * @throw gem_exception if the sizes differ, or as getRatioError()
  */
 template <typename fp_type>
 std::vector<std::tuple<fp_type, fp_type, fp_type, fp_type>> getRatioErrors(
     const std::vector<std::tuple<fp_type, fp_type, fp_type, fp_type>> &sn,
     const std::vector<std::tuple<fp_type, fp_type, fp_type, fp_type>> &pn
 ) {
-    // Check that both vectors have the same size, otherwise complain
-    if(sn.size() != pn.size()) {
-        throw gem_exception(
-            g_error_streamer() << "Vectors have invalid sizes: " << sn.size() << " / " << pn.size()
-                               << '\n'
-        );
-    }
+    checkThat(sn.size() == pn.size(), "Vectors have invalid sizes: ", sn.size(), " / ", pn.size());
 
     std::vector<std::tuple<fp_type, fp_type, fp_type, fp_type>> spn;
     spn.reserve(sn.size());
