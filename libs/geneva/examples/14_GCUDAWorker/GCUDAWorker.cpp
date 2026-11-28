@@ -200,7 +200,7 @@ int runParityCheck(
     for(int i = 0; i < n; ++i) {
         auto ind = factory->get();        // a fresh random genome
         gpuBatch.push_back(ind->clone()); // identical-genome copy for the device path
-        cpuInds.push_back(ind);
+        cpuInds.push_back(std::move(ind));
     }
 
     // CPU reference: run each individual's own evaluation through the public process() path (the same

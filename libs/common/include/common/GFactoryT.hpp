@@ -34,6 +34,7 @@
 
 // Standard header files go here
 #include <atomic>
+#include <memory>
 #include <mutex>
 #include <sstream>
 #include <string>
@@ -164,9 +165,9 @@ public:
 	  * Triggers the creation of objects of the desired type
 	  *
 	  * @brief Function-call operator; a convenience alias for get()
-	  * @return A newly produced object of type prod_type
+	  * @return A newly produced object of type prod_type, owned by the caller alone
 	  */
-    std::shared_ptr<prod_type> operator()() {
+    std::unique_ptr<prod_type> operator()() {
         return this->get();
     }
 
@@ -212,11 +213,11 @@ public:
 	  * if possible.
 	  *
 	  * @tparam target_type The type the produced object should be converted to
-	  * @return The produced object converted to target_type, or an empty pointer if a derived
-	  *         get_() yielded nothing
+	  * @return The produced object converted to target_type, owned by the caller alone, or an empty
+	  *         pointer if a derived get_() yielded nothing
 	  */
     template <typename target_type>
-    std::shared_ptr<target_type> get_as() {
+    std::unique_ptr<target_type> get_as() {
         // An empty product (only a derived get_() can yield one) passes through as an empty pointer
         return Gem::Common::g_ptr_conversion<prod_type, target_type>(this->get());
     }
@@ -242,7 +243,7 @@ public:
 
         // Retrieve an object (will be discarded at the end of this function)
         // Here, further options may be added to the parser builder.
-        std::shared_ptr<prod_type> p = this->getObject_(gpb);
+        std::unique_ptr<prod_type> p = this->getObject_(gpb);
         // Checked before postProcess_(), which may dereference it
         Gem::Common::checkThat(p != nullptr, "the factory produced no object");
 
@@ -296,11 +297,12 @@ public:
 
     /***************************************************************************/
     /**
-	 * Allows the creation of objects of the desired type.
+	 * Allows the creation of objects of the desired type. The caller owns the product alone; where
+	 * it is to be shared, the caller converts it (std::shared_ptr<prod_type>{std::move(p)}).
 	 *
-	 * @return A newly produced object of type prod_type
+	 * @return A newly produced object of type prod_type, owned by the caller alone
 	 */
-    std::shared_ptr<prod_type> get() {
+    std::unique_ptr<prod_type> get() {
         return this->get_();
     }
 
@@ -323,9 +325,10 @@ protected:
     /**
      * @brief Allows to act on the configuration options received from the configuration file
      *
-     * The argument is the freshly produced object on which derived classes may act.
+     * The argument is the freshly produced object on which derived classes may act; it is never
+     * empty, and it stays owned by the factory until get_() returns it.
      */
-    virtual void postProcess_(std::shared_ptr<prod_type> &) = 0;
+    virtual void postProcess_(std::unique_ptr<prod_type> &) = 0;
 
     /***************************************************************************/
     /**
@@ -333,7 +336,7 @@ protected:
      *
      * @return A newly produced object of type prod_type, configured from the (cached) config file
      */
-    virtual std::shared_ptr<prod_type> get_() {
+    virtual std::unique_ptr<prod_type> get_() {
         // Make sure the initialization code has been executed.
         // This function will do nothing when called more than once
         this->globalInit();
@@ -350,7 +353,7 @@ protected:
         // Retrieve the actual object. It may, in the process of its
         // creation, add further configuration options and call-backs to
         // the parser
-        std::shared_ptr<prod_type> p = this->getObject_(gpb);
+        std::unique_ptr<prod_type> p = this->getObject_(gpb);
         // Checked before postProcess_(), which may dereference it, so every path refuses it alike
         Gem::Common::checkThat(p != nullptr, "the factory produced no object");
 
@@ -420,7 +423,7 @@ private:
      * @return A newly created object of type prod_type; an empty pointer is refused
      *         with gem_exception
      */
-    virtual std::shared_ptr<prod_type> getObject_(Gem::Common::GParserBuilder &) = 0;
+    virtual std::unique_ptr<prod_type> getObject_(Gem::Common::GParserBuilder &) = 0;
 
     /***************************************************************************/
 

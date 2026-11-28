@@ -168,10 +168,10 @@ protected:
     /**
      * Production of GGenome-derivatives
      *
-     * @return A shared pointer to a newly produced GGenome-derivative, with any registered pre- and post-processor cloned and attached
+     * @return A newly produced GGenome-derivative, with any registered pre- and post-processor cloned and attached
      */
-    std::shared_ptr<GGenome> get_() override {
-        std::shared_ptr<GGenome> p = GFactoryT<GGenome>::get_();
+    std::unique_ptr<GGenome> get_() override {
+        std::unique_ptr<GGenome> p = GFactoryT<GGenome>::get_();
 
         if(pre_processor_) {
             p->registerPreProcessor(pre_processor_->clone());

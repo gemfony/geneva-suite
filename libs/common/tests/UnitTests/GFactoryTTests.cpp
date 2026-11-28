@@ -36,6 +36,8 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "common/GExceptions.hpp"
@@ -75,7 +77,7 @@ protected:
         ++describe_calls;
     }
 
-    void postProcess_(std::shared_ptr<Product> &p) override {
+    void postProcess_(std::unique_ptr<Product> &p) override {
         ++post_process_calls;
         if(p) {
             p->payload = 42;
@@ -83,9 +85,9 @@ protected:
     }
 
 private:
-    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
+    std::unique_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
         ++get_object_calls;
-        return std::make_shared<Product>();
+        return std::make_unique<Product>();
     }
 };
 
@@ -168,6 +170,15 @@ TEST_CASE("GFactoryT::get() runs init→describe→getObject→postProcess", "[c
     CHECK(f.post_process_calls == 2);
 }
 
+// The product has one owner, the caller; where it is to be shared, the caller converts it
+static_assert(
+    std::is_same_v<decltype(std::declval<TestFactory &>().get()), std::unique_ptr<Product>>
+);
+static_assert(std::is_same_v<decltype(std::declval<TestFactory &>()()), std::unique_ptr<Product>>);
+static_assert(std::is_same_v<
+              decltype(std::declval<TestFactory &>().get_as<Product>()),
+              std::unique_ptr<Product>>);
+
 TEST_CASE("GFactoryT::operator() forwards to get()", "[common][factory]") {
     auto p = make_config("op_call");
     TestFactory f(p);
@@ -201,12 +212,12 @@ public:
     }
 
 protected:
-    void postProcess_([[maybe_unused]] std::shared_ptr<PolyProduct> &p) override {
+    void postProcess_([[maybe_unused]] std::unique_ptr<PolyProduct> &p) override {
     }
 
 private:
-    std::shared_ptr<PolyProduct> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
-        return std::make_shared<DerivedProduct>();
+    std::unique_ptr<PolyProduct> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
+        return std::make_unique<DerivedProduct>();
     }
 };
 
@@ -337,12 +348,12 @@ protected:
         gpb.registerFileParameter<int>("observed", -1, [this](int v) { last_value = v; })
             << "An observable integer option";
     }
-    void postProcess_([[maybe_unused]] std::shared_ptr<Product> &p) override {
+    void postProcess_([[maybe_unused]] std::unique_ptr<Product> &p) override {
     }
 
 private:
-    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
-        return std::make_shared<Product>();
+    std::unique_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
+        return std::make_unique<Product>();
     }
 };
 
@@ -473,12 +484,12 @@ protected:
     void init_() override {
         ++init_count;
     }
-    void postProcess_([[maybe_unused]] std::shared_ptr<Product> &p) override {
+    void postProcess_([[maybe_unused]] std::unique_ptr<Product> &p) override {
     }
 
 private:
-    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
-        return std::make_shared<Product>();
+    std::unique_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
+        return std::make_unique<Product>();
     }
 };
 
@@ -531,12 +542,12 @@ protected:
         gpb.registerFileParameter<int>("unused", -1, [](int /*value*/) {})
             << "An option, so that a file would be written";
     }
-    void postProcess_(std::shared_ptr<Product> &p) override {
+    void postProcess_(std::unique_ptr<Product> &p) override {
         p->payload = 42; // dereferences, as a real factory's post-processing does
     }
 
 private:
-    std::shared_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
+    std::unique_ptr<Product> getObject_([[maybe_unused]] GParserBuilder &gpb) override {
         return {};
     }
 };
@@ -637,7 +648,7 @@ public:
     }
 
 protected:
-    std::shared_ptr<PolyProduct> get_() override {
+    std::unique_ptr<PolyProduct> get_() override {
         return {};
     }
 };
@@ -650,7 +661,7 @@ TEST_CASE("GFactoryT::get_as: the produced type itself and an empty product", "[
     DerivedFactory f(p);
     auto const same = f.get_as<PolyProduct>();
     REQUIRE(same);
-    CHECK(std::dynamic_pointer_cast<DerivedProduct>(same) != nullptr);
+    CHECK(dynamic_cast<DerivedProduct const *>(same.get()) != nullptr);
 
     EmptyGetFactory e(p);
     CHECK(e.get_as<DerivedProduct>() == nullptr);

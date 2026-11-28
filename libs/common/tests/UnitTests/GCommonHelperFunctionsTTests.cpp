@@ -259,6 +259,49 @@ TEST_CASE(
 }
 #endif
 
+TEST_CASE(
+    "g_ptr_conversion non-const raw: the object can be changed through the result",
+    "[common][helper][g_ptr_conversion]"
+) {
+    TDerived d;
+    TBase *base_ptr = &d;
+    TDerived *derived_ptr = Gem::Common::g_ptr_conversion<TBase, TDerived>(base_ptr);
+    REQUIRE(derived_ptr == &d);
+    derived_ptr->derived_val = 7;
+    CHECK(d.derived_val == 7);
+    CHECK(Gem::Common::g_ptr_conversion<TBase, TDerived>(static_cast<TBase *>(nullptr)) == nullptr);
+}
+
+TEST_CASE(
+    "g_ptr_conversion unique_ptr: the ownership passes to the converted pointer",
+    "[common][helper][g_ptr_conversion]"
+) {
+    std::unique_ptr<TBase> base_up = std::make_unique<TDerived>();
+    TBase const *const object = base_up.get();
+    std::unique_ptr<TDerived> derived_up =
+        Gem::Common::g_ptr_conversion<TBase, TDerived>(std::move(base_up));
+    REQUIRE(derived_up != nullptr);
+    CHECK(derived_up.get() == object);
+    CHECK(derived_up->derived_val == 42);
+    CHECK(base_up == nullptr); // NOLINT(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
+
+    CHECK(Gem::Common::g_ptr_conversion<TBase, TDerived>(std::unique_ptr<TBase>{}) == nullptr);
+}
+
+#ifndef NDEBUG // the dynamic type is checked by GEM_DEBUG_CHECK
+TEST_CASE(
+    "g_ptr_conversion unique_ptr: wrong dynamic type throws without NDEBUG and keeps the object",
+    "[common][helper][g_ptr_conversion]"
+) {
+    std::unique_ptr<TBase> base_up = std::make_unique<TOther>();
+    REQUIRE_THROWS_AS(
+        (Gem::Common::g_ptr_conversion<TBase, TDerived>(std::move(base_up))),
+        Gem::Common::gem_exception
+    );
+    CHECK(base_up != nullptr); // NOLINT(bugprone-use-after-move,clang-analyzer-cplusplus.Move)
+}
+#endif
+
 // --- g_convert_and_compare -----------------------------------------------
 
 TEST_CASE(

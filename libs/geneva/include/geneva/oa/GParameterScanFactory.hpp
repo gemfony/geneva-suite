@@ -119,7 +119,7 @@ protected:
     /**
      * @brief Allows to act on the configuration options received from the configuration file
      */
-    void postProcess_(std::shared_ptr<GOptimizationAlgorithmBase> &p_base) override;
+    void postProcess_(std::unique_ptr<GOptimizationAlgorithmBase> &p_base) override;
 
 private:
     /** @brief Holds information on the variables to be optimized -- set through the corresponding member function or on the command line */

@@ -1057,6 +1057,14 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `get()` (and with it every algorithm factory's `get()`, `get<T>()` and `provide()`) and
   `writeConfigFile()` throw `gem_exception` before `postProcess_()` sees the pointer; before,
   `postProcess_()` received it and a dereference there crashed.
+- **common: a `GFactoryT`'s product has one owner.** `get()`, `operator()()`, `get_as<T>()` and an
+  algorithm factory's `get<T>()` return `std::unique_ptr` (was `std::shared_ptr`); a derived
+  factory's `getObject_()`, `get_()` and `postProcess_(std::unique_ptr<prod_type> &)` follow.
+  `auto p = factory.get()` and passing the result straight on into a `std::shared_ptr` compile as
+  before; where a named product is to be shared, write `std::shared_ptr<T>{std::move(p)}`.
+  `provide()` still hands out a `std::shared_ptr`. `GMetaOptimizerIndividualT::addContent()` takes
+  the individual by reference, and `g_ptr_conversion()` has overloads for a non-const raw pointer
+  and for a `std::unique_ptr` (which passes the ownership on).
 - **geneva: `GMETAOPT_DEF_INDCONFIG` was removed** from `GMetaOptimizerIndividualT.hpp`; nothing
   read it.
 - **common: `from_string<T>()` throws on a text that is not one value of `T`.** It replaced

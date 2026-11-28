@@ -1622,7 +1622,7 @@ TEST_CASE(
     for(std::size_t i = 0; i < N; ++i) {
         auto ind = f.get_as<FactorySphere>();
         REQUIRE(ind);
-        inds.push_back(ind);
+        inds.push_back(std::move(ind));
     }
 
     // Every produced individual binds to the SAME shared layout instance (built once).
