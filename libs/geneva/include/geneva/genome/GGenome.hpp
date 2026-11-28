@@ -1275,7 +1275,7 @@ public:
      * @brief Assigns values from a vector to the parameters of type par_type (marks the item for
      * reprocessing).
      * @tparam par_type The parameter value type (double, float, std::int32_t or bool)
-     * @param par_vec The vector of values to scatter onto the matching parameters
+     * @param par_vec The values of the parameters am selects, one per parameter, in genome order
      * @param am The activity mode controlling which parameters are written
      */
     template <typename par_type>
@@ -1284,9 +1284,9 @@ public:
         activityMode const &am = activityMode::DEFAULTACTIVITYMODE
     ) {
         Gem::Common::checkThat(
-            countParameters<par_type>() == par_vec.size(),
+            countParameters<par_type>(am) == par_vec.size(),
             "Sizes don't match: ",
-            countParameters<par_type>(),
+            countParameters<par_type>(am),
             " / ",
             par_vec.size()
         );
