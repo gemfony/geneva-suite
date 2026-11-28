@@ -1090,6 +1090,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   (`sharedPtrFromString()` returned an empty pointer). `fromString()`, `fromStream()` and
   `fromFile()` refuse an archive that holds an empty pointer instead of an object with a
   `gem_exception`; they passed the empty pointer on to `load_()`.
+- **common: a named value as archive text, `archiveToString()` / `archiveFromString()`, and as a
+  file, `archiveToFile()` / `archiveFromFile()`.** They write a value of any type the GArchive
+  codecs know under the name given, in the codec the serialization mode names, and read it back;
+  the file is replaced as a whole. `sharedPtrToString()`, courtier's frames, geneva's checkpoints,
+  the wire blob of a genome layout and the training data of the neural-network individual are
+  written with them; their bytes are unchanged. A serialization mode other than `GEM_BINARY` and
+  `GEM_JSON` is refused with a `gem_exception` in both directions everywhere: a frame took it for
+  the binary codec, a checkpoint for JSON. A missing training-data file is reported by
+  `networkData::loadFromDisk()` with the same message as one it cannot decode.
 - **common: its names live in `Gem::Common`, its macros begin with `GEM_`, the logger names its two streamers.** The exception classes, the error streamer, the
   logger's singleton type and the stream operator of `gem_exception` were in the global
   namespace; they keep their names and move into `Gem::Common`. Code outside that namespace

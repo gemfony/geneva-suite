@@ -1854,6 +1854,33 @@ TEST_CASE("a Nelder-Mead checkpoint keeps its individuals' position personalitie
 
 /******************************************************************************/
 
+TEST_CASE("a checkpoint refuses a serialization mode that is not one of the two", "[oa]") {
+    // Regression: a checkpoint took every mode other than binary for JSON, so it was written and read
+    // as JSON in a mode that names no codec.
+    namespace Individuals = Gem::Geneva::Individuals;
+    const std::vector<std::tuple<double, double>> data_points{{0., 0.}, {1., 1.}, {2., 2.}};
+    auto const cp = std::filesystem::temp_directory_path() / "checkpoint-unknown-mode-test.cp";
+    auto const unknown = static_cast<Gem::Common::serializationMode>(99);
+
+    OA::GEvolutionaryAlgorithm ea;
+    ea.push_back(Individuals::GLineFitIndividual(data_points).clone());
+    ea.setCheckpointSerializationMode(Gem::Common::serializationMode::GEM_JSON);
+    ea.saveCheckpoint(cp);
+
+    ea.setCheckpointSerializationMode(unknown);
+    CHECK_THROWS_AS(ea.saveCheckpoint(cp), Gem::Common::gem_exception);
+
+    OA::GEvolutionaryAlgorithm resumed;
+    resumed.setCheckpointSerializationMode(unknown);
+    CHECK_THROWS_WITH(
+        resumed.loadCheckpoint(cp),
+        Catch::Matchers::ContainsSubstring("unknown serialization mode")
+    );
+    std::filesystem::remove(cp);
+}
+
+/******************************************************************************/
+
 TEST_CASE("an empty checkpoint file is reported as empty", "[oa]") {
     // Regression (2026-11-20): an empty checkpoint file -- left by a job that was killed while it
     // wrote one in place -- was reported as "usually means the individual type ... is not available".
