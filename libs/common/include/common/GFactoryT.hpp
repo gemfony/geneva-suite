@@ -229,23 +229,13 @@ public:
 	  * @param header A header comment to be prepended to the configuration file
 	  */
     void writeConfigFile(std::string const &header) {
-        // Make sure the initialization code has been executed.
-        // This function will do nothing when called more than once
-        this->globalInit();
-
         // Create a parser builder object. It will be destroyed at
         // the end of this function and thus cannot cause trouble
         // due to registered call-backs and references
         Gem::Common::GParserBuilder gpb;
 
-        // Add the user-defined configuration specifications, local to the factory
-        this->describeLocalOptions_(gpb);
-
-        // Retrieve an object (will be discarded at the end of this function)
-        // Here, further options may be added to the parser builder.
-        std::unique_ptr<prod_type> p = this->getObject_(gpb);
-        // Checked before postProcess_(), which may dereference it
-        Gem::Common::checkThat(p != nullptr, "the factory produced no object");
+        // The object is discarded at the end of this function; it registers its options on gpb
+        std::unique_ptr<prod_type> p = this->produceUnconfigured_(gpb);
 
         // Allow the factory to act on configuration options received
         // in the parsing process.
@@ -337,25 +327,13 @@ protected:
      * @return A newly produced object of type prod_type, configured from the (cached) config file
      */
     virtual std::unique_ptr<prod_type> get_() {
-        // Make sure the initialization code has been executed.
-        // This function will do nothing when called more than once
-        this->globalInit();
-
         // Create a parser builder object. It will be destroyed at
         // the end of this function and thus cannot cause trouble
         // due to registered call-backs and references
         Gem::Common::GParserBuilder gpb;
 
-        // Add specific configuration options for the derived factory.
-        // These may correspond to local variables
-        this->describeLocalOptions_(gpb);
-
-        // Retrieve the actual object. It may, in the process of its
-        // creation, add further configuration options and call-backs to
-        // the parser
-        std::unique_ptr<prod_type> p = this->getObject_(gpb);
-        // Checked before postProcess_(), which may dereference it, so every path refuses it alike
-        Gem::Common::checkThat(p != nullptr, "the factory produced no object");
+        // The object, with its options and those of the factory registered on gpb
+        std::unique_ptr<prod_type> p = this->produceUnconfigured_(gpb);
 
         // Read + parse the configuration file only ONCE: the first call captures the
         // parsed document in the load-once cell, every subsequent call re-applies that
@@ -391,6 +369,25 @@ protected:
     }
 
 private:
+    /***************************************************************************/
+    /**
+     * The steps that get_() and writeConfigFile() share: the initialization (once), the factory's
+     * own options, and the object, which may register further options and call-backs on the
+     * parser builder. The configuration file is not read here.
+     *
+     * @param gpb The parser builder on which the factory and the object register their options
+     * @return The produced object, not yet configured from the file; an empty pointer from
+     *         getObject_() is refused with gem_exception, before postProcess_() could dereference it
+     */
+    std::unique_ptr<prod_type> produceUnconfigured_(Gem::Common::GParserBuilder &gpb) {
+        // Does nothing when called more than once
+        this->globalInit();
+        this->describeLocalOptions_(gpb);
+        std::unique_ptr<prod_type> p = this->getObject_(gpb);
+        Gem::Common::checkThat(p != nullptr, "the factory produced no object");
+        return p;
+    }
+
     /***************************************************************************/
     /**
 	  * Performs necessary global initialization work. This function is meant for
