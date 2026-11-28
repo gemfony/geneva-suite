@@ -2,3 +2,46 @@ This directory contains a Geneva application that uses an external
 program for the setup of individuals and evaluation of candidate
 solutions. A sample evaluation program written in Python is available
 in the 'evaluator' subdirectory.
+
+The exchange with the program
+-----------------------------
+The program is called with one step at a time, after the words of
+"custom_options" in config/GExternalEvaluatorIndividual.json:
+
+  --init                     once, before the setup
+  --setup --output=FILE --initvalues=random|min|max
+                             writes the setup document: the variables
+                             (type GConstrainedDoubleObject, start value,
+                             lowerBoundary, upperBoundary, initRandom),
+                             nVars (their number) and n_results
+  --evaluate --input=FILE --output=FILE
+                             reads one individual, writes its n_results
+                             results (rawResult) and isValid
+  --archive --input=FILE     receives the best individuals at the end
+  --finalize                 once, at the end
+
+All documents are JSON; evaluator/evaluator.py shows each of them.
+A setup whose nVars differs from the number of its variables is
+refused. If the setup asks for a random start (initRandom, or
+"init_values": "random" when initRandom is absent), every individual
+starts at random values within the bounds.
+
+Run directories
+---------------
+Each --setup, --evaluate and --archive exchanges its files in a
+directory of its own, <program>-<UUID>, in the working directory; the
+file names passed to the program are absolute ("parameter_file" names
+the input file of an evaluation). The program itself runs in the
+working directory of this application, so it can read files relative
+to it. The directory is removed afterwards; with
+"remove_exec_temporaries": false it is kept, for debugging. It then
+also holds program-output.txt, the program's output.
+
+Time limit
+----------
+"evaluation_time_limit" (seconds, 0 = none) ends an evaluation that
+takes longer: the program gets SIGTERM, and SIGKILL 10 s later; the
+evaluation counts as failed. A program that starts further programs
+passes the signal on to them, or replaces itself with exec. A failed
+evaluation gets the worst fitness, and its message names the command,
+how the program ended and the last lines of its output.
