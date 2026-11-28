@@ -89,9 +89,9 @@ public:
         return oss_.str();
     }
     /** @brief Implicit conversion to string, so a streamer seeds a weft_exception directly. */
-    operator std::string() const {
+    operator std::string() const { // NOLINT(google-explicit-constructor) -- implicit on purpose
         return oss_.str();
-    } // NOLINT(google-explicit-constructor)
+    }
 
 private:
     std::ostringstream oss_;

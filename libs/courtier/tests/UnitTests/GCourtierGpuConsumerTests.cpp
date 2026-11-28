@@ -270,7 +270,6 @@ private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GFaultyContainer> *
     clone_() const override {
         // The raw return is the clone_() contract.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new LoggingPreProcessor(*this);
     }
 };

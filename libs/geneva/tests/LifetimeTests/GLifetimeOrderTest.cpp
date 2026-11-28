@@ -71,7 +71,7 @@ namespace {
  *  it after every static destructor has run.
  *  @return The watch */
 std::weak_ptr<Gem::Hap::GRandomFactory> &factoryWatch() {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) -- deliberately never destroyed (see above)
+    // NOLINTNEXTLINE(readability-identifier-naming) -- changed behind a const pointer: a variable
     static auto *const watch = new std::weak_ptr<Gem::Hap::GRandomFactory>();
     return *watch;
 }

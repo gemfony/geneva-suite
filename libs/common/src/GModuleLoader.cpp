@@ -69,7 +69,6 @@ namespace {
 std::mutex moduleMutex; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 std::vector<boost::dll::shared_library> &keptModules() {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     static auto *libs = new std::vector<boost::dll::shared_library>();
     return *libs;
 }

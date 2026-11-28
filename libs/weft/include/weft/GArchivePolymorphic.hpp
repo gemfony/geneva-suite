@@ -118,6 +118,7 @@ inline std::mutex &root_check_mutex() {
  * torn-down container at static-destruction time.
  */
 inline std::vector<root_check_fn> &root_checks() {
+    // NOLINTNEXTLINE(readability-identifier-naming) -- changed behind a const pointer: a variable
     static auto *const v = new std::vector<root_check_fn>();
     return *v;
 }
@@ -258,6 +259,7 @@ private:
     static GArchivePointerDispatch &instance() {
         // Leaked by design (see GPolymorphicRegistry). The first time this root_type's table is
         // created, register its completeness checker so the boot-time self-check can reach it.
+        // NOLINTNEXTLINE(readability-identifier-naming) -- changed behind a const pointer: a variable
         static GArchivePointerDispatch *const inst = [] {
             auto *p = new GArchivePointerDispatch();
             detail::register_root_check(&GArchivePointerDispatch::collectGaps);

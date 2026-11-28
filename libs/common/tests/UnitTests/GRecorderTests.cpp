@@ -172,7 +172,7 @@ private:
         calls.push_back(call);
         if(fail_ == here) {
             if(foreign_) {
-                throw 42; // NOLINT(hicpp-exception-baseclass): what the test is about
+                throw 42; // NOLINT(bugprone-std-exception-baseclass): what the test is about
             }
             throw std::runtime_error("the probe fails in " + call);
         }

@@ -1,4 +1,4 @@
-# Geneva-style clang-tidy baseline (C++23; checked against clang-tidy 22)
+# Geneva-style clang-tidy baseline (C++23; checked against clang-tidy 23.1.6)
 #
 # This file complements .clang-format. It focuses on rules that clang-tidy can
 # check reasonably well. Several Geneva coding conventions require custom
@@ -28,6 +28,58 @@
 #   clang-tidy -p build path/to/file.cpp
 #
 # CLion and VS Code can pick this file up when clang-tidy is enabled.
+#
+# The measure is clang-tidy 23.1.6 (CLion is pointed at the same binary). What 23
+# changed, and the reason for each line below that differs from the 22 version
+# (a comment cannot stand inside the Checks list, so the reasons are here):
+# - hicpp-exception-baseclass, hicpp-multiway-paths-covered and hicpp-signed-bitwise
+#   are gone from 23; bugprone-* enables their successors (bugprone-std-exception-
+#   baseclass, bugprone-unhandled-code-paths, bugprone-signed-bitwise).
+# - One name per check. In 23 every cert-* check, and several cppcoreguidelines-,
+#   google- and performance- checks, are second names (aliases) of a check of another
+#   family. With both names on, a NOLINT that names one leaves the other one reporting,
+#   and an option set under one name does not reach the other (the narrowing option
+#   below was lost that way). So each check is enabled under one name only, the one of
+#   its own family:
+#   - cert-* is no longer enabled as a glob. Its checks run under their own names,
+#     which bugprone-*, misc-*, modernize-*, performance-*, concurrency-* and
+#     readability-* enable (cert-env33-c is bugprone-command-processor, cert-err60-cpp
+#     bugprone-exception-copy-constructor-throws, cert-oop54-cpp
+#     bugprone-unhandled-self-assignment, ...). Kept: cert-err33-c, which checks its
+#     own list of C functions (fclose, setvbuf, ...) that bugprone-unused-return-value
+#     does not; and four misc- checks that only their cert name had enabled, now named
+#     below (misc-predictable-rand, misc-new-delete-overloads,
+#     misc-anonymous-namespace-in-header, misc-non-copyable-objects).
+#   - Off as second names, the first name in brackets:
+#     -cppcoreguidelines-narrowing-conversions   (bugprone-narrowing-conversions)
+#     -cppcoreguidelines-macro-to-enum           (modernize-macro-to-enum)
+#     -cppcoreguidelines-use-default-member-init (modernize-use-default-member-init)
+#     -cppcoreguidelines-explicit-constructor    (google-explicit-constructor, whose
+#                                                 name the NOLINT comments use)
+#     -cppcoreguidelines-noexcept-move-operations (performance-noexcept-move-constructor)
+#     -cppcoreguidelines-noexcept-destructor     (performance-noexcept-destructor)
+#     -cppcoreguidelines-noexcept-swap           (performance-noexcept-swap)
+#     -cppcoreguidelines-explicit-virtual-functions (modernize-use-override, whose
+#                                                 options are set below)
+#     -google-readability-casting                (modernize-avoid-c-style-cast)
+#     -performance-faster-string-find            (performance-prefer-single-char-overloads)
+# - -cppcoreguidelines-owning-memory: ownership is held by unique_ptr/shared_ptr and
+#   checked by modernize-make-unique/-shared (Inv 21); gsl::owner is not used. What
+#   it reports are the deliberate raw pointers: clone_()'s raw return (Inv 21), the
+#   never-destroyed registries, and the void* of the C-ABI module entry points.
+# - -readability-trailing-comma (new in 23): the code writes no trailing comma (92 of
+#   92 multi-line enums); layout belongs to clang-format (CODING-STYLE 5).
+# - -readability-math-missing-parentheses: a * b + c is read by the usual precedence;
+#   the parentheses it asks for clutter the formulas the code implements.
+# - -clang-analyzer-optin.core.EnumCastOutOfRange: it reports the deliberate
+#   out-of-range casts of tests and casts inside Boost and Catch2 headers, which the
+#   header filter does not reach.
+# - -clang-analyzer-optin.performance.Padding: it reports padding in classes made once
+#   per process (GLauncherT); the order of members follows their meaning.
+# - modernize-use-string-view stays on: a function that returns only literals returns
+#   std::string_view. A virtual interface (the getName() of the consumer providers)
+#   keeps std::string with a NOLINT and its reason: an override that builds its name
+#   would return a dangling view.
 
 ---
 Checks: >-
@@ -36,11 +88,21 @@ Checks: >-
   -bugprone-easily-swappable-parameters,
   -bugprone-crtp-constructor-accessibility,
   -bugprone-throwing-static-initialization,
-  cert-*,
-  -cert-err58-cpp,
+  cert-err33-c,
   clang-analyzer-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
+  -clang-analyzer-optin.performance.Padding,
   concurrency-*,
   cppcoreguidelines-*,
+  -cppcoreguidelines-narrowing-conversions,
+  -cppcoreguidelines-macro-to-enum,
+  -cppcoreguidelines-use-default-member-init,
+  -cppcoreguidelines-explicit-constructor,
+  -cppcoreguidelines-noexcept-move-operations,
+  -cppcoreguidelines-noexcept-destructor,
+  -cppcoreguidelines-noexcept-swap,
+  -cppcoreguidelines-explicit-virtual-functions,
+  -cppcoreguidelines-owning-memory,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,
@@ -55,14 +117,14 @@ Checks: >-
   -cppcoreguidelines-virtual-class-destructor,
   -google-build-using-namespace,
   google-explicit-constructor,
-  google-readability-casting,
   google-readability-namespace-comments,
-  hicpp-exception-baseclass,
-  hicpp-multiway-paths-covered,
-  hicpp-signed-bitwise,
   misc-confusable-identifiers,
   misc-const-correctness,
   misc-definitions-in-headers,
+  misc-anonymous-namespace-in-header,
+  misc-new-delete-overloads,
+  misc-non-copyable-objects,
+  misc-predictable-rand,
   misc-misleading-bidirectional,
   misc-misleading-identifier,
   misc-misplaced-const,
@@ -77,6 +139,7 @@ Checks: >-
   -modernize-avoid-c-arrays,
   performance-*,
   -performance-enum-size,
+  -performance-faster-string-find,
   portability-*,
   -portability-avoid-pragma-once,
   -portability-template-virtual-member-function,
@@ -85,7 +148,9 @@ Checks: >-
   -readability-named-parameter,
   -readability-uppercase-literal-suffix,
   -readability-convert-member-functions-to-static,
-  -readability-identifier-length
+  -readability-identifier-length,
+  -readability-trailing-comma,
+  -readability-math-missing-parentheses
 
 WarningsAsErrors: ''
 # Restrict header warnings to Geneva's own headers; this avoids noise from
@@ -123,30 +188,38 @@ CheckOptions:
   # ------------------------------------------------------------------
   # Identifier naming.
   # ------------------------------------------------------------------
-  # Geneva uses camelBack for functions/methods, CamelCase for classes,
-  # and members end in '_'. The 'G' prefix and 'T' suffix for
-  # template classes are NOT enforced because the convention says
-  # "usually" / "where appropriate".
+  # CODING-STYLE 4 (the rules for members, namespaces, globals and the exempt names:
+  # maintainer decisions 2026-11-27). The 'G' prefix and 'T' suffix of template
+  # classes are NOT enforced because the convention says "usually" (4.3).
   readability-identifier-naming.FunctionCase: camelBack
   readability-identifier-naming.MethodCase: camelBack
-  readability-identifier-naming.VariableCase: camelBack
-  # Geneva 5.B: local variables and function parameters are snake_case
-  # (lower_case). This matches the dominant existing usage and the
-  # decision recorded in the 2026-05 naming stock-taking. Functions and
-  # methods remain camelBack; classes remain CamelCase.
-  # 2026-05-17 decision: private and protected member variables are
-  # snake_case (lower_case) with a trailing '_'. Public members (rare,
-  # discouraged) keep camelBack.
+  # A mutable global, static or thread_local variable is snake_case; a g_ / t_
+  # prefix is allowed (lower_case accepts it), not required. Variable is the kind that
+  # remains for them after the specific kinds below.
+  readability-identifier-naming.VariableCase: lower_case
+  # A static data member is not a "member" to clang-tidy. A private one is named as
+  # a private member (snake_case_); lower_case cannot express the trailing underscore,
+  # hence the regexp.
+  readability-identifier-naming.ClassMemberCase: lower_case
+  readability-identifier-naming.ClassMemberIgnoredRegexp: '^[a-z][a-z0-9_]*_$'
+  # Local variables and function parameters are snake_case; private and protected
+  # members are snake_case with a trailing '_'.
   readability-identifier-naming.ParameterCase: lower_case
   readability-identifier-naming.LocalVariableCase: lower_case
-  readability-identifier-naming.MemberCase: camelBack
-  readability-identifier-naming.PublicMemberCase: camelBack
+  # A public member (of the plain settings, spec and C-ABI structs) is snake_case
+  # without the trailing underscore, as most of them are written.
+  readability-identifier-naming.MemberCase: lower_case
+  readability-identifier-naming.PublicMemberCase: lower_case
   readability-identifier-naming.PrivateMemberCase: lower_case
   readability-identifier-naming.PrivateMemberSuffix: _
   readability-identifier-naming.ProtectedMemberCase: lower_case
   readability-identifier-naming.ProtectedMemberSuffix: _
   readability-identifier-naming.ClassCase: CamelCase
   readability-identifier-naming.StructCase: CamelCase
+  # Names that the standard library fixes: a distribution's nested param_type (the
+  # RandomNumberDistribution requirement) and the std-style is_... type traits.
+  readability-identifier-naming.ClassIgnoredRegexp: '^param_type$'
+  readability-identifier-naming.StructIgnoredRegexp: '^(param_type|is_[a-z0-9_]+)$'
   readability-identifier-naming.UnionCase: CamelCase
   readability-identifier-naming.EnumCase: CamelCase
   # Geneva enum constants are UPPER_CASE: TEXT, XML, BINARY, LOWERISBETTER, etc.
@@ -174,15 +247,42 @@ CheckOptions:
   readability-identifier-naming.TemplateTemplateParameterIgnoredRegexp: '^[A-Z]s?$'
   readability-identifier-naming.ValueTemplateParameterCase: UPPER_CASE
   readability-identifier-naming.ConceptCase: CamelCase
+  # Every namespace is CamelCase, a namespace alias (clang-tidy reports it as
+  # a namespace) and the private namespace (Detail) as well; no exemption.
   readability-identifier-naming.NamespaceCase: CamelCase
   readability-identifier-naming.MacroDefinitionCase: UPPER_CASE
   readability-identifier-naming.GlobalConstantCase: UPPER_CASE
+  # An object kept only for what its constructor does at start-up (the
+  # g_..._registrant of each algorithm, a lifecycle guard) is named as a variable,
+  # not as a value constant.
+  readability-identifier-naming.GlobalConstantIgnoredRegexp: '^g_[a-z0-9_]+$'
+  # UPPER_CASE is for values. An object that is changed behind a const pointer
+  # (static T *const inst = new T) is a variable and snake_case, but clang-tidy files
+  # every const function-local static under StaticConstant and cannot tell the two
+  # apart; such a declaration carries a NOLINT with that reason.
   readability-identifier-naming.StaticConstantCase: UPPER_CASE
   readability-identifier-naming.ClassConstantCase: UPPER_CASE
   readability-identifier-naming.ConstexprVariableCase: UPPER_CASE
+  # Names a user's class must supply, or that mirror the standard library, follow
+  # their contract: class_name (GReflectiveInterfaceT), oa_mnemonic and
+  # oa_algorithm_name (GOAPlugin), is_saving / is_loading of an archive, and the
+  # std-style ..._v variable templates a user specializes (enum_names_v,
+  # numeric_enum_values_v), and default_seed, the name the standard's random
+  # engines give their default seed (the xoshiro engines of hap).
+  readability-identifier-naming.ConstexprVariableIgnoredRegexp: '^(class_name|oa_mnemonic|oa_algorithm_name|is_saving|is_loading|default_seed|[a-z][a-z0-9_]*_v)$'
   readability-identifier-naming.GlobalFunctionCase: camelBack
+  # A free function with the prefix gem_ is snake_case: the C-ABI entry points of a
+  # module (gem_module_manifest) and the ADL hooks of weft (gem_archive_serialize) are
+  # found by a name fixed outside C++ name lookup. to_string and from_string mirror
+  # std::to_string and keep its form.
+  readability-identifier-naming.GlobalFunctionIgnoredRegexp: '^(gem_[a-z0-9_]+|to_string|from_string)$'
+  readability-identifier-naming.FunctionIgnoredRegexp: '^(gem_[a-z0-9_]+|to_string|from_string)$'
   readability-identifier-naming.ConstexprFunctionCase: camelBack
+  readability-identifier-naming.ConstexprFunctionIgnoredRegexp: '^gem_[a-z0-9_]+$'
   readability-identifier-naming.ConstexprMethodCase: camelBack
+  # The carve-out of CODING-STYLE 4.1 holds for a constexpr method as well (clang-tidy
+  # gives it a kind of its own, which MethodIgnoredRegexp does not reach).
+  readability-identifier-naming.ConstexprMethodIgnoredRegexp: '.*_.*'
   # Geneva 5.B / §4 STL carve-out: exempt the STL-like container method
   # surface from the camelBack rule, plus any method containing an underscore
   # (the STL names push_back/pop_back/emplace_back/shrink_to_fit/max_size, and
@@ -225,6 +325,22 @@ CheckOptions:
   # truncations at the MPI message-count arguments. Those still warn.
   bugprone-narrowing-conversions.WarnOnEquivalentBitWidth: 'false'
 
+  # A shift count or mask written as a positive literal (x >> 11, v & 0xFF) is not a
+  # signed operand in any sense that matters; the check reported those on unsigned x.
+  bugprone-signed-bitwise.IgnorePositiveIntegerLiterals: 'true'
+
+  # An exception that leaves main() is reported by the terminate handler of
+  # Gem::Common::installFatalReport() (message and exit code 1), which every program
+  # installs: that is the designed end of an unhandled error, not an escape.
+  bugprone-exception-escape.CheckMain: 'false'
+
+  # optional::value() checks and throws, so it is not an unchecked access; the check
+  # does not see that checkThat() throws, and value() after it is the clean spelling.
+  bugprone-unchecked-optional-access.IgnoreValueCalls: 'true'
+
+  # std::from_chars takes the end pointer, so data() needs no terminating zero there.
+  bugprone-suspicious-stringview-data-usage.AllowedCallees: '::std::from_chars'
+
   cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor: 'true'
   cppcoreguidelines-special-member-functions.AllowMissingMoveFunctions: 'true'
   cppcoreguidelines-special-member-functions.AllowMissingMoveFunctionsWhenCopyIsDeleted: 'true'
@@ -262,6 +378,10 @@ CheckOptions:
   # Cognitive complexity: start lenient (LLVM default is 25) so only the gnarliest
   # functions are flagged; tighten toward 25 as the code is groomed.
   readability-function-cognitive-complexity.Threshold: '40'
+  # A Catch2 TEST_CASE is a list of REQUIRE / CHECK macros; their expansions were
+  # counted as branches (63 of the 69 reports were test cases).
+  readability-function-cognitive-complexity.IgnoreMacros: 'true'
+  readability-function-size.IgnoreMacros: 'true'
 
 # ----------------------------------------------------------------------
 # Rules NOT covered by stock clang-tidy, or only partially:
@@ -290,6 +410,6 @@ CheckOptions:
 # - Macros for constants are flagged (cppcoreguidelines-macro-usage).
 # - A smart pointer built from a naked new is flagged (modernize-make-shared,
 #   modernize-make-unique; named here because CODING-STYLE.md relies on them).
-# - C-style casts are flagged (google-readability-casting,
-#   cppcoreguidelines-pro-type-cstyle-cast).
+# - C-style casts are flagged (modernize-avoid-c-style-cast, which clang-tidy 23
+#   also answers to as google-readability-casting, and cppcoreguidelines-pro-type-cstyle-cast).
 ...

@@ -73,7 +73,6 @@ std::uintptr_t bytesOf(MPI_Request request) {
  */
 GMPIRequest toHandle(MPI_Request request) {
     // An opaque handle, as std::byte is: every value is valid, not only the named NONE.
-    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
     return static_cast<GMPIRequest>(bytesOf(request) ^ bytesOf(MPI_REQUEST_NULL));
 }
 

@@ -178,7 +178,7 @@ struct GWireProtocolT<GSimpleContainer> {
             if(checkInsThrowStandard.load()) {
                 throw std::runtime_error("this test makes the check-in fail");
             }
-            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
+            throw 42; // NOLINT(bugprone-std-exception-baseclass) -- not a std::exception, on purpose
         }
         if(item != nullptr) {
             slot.absorbResultsFrom(*item);

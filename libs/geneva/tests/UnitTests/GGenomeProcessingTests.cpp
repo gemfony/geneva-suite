@@ -690,7 +690,6 @@ protected:
 private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
         // The raw return is the clone_() contract.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new ParameterSettingPreProcessor(*this);
     }
 };
@@ -852,7 +851,6 @@ protected:
 private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
         // The raw return is the clone_() contract.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new LoggingPostProcessor(*this);
     }
 };
@@ -894,7 +892,6 @@ protected:
 private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
         // The raw return is the clone_() contract.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new SlowPostProcessor(*this);
     }
 };
@@ -915,7 +912,6 @@ protected:
 private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
         // The raw return is the clone_() contract.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new GrowingPreProcessor(*this);
     }
 };
@@ -934,7 +930,6 @@ protected:
 private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
         // The raw return is the clone_() contract.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new UnsubmittingPreProcessor(*this);
     }
 };
@@ -969,7 +964,6 @@ protected:
 private:
     [[nodiscard]] Gem::Common::GSerializableFunctionObjectT<GGenome> *clone_() const override {
         // The raw return is the clone_() contract.
-        // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
         return new ThrowingProcessor(*this);
     }
 };

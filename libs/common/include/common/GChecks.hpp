@@ -83,7 +83,7 @@ public:
      * @param place The place of the check (defaulted to the caller's location)
      */
     template <std::same_as<bool> bool_type>
-    GCheckCondition( // NOLINT(google-explicit-constructor,hicpp-explicit-conversions) -- implicit on purpose: it records the caller's place
+    GCheckCondition( // NOLINT(google-explicit-constructor) -- implicit on purpose: it records the caller's place
         bool_type holds,
         std::source_location const &place = std::source_location::current()
     ) noexcept

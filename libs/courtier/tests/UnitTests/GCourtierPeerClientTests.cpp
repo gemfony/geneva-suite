@@ -2698,7 +2698,7 @@ struct GWireProtocolT<GReturnThrowsItem> {
         [[maybe_unused]] std::uint32_t &tag,
         [[maybe_unused]] payload_type &payload
     ) {
-        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception on purpose
+        throw 42; // NOLINT(bugprone-std-exception-baseclass) -- not a std::exception on purpose
     }
     static void applyReturn(
         GReturnThrowsItem &slot,

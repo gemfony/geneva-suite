@@ -317,6 +317,7 @@ private:
      * thread-safe first-use initialisation.
      */
     static GPolymorphicRegistry &instance() {
+        // NOLINTNEXTLINE(readability-identifier-naming) -- changed behind a const pointer: a variable
         static GPolymorphicRegistry *const inst = new GPolymorphicRegistry();
         return *inst;
     }

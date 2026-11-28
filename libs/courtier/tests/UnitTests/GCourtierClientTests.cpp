@@ -164,7 +164,7 @@ TEST_CASE(
 
     SECTION("a processor that throws something that is not a std::exception") {
         GItemProcessorT<GFaultyContainer> throwing{[](GFaultyContainer & /*item*/) {
-            throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp): the case under test
+            throw 42; // NOLINT(bugprone-std-exception-baseclass): the case under test
         }};
         auto frame = due_frame();
         CHECK_NOTHROW(Gem::Courtier::processWorkFrame(frame, "w", &throwing));
