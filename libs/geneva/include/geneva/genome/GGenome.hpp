@@ -31,7 +31,7 @@
 
 // Global checks, defines and includes needed for all of Geneva
 #include "common/GGlobalDefines.hpp"
-#include "geneva/GNamespaceAliases.hpp" // gen, for the authors of a problem who start here
+#include "geneva/GNamespaceAliases.hpp" // Genome, for the authors of a problem who start here
 
 // Standard header files go here
 #include <algorithm>

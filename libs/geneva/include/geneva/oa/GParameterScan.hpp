@@ -216,7 +216,7 @@ public:
      * @param t A textual identifier for the parameter type (stored as type_description_)
      */
     GBaseScanParT(
-        gen::parPropSpec<T> pps,
+        Genome::parPropSpec<T> pps,
         bool random_scan,
         const std::string &t // type_description_
     )
@@ -248,8 +248,8 @@ public:
      * count), so it can be rebuilt for the other scan mode.
      * @return The parameter property specification of this object
      */
-    gen::parPropSpec<T> getSpec() const {
-        gen::parPropSpec<T> spec;
+    Genome::parPropSpec<T> getSpec() const {
+        Genome::parPropSpec<T> spec;
         spec.index = index_;
         spec.lowerBoundary = lower_;
         spec.upperBoundary = upper_;
@@ -486,7 +486,7 @@ public:
     /** @brief Construction from a parameter property specification and a random-scan flag.
      *  @param pps The parameter property specification (variable index, boundaries, steps)
      *  @param random_scan If true, items are drawn randomly; if false, a grid is pre-filled */
-    GScanParT(const gen::parPropSpec<T> &pps, bool random_scan)
+    GScanParT(const Genome::parPropSpec<T> &pps, bool random_scan)
       : Gem::Common::GReflectiveInterfaceT<derived_type, GBaseScanParT<T>>(
             pps,
             random_scan,

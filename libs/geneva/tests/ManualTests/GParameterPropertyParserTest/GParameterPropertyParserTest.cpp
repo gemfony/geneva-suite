@@ -47,15 +47,15 @@ int main(int argc, char **argv) {
     // Parameters are addressed by their index in the value channel of their type.
     std::string const raw = "d(0,-10.3,12.8,100), d(1,-10.3,12.8,100), i(0, 0,5, 20), b(0, "
                             "false, true, 10), d(2, -5, 7, 20), f(0, -2, 10), b(1)";
-    gen::GParameterPropertyParser const p(raw);
+    Genome::GParameterPropertyParser const p(raw);
 
     // Retrieve double parameters
     std::tuple<
-        std::vector<gen::parPropSpec<double>>::const_iterator,
-        std::vector<gen::parPropSpec<double>>::const_iterator>
+        std::vector<Genome::parPropSpec<double>>::const_iterator,
+        std::vector<Genome::parPropSpec<double>>::const_iterator>
         t_d = p.getIterators<double>();
-    std::vector<gen::parPropSpec<double>>::const_iterator d_cit = std::get<0>(t_d);
-    std::vector<gen::parPropSpec<double>>::const_iterator const d_end = std::get<1>(t_d);
+    std::vector<Genome::parPropSpec<double>>::const_iterator d_cit = std::get<0>(t_d);
+    std::vector<Genome::parPropSpec<double>>::const_iterator const d_end = std::get<1>(t_d);
     for(; d_cit != d_end;
         ++d_cit) { // Note: d_cit is already set to the begin of the double parameter arrays
         std::cout << *d_cit << '\n' << '\n';
@@ -63,11 +63,11 @@ int main(int argc, char **argv) {
 
     // Retrieve float parameters
     std::tuple<
-        std::vector<gen::parPropSpec<float>>::const_iterator,
-        std::vector<gen::parPropSpec<float>>::const_iterator>
+        std::vector<Genome::parPropSpec<float>>::const_iterator,
+        std::vector<Genome::parPropSpec<float>>::const_iterator>
         t_f = p.getIterators<float>();
-    std::vector<gen::parPropSpec<float>>::const_iterator f_cit = std::get<0>(t_f);
-    std::vector<gen::parPropSpec<float>>::const_iterator const f_end = std::get<1>(t_f);
+    std::vector<Genome::parPropSpec<float>>::const_iterator f_cit = std::get<0>(t_f);
+    std::vector<Genome::parPropSpec<float>>::const_iterator const f_end = std::get<1>(t_f);
     for(; f_cit != f_end;
         ++f_cit) { // Note: f_cit is already set to the begin of the float parameter arrays
         std::cout << *f_cit << '\n' << '\n';
@@ -75,11 +75,11 @@ int main(int argc, char **argv) {
 
     // Retrieve integer parameters
     std::tuple<
-        std::vector<gen::parPropSpec<std::int32_t>>::const_iterator,
-        std::vector<gen::parPropSpec<std::int32_t>>::const_iterator>
+        std::vector<Genome::parPropSpec<std::int32_t>>::const_iterator,
+        std::vector<Genome::parPropSpec<std::int32_t>>::const_iterator>
         t_i = p.getIterators<std::int32_t>();
-    std::vector<gen::parPropSpec<std::int32_t>>::const_iterator i_cit = std::get<0>(t_i);
-    std::vector<gen::parPropSpec<std::int32_t>>::const_iterator const i_end = std::get<1>(t_i);
+    std::vector<Genome::parPropSpec<std::int32_t>>::const_iterator i_cit = std::get<0>(t_i);
+    std::vector<Genome::parPropSpec<std::int32_t>>::const_iterator const i_end = std::get<1>(t_i);
     for(; i_cit != i_end;
         ++i_cit) { // Note: i_cit is already set to the begin of the integer (int32_t) parameter arrays
         std::cout << *i_cit << '\n' << '\n';
@@ -87,11 +87,11 @@ int main(int argc, char **argv) {
 
     // Retrieve boolean parameters
     std::tuple<
-        std::vector<gen::parPropSpec<bool>>::const_iterator,
-        std::vector<gen::parPropSpec<bool>>::const_iterator>
+        std::vector<Genome::parPropSpec<bool>>::const_iterator,
+        std::vector<Genome::parPropSpec<bool>>::const_iterator>
         t_b = p.getIterators<bool>();
-    std::vector<gen::parPropSpec<bool>>::const_iterator b_cit = std::get<0>(t_b);
-    std::vector<gen::parPropSpec<bool>>::const_iterator const b_end = std::get<1>(t_b);
+    std::vector<Genome::parPropSpec<bool>>::const_iterator b_cit = std::get<0>(t_b);
+    std::vector<Genome::parPropSpec<bool>>::const_iterator const b_end = std::get<1>(t_b);
     for(; b_cit != b_end;
         ++b_cit) { // Note: b_cit is already set to the begin of the boolean parameter arrays
         std::cout << *b_cit << '\n' << '\n';

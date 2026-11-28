@@ -50,7 +50,7 @@ using namespace Gem::Geneva;
 // runs: a choice of consumer made in code.
 int main(int argc, char **argv) {
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
+    Gem::Courtier::GLauncherT<Genome::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
 
     // Every evaluation starts the external evaluator program as a process of its own: on the local
     // thread pool at most four of them run at once. A choice made here loses against the command
@@ -62,7 +62,7 @@ int main(int argc, char **argv) {
 
         // Create a factory for GExternalEvaluatorIndividual objects and perform
         // any necessary initial work.
-        auto const geei_ptr = std::make_shared<gind::GExternalEvaluatorIndividualFactory>(
+        auto const geei_ptr = std::make_shared<Individuals::GExternalEvaluatorIndividualFactory>(
             "./config/GExternalEvaluatorIndividual.json"
         );
 
@@ -78,7 +78,7 @@ int main(int argc, char **argv) {
         // configuration refresh and absent when the configs are materialized. GOptimizer still
         // refreshes the individual's config via the content creator registered above.
         if(not Gem::Common::GParserBuilder::updateInPlace()) {
-            auto sample = geei_ptr->get_as<gind::GExternalEvaluatorIndividual>();
+            auto sample = geei_ptr->get_as<Individuals::GExternalEvaluatorIndividual>();
             auto cfg = geei_ptr->getAdaptionConfig(*sample);
             go.registerAdaptionConfig("ea", cfg);
             go.registerAdaptionConfig("sa", cfg);
@@ -88,14 +88,16 @@ int main(int argc, char **argv) {
         go.registerDefaultAlgorithm("ea");
 
         // Perform the actual optimization
-        auto const p = go.optimize().getBestGlobalIndividual<gind::GExternalEvaluatorIndividual>();
+        auto const p =
+            go.optimize().getBestGlobalIndividual<Individuals::GExternalEvaluatorIndividual>();
 
         // Extract the best individuals found
-        auto const bestInds = go.getBestGlobalIndividuals<gind::GExternalEvaluatorIndividual>();
+        auto const bestInds =
+            go.getBestGlobalIndividuals<Individuals::GExternalEvaluatorIndividual>();
 
         // Note that the "archive" call is specific to the GExternalEvaluatorIndividual (it is now a static
         // helper on the individual, reading the program/run-id off the archived individuals themselves)
-        gind::GExternalEvaluatorIndividual::archive(bestInds);
+        Individuals::GExternalEvaluatorIndividual::archive(bestInds);
 
         // The factory will, upon its deletion at the end of this function, call the external evaluator with
         // the --finalize switch (via GExternalEvaluatorIndividual::finalize, the factory's teardown hook)

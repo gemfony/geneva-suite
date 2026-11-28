@@ -67,7 +67,7 @@ constexpr bool GOPTIMIZER_DEF_COPYBESTINDIVIDUALSONLY = true;
 
 /******************************************************************************/
 /** Syntactic sugar -- make the code easier to read */
-using GOABase = oa::GOptimizationAlgorithmBase;
+using GOABase = OA::GOptimizationAlgorithmBase;
 
 /******************************************************************************/
 /**
@@ -81,7 +81,7 @@ using GOABase = oa::GOptimizationAlgorithmBase;
  */
 class GOptimizer // NOLINT(cppcoreguidelines-special-member-functions)
   : public Interface::GOptimizerIT<GOptimizer>
-  , public Gem::Common::GPtrContainerT<gen::GGenome> {
+  , public Gem::Common::GPtrContainerT<Genome::GGenome> {
 public:
     /** @brief A driver that only chains algorithms: the defaults of the configuration file, no
      *  algorithms from the command line, no checkpoint, no loaded individual */
@@ -146,14 +146,14 @@ public:
      * @brief Allows to register a content creator (a factory producing the individuals to be optimized).
      */
     void
-    registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr);
+    registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> &cc_ptr);
 
     /**
      * @brief @return The registered content-creator factory (compiled-in or loaded from a plugin), or an
      *  empty pointer if none. A generic optimizer program uses this to pull e.g. the OA-owned adaption config from a
      *  runtime-loaded individual it does not know the concrete type of.
      */
-    std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> getContentCreator() const {
+    std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> getContentCreator() const {
         return content_creator_ptr_;
     }
 
@@ -170,7 +170,7 @@ public:
     /**
      * @brief Allows to register a pluggable optimization monitor.
      */
-    void registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &pluggable_om);
+    void registerPluggableOM(const std::shared_ptr<OA::GBasePluggableOM> &pluggable_om);
     /** @brief Allows to reset the local pluggable optimization monitors */
     void resetPluggableOM();
 
@@ -208,7 +208,7 @@ public:
      */
     void registerAdaptionConfig(
         const std::string &oa_mnemonic,
-        std::shared_ptr<oa::GAdaptionConfigBase> config
+        std::shared_ptr<OA::GAdaptionConfigBase> config
     );
 
 private:
@@ -227,28 +227,28 @@ private:
      *  second plugin) throws, naming both the incumbent and the newcomer. Shared by
      *  registerContentCreator() (COMPILED_IN) and the plugin load (LOADED). */
     void claimContentCreator_(
-        const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr,
+        const std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> &cc_ptr,
         individualSource source
     );
 
     // GOptimizerIT NVI hooks: keep these overrides private (do not
-    // widen access -- matches oa::GOptimizationAlgorithmBase and the base's NVI contract).
+    // widen access -- matches OA::GOptimizationAlgorithmBase and the base's NVI contract).
     /**
      * @brief Retrieves the best individual found globally across the whole run.
      */
-    std::unique_ptr<gen::GGenome> getBestGlobalIndividual_() const final;
+    std::unique_ptr<Genome::GGenome> getBestGlobalIndividual_() const final;
     /**
      * @brief Retrieves a list of the globally best individuals found.
      */
-    std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const final;
+    std::vector<std::unique_ptr<Genome::GGenome>> getBestGlobalIndividuals_() const final;
     /**
      * @brief Retrieves the best individual of the last iteration of the chain's last algorithm.
      */
-    std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const final;
+    std::unique_ptr<Genome::GGenome> getBestIterationIndividual_() const final;
     /**
      * @brief Retrieves the best individuals of the last iteration of the chain's last algorithm.
      */
-    std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const final;
+    std::vector<std::unique_ptr<Genome::GGenome>> getBestIterationIndividuals_() const final;
 
     /**
      * @brief Returns the name of this optimization algorithm.
@@ -297,7 +297,7 @@ private:
     /** @brief Sorts the collected individuals by their (min-only transformed) fitness */
     void sortIndividualsByFitness();
     /** @brief The bests of the whole run, best first, from the archives of the chain's algorithms */
-    std::vector<std::unique_ptr<gen::GGenome>> bestsOfRun_() const;
+    std::vector<std::unique_ptr<Genome::GGenome>> bestsOfRun_() const;
     /** @brief The last algorithm of the chain; throws if the chain has not run */
     GOABase const &lastAlgorithm_() const;
 
@@ -328,20 +328,20 @@ private:
     // OA-owned adaption configs keyed by algorithm mnemonic ("ea", …). Installed on
     // the matching algorithm before it runs in the chain; an adapting algorithm that runs without a
     // registered config is a hard error (adaption intent is never inferred from the genome layout).
-    std::map<std::string, std::shared_ptr<oa::GAdaptionConfigBase>> adaption_config_registry_;
+    std::map<std::string, std::shared_ptr<OA::GAdaptionConfigBase>> adaption_config_registry_;
     // The default algorithm (if any)
     std::shared_ptr<GOABase> default_algorithm_;
     // A string representation of the default algorithm
     const std::string default_algorithm_str_ = DEFAULTOPTALG; ///< This is the last fall-back
     // Holds an object capable of producing objects of the desired type
-    std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> content_creator_ptr_;
+    std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> content_creator_ptr_;
     // Where content_creator_ptr_ came from (enforces one-individual-per-process, see claimContentCreator_)
     individualSource content_creator_source_ = individualSource::NONE;
     // A user-defined means for information retrieval. Shared ownership is deliberate: on
     // hand-over, every algorithm of a chain registers the SAME monitor object rather than a
     // clone of it, so a monitor accumulates across the whole chain (which is what a progress
     // plotter wants). GOptimizer and each algorithm are therefore co-owners for the run's duration.
-    std::vector<std::shared_ptr<oa::GBasePluggableOM>> pluggable_monitors_cnt_;
+    std::vector<std::shared_ptr<OA::GBasePluggableOM>> pluggable_monitors_cnt_;
 
     //---------------------------------------------------------------------------
     /** @brief Whether the algorithm chain of -a or setAlgorithmChain() was resolved (at the first

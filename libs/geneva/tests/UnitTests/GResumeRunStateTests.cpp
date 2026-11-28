@@ -64,8 +64,8 @@
 #include "geneva/oa/GSwarmAlgorithm.hpp"
 
 namespace fs = std::filesystem;
-namespace gind = Gem::Geneva::Individuals;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Individuals = Gem::Geneva::Individuals;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace {
 
@@ -215,8 +215,8 @@ numbersNamed(oa_type const &alg, std::string const &container, std::string const
 }
 
 /** @brief The individual of the tests: a line fit, two floating point parameters */
-gind::GLineFitIndividual lineFit() {
-    return gind::GLineFitIndividual({{0., 0.}, {1., 1.}, {2., 2.}});
+Individuals::GLineFitIndividual lineFit() {
+    return Individuals::GLineFitIndividual({{0., 0.}, {1., 1.}, {2., 2.}});
 }
 
 /**
@@ -407,11 +407,11 @@ protected:
 /******************************************************************************/
 
 TEST_CASE("A resumed Standard PSO 2011 goes on with its velocities and bests", "[oa][resume]") {
-    oa::GStandardPSO2011 run;
+    OA::GStandardPSO2011 run;
     run.setSwarmSize(5);
     auto const cp = runToCheckpoint(run);
 
-    auto const resumed = resumedSetupOf<oa::GStandardPSO2011>(cp);
+    auto const resumed = resumedSetupOf<OA::GStandardPSO2011>(cp);
     for(auto const *key :
         {"velocities_",
          "personal_bests_",
@@ -426,7 +426,7 @@ TEST_CASE("A resumed Standard PSO 2011 goes on with its velocities and bests", "
     checkRoundTrips(resumed);
 
     // A swarm of another size cannot go on with this state
-    oa::GStandardPSO2011 other_size;
+    OA::GStandardPSO2011 other_size;
     other_size.loadCheckpoint(cp);
     fs::remove_all(cp.parent_path());
     other_size.setSwarmSize(6);
@@ -448,11 +448,11 @@ TEST_CASE(
     "A resumed generalized simulated annealing goes on with its chain clocks",
     "[oa][resume]"
 ) {
-    oa::GGeneralizedSimulatedAnnealing run;
+    OA::GGeneralizedSimulatedAnnealing run;
     run.setNChains(3);
     auto const cp = runToCheckpoint(run);
 
-    auto const resumed = resumedSetupOf<oa::GGeneralizedSimulatedAnnealing>(cp);
+    auto const resumed = resumedSetupOf<OA::GGeneralizedSimulatedAnnealing>(cp);
     for(auto const *key : {"chain_step_", "chain_best_energy_", "chain_stall_"}) {
         INFO(key);
         CHECK(member(resumed, key) == member(run, key));
@@ -460,7 +460,7 @@ TEST_CASE(
     checkRoundTrips(resumed);
 
     // Another number of chains cannot go on with these clocks
-    oa::GGeneralizedSimulatedAnnealing other_size;
+    OA::GGeneralizedSimulatedAnnealing other_size;
     other_size.loadCheckpoint(cp);
     fs::remove_all(cp.parent_path());
     other_size.setNChains(4);
@@ -479,14 +479,14 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("A resumed ant colony optimization goes on with its archive", "[oa][resume]") {
-    oa::GAntColonyOptimization run;
+    OA::GAntColonyOptimization run;
     run.setArchiveSize(5);
     run.setNAnts(2);
     auto const cp = runToCheckpoint(run);
     auto const saved = numbersNamed(run, "archive_", "fitness");
     REQUIRE(saved.size() == 5);
 
-    auto const resumed = resumedSetupOf<oa::GAntColonyOptimization>(cp);
+    auto const resumed = resumedSetupOf<OA::GAntColonyOptimization>(cp);
     CHECK(member(resumed, "archive_") == member(run, "archive_"));
     checkRoundTrips(resumed);
 
@@ -494,7 +494,7 @@ TEST_CASE("A resumed ant colony optimization goes on with its archive", "[oa][re
     // no rank of the archive gets worse (re-seeding it from the population would lose its best)
     std::size_t evaluations = 0;
     auto const one_more =
-        oneMoreIteration<oa::GAntColonyOptimization>(cp, [](auto &) {}, evaluations);
+        oneMoreIteration<OA::GAntColonyOptimization>(cp, [](auto &) {}, evaluations);
     auto const merged = numbersNamed(one_more, "archive_", "fitness");
     REQUIRE(merged.size() == saved.size());
     for(std::size_t rank = 0; rank < saved.size(); ++rank) {
@@ -503,7 +503,7 @@ TEST_CASE("A resumed ant colony optimization goes on with its archive", "[oa][re
     }
 
     // Another archive size cannot go on with this archive
-    oa::GAntColonyOptimization other_size;
+    OA::GAntColonyOptimization other_size;
     other_size.loadCheckpoint(cp);
     fs::remove_all(cp.parent_path());
     other_size.setArchiveSize(6);
@@ -524,26 +524,26 @@ TEST_CASE(
     "[oa][resume]"
 ) {
     auto const adaption_config = lineFit().getAdaptionConfig();
-    auto const configure = [&adaption_config](oa::GEvolutionaryAlgorithm &alg) {
+    auto const configure = [&adaption_config](OA::GEvolutionaryAlgorithm &alg) {
         alg.setAdaptionConfig(adaption_config);
     };
-    oa::GEvolutionaryAlgorithm run;
+    OA::GEvolutionaryAlgorithm run;
     run.setPopulationSizes(8, 2);
-    run.setStepControl(oa::stepControl::CSA);
+    run.setStepControl(OA::stepControl::CSA);
     configure(run);
     auto const cp = runToCheckpoint(run);
     REQUIRE(numbers(run, "p_sigma_") != std::vector<double>{0.}); // the controller has moved
 
-    auto const resumed = resumedSetupOf<oa::GEvolutionaryAlgorithm>(cp, configure);
+    auto const resumed = resumedSetupOf<OA::GEvolutionaryAlgorithm>(cp, configure);
     fs::remove_all(cp.parent_path());
     CHECK(resumed.getGlobalSigma() == run.getGlobalSigma());
     CHECK(member(resumed, "p_sigma_") == member(run, "p_sigma_"));
     checkRoundTrips(resumed);
 
     // A new run starts from the seed sigma of the adaption config, as a new algorithm does
-    oa::GEvolutionaryAlgorithm brand_new;
+    OA::GEvolutionaryAlgorithm brand_new;
     brand_new.setPopulationSizes(8, 2);
-    brand_new.setStepControl(oa::stepControl::CSA);
+    brand_new.setStepControl(OA::stepControl::CSA);
     brand_new.push_back(lineFit().clone());
     auto const started = newSetupOf(run, configure);
     CHECK(numbers(started, "p_sigma_") == std::vector<double>{0.});
@@ -557,17 +557,17 @@ TEST_CASE(
     "[oa][resume]"
 ) {
     auto const adaption_config = lineFit().getAdaptionConfig();
-    auto const configure = [&adaption_config](oa::GEvolutionaryAlgorithm &alg) {
+    auto const configure = [&adaption_config](OA::GEvolutionaryAlgorithm &alg) {
         alg.setAdaptionConfig(adaption_config);
     };
-    oa::GEvolutionaryAlgorithm run;
+    OA::GEvolutionaryAlgorithm run;
     run.setPopulationSizes(8, 2);
     configure(run);
     auto const cp = runToCheckpoint(run);
 
     // The parents of the checkpoint were evaluated in the run that wrote it
     std::size_t evaluations = 0;
-    oneMoreIteration<oa::GEvolutionaryAlgorithm>(cp, configure, evaluations);
+    oneMoreIteration<OA::GEvolutionaryAlgorithm>(cp, configure, evaluations);
     fs::remove_all(cp.parent_path());
     CHECK(evaluations == 6);
 }
@@ -575,14 +575,14 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("A resumed swarm goes on with its neighborhood bests", "[oa][resume]") {
-    oa::GSwarmAlgorithm run;
+    OA::GSwarmAlgorithm run;
     run.setSwarmSizes(2, 3);
     auto const cp = runToCheckpoint(run);
-    oa::GSwarmAlgorithm saved;
+    OA::GSwarmAlgorithm saved;
     saved.loadCheckpoint(cp);
 
     std::size_t evaluations = 0;
-    auto resumed = oneMoreIteration<oa::GSwarmAlgorithm>(cp, [](auto &) {}, evaluations);
+    auto resumed = oneMoreIteration<OA::GSwarmAlgorithm>(cp, [](auto &) {}, evaluations);
     fs::remove_all(cp.parent_path());
 
     // No neighborhood best gets worse (starting them anew from this iteration would lose them)
@@ -610,18 +610,18 @@ TEST_CASE(
     "A resumed conjugate gradient descent goes on with its difference-quotient children",
     "[oa][resume]"
 ) {
-    oa::GConjugateGradientDescent run;
+    OA::GConjugateGradientDescent run;
     run.setNStartingPoints(1);
     auto const cp = runToCheckpoint(run);
-    oa::GConjugateGradientDescent saved;
+    OA::GConjugateGradientDescent saved;
     saved.loadCheckpoint(cp);
 
     // The first iteration of the resumed run steps from the evaluated children of the checkpoint
-    auto const resumed = resumedSetupOf<oa::GConjugateGradientDescent>(cp);
+    auto const resumed = resumedSetupOf<OA::GConjugateGradientDescent>(cp);
     CHECK(positions(resumed) == positions(saved));
 
     // Another number of starting points cannot go on with this population
-    oa::GConjugateGradientDescent other_size;
+    OA::GConjugateGradientDescent other_size;
     other_size.loadCheckpoint(cp);
     fs::remove_all(cp.parent_path());
     other_size.setNStartingPoints(2);
@@ -634,21 +634,21 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("A resumed Nelder-Mead goes on with its simplices", "[oa][resume]") {
-    oa::GNelderMead run;
+    OA::GNelderMead run;
     run.setNSimplices(2);
     auto const cp = runToCheckpoint(run);
-    oa::GNelderMead saved;
+    OA::GNelderMead saved;
     saved.loadCheckpoint(cp);
 
     // The simplices and the pending trials of the checkpoint, which the first iteration of the
     // resumed run decides on
-    auto const resumed = resumedSetupOf<oa::GNelderMead>(cp);
+    auto const resumed = resumedSetupOf<OA::GNelderMead>(cp);
     CHECK(positions(resumed) == positions(saved));
     CHECK(member(resumed, "trials_pending_") == "true");
     checkRoundTrips(resumed);
 
     // Another number of simplices cannot go on with this population
-    oa::GNelderMead other_size;
+    OA::GNelderMead other_size;
     other_size.loadCheckpoint(cp);
     fs::remove_all(cp.parent_path());
     other_size.setNSimplices(3);
@@ -666,12 +666,12 @@ TEST_CASE("A resumed Nelder-Mead goes on with its simplices", "[oa][resume]") {
 /******************************************************************************/
 
 TEST_CASE("A resumed random parameter scan goes on with its count", "[oa][resume]") {
-    oa::GParameterScan run;
+    OA::GParameterScan run;
     run.setNSimpleScans(1000);
     auto const cp = runToCheckpoint(run);
     REQUIRE(run.getNScansPerformed() > 0);
 
-    auto const resumed = resumedSetupOf<oa::GParameterScan>(cp);
+    auto const resumed = resumedSetupOf<OA::GParameterScan>(cp);
     fs::remove_all(cp.parent_path());
     CHECK(resumed.getNScansPerformed() == run.getNScansPerformed());
 
@@ -683,7 +683,7 @@ TEST_CASE("A resumed random parameter scan goes on with its count", "[oa][resume
 
 TEST_CASE("The setup builds the run state of a new run and not of a resumed one", "[oa][resume]") {
     // A new run builds it (the counting algorithm writes no checkpoint: its type is not registered)
-    GRunStateCounter<oa::GStandardPSO2011> fresh;
+    GRunStateCounter<OA::GStandardPSO2011> fresh;
     fresh.setSwarmSize(5);
     fresh.push_back(lineFit().clone());
     fresh.setMaxIteration(2);
@@ -693,10 +693,10 @@ TEST_CASE("The setup builds the run state of a new run and not of a resumed one"
     CHECK(fresh.fresh_starts == 1);
 
     // A resumed run goes on with the run state of its checkpoint
-    oa::GStandardPSO2011 run;
+    OA::GStandardPSO2011 run;
     run.setSwarmSize(5);
     auto const cp = runToCheckpoint(run);
-    GRunStateCounter<oa::GStandardPSO2011> resumed;
+    GRunStateCounter<OA::GStandardPSO2011> resumed;
     resumed.loadCheckpoint(cp);
     fs::remove_all(cp.parent_path());
     resumed.setCheckpointInterval(0);

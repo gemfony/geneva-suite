@@ -43,8 +43,8 @@
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GStandardPSO2011.hpp"
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace {
 
@@ -55,13 +55,13 @@ namespace {
  * adaption config. fitness = sum of squares (optimum: the origin).
  */
 template <std::size_t N_DIM>
-class SpherePSO : public gen::GGenomeT<SpherePSO<N_DIM>> {
+class SpherePSO : public Genome::GGenomeT<SpherePSO<N_DIM>> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SpherePSO() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N_DIM, -5., 5.).init(3.0); // structure only; SPSO needs no adaptor
         this->setGenome(b.build());
     }
@@ -96,7 +96,7 @@ double bestSphere(const SpherePSO<N_DIM> &best) {
 /******************************************************************************/
 
 TEST_CASE("Standard PSO 2011 optimizes a 5-dim flat sphere", "[spso2011]") {
-    auto pop = std::make_shared<oa::GStandardPSO2011>();
+    auto pop = std::make_shared<OA::GStandardPSO2011>();
     pop->setSwarmSize(40);
     pop->setMaxIteration(300);
     pop->setMaxStallIteration(0); // 0 == disabled: run the full budget so the swarm fully converges
@@ -112,7 +112,7 @@ TEST_CASE("Standard PSO 2011 optimizes a 5-dim flat sphere", "[spso2011]") {
 /******************************************************************************/
 
 TEST_CASE("Standard PSO 2011 optimizes a 10-dim flat sphere", "[spso2011]") {
-    auto pop = std::make_shared<oa::GStandardPSO2011>();
+    auto pop = std::make_shared<OA::GStandardPSO2011>();
     pop->setSwarmSize(40);
     pop->setMaxIteration(600);
     pop->setMaxStallIteration(0); // 0 == disabled: run the full budget so the swarm fully converges
@@ -128,7 +128,7 @@ TEST_CASE("Standard PSO 2011 optimizes a 10-dim flat sphere", "[spso2011]") {
 /******************************************************************************/
 
 TEST_CASE("Standard PSO 2011 parameter validation", "[spso2011]") {
-    auto pso = std::make_shared<oa::GStandardPSO2011>();
+    auto pso = std::make_shared<OA::GStandardPSO2011>();
 
     pso->setSwarmSize(25);
     CHECK(pso->getSwarmSize() == 25);

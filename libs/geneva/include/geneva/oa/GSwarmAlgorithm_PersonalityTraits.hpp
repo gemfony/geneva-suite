@@ -61,7 +61,7 @@ class GSwarmAlgorithm_PersonalityTraits // NOLINT(cppcoreguidelines-special-memb
     /**
      * Single declaration of this class'es local data members. It drives the
      * GReflectiveInterfaceT-generated serialize()/load_()/compare_() from one place.
-     * personal_best_ (a std::shared_ptr<gen::GGenome>) is a deep-cloned
+     * personal_best_ (a std::shared_ptr<Genome::GGenome>) is a deep-cloned
      * pointer with no post-load transform, so make_cloneable_member handles it
      * exactly as the former manual tail did (deep clone on load, deep compare).
      */
@@ -122,11 +122,11 @@ public:
     /**
      * @brief Allows to add a new personal best to the individual
      */
-    void registerPersonalBest(const std::shared_ptr<gen::GGenome> &p);
+    void registerPersonalBest(const std::shared_ptr<Genome::GGenome> &p);
     /**
      * @brief Allows to retrieve the personal best individual
      */
-    [[nodiscard]] std::shared_ptr<gen::GGenome> getPersonalBest() const;
+    [[nodiscard]] std::shared_ptr<Genome::GGenome> getPersonalBest() const;
     /** @brief Resets the personal best individual */
     void resetPersonalBest();
     /**
@@ -155,7 +155,7 @@ private:
     bool no_position_update_ = false;
 
     /** @brief Holds the personally best GGenome */
-    std::shared_ptr<gen::GGenome> personal_best_;
+    std::shared_ptr<Genome::GGenome> personal_best_;
     /** @brief The quality of the personally best individual */
     std::tuple<double, double> personal_best_quality_{0., 0.};
 };

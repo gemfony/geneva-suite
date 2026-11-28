@@ -55,7 +55,7 @@ namespace Gem::Geneva {
 GParaboloidGroupIndividual::GParaboloidGroupIndividual() {
     constexpr double PARMIN = -10.;
     constexpr double PARMAX = 10.;
-    gen::GGenomeBuilder builder;
+    Genome::GGenomeBuilder builder;
     for(std::size_t npar = 0; npar < NPARAMETERS; npar++) {
         builder.addDouble(PARMIN, PARMIN, PARMAX); // structure only; the adaptor is the algorithm's
     }
@@ -72,7 +72,7 @@ GParaboloidGroupIndividual::GParaboloidGroupIndividual() {
  * @return The adaption configuration
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GParaboloidGroupIndividual::buildAdaptionConfig(const gen::GGenome &sample) {
+GParaboloidGroupIndividual::buildAdaptionConfig(const Genome::GGenome &sample) {
     auto config =
         OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(
             sample

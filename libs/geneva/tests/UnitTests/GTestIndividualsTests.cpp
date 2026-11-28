@@ -47,9 +47,9 @@
 #include "geneva/oa/GSwarmAlgorithm_PersonalityTraits.hpp"
 #include "hap/GRandomLeasePool.hpp"
 
-namespace gen = Gem::Geneva::Genome;
-namespace gind = Gem::Geneva::Individuals;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace Individuals = Gem::Geneva::Individuals;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 /******************************************************************************/
 
@@ -59,7 +59,7 @@ TEST_CASE(
 ) {
     constexpr std::size_t ntests = 100;
 
-    auto const p = std::make_shared<gind::GTestIndividual3>();
+    auto const p = std::make_shared<Individuals::GTestIndividual3>();
     std::size_t const n_items = p->countParameters<double>();
     REQUIRE(n_items > 0);
 
@@ -79,16 +79,16 @@ TEST_CASE(
 namespace {
 
 /** @brief Adapts an individual's values with the kernels alone: it is not marked for processing. */
-void runKernelsOnly(gind::GTestIndividual1 &ind) {
+void runKernelsOnly(Individuals::GTestIndividual1 &ind) {
     auto cfg = ind.getAdaptionConfig();
-    gen::GAuxiliaryStore scratch;
+    Genome::GAuxiliaryStore scratch;
     cfg->installInto(scratch);
     auto gr_lease = Gem::Hap::randomLeasePool().acquire();
-    oa::runAdaptionKernels(ind, scratch, *cfg, *gr_lease);
+    OA::runAdaptionKernels(ind, scratch, *cfg, *gr_lease);
 }
 
 /** @brief Makes sure an individual is processed. */
-void processIfDue(gind::GTestIndividual1 &ind) {
+void processIfDue(Individuals::GTestIndividual1 &ind) {
     if(ind.is_due_for_processing()) {
         CHECK_NOTHROW(ind.process());
         CHECK(ind.is_processed());
@@ -100,12 +100,12 @@ void processIfDue(gind::GTestIndividual1 &ind) {
 TEST_CASE("GTestIndividual1: every adaption changes the object", "[geneva][individuals]") {
     std::size_t const n_tests = 1000;
 
-    gind::GTestIndividual1 const original;
-    auto const p_test = original.clone<gind::GTestIndividual1>();
-    auto const p_test_old = original.clone<gind::GTestIndividual1>();
+    Individuals::GTestIndividual1 const original;
+    auto const p_test = original.clone<Individuals::GTestIndividual1>();
+    auto const p_test_old = original.clone<Individuals::GTestIndividual1>();
 
     // One adapter held across the loop, so the self-adapting sigma persists between iterations
-    oa::StandaloneAdapter adapter(*p_test, p_test->getAdaptionConfig());
+    OA::StandaloneAdapter adapter(*p_test, p_test->getAdaptionConfig());
     for(std::size_t i = 0; i < n_tests; i++) {
         CHECK_NOTHROW(adapter.adapt(*p_test));
         CHECK(*p_test != *p_test_old);
@@ -119,7 +119,7 @@ TEST_CASE(
 ) {
     std::size_t const n_tests = 1000;
 
-    gind::GTestIndividual1 p_test;
+    Individuals::GTestIndividual1 p_test;
     processIfDue(p_test);
 
     double old_fitness = 0.;
@@ -148,15 +148,15 @@ TEST_CASE(
 }
 
 TEST_CASE("GTestIndividual1: adapting a clone leaves the original alone", "[geneva][individuals]") {
-    auto const p_test1 = std::make_shared<gind::GTestIndividual1>();
+    auto const p_test1 = std::make_shared<Individuals::GTestIndividual1>();
     processIfDue(*p_test1);
 
-    auto const p_test2 = p_test1->clone<gind::GTestIndividual1>();
+    auto const p_test2 = p_test1->clone<Individuals::GTestIndividual1>();
     CHECK(*p_test2 == *p_test1);
 
     std::size_t n_adaptions = 0;
     CHECK_NOTHROW(
-        n_adaptions = oa::StandaloneAdapter(*p_test2, p_test2->getAdaptionConfig()).adapt(*p_test2)
+        n_adaptions = OA::StandaloneAdapter(*p_test2, p_test2->getAdaptionConfig()).adapt(*p_test2)
     );
     CHECK(n_adaptions > 0);
     CHECK(p_test2->is_due_for_processing());
@@ -166,7 +166,7 @@ TEST_CASE("GTestIndividual1: adapting a clone leaves the original alone", "[gene
 
 TEST_CASE("GTestIndividual1: process() clears the processing request", "[geneva][individuals]") {
     // The individual is algorithm-agnostic data; it needs no personality to be processed
-    gind::GTestIndividual1 p_test;
+    Individuals::GTestIndividual1 p_test;
 
     CHECK_NOTHROW(p_test.mark_as_due_for_processing());
     CHECK(Gem::Courtier::processingStatus::DO_PROCESS == p_test.getProcessingStatus());
@@ -181,9 +181,9 @@ TEST_CASE(
     "and values",
     "[geneva][individuals]"
 ) {
-    gind::GTestIndividual1 const original;
-    auto const p_test1 = original.clone<gind::GTestIndividual1>();
-    auto const p_test2 = original.clone<gind::GTestIndividual1>();
+    Individuals::GTestIndividual1 const original;
+    auto const p_test1 = original.clone<Individuals::GTestIndividual1>();
+    auto const p_test2 = original.clone<Individuals::GTestIndividual1>();
     CHECK(*p_test1 == *p_test2);
 
     for(auto *p : {p_test1.get(), p_test2.get()}) {
@@ -214,26 +214,26 @@ TEST_CASE(
 
 TEST_CASE("GTestIndividual1: the personality can be set read and reset", "[geneva][individuals]") {
     // The personality is algorithm scratch carried on the individual itself (in its GAuxiliaryStore)
-    gind::GTestIndividual1 ind;
+    Individuals::GTestIndividual1 ind;
 
     CHECK_NOTHROW(ind.resetPersonality());
     CHECK(ind.getPersonality() == "PERSONALITY_NONE");
 
     CHECK_NOTHROW(
-        ind.setPersonality(std::make_shared<oa::GEvolutionaryAlgorithm_PersonalityTraits>())
+        ind.setPersonality(std::make_shared<OA::GEvolutionaryAlgorithm_PersonalityTraits>())
     );
     CHECK(ind.getPersonality() == "GEvolutionaryAlgorithm_PersonalityTraits");
-    CHECK(ind.getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>());
+    CHECK(ind.getPersonalityTraits<OA::GEvolutionaryAlgorithm_PersonalityTraits>());
     CHECK(ind.getPersonalityTraits());
 
-    CHECK_NOTHROW(ind.setPersonality(std::make_shared<oa::GPositionPersonalityTraits>()));
+    CHECK_NOTHROW(ind.setPersonality(std::make_shared<OA::GPositionPersonalityTraits>()));
     CHECK(ind.getPersonality() == "GPositionPersonalityTraits");
-    CHECK(ind.getPersonalityTraits<oa::GPositionPersonalityTraits>());
+    CHECK(ind.getPersonalityTraits<OA::GPositionPersonalityTraits>());
     CHECK(ind.getPersonalityTraits());
 
-    CHECK_NOTHROW(ind.setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>()));
+    CHECK_NOTHROW(ind.setPersonality(std::make_shared<OA::GSwarmAlgorithm_PersonalityTraits>()));
     CHECK(ind.getPersonality() == "GSwarmAlgorithm_PersonalityTraits");
-    CHECK(ind.getPersonalityTraits<oa::GSwarmAlgorithm_PersonalityTraits>());
+    CHECK(ind.getPersonalityTraits<OA::GSwarmAlgorithm_PersonalityTraits>());
     CHECK(ind.getPersonalityTraits());
 
     CHECK_NOTHROW(ind.resetPersonality());
@@ -244,7 +244,7 @@ TEST_CASE(
     "GTestIndividual1: reading the fitness of an individual due for processing throws",
     "[geneva][individuals]"
 ) {
-    gind::GTestIndividual1 p_test;
+    Individuals::GTestIndividual1 p_test;
     CHECK_NOTHROW(p_test.mark_as_due_for_processing());
     CHECK_THROWS_AS(p_test.transformed_fitness(0), Gem::Common::gem_exception);
 }
@@ -253,19 +253,19 @@ TEST_CASE(
     "GTestIndividual1: reading personality traits that are not installed throws",
     "[geneva][individuals]"
 ) {
-    gind::GTestIndividual1 ind;
+    Individuals::GTestIndividual1 ind;
 
     CHECK_NOTHROW(ind.resetPersonality());
     CHECK_THROWS_AS(
-        ind.getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>(),
+        ind.getPersonalityTraits<OA::GEvolutionaryAlgorithm_PersonalityTraits>(),
         Gem::Common::gem_exception
     );
     CHECK_THROWS_AS(ind.getPersonalityTraits(), Gem::Common::gem_exception);
 
 #ifndef NDEBUG // a personality of another type is found by GEM_DEBUG_CHECK (g_ptr_conversion)
-    CHECK_NOTHROW(ind.setPersonality(std::make_shared<oa::GSwarmAlgorithm_PersonalityTraits>()));
+    CHECK_NOTHROW(ind.setPersonality(std::make_shared<OA::GSwarmAlgorithm_PersonalityTraits>()));
     CHECK_THROWS_AS(
-        ind.getPersonalityTraits<oa::GEvolutionaryAlgorithm_PersonalityTraits>(),
+        ind.getPersonalityTraits<OA::GEvolutionaryAlgorithm_PersonalityTraits>(),
         Gem::Common::gem_exception
     );
 #endif

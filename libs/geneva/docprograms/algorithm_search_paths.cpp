@@ -112,7 +112,7 @@ constexpr surfaceProjection MAP_PLANE = surfaceProjection::FLOOR;
  * population and the individuals' first two parameters, so it works unchanged for every algorithm.
  */
 class GSearchTraceMonitor final
-  : public Gem::Common::GReflectiveInterfaceT<GSearchTraceMonitor, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GSearchTraceMonitor, OA::GBasePluggableOM> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -168,7 +168,7 @@ private:
      * @param goa A non-owning pointer to the algorithm being monitored
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override {
         if(im != infoMode::INFOPROCESSING) {
             return;
         }
@@ -205,17 +205,17 @@ private:
 /******************************************************************************/
 /** One figure: an algorithm, the function it is shown on, and that function's domain. */
 struct Showcase {
-    std::string_view mnemonic;      ///< the algorithm's command-line name, also the file name
-    std::string_view function_name; ///< the test function, as printed in the figure
-    gind::solverFunction function;  ///< the test function
-    double lower;                   ///< lower bound of both parameters
-    double upper;                   ///< upper bound of both parameters
+    std::string_view mnemonic;            ///< the algorithm's command-line name, also the file name
+    std::string_view function_name;       ///< the test function, as printed in the figure
+    Individuals::solverFunction function; ///< the test function
+    double lower;                         ///< lower bound of both parameters
+    double upper;                         ///< upper bound of both parameters
     std::optional<std::array<double, 2>>
         start;                ///< a fixed starting point (local methods), else random
     std::uint32_t iterations; ///< how long the run lasts
-    std::function<std::shared_ptr<oa::GOptimizationAlgorithmBase>(
-        gind::GFunctionIndividual const &,
-        gind::GFunctionIndividual::Config const &
+    std::function<std::shared_ptr<OA::GOptimizationAlgorithmBase>(
+        Individuals::GFunctionIndividual const &,
+        Individuals::GFunctionIndividual::Config const &
     )>
         make; ///< builds the configured algorithm around one prototype individual
 };
@@ -225,11 +225,11 @@ struct Showcase {
  * @param c The problem configuration (dimension, bounds, function)
  * @return A freshly built individual
  */
-std::unique_ptr<gind::GFunctionIndividual>
-makeIndividual(const gind::GFunctionIndividual::Config &c) {
-    auto ind = std::make_unique<gind::GFunctionIndividual>();
-    ind->setGenome(gind::GFunctionIndividual::buildGenome(c));
-    gind::GFunctionIndividual::applyConfig(*ind, c);
+std::unique_ptr<Individuals::GFunctionIndividual>
+makeIndividual(const Individuals::GFunctionIndividual::Config &c) {
+    auto ind = std::make_unique<Individuals::GFunctionIndividual>();
+    ind->setGenome(Individuals::GFunctionIndividual::buildGenome(c));
+    Individuals::GFunctionIndividual::applyConfig(*ind, c);
     ind->randomInit(activityMode::ALLPARAMETERS);
     return ind;
 }
@@ -239,9 +239,9 @@ makeIndividual(const gind::GFunctionIndividual::Config &c) {
  * @return The showcases, in the order of the manual's list of algorithms
  */
 std::vector<Showcase> showcases() {
-    using F = gind::solverFunction;
-    using Ind = gind::GFunctionIndividual;
-    using Cfg = gind::GFunctionIndividual::Config;
+    using F = Individuals::solverFunction;
+    using Ind = Individuals::GFunctionIndividual;
+    using Cfg = Individuals::GFunctionIndividual::Config;
     constexpr double pi = std::numbers::pi;
 
     return {
@@ -253,11 +253,11 @@ std::vector<Showcase> showcases() {
          std::nullopt,
          ITERATIONS,
          [](Ind const &proto, Cfg const &c) {
-             auto oa = std::make_shared<oa::GEvolutionaryAlgorithm>();
+             auto oa = std::make_shared<OA::GEvolutionaryAlgorithm>();
              oa->setPopulationSizes(30, 6);
              oa->push_back(proto.clone());
              oa->setAdaptionConfig(Ind::buildAdaptionConfig(proto, c));
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"sepcma",
          "Ellipsoid",
@@ -267,9 +267,9 @@ std::vector<Showcase> showcases() {
          std::nullopt,
          ITERATIONS,
          [](Ind const &proto, Cfg const &) {
-             auto oa = std::make_shared<oa::GSepCmaEvolutionStrategy>();
+             auto oa = std::make_shared<OA::GSepCmaEvolutionStrategy>();
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"sa",
          "Styblinski-Tang",
@@ -279,11 +279,11 @@ std::vector<Showcase> showcases() {
          std::array<double, 2>{2.75, 2.75},
          100,
          [](Ind const &proto, Cfg const &c) {
-             auto oa = std::make_shared<oa::GSimulatedAnnealing>();
+             auto oa = std::make_shared<OA::GSimulatedAnnealing>();
              oa->setPopulationSizes(30, 6);
              oa->push_back(proto.clone());
              oa->setAdaptionConfig(Ind::buildAdaptionConfig(proto, c));
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"gsa",
          "Schwefel",
@@ -293,10 +293,10 @@ std::vector<Showcase> showcases() {
          std::nullopt,
          ITERATIONS,
          [](Ind const &proto, Cfg const &) {
-             auto oa = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+             auto oa = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
              oa->setNChains(8);
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"swarm",
          "Ackley",
@@ -306,10 +306,10 @@ std::vector<Showcase> showcases() {
          std::nullopt,
          ITERATIONS,
          [](Ind const &proto, Cfg const &) {
-             auto oa = std::make_shared<oa::GSwarmAlgorithm>();
+             auto oa = std::make_shared<OA::GSwarmAlgorithm>();
              oa->setSwarmSizes(4, 6); // 4 neighborhoods x 6 members
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"spso2011",
          "Levy",
@@ -319,10 +319,10 @@ std::vector<Showcase> showcases() {
          std::nullopt,
          ITERATIONS,
          [](Ind const &proto, Cfg const &) {
-             auto oa = std::make_shared<oa::GStandardPSO2011>();
+             auto oa = std::make_shared<OA::GStandardPSO2011>();
              oa->setSwarmSize(24);
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"acor",
          "Michalewicz",
@@ -332,11 +332,11 @@ std::vector<Showcase> showcases() {
          std::nullopt,
          ITERATIONS,
          [](Ind const &proto, Cfg const &) {
-             auto oa = std::make_shared<oa::GAntColonyOptimization>();
+             auto oa = std::make_shared<OA::GAntColonyOptimization>();
              oa->setArchiveSize(20);
              oa->setNAnts(10);
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"cgd",
          "Rosenbrock",
@@ -346,10 +346,10 @@ std::vector<Showcase> showcases() {
          std::array<double, 2>{-1.2, 1.},
          400,
          [](Ind const &proto, Cfg const &) {
-             auto oa = std::make_shared<oa::GConjugateGradientDescent>();
+             auto oa = std::make_shared<OA::GConjugateGradientDescent>();
              oa->setNStartingPoints(1);
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"nm",
          "Zakharov",
@@ -359,9 +359,9 @@ std::vector<Showcase> showcases() {
          std::array<double, 2>{8., 8.},
          ITERATIONS,
          [](Ind const &proto, Cfg const &) {
-             auto oa = std::make_shared<oa::GNelderMead>();
+             auto oa = std::make_shared<OA::GNelderMead>();
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
         {"ps",
          "Berlich noisy parabola",
@@ -371,7 +371,7 @@ std::vector<Showcase> showcases() {
          std::nullopt,
          ITERATIONS,
          [](Ind const &proto, Cfg const &c) {
-             auto oa = std::make_shared<oa::GParameterScan>();
+             auto oa = std::make_shared<OA::GParameterScan>();
              oa->setScanRandomly(false); // a regular grid: the scan as a map
              oa->setParameterSpecs(
                  "d(0, " + std::to_string(c.min_var) + ", " + std::to_string(c.max_var) +
@@ -379,7 +379,7 @@ std::vector<Showcase> showcases() {
                  ", 21)"
              );
              oa->push_back(proto.clone());
-             return std::static_pointer_cast<oa::GOptimizationAlgorithmBase>(oa);
+             return std::static_pointer_cast<OA::GOptimizationAlgorithmBase>(oa);
          }},
     };
 }
@@ -390,7 +390,7 @@ std::vector<Showcase> showcases() {
  * @return true if the search recorded individuals and beat the average of the landscape
  */
 bool runShowcase(Showcase const &s) {
-    gind::GFunctionIndividual::Config problem;
+    Individuals::GFunctionIndividual::Config problem;
     problem.par_dim = 2;
     problem.min_var = s.lower;
     problem.max_var = s.upper;
@@ -409,7 +409,7 @@ bool runShowcase(Showcase const &s) {
                 s.lower + (s.upper - s.lower) * double(i) / double(MAP_NODES - 1),
                 s.lower + (s.upper - s.lower) * double(j) / double(MAP_NODES - 1)
             };
-            const double f = gbm::eval(function, p.data(), 2);
+            const double f = Benchmarks::eval(function, p.data(), 2);
             grid.push_back({p[0], p[1], f});
             f_min = std::min(f_min, f);
             f_sum += f;
@@ -487,7 +487,7 @@ int main() {
     GenevaInitializer const gi;
 
     // One consumer per process (Invariant 5); a single thread is plenty for these small runs.
-    Gem::Courtier::buildConsumer<gen::GGenome>(
+    Gem::Courtier::buildConsumer<Genome::GGenome>(
         Gem::Courtier::GStdThreadConsumerConfig{.nThreads = 1},
         consumerModules()
     );

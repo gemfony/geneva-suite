@@ -65,11 +65,11 @@
 #include "geneva/oa/GOptimizationAlgorithmFactoryT.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (the recording monitor)
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 using Gem::Geneva::activityMode;
-using oa::stepControl;
+using OA::stepControl;
 
 namespace {
 
@@ -80,21 +80,21 @@ namespace {
  * structure only; the Gauss adaptor lives on the OA-owned config (config-strip model).
  */
 template <std::size_t N>
-class HighDimSphere : public gen::GGenomeT<HighDimSphere<N>> {
+class HighDimSphere : public Genome::GGenomeT<HighDimSphere<N>> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     HighDimSphere() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N, -5., 5.).init(2.0);
         this->setGenome(b.build());
     }
     HighDimSphere(const HighDimSphere &) = default;
 
     /** @brief A Gauss config with the CLASSIC fixed sigma_sigma=0.8 (what the stock EA uses). */
-    [[nodiscard]] std::shared_ptr<oa::GAdaptionConfigBase> buildAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    [[nodiscard]] std::shared_ptr<OA::GAdaptionConfigBase> buildAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         // sigma, sigma_sigma, min_sigma, max_sigma, ad_prob. The shared step per dimension is
         // range * N(0, sigma) with range = 10 (the [-5,5) span), so a modest sigma keeps the per-dim
         // step sane at high n. sigma_sigma = 0.8 is the classic Geneva default (too hot at large n).
@@ -118,7 +118,7 @@ protected:
  *  fixed budget and returns the best fitness. This reproduces the behaviour of the former stock EA. */
 template <std::size_t N>
 double runStockEA(std::size_t pop, std::size_t parents, std::size_t iterations) {
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(pop, parents);
     p->setMaxIteration(iterations);
     p->setMaxStallIteration(0);
@@ -142,7 +142,7 @@ double runStockEA(std::size_t pop, std::size_t parents, std::size_t iterations) 
  *  fitness. The step controller is selectable. */
 template <std::size_t N>
 double runAdaptiveEA(std::size_t pop, std::size_t parents, std::size_t iterations, stepControl sc) {
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(pop, parents);
     p->setMaxIteration(iterations);
     p->setMaxStallIteration(0);
@@ -172,7 +172,7 @@ double runEAmode(
     stepControl sc,
     Gem::Geneva::sortingMode sm
 ) {
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(pop, parents);
     p->setMaxIteration(iterations);
     p->setMaxStallIteration(
@@ -202,7 +202,7 @@ double runEAmode(
  * on the threads of its pool; the exception has to reach the caller of optimize() with its type.
  */
 class ThrowingConstraint
-  : public Gem::Common::GReflectiveInterfaceT<ThrowingConstraint, gen::GGenomeConstraint> {
+  : public Gem::Common::GReflectiveInterfaceT<ThrowingConstraint, Genome::GGenomeConstraint> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     template <typename self_type>
@@ -214,7 +214,7 @@ public:
     static constexpr std::string_view class_name = "ThrowingConstraint";
 
 protected:
-    double check_(const gen::GGenome *) const override {
+    double check_(const Genome::GGenome *) const override {
         throw Gem::Common::GCommandLineError("thrown by ThrowingConstraint", "typed state");
     }
 };
@@ -234,7 +234,7 @@ TEST_CASE("ea default step control is SELF_ADAPT_SCALED", "[ea][oa]") {
     // The default is the dimension-scaled per-parameter self-adaption: it converges cleanly in every
     // sorting mode. (The global-sigma controllers CSA / ONE_FIFTH remain selectable but are no longer
     // the default -- their success signal is only sound once measured per-offspring-vs-own-parent.)
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     CHECK(p->getStepControl() == stepControl::SELF_ADAPT_SCALED);
 }
 
@@ -245,7 +245,7 @@ TEST_CASE("ea self-registers its mnemonic in the OA factory store", "[ea][oa]") 
     // (src/oa/GBuiltinAlgorithms.cpp) runs at library load and inserts the "ea" mnemonic into the global
     // store, so GOptimizer / the examples can select it by name.
     CHECK(oaFactoryStore()->exists("ea"));
-    CHECK((oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>{}.getMnemonic() == "ea"));
+    CHECK((OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>{}.getMnemonic() == "ea"));
 }
 
 /******************************************************************************/
@@ -281,7 +281,7 @@ TEST_CASE("ea Pareto modes still work on a single-objective problem", "[ea][oa][
     // single-eval on a single-criterion individual, which must still converge, not crash).
     for(auto mode :
         {Gem::Geneva::sortingMode::MUPLUSNU_PARETO, Gem::Geneva::sortingMode::MUCOMMANU_PARETO}) {
-        auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
         p->setPopulationSizes(18, 6);
         p->setMaxIteration(120);
         p->setReportIteration(100000);
@@ -449,7 +449,7 @@ TEST_CASE("ea out-converges the stock EA at n=10000", "[ea][oa][highdim10k]") {
 TEST_CASE("ea passes a worker-thread exception to the caller with its type", "[ea][oa]") {
     // Regression: GParChild consumed the futures of its pool tasks inside catch blocks that rewrapped
     // every exception into a plain gem_exception string, so a typed error lost its type and its state.
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(6, 2);
     p->setMaxIteration(2);
     p->setReportIteration(100000);
@@ -480,7 +480,7 @@ std::vector<double> best_of_iteration; // NOLINT(cppcoreguidelines-avoid-non-con
 
 /** A pluggable monitor that records the best fitness of each iteration. */
 class GBestOfIterationMonitor final
-  : public Gem::Common::GReflectiveInterfaceT<GBestOfIterationMonitor, oa::GBasePluggableOM> {
+  : public Gem::Common::GReflectiveInterfaceT<GBestOfIterationMonitor, OA::GBasePluggableOM> {
     friend struct Gem::Weft::access;
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -495,7 +495,7 @@ public:
 private:
     void informationFunction_(
         Gem::Geneva::infoMode im,
-        oa::GOptimizationAlgorithmBase const *const goa
+        OA::GOptimizationAlgorithmBase const *const goa
     ) override {
         if(im == Gem::Geneva::infoMode::INFOPROCESSING) {
             best_of_iteration.push_back(std::get<0>(goa->getBestCurrentPrimaryFitness()));
@@ -514,7 +514,7 @@ TEST_CASE("ea MUNU1PRETAIN never loses its best parent", "[ea][oa]") {
     // selection then took whichever parent stood at position 0 for the best one and dropped the
     // real best with the rest.
     best_of_iteration.clear();
-    auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
     p->setPopulationSizes(40, 15);
     p->setMaxIteration(80);
     p->setMaxStallIteration(0);
@@ -547,7 +547,7 @@ TEST_CASE("ea's iteration archive holds the last iteration only", "[ea][oa]") {
     // it, so it accumulated like the global archive and handed out the best of all iterations.
     std::size_t n_lost = 0; // runs whose last iteration was worse than the best found
     for(std::size_t run = 0; run < 20; ++run) {
-        auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
         p->setPopulationSizes(5, 1);
         p->setMaxIteration(6);
         p->setMaxStallIteration(0);
@@ -555,20 +555,21 @@ TEST_CASE("ea's iteration archive holds the last iteration only", "[ea][oa]") {
         p->setSortingScheme(Gem::Geneva::sortingMode::MUCOMMANU_SINGLEEVAL);
         HighDimSphere<5> const src;
         p->push_back(src.clone());
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(src);
         cfg->groupDouble(0).gauss(0.3, 0., 1e-3, 1., 1.); // a large step that does not adapt
         p->setAdaptionConfig(cfg);
         p->optimize();
 
         double const iteration_best = Gem::Geneva::minOnly_transformed_fitness(
-            *p->getBestIterationIndividual<gen::GGenome>()
+            *p->getBestIterationIndividual<Genome::GGenome>()
         );
         CHECK(
             iteration_best ==
             std::get<Gem::Geneva::G_TRANSFORMED_FITNESS>(p->getBestCurrentPrimaryFitness())
         );
-        if(iteration_best >
-           Gem::Geneva::minOnly_transformed_fitness(*p->getBestGlobalIndividual<gen::GGenome>())) {
+        if(iteration_best > Gem::Geneva::minOnly_transformed_fitness(
+                                *p->getBestGlobalIndividual<Genome::GGenome>()
+                            )) {
             ++n_lost;
         }
     }
@@ -584,7 +585,7 @@ TEST_CASE("ea's global archive holds no individual twice under plus selection", 
     // it removed only the same object offered twice, so every copy of a surviving parent stayed
     // and getBestGlobalIndividuals() returned it several times (e.g. 4 + 5 of 10 entries).
     for(std::size_t run = 0; run < 5; ++run) {
-        auto p = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto p = std::make_shared<OA::GEvolutionaryAlgorithm>();
         p->setPopulationSizes(5, 1);
         p->setMaxIteration(30);
         p->setMaxStallIteration(0);
@@ -592,13 +593,13 @@ TEST_CASE("ea's global archive holds no individual twice under plus selection", 
         p->setSortingScheme(Gem::Geneva::sortingMode::MUPLUSNU_SINGLEEVAL);
         HighDimSphere<5> const src;
         p->push_back(src.clone());
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(src);
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(src);
         cfg->groupDouble(0).gauss(0.3, 0., 1e-3, 1., 1.); // a large step: few children win
         p->setAdaptionConfig(cfg);
         p->optimize();
 
         std::set<std::vector<double>> seen;
-        for(auto const &ind : p->getBestGlobalIndividuals<gen::GGenome>()) {
+        for(auto const &ind : p->getBestGlobalIndividuals<Genome::GGenome>()) {
             auto const values = ind->parameterValues<double>();
             CHECK(seen.insert(values).second);
         }
@@ -611,7 +612,7 @@ TEST_CASE(
     "GEvolutionaryAlgorithm: the population sizes split into parents and children",
     "[geneva][ea]"
 ) {
-    oa::GEvolutionaryAlgorithm ea;
+    OA::GEvolutionaryAlgorithm ea;
 
     // Replaces the population by n randomly initialised test individuals
     auto const fill = [&ea](std::size_t n_individuals) {

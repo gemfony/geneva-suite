@@ -66,7 +66,7 @@ namespace Gem::Geneva::SubClientOverhead {
  * fitness is the sum of the answers. The individual itself knows nothing of MPI.
  */
 class GSleepGroupIndividual // NOLINT(cppcoreguidelines-special-member-functions)
-  : public gen::GGenomeT<GSleepGroupIndividual> {
+  : public Genome::GGenomeT<GSleepGroupIndividual> {
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
     template <typename self_type>

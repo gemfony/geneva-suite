@@ -49,7 +49,7 @@
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace Gem::Tests {
 
@@ -104,8 +104,8 @@ using Gem::Tests::AdaptCfgIndividual;
  * an integer Gauss adaptor on the int group and a flip adaptor on the bool group -- the settings the
  * genome formerly baked into its layout, now authored on the (structure-derived) config.
  */
-static oa::GEAAdaptionConfig authoredConfig(const AdaptCfgIndividual &ind) {
-    oa::GEAAdaptionConfig cfg(ind); // structure skeleton from the genome
+static OA::GEAAdaptionConfig authoredConfig(const AdaptCfgIndividual &ind) {
+    OA::GEAAdaptionConfig cfg(ind); // structure skeleton from the genome
     cfg.groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
     cfg.groupDouble(1).gauss(0.5, 0.8, 1e-3, 2., 1.);
     cfg.groupDouble(2).gauss(0.5, 0.8, 1e-3, 2., 1.);
@@ -190,7 +190,7 @@ TEST_CASE(
 
         std::size_t total = 0;
         for(int it = 0; it < 5; ++it) {
-            total += oa::runAdaptionKernels(ind, scratch, cfg, gr);
+            total += OA::runAdaptionKernels(ind, scratch, cfg, gr);
         }
         CHECK(total > 0); // ad_prob == 1 over several iterations -> something adapts
 
@@ -245,19 +245,19 @@ TEST_CASE("GAdaption: readAdaptionSigmas + resetAdaptionState round-trip", "[fla
     cfg.installInto(scratch);
 
     // One sigma per Gauss group (3 FP groups here); all start at the seed 0.5.
-    std::vector<double> const sig0 = oa::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
+    std::vector<double> const sig0 = OA::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
     REQUIRE(sig0.size() == 3);
     for(double const s : sig0) {
         CHECK(s == 0.5);
     }
     // The integer Gauss adaptor reports its single group's sigma too.
-    CHECK(oa::readAdaptionSigmas(scratch, cfg, "GInt32GaussAdaptor").size() == 1);
+    CHECK(OA::readAdaptionSigmas(scratch, cfg, "GInt32GaussAdaptor").size() == 1);
 
     // Drive sigma away from its seed, then reset it back.
     bool moved = false;
     for(int it = 0; it < 50 && not moved; ++it) {
-        oa::runAdaptionKernels(ind, scratch, cfg, gr);
-        std::vector<double> const s = oa::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
+        OA::runAdaptionKernels(ind, scratch, cfg, gr);
+        std::vector<double> const s = OA::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
         for(double const v : s) {
             if(v != 0.5) {
                 moved = true;
@@ -266,9 +266,9 @@ TEST_CASE("GAdaption: readAdaptionSigmas + resetAdaptionState round-trip", "[fla
     }
     CHECK(moved); // sigma self-adapted away from the seed
 
-    oa::resetAdaptionState(scratch, cfg);
+    OA::resetAdaptionState(scratch, cfg);
     std::vector<double> const sig_reset =
-        oa::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
+        OA::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
     REQUIRE(sig_reset.size() == 3);
     for(double const s : sig_reset) {
         CHECK(s == 0.5); // back to the configured seed
@@ -285,7 +285,7 @@ TEST_CASE("GAdaptionConfig: installInto seeds the per-group state", "[flat][adap
     GAuxiliaryStore scratch;
     cfg.installInto(scratch);
 
-    std::vector<double> sig = oa::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
+    std::vector<double> sig = OA::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
     REQUIRE(sig.size() == 3);
     CHECK(sig[0] == 1.25); // the re-seeded group
     CHECK(sig[1] == 0.5);  // the others keep their original seed

@@ -81,7 +81,7 @@ public:
      */
     GParameterScanFactory(
         std::filesystem::path const &config_file,
-        std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> content_creator_ptr
+        std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> content_creator_ptr
     )
       : Base(config_file, std::move(content_creator_ptr)) { /* nothing */
     }

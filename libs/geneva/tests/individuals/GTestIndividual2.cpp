@@ -70,7 +70,7 @@ GTestIndividual2::GTestIndividual2() { /* nothing */
 GTestIndividual2::GTestIndividual2(const std::size_t &n_objects, const PERFOBJECTTYPE &otype) {
     using namespace Gem::Geneva;
 
-    gen::GGenomeBuilder b;
+    Genome::GGenomeBuilder b;
 
     // Fill with the requested amount of data of the requested type
     switch(otype) {
@@ -121,7 +121,7 @@ GTestIndividual2::GTestIndividual2(const std::size_t &n_objects, const PERFOBJEC
  * @param cp A constant reference to another GTestIndividual2 object
  */
 GTestIndividual2::GTestIndividual2(const GTestIndividual2 &cp)
-  : gen::GGenomeT<GTestIndividual2>(cp) { /* nothing */
+  : Genome::GGenomeT<GTestIndividual2>(cp) { /* nothing */
 }
 
 /******************************************************************************/
@@ -142,8 +142,8 @@ GTestIndividual2::~GTestIndividual2() { /* nothing */
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GTestIndividual2::getAdaptionConfig() const {
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
     for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
         cfg->groupDouble(i).gauss(0.025, 0.1, 0., 1., 1.);
     }

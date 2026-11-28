@@ -91,13 +91,14 @@ processRole expectedRole(int base_rank) {
 /** @brief The submitter's part: one iteration of a small population.
  *  @param go The GOptimizer of the run */
 void optimize(GOptimizer &go) {
-    const auto factory =
-        std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+    const auto factory = std::make_shared<Individuals::GFunctionIndividualFactory>(
+        "./config/GFunctionIndividual.json"
+    );
     go.registerContentCreator(factory);
-    const auto sample = factory->get_as<gind::GFunctionIndividual>();
+    const auto sample = factory->get_as<Individuals::GFunctionIndividual>();
     go.registerAdaptionConfig("ea", factory->getAdaptionConfig(*sample));
 
-    const auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    const auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
     ea->setPopulationSizes(4, 2);
     ea->setMaxIteration(1);
     go & ea;
@@ -112,9 +113,9 @@ void optimize(GOptimizer &go) {
  *  @return The launcher's exit code */
 int runOnLauncher(int argc, char **argv, Gem::Courtier::GMPICascade &cascade) {
     GOptimizationDescription geneva;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
-    launcher.registerItemProcessor([&cascade](gen::GGenome &item) {
-        std::ignore = item.process([&cascade](const gen::GGenome &candidate) {
+    Gem::Courtier::GLauncherT<Genome::GGenome> launcher(argc, argv, "./config/GOptimizer.json");
+    launcher.registerItemProcessor([&cascade](Genome::GGenome &item) {
+        std::ignore = item.process([&cascade](const Genome::GGenome &candidate) {
             auto const parameters = candidate.parameterValues<double>();
             return std::vector<double>{cascade.round([&parameters](MPI_Comm group) {
                 MPI_Barrier(group);
@@ -186,7 +187,7 @@ int runTest(int argc, char **argv) {
         // reaches its end.
         const processRole expected = expectedRole(base_rank);
         const processRole consumer_role =
-            Gem::Courtier::consumerProvider<gen::GGenome>("mpi", consumerModules())
+            Gem::Courtier::consumerProvider<Genome::GGenome>("mpi", consumerModules())
                 ->role(Gem::Courtier::ConsumerSpec{.mnemonic = "mpi"}, false);
         if(cascade.role() != expected || consumer_role != expected) {
             std::println(

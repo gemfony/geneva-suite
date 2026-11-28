@@ -44,8 +44,8 @@
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GAntColonyOptimization.hpp"
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace {
 
@@ -56,13 +56,13 @@ namespace {
  * adaption config. fitness = sum of squares (optimum: the origin).
  */
 template <std::size_t N_DIM>
-class SphereACOR : public gen::GGenomeT<SphereACOR<N_DIM>> {
+class SphereACOR : public Genome::GGenomeT<SphereACOR<N_DIM>> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereACOR() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N_DIM, -5., 5.).init(3.0); // structure only; ACOR needs no adaptor
         this->setGenome(b.build());
     }
@@ -97,7 +97,7 @@ double bestSphere(const SphereACOR<N_DIM> &best) {
 /******************************************************************************/
 
 TEST_CASE("Ant Colony Optimization optimizes a 5-dim flat sphere", "[acor]") {
-    auto pop = std::make_shared<oa::GAntColonyOptimization>();
+    auto pop = std::make_shared<OA::GAntColonyOptimization>();
     pop->setArchiveSize(50);
     pop->setNAnts(2);
     pop->setMaxIteration(2000);
@@ -116,7 +116,7 @@ TEST_CASE("Ant Colony Optimization optimizes a 5-dim flat sphere", "[acor]") {
 /******************************************************************************/
 
 TEST_CASE("Ant Colony Optimization optimizes a 10-dim flat sphere", "[acor]") {
-    auto pop = std::make_shared<oa::GAntColonyOptimization>();
+    auto pop = std::make_shared<OA::GAntColonyOptimization>();
     pop->setArchiveSize(50);
     pop->setNAnts(2);
     pop->setMaxIteration(3000);
@@ -135,7 +135,7 @@ TEST_CASE("Ant Colony Optimization optimizes a 10-dim flat sphere", "[acor]") {
 /******************************************************************************/
 
 TEST_CASE("Ant Colony Optimization parameter validation", "[acor]") {
-    auto acor = std::make_shared<oa::GAntColonyOptimization>();
+    auto acor = std::make_shared<OA::GAntColonyOptimization>();
 
     acor->setArchiveSize(25);
     CHECK(acor->getArchiveSize() == 25);

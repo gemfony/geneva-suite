@@ -80,8 +80,8 @@
 
 using namespace Gem::Geneva;
 namespace gpu = Gem::Courtier::GPU;
-namespace gen = Gem::Geneva::Genome;
-namespace gind = Gem::Geneva::Individuals;
+namespace Genome = Gem::Geneva::Genome;
+namespace Individuals = Gem::Geneva::Individuals;
 
 namespace {
 
@@ -140,7 +140,7 @@ reportParitySummary(const std::vector<double> &rel, int n, double rel_tol, doubl
 }
 
 int runParityCheck(int n, const std::string &consumerConfig) {
-    using gen::GGenome;
+    using Genome::GGenome;
 
     // Double-precision sequential sums on both sides: a tight relative tolerance suffices, with a best-of-N
     // criterion (Inv 18) so a single reduction-order outlier does not fail the whole check.
@@ -152,16 +152,16 @@ int runParityCheck(int n, const std::string &consumerConfig) {
                << n << " random individuals" << '\n'
                << GEM_LOGGING;
 
-    gind::GFunctionIndividualFactory f("./config/GFunctionIndividual.json");
+    Individuals::GFunctionIndividualFactory f("./config/GFunctionIndividual.json");
 
     // Draw n random individuals for the CPU reference and, for each, an independent clone for the GPU so the
     // two paths score IDENTICAL genomes (each process() stores its result on its own item).
-    std::vector<std::shared_ptr<gind::GFunctionIndividual>> cpuInds;
+    std::vector<std::shared_ptr<Individuals::GFunctionIndividual>> cpuInds;
     std::vector<std::unique_ptr<GGenome>> gpuBatch;
     cpuInds.reserve(static_cast<std::size_t>(n));
     gpuBatch.reserve(static_cast<std::size_t>(n));
     for(int i = 0; i < n; ++i) {
-        auto ind = f.get_as<gind::GFunctionIndividual>();
+        auto ind = f.get_as<Individuals::GFunctionIndividual>();
         ind->randomInit(
             activityMode::ALLPARAMETERS
         );                                // spread the genome across its range (the factory
@@ -268,9 +268,9 @@ int main(int argc, char **argv) {
             // device is required).
             if(Gem::Common::GParserBuilder::updateInPlace()) {
                 auto marshaller = std::make_shared<FunctionGPU::GFunctionGPUMarshaller>();
-                gpu::GGPUConsumerT<gen::GGenome, double>(consumerConfig, marshaller);
-                gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
-                    .get_as<gind::GFunctionIndividual>();
+                gpu::GGPUConsumerT<Genome::GGenome, double>(consumerConfig, marshaller);
+                Individuals::GFunctionIndividualFactory("./config/GFunctionIndividual.json")
+                    .get_as<Individuals::GFunctionIndividual>();
                 // refreshes GOptimizer's own configs, then exits; nothing device-dependent has run
                 go.optimize();
             }
@@ -281,7 +281,7 @@ int main(int argc, char **argv) {
             }
 
             // ---- create the individual factory and wire the optimization ------------------------------
-            auto gfi_ptr = std::make_shared<gind::GFunctionIndividualFactory>(
+            auto gfi_ptr = std::make_shared<Individuals::GFunctionIndividualFactory>(
                 "./config/GFunctionIndividual.json"
             );
             go.registerContentCreator(gfi_ptr);
@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
             // authors. Register it for the adapting algorithms (EA / SA) so GOptimizer hands it
             // over before they run.
             {
-                auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+                auto sample = gfi_ptr->get_as<Individuals::GFunctionIndividual>();
                 auto cfg = gfi_ptr->getAdaptionConfig(*sample);
                 go.registerAdaptionConfig("ea", cfg);
                 go.registerAdaptionConfig("sa", cfg);
@@ -300,7 +300,7 @@ int main(int argc, char **argv) {
             go.registerDefaultAlgorithm("ea");
 
             // Perform the optimization. With "--consumer gpu" every generation is scored in one bulk kernel launch.
-            auto p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
+            auto p = go.optimize().getBestGlobalIndividual<Individuals::GFunctionIndividual>();
 
             std::cout << "Best result found:" << '\n' << p << '\n';
             return 0;

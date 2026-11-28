@@ -245,7 +245,7 @@ int main(int argc, char **argv) {
     // one individual (with GParserBuilder in update-in-place mode) creates/rewrites it canonically.
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         Gem::Common::beginConfigEmission();
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
+        Individuals::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
         Gem::Common::finishConfigEmission();
         return 0;
     }
@@ -284,7 +284,7 @@ int main(int argc, char **argv) {
         // Build the networked client through courtier's function, from Geneva's consumer module.
         // The configuration struct names the consumer and drives both this client and the server
         // below.
-        auto client = buildConsumerClient<gen::GGenome>(
+        auto client = buildConsumerClient<Genome::GGenome>(
             GWebsocketConsumerConfig{
                 .ip = ip,
                 .port = port,
@@ -304,19 +304,19 @@ int main(int argc, char **argv) {
 
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    gind::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
+    Individuals::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
 
     // Create the first set of parent individuals. Initialization of parameters is done randomly.
-    std::vector<std::shared_ptr<gind::GFunctionIndividual>> parentIndividuals;
+    std::vector<std::shared_ptr<Individuals::GFunctionIndividual>> parentIndividuals;
     for(std::size_t p = 0; p < nParents; p++) {
-        parentIndividuals.push_back(gfi.get_as<gind::GFunctionIndividual>());
+        parentIndividuals.push_back(gfi.get_as<Individuals::GFunctionIndividual>());
     }
 
     /****************************************************************************/
 
     //! [sa-direct-setup#1]
     // Create an empty population
-    auto const pop_ptr = std::make_shared<oa::GSimulatedAnnealing>();
+    auto const pop_ptr = std::make_shared<OA::GSimulatedAnnealing>();
 
     // General settings
     pop_ptr->setPopulationSizes(populationSize, nParents);
@@ -341,12 +341,12 @@ int main(int argc, char **argv) {
     switch(parallelizationMode) {
     //----------------------------------------------------------------------------
     case PM_SERIAL: // Serial (single-threaded) execution
-        buildConsumer<gen::GGenome>(GStdThreadConsumerConfig{.nThreads = 1}, consumerModules());
+        buildConsumer<Genome::GGenome>(GStdThreadConsumerConfig{.nThreads = 1}, consumerModules());
         break;
 
         //----------------------------------------------------------------------------
     case PM_MULTITHREADED: // Multi-threaded local execution
-        buildConsumer<gen::GGenome>(
+        buildConsumer<Genome::GGenome>(
             GStdThreadConsumerConfig{.nThreads = static_cast<unsigned int>(nEvaluationThreads)},
             consumerModules()
         );
@@ -356,7 +356,7 @@ int main(int argc, char **argv) {
     case PM_NETWORKED: // Networked execution
         // Build a courtier websocket server via the shared factory; the clients started above
         // (built by buildConsumerClient from the same configuration struct) connect to it.
-        buildConsumer<gen::GGenome>(
+        buildConsumer<Genome::GGenome>(
             GWebsocketConsumerConfig{.port = port, .serializationMode = serMode},
             consumerModules()
         );
@@ -375,7 +375,7 @@ int main(int argc, char **argv) {
     pop_ptr->optimize();
 
     // Retrieve the best individual found
-    auto p = pop_ptr->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto p = pop_ptr->getBestGlobalIndividual<Individuals::GFunctionIndividual>();
     //! [sa-direct-setup#2]
 
     // Here you can do something with the best individual ("p") found.

@@ -240,7 +240,7 @@ GIndividualFactoryPtr GOptimizationDescription::loadedIndividual() const {
 /******************************************************************************/
 int runOptimization(int argc, char **argv, GOptimizationProgram program) {
     GOptimizationDescription description;
-    Gem::Courtier::GLauncherT<gen::GGenome> launcher(argc, argv, program.configFile);
+    Gem::Courtier::GLauncherT<Genome::GGenome> launcher(argc, argv, program.configFile);
     return launcher.run(
         description,
         {.userOptions = std::move(program.userOptions),

@@ -100,7 +100,7 @@ std::string GEvolutionaryAlgorithmPostOptimizer::getOAConfigFile() const {
  * @param p The individual to be post-processed; on return it carries the refined parameter data
  * @return Always true, indicating that post-processing was performed
  */
-bool GEvolutionaryAlgorithmPostOptimizer::raw_processing_(gen::GGenome &p) {
+bool GEvolutionaryAlgorithmPostOptimizer::raw_processing_(Genome::GGenome &p) {
     // Make sure p is processed
     if(not p.is_processed()) {
         throw Gem::Common::gem_exception(
@@ -109,7 +109,7 @@ bool GEvolutionaryAlgorithmPostOptimizer::raw_processing_(gen::GGenome &p) {
     }
 
     // Clone the individual for post-processing
-    auto const p_unopt_ptr = p.template clone<gen::GGenome>();
+    auto const p_unopt_ptr = p.template clone<Genome::GGenome>();
 
     // Make sure the post-optimization does not trigger post-optimization recursively: the sub-EA's
     // population must carry NO post-processor (the optimization algorithm decides post-processing
@@ -120,8 +120,8 @@ bool GEvolutionaryAlgorithmPostOptimizer::raw_processing_(gen::GGenome &p) {
     p_unopt_ptr->vetoPostProcessing(true);
 
     // Retrieve an evolutionary algorithm
-    oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm> ea_factory(oa_config_file_);
-    auto ea_ptr = ea_factory.get<oa::GEvolutionaryAlgorithm>();
+    OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm> ea_factory(oa_config_file_);
+    auto ea_ptr = ea_factory.get<OA::GEvolutionaryAlgorithm>();
 
     // Post-processing refines each individual locally, inside the individual's own process() -- which
     // itself runs on the one work consumer (a thread-pool worker, or a remote client) when the outer
@@ -142,8 +142,8 @@ bool GEvolutionaryAlgorithmPostOptimizer::raw_processing_(gen::GGenome &p) {
     // group, an integer-Gauss adaptor on every int32 group and a flip adaptor on every bool group. Each
     // Gauss step is scaled by the group's comparative range, so a single relative sigma suits any
     // parameter bounds. Without this the sub-EA has no adaption config and would hard-error at init().
-    if(const auto *flat = dynamic_cast<const gen::GGenome *>(p_unopt_ptr.get())) {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*flat);
+    if(const auto *flat = dynamic_cast<const Genome::GGenome *>(p_unopt_ptr.get())) {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*flat);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); ++i) {
             cfg->groupDouble(i).gauss(0.5, 0.8, 1e-3, 2., 1.);
         }
@@ -163,7 +163,7 @@ bool GEvolutionaryAlgorithmPostOptimizer::raw_processing_(gen::GGenome &p) {
     ea_ptr->optimize();
 
     // Retrieve the best individual
-    auto const p_opt_ptr = ea_ptr->getBestGlobalIndividual<gen::GGenome>();
+    auto const p_opt_ptr = ea_ptr->getBestGlobalIndividual<Genome::GGenome>();
 
     // Make sure subsequent optimization cycles may generally perform post-optimization again.
     // This needs to be done on the optimized individual, as it will be loaded into the

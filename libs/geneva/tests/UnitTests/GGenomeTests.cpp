@@ -94,7 +94,7 @@
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace Gem::Tests {
 
@@ -143,8 +143,8 @@ public:
     Sphere(const Sphere &) = default;
 
     /** @brief The OA-owned Gauss adaption config for this genome's double group(s). */
-    std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> getAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
             cfg->groupDouble(i).gauss(0.5, 0.8, 1e-3, 2., 1.);
         }
@@ -262,7 +262,7 @@ public:
     }
 
     /** @brief Builds the value arrays + the shared, immutable layout from the parsed config */
-    static gen::GenomeData buildGenome(const Config &c) {
+    static Genome::GenomeData buildGenome(const Config &c) {
         GGenomeBuilder b;
         b.addDoubleGroup(
             c.par_dim,
@@ -274,9 +274,9 @@ public:
 
     /** @brief Optional hook: the OA-owned Gauss adaption config for a genome this individual produces.
      *  Exercised through GIndividualFactory::getAdaptionConfig(). */
-    static std::shared_ptr<oa::GAdaptionConfigBase>
+    static std::shared_ptr<OA::GAdaptionConfigBase>
     buildAdaptionConfig(const Gem::Geneva::Genome::GGenome &sample, const Config &c) {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
         for(std::size_t i = 0; i < cfg->doubleGroups().size(); i++) {
             cfg->groupDouble(i).gauss(c.sigma, 0.8, 1e-3, 2., 1.);
         }
@@ -313,7 +313,7 @@ TEST_CASE("GGenomeBuilder produces the expected shared layout", "[flat]") {
     GGenomeBuilder b;
     b.addDoubleGroup(5, -10., 10.)
         .init(1.0); // structure only -- adaptors are authored on the OA config
-    gen::GenomeData g = b.build();
+    Genome::GenomeData g = b.build();
 
     REQUIRE(g.layout);
     const ChannelLayout<double> &ch = g.layout->d;
@@ -333,7 +333,7 @@ TEST_CASE("GGenomeBuilder produces the expected shared layout", "[flat]") {
     // mirrors the builder's old gaussAdaptor(...) one-to-one.
     Sphere ind;
     ind.setGenome(g);
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(ind);
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(ind);
     cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
     const GroupSpec<double> &cgrp = cfg->doubleGroups()[0];
     CHECK(cgrp.has_gauss);
@@ -691,7 +691,7 @@ TEST_CASE("GGenomeBuilder: groups vs arrays vs single parameters", "[flat]") {
     b.addDouble(0., -1., 1.);     // group of 1
     b.addDoubleGroup(4, -2., 2.); // ONE group of 4 (shared sigma)
     b.addDoubleArray(3, -3., 3.); // 3 groups of 1
-    gen::GenomeData const g = b.build();
+    Genome::GenomeData const g = b.build();
 
     const ChannelLayout<double> &ch = g.layout->d;
     CHECK(ch.size() == 1 + 4 + 3);
@@ -707,7 +707,7 @@ TEST_CASE("GGenomeBuilder: interned group labels", "[flat]") {
     b.addDoubleGroup(2, -1., 1.).label("position"); // group 1
     b.addDouble(0., -1., 1.).label("scale");        // group 2
     b.addDouble(0., -1., 1.);                       // group 3 (unlabeled)
-    gen::GenomeData const g = b.build();
+    Genome::GenomeData const g = b.build();
 
     std::shared_ptr<const GGenomeLayout> L = g.layout;
     REQUIRE(L);
@@ -1222,7 +1222,7 @@ TEST_CASE(
 TEST_CASE("GGenome: adapt() mutates within bounds", "[flat]") {
     Sphere ind(8);
 
-    oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
+    OA::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     std::size_t total = 0;
     for(int round = 0; round < 20; ++round) {
         total += adapter.adapt(ind);
@@ -1267,11 +1267,11 @@ TEST_CASE("GGenome: OA stall-reset restores sigma to its seed", "[flat][oa]") {
 
     // Drive the sigma self-adaption (adaption_threshold defaults to 1 -> sigma adapts every step).
     for(int i = 0; i < 30; ++i) {
-        oa::adaptIndividual(ind, scratch, cfg);
+        OA::adaptIndividual(ind, scratch, cfg);
     }
 
     auto sigmaNow = [&]() {
-        std::vector<double> s = oa::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
+        std::vector<double> s = OA::readAdaptionSigmas(scratch, cfg, "GDoubleGaussAdaptor");
         REQUIRE(s.size() == 1);
         return s[0];
     };
@@ -1279,7 +1279,7 @@ TEST_CASE("GGenome: OA stall-reset restores sigma to its seed", "[flat][oa]") {
     const double drifted = sigmaNow();
     CHECK(drifted != 0.5); // sigma has evolved away from its seed
 
-    oa::resetAdaptionState(scratch, cfg);
+    OA::resetAdaptionState(scratch, cfg);
     CHECK(sigmaNow() == 0.5); // reset to the configured seed
 }
 
@@ -1306,8 +1306,8 @@ public:
     Mixed(const Mixed &) = default;
 
     /** @brief The OA-owned config: a bi-Gauss adaptor on the FP group, flip adaptors on the int + bool groups. */
-    std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> getAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupDouble(0).biGauss(0.5, 0.8, 1e-3, 2., 0.5, 0.8, 1e-3, 2., 0.5, 0.8, 0., 2., 1.);
         cfg->groupInt32(0).flip(1.0);
         cfg->groupBool(0).flip(1.0);
@@ -1342,8 +1342,8 @@ public:
     IntGauss(const IntGauss &) = default;
 
     /** @brief The OA-owned config: an integer Gauss adaptor on groups 0..2, a flip adaptor on group 3. */
-    std::shared_ptr<oa::GAdaptionConfigBase> getAdaptionConfig() const {
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    std::shared_ptr<OA::GAdaptionConfigBase> getAdaptionConfig() const {
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         cfg->groupInt32(0).intGauss(0.2, 0.8, 1e-3, 2., 1.);
         cfg->groupInt32(1).intGauss(0.2, 0.8, 1e-3, 2., 1.);
         cfg->groupInt32(2).intGauss(0.2, 0.8, 1e-3, 2., 1.);
@@ -1450,7 +1450,7 @@ TEST_CASE("GGenome: flip adaptor mutates int32 and bool channels", "[flat][flip]
 
     bool int_changed = false;
     bool bool_changed = false;
-    oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
+    OA::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     for(int round = 0; round < 20; ++round) {
         adapter.adapt(ind);
 
@@ -1479,7 +1479,7 @@ TEST_CASE("GGenome: bi-gaussian adaptor mutates the FP channel within bounds", "
     REQUIRE(before.size() == 3);
 
     std::size_t total = 0;
-    oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
+    OA::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     for(int round = 0; round < 20; ++round) {
         total += adapter.adapt(ind);
         auto const v = ind.parameterValues<double>();
@@ -1494,7 +1494,7 @@ TEST_CASE("GGenome: bi-gaussian adaptor mutates the FP channel within bounds", "
 /******************************************************************************/
 TEST_CASE("GGenome: mixed flip/bigauss genome serialises round-trip", "[flat][flip][bigauss]") {
     Mixed ind;
-    oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
+    OA::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     for(int i = 0; i < 5; ++i) {
         adapter.adapt(ind);
     }
@@ -1521,7 +1521,7 @@ TEST_CASE("GGenome: integer Gauss adaptor mutates int32 within bounds", "[flat][
     REQUIRE(before.size() == 5); // 3 Gauss + 2 flip
 
     bool changed = false;
-    oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
+    OA::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     for(int round = 0; round < 30; ++round) {
         adapter.adapt(ind);
         auto const now = ind.parameterValues<std::int32_t>();
@@ -1544,7 +1544,7 @@ TEST_CASE("GGenome: integer Gauss adaptor mutates int32 within bounds", "[flat][
 /******************************************************************************/
 TEST_CASE("GGenome: integer Gauss genome serialises round-trip", "[flat][intgauss]") {
     IntGauss ind;
-    oa::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
+    OA::StandaloneAdapter adapter(ind, ind.getAdaptionConfig());
     for(int i = 0; i < 5; ++i) {
         adapter.adapt(ind);
     }
@@ -2458,7 +2458,7 @@ TEST_CASE(
     // would evaluate a sphere to a spurious 0).
     namespace c2 = Gem::Courtier;
     namespace ccons = Gem::Courtier::Consumers;
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
     constexpr auto BIN = Gem::Common::serializationMode::GEM_BINARY;
 
     c2::GWebsocketConsumerConfig config{
@@ -2487,7 +2487,7 @@ TEST_CASE(
         });
     }
 
-    auto pop = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop = std::make_shared<OA::GEvolutionaryAlgorithm>();
     pop->setPopulationSizes(40, 6);
     pop->setMaxIteration(120);
     Sphere const proto(8);
@@ -2789,9 +2789,9 @@ TEST_CASE(
 // provider the store holds (GOAFactoryT implements Gem::Common::GProviderT). This pins that: a wrapper
 // re-appearing between factory and store, or a second write path to oaFactoryStore(), breaks it.
 TEST_CASE("A built-in and a module register an algorithm through the same seam", "[oa][plugin]") {
-    using oa_provider_t = Gem::Common::GProviderT<oa::GOptimizationAlgorithmBase>;
-    using oa_factory_t = oa::GOAFactoryT<oa::GOptimizationAlgorithmBase>;
-    using ea_factory_t = oa::GOptimizationAlgorithmFactoryT<oa::GEvolutionaryAlgorithm>;
+    using oa_provider_t = Gem::Common::GProviderT<OA::GOptimizationAlgorithmBase>;
+    using oa_factory_t = OA::GOAFactoryT<OA::GOptimizationAlgorithmBase>;
+    using ea_factory_t = OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>;
 
     // (a) What the built-in path put into the store is the factory itself, not an adapter around it.
     std::shared_ptr<oa_provider_t> stored;

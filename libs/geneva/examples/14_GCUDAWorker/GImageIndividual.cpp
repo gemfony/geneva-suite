@@ -143,7 +143,7 @@ static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
     }
 }
 
-gen::GenomeData GImageIndividual::buildGenome(const Config &c) {
+Genome::GenomeData GImageIndividual::buildGenome(const Config &c) {
     validateBuildGenomeConfig(c);
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +154,7 @@ gen::GenomeData GImageIndividual::buildGenome(const Config &c) {
     // location params (cx, cy) use the "loc" adaptor config, everything else the main one.
     const std::size_t nTriangles = c.n_triangles;
 
-    gen::GGenomeBuilder bld;
+    Genome::GGenomeBuilder bld;
 
     // Adds one constrained gimage_fp_t parameter, dispatching to the matching builder channel.
     auto addParam = [&bld](gimage_fp_t init, gimage_fp_t lo, gimage_fp_t hi) {
@@ -168,8 +168,8 @@ gen::GenomeData GImageIndividual::buildGenome(const Config &c) {
     // The Gauss adaptors live on the OA-owned config (authored in applyConfig()), not the genome layout.
     // Tag each group with its adaptor class -- "main" (size / angles / colours / alpha / background) or
     // "loc" (centre x/y) -- so the config can author the matching adaptor onto them by label.
-    auto mainGauss = [](gen::ParamHandle<gimage_fp_t> &h) { h.label("main"); };
-    auto locGauss = [](gen::ParamHandle<gimage_fp_t> &h) { h.label("loc"); };
+    auto mainGauss = [](Genome::ParamHandle<gimage_fp_t> &h) { h.label("main"); };
+    auto locGauss = [](Genome::ParamHandle<gimage_fp_t> &h) { h.label("loc"); };
 
     for(std::size_t t_cnt = 0; t_cnt < nTriangles; t_cnt++) {
         // middle-x and -y: the location adaptor.
@@ -271,9 +271,9 @@ void GImageIndividual::applyConfig(GImageIndividual &ind, const Config &c) {
 // clang-format off
 //! [adaptors-by-label]
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GImageIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+GImageIndividual::buildAdaptionConfig(const Genome::GGenome &sample, const Config &c) {
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
     cfg->forLabel("loc").gauss(
         c.loc_sigma,
         c.loc_sigma_sigma,

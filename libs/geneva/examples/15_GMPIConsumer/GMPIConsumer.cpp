@@ -226,7 +226,7 @@ int main(int argc, char **argv) {
     // (mpirun) is required to refresh the configuration.
     if(Gem::Common::configEmissionRequested(argc, argv)) {
         Gem::Common::beginConfigEmission();
-        gind::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
+        Individuals::GFunctionIndividualFactory("./config/GFunctionIndividual.json").get();
         Gem::Common::finishConfigEmission();
         return 0;
     }
@@ -259,17 +259,17 @@ int main(int argc, char **argv) {
     // bystander takes no part. The submitter builds the MPI consumer through courtier's
     // function: the process consumer to submit through.
     const Gem::Courtier::ConsumerSpec spec{.mnemonic = "mpi"};
-    switch(Gem::Courtier::consumerProvider<gen::GGenome>("mpi", consumerModules())
+    switch(Gem::Courtier::consumerProvider<Genome::GGenome>("mpi", consumerModules())
                ->role(spec, false)) {
     case Gem::Courtier::processRole::SUBMITTER:
         break;
     case Gem::Courtier::processRole::CLIENT:
-        Gem::Courtier::buildConsumerClient<gen::GGenome>(spec, consumerModules())->run();
+        Gem::Courtier::buildConsumerClient<Genome::GGenome>(spec, consumerModules())->run();
         return 0;
     case Gem::Courtier::processRole::BYSTANDER:
         return 0;
     }
-    auto mpi_consumer = Gem::Courtier::buildConsumer<gen::GGenome>(spec, consumerModules());
+    auto mpi_consumer = Gem::Courtier::buildConsumer<Genome::GGenome>(spec, consumerModules());
 
     if(logToFile) {
         // The submitter's log messages go to records/GMPIConsumer.log, plain text, rather than to
@@ -292,18 +292,18 @@ int main(int argc, char **argv) {
 
     // Create a factory for GFunctionIndividual objects and perform
     // any necessary initial work.
-    gind::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
+    Individuals::GFunctionIndividualFactory gfi("./config/GFunctionIndividual.json");
 
     // Create the first set of parent individuals. Initialization of parameters is done randomly.
-    std::vector<std::shared_ptr<gind::GFunctionIndividual>> parentIndividuals;
+    std::vector<std::shared_ptr<Individuals::GFunctionIndividual>> parentIndividuals;
     for(std::size_t p = 0; p < nParents; p++) {
-        parentIndividuals.push_back(gfi.get_as<gind::GFunctionIndividual>());
+        parentIndividuals.push_back(gfi.get_as<Individuals::GFunctionIndividual>());
     }
 
     /****************************************************************************/
 
     // Create an empty population
-    auto pop_ptr = std::make_shared<oa::GEvolutionaryAlgorithm>();
+    auto pop_ptr = std::make_shared<OA::GEvolutionaryAlgorithm>();
 
     // General settings
     pop_ptr->setPopulationSizes(populationSize, nParents);
@@ -330,7 +330,7 @@ int main(int argc, char **argv) {
     pop_ptr->optimize();
 
     // Retrieve the best individual found
-    auto p = pop_ptr->getBestGlobalIndividual<gind::GFunctionIndividual>();
+    auto p = pop_ptr->getBestGlobalIndividual<Individuals::GFunctionIndividual>();
 
     // Here you can do something with the best individual ("p") found.
     // We simply print its content here, by means of an operator<< implemented

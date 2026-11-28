@@ -81,8 +81,8 @@ int main(int argc, char **argv) {
             // the generic GIndividualFactory; this benchmark needs a different genome DIMENSION per row, so it
             // builds individuals directly through the static hooks (buildGenome / applyConfig / buildAdaptionConfig)
             // rather than through the factory (whose par_dim comes fixed from the config file).
-            gind::GFunctionIndividual::Config gfiCfg =
-                gind::GFunctionIndividual::readConfig("./config/GFunctionIndividual.json");
+            Individuals::GFunctionIndividual::Config gfiCfg =
+                Individuals::GFunctionIndividual::readConfig("./config/GFunctionIndividual.json");
 
             for(it = dimVec.begin(); it != dimVec.end(); ++it) {
                 // Individual test results go here
@@ -104,8 +104,8 @@ int main(int argc, char **argv) {
 
                     // Build a fresh individual for this dimension, fully configured the way the factory's get_as<>()
                     // would be (base options + demo function from the config file), but with the swept par_dim.
-                    std::shared_ptr<gind::GFunctionIndividual> const g =
-                        gind::GFunctionIndividual::buildConfigured(
+                    std::shared_ptr<Individuals::GFunctionIndividual> const g =
+                        Individuals::GFunctionIndividual::buildConfigured(
                             gfiCfg,
                             "./config/GFunctionIndividual.json"
                         );
@@ -132,29 +132,30 @@ int main(int argc, char **argv) {
                     // for the adapting algorithms (EA / SA).
                     go_loop.registerAdaptionConfig(
                         "ea",
-                        gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
+                        Individuals::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
                     );
                     go_loop.registerAdaptionConfig(
                         "sa",
-                        gind::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
+                        Individuals::GFunctionIndividual::buildAdaptionConfig(*g, gfiCfg)
                     );
 
                     // Start recording of time
                     startTime = std::chrono::system_clock::now();
 
                     // Perform the actual optimization and extract the best individual
-                    auto const p =
-                        go_loop.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
+                    auto const p = go_loop.optimize()
+                                       .getBestGlobalIndividual<Individuals::GFunctionIndividual>();
 
                     endTime = std::chrono::system_clock::now();
 
                     // Extract the function name in the first test row
                     if(it == dimVec.begin() && test == 0) {
-                        functionName = gind::GFunctionIndividual::getStringRepresentation(
+                        functionName = Individuals::GFunctionIndividual::getStringRepresentation(
                             p->getDemoFunction()
                         );
-                        functionCode =
-                            gind::GFunctionIndividual::get2DROOTFunction(p->getDemoFunction());
+                        functionCode = Individuals::GFunctionIndividual::get2DROOTFunction(
+                            p->getDemoFunction()
+                        );
                         varBoundaries = std::tuple<double, double>{gfiCfg.min_var, gfiCfg.max_var};
                     }
 

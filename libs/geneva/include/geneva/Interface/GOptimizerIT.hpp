@@ -95,12 +95,12 @@ public:
 	  * The individual handed back is a fresh copy, solely owned by the caller: it cannot be used to modify
 	  * the optimizer's own best. Throws if the cast to individual_type fails.
 	  *
-	  * @tparam individual_type The concrete individual type to cast the best individual to (must derive from gen::GGenome)
+	  * @tparam individual_type The concrete individual type to cast the best individual to (must derive from Genome::GGenome)
 	  * @return A copy of the best individual found in the optimization run
 	  */
     //! [results-accessor-signatures#1]
     template <typename individual_type>
-        requires std::derived_from<individual_type, gen::GGenome>
+        requires std::derived_from<individual_type, Genome::GGenome>
     std::unique_ptr<individual_type> getBestGlobalIndividual() const {
         std::scoped_lock<std::mutex> const iteration_best_lock(get_best_mutex_);
         return castBest_<individual_type>(
@@ -117,17 +117,17 @@ public:
 	  * The individuals handed back are fresh copies, solely owned by the caller: they cannot be used to
 	  * modify the optimizer's own bests. Throws if the collection is empty or if any cast fails.
 	  *
-	  * @tparam individual_type The concrete individual type to cast each best individual to (must derive from gen::GGenome)
+	  * @tparam individual_type The concrete individual type to cast each best individual to (must derive from Genome::GGenome)
 	  * @return A list of copies of the best individuals found in the optimization run
 	  */
     //! [results-accessor-signatures#2]
     template <typename individual_type>
-        requires std::derived_from<individual_type, gen::GGenome>
+        requires std::derived_from<individual_type, Genome::GGenome>
     std::vector<std::unique_ptr<individual_type>> getBestGlobalIndividuals() const {
         std::scoped_lock<std::mutex> const iteration_best_lock(get_best_mutex_);
 
         std::vector<std::unique_ptr<individual_type>> best_individuals;
-        std::vector<std::unique_ptr<gen::GGenome>> best_base_individuals =
+        std::vector<std::unique_ptr<Genome::GGenome>> best_base_individuals =
             this->getBestGlobalIndividuals_();
 
         // Cross check that we indeed got a valid set of individuals
@@ -158,12 +158,12 @@ public:
 	  * is retrieved under protection, any action on this individual may then be carried out in parallel).
 	  * Throws if the cast to individual_type fails.
 	  *
-	  * @tparam individual_type The concrete individual type to cast the best individual to (must derive from gen::GGenome)
+	  * @tparam individual_type The concrete individual type to cast the best individual to (must derive from Genome::GGenome)
 	  * @return A copy of the best individual found in the iteration
 	  */
     //! [results-accessor-signatures#3]
     template <typename individual_type>
-        requires std::derived_from<individual_type, gen::GGenome>
+        requires std::derived_from<individual_type, Genome::GGenome>
     std::unique_ptr<individual_type> getBestIterationIndividual() const {
         std::scoped_lock<std::mutex> const iteration_best_lock(get_best_mutex_);
         return castBest_<individual_type>(
@@ -180,17 +180,17 @@ public:
 	  * The individuals handed back are fresh copies, solely owned by the caller: they cannot be used to
 	  * modify the optimizer's own bests. Throws if the collection is empty or if any cast fails.
 	  *
-	  * @tparam individual_type The concrete individual type to cast each best individual to (must derive from gen::GGenome)
+	  * @tparam individual_type The concrete individual type to cast each best individual to (must derive from Genome::GGenome)
 	  * @return A list of copies of the best individuals found in the iteration
 	  */
     //! [results-accessor-signatures#4]
     template <typename individual_type>
-        requires std::derived_from<individual_type, gen::GGenome>
+        requires std::derived_from<individual_type, Genome::GGenome>
     std::vector<std::unique_ptr<individual_type>> getBestIterationIndividuals() const {
         std::scoped_lock<std::mutex> const iteration_best_lock(get_best_mutex_);
 
         std::vector<std::unique_ptr<individual_type>> best_individuals;
-        std::vector<std::unique_ptr<gen::GGenome>> best_base_individuals =
+        std::vector<std::unique_ptr<Genome::GGenome>> best_base_individuals =
             this->getBestIterationIndividuals_();
 
         // Cross check that we indeed got a valid set of individuals
@@ -266,13 +266,13 @@ private:
     virtual void evaluatePopulation_() = 0;
 
     /** @brief Retrieves the best individual found globally */
-    virtual std::unique_ptr<gen::GGenome> getBestGlobalIndividual_() const = 0;
+    virtual std::unique_ptr<Genome::GGenome> getBestGlobalIndividual_() const = 0;
     /** @brief Retrieves a list of the best individuals found globally*/
-    virtual std::vector<std::unique_ptr<gen::GGenome>> getBestGlobalIndividuals_() const = 0;
+    virtual std::vector<std::unique_ptr<Genome::GGenome>> getBestGlobalIndividuals_() const = 0;
     /** @brief Retrieves the best individual found in the current iteration*/
-    virtual std::unique_ptr<gen::GGenome> getBestIterationIndividual_() const = 0;
+    virtual std::unique_ptr<Genome::GGenome> getBestIterationIndividual_() const = 0;
     /** @brief Retrieves a list of the best individuals found in the current iteration */
-    virtual std::vector<std::unique_ptr<gen::GGenome>> getBestIterationIndividuals_() const = 0;
+    virtual std::vector<std::unique_ptr<Genome::GGenome>> getBestIterationIndividuals_() const = 0;
 
     /** @brief Returns a descriptive name assigned to this algorithm */
     virtual std::string getAlgorithmName_() const = 0;
@@ -294,7 +294,7 @@ private:
      */
     template <typename individual_type>
     static std::unique_ptr<individual_type>
-    castBest_(std::unique_ptr<gen::GGenome> ind_ptr, std::string_view accessor) {
+    castBest_(std::unique_ptr<Genome::GGenome> ind_ptr, std::string_view accessor) {
         if(auto *converted = dynamic_cast<individual_type *>(ind_ptr.get()); converted != nullptr) {
             ind_ptr.release(); // ownership passes to the converted pointer
             return std::unique_ptr<individual_type>(converted);

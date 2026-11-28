@@ -152,7 +152,10 @@ int main(int argc, char **argv) {
         BenchmarkConfig const cfg = loadConfig(configFile);
         GAlgorithmBenchmarkRunner(cfg).emitConfigs();
         auto marshaller = std::make_shared<GBenchmarkGPUMarshaller>();
-        Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome>("./config/GGPUConsumer.json", marshaller);
+        Gem::Courtier::GPU::GGPUConsumerT<Genome::GGenome>(
+            "./config/GGPUConsumer.json",
+            marshaller
+        );
         Gem::Common::finishConfigEmission();
         return 0;
     }
@@ -201,11 +204,11 @@ int main(int argc, char **argv) {
     // process consumer. The whole population is scored in one bulk, runtime-compiled kernel launch; the
     // kernel is selected in config/GGPUConsumer.json (the GPU consumer is device-only).
     auto marshaller = std::make_shared<GBenchmarkGPUMarshaller>();
-    auto consumer = std::make_shared<Gem::Courtier::GPU::GGPUConsumerT<gen::GGenome>>(
+    auto consumer = std::make_shared<Gem::Courtier::GPU::GGPUConsumerT<Genome::GGenome>>(
         "./config/GGPUConsumer.json",
         marshaller
     );
-    Gem::Courtier::GConsumerRegistryT<gen::GGenome>::instance().setConsumer(consumer);
+    Gem::Courtier::GConsumerRegistryT<Genome::GGenome>::instance().setConsumer(consumer);
 
     GAlgorithmBenchmarkRunner runner(cfg);
     const auto results = runner.run();

@@ -284,7 +284,8 @@ public:
     /** @brief Extracts all individuals on the pareto front.
      *  @param pareto_inds Output vector filled with freshly cloned copies of the individuals
      *         currently on the front; the caller takes sole ownership of them */
-    void extractCurrentParetoIndividuals(std::vector<std::unique_ptr<gen::GGenome>> &pareto_inds);
+    void
+    extractCurrentParetoIndividuals(std::vector<std::unique_ptr<Genome::GGenome>> &pareto_inds);
 
     /** @brief The knobs a meta-optimizer may tune. @return The ordered list of tunable parameters. */
     static std::vector<TunableParam> tunableManifest();
@@ -337,9 +338,9 @@ private:
     evaluatePopulationRange_(std::size_t start, std::size_t end);
 
     /** @brief Adds the iteration's individuals to the global-best priority queue. */
-    void updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals) override;
+    void updateGlobalBestsPQ_(Genome::GGenomeFixedSizePriorityQueue &best_individuals) override;
     /** @brief Adds the iteration's individuals to this iteration's best priority queue. */
-    void updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals) override;
+    void updateIterationBestsPQ_(Genome::GGenomeFixedSizePriorityQueue &best_individuals) override;
 
     /** @brief Retrieve a personality-traits object belonging to this algorithm. */
     std::shared_ptr<GPersonalityTraits> getPersonalityTraits_() const override;

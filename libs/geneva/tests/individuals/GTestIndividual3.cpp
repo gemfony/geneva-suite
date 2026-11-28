@@ -70,7 +70,7 @@ GTestIndividual3::GTestIndividual3() {
     // positionally.
     // Structure only -- this individual is never adapted (it is a genome / slot-scratch test fixture), so
     // no adaptor is attached and no OA adaption config is authored for it.
-    gen::GGenomeBuilder bld;
+    Genome::GGenomeBuilder bld;
 
     for(std::size_t i_cnt = 0; i_cnt < GTI_DEF_NITEMS; i_cnt++) {
         bld.addDoubleGroup(2, 0., 1.); // a: middle of the circle
@@ -93,7 +93,7 @@ GTestIndividual3::GTestIndividual3() {
  * @param cp A constant reference to another GTestIndividual3 object
  */
 GTestIndividual3::GTestIndividual3(const GTestIndividual3 &cp)
-  : gen::GGenomeT<GTestIndividual3>(cp) { /* nothing */
+  : Genome::GGenomeT<GTestIndividual3>(cp) { /* nothing */
 }
 
 /******************************************************************************/

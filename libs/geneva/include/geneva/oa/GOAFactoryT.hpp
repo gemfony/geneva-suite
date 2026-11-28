@@ -104,7 +104,7 @@ public:
 	  */
     GOAFactoryT(
         std::filesystem::path const &config_file,
-        std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> content_creator_ptr
+        std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> content_creator_ptr
     )
       : Gem::Common::GFactoryT<oa_type>(config_file)
       , content_creator_ptr_(std::move(content_creator_ptr)) { /* nothing */
@@ -207,7 +207,7 @@ public:
 	  * @param cc_ptr A factory that produces the individuals used to populate the algorithm; must be non-empty
 	  */
     void
-    registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr) {
+    registerContentCreator(const std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> &cc_ptr) {
         if(not cc_ptr) {
             throw Gem::Common::gem_exception(
                 Gem::Common::g_error_streamer() << "Tried to register an empty pointer" << '\n'
@@ -417,7 +417,7 @@ protected:
             content_creator_ptr_
         ) { // Has a content creation object been registered ? If so, add individuals to the population
             for(std::size_t ind = 0; ind < p_alg->getDefaultPopulationSize(); ind++) {
-                std::shared_ptr<gen::GGenome> const p_ind = (*content_creator_ptr_)();
+                std::shared_ptr<Genome::GGenome> const p_ind = (*content_creator_ptr_)();
                 if(not p_ind) { // No valid item received, the factory has run empty
                     break;
                 }
@@ -472,7 +472,7 @@ protected:
 
     /***************************************************************************/
 
-    std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>>
+    std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>>
         content_creator_ptr_; ///< Holds an object capable of producing objects of the desired type
     std::shared_ptr<GBasePluggableOM>
         pluggable_om_; // A user-defined means for information retrieval

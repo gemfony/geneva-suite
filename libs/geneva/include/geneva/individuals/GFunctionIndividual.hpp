@@ -353,7 +353,7 @@ const solverFunction GO_DEF_EVALFUNCTION = solverFunction::PARABOLA;
  *       explicitly; the factory default of [-10, 10] is not suitable for that function.
  */
 class GFunctionIndividual // NOLINT(cppcoreguidelines-special-member-functions)
-  : public gen::GGenomeT<GFunctionIndividual> {
+  : public Genome::GGenomeT<GFunctionIndividual> {
     ///////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin
     // reach the private localMembers_() (from which serialize/load_/compare_/clone_/name_ derive).
@@ -588,12 +588,12 @@ public:
     /**
      * @brief Builds the flat genome's structure for the configured parameter-type mode.
      */
-    static gen::GenomeData buildGenome(const Config &c);
+    static Genome::GenomeData buildGenome(const Config &c);
     /**
      * @brief The OA-owned adaption config: every double group gets the configured Gauss / bi-Gauss adaptor.
      */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
+    buildAdaptionConfig(const Genome::GGenome &sample, const Config &c);
     /**
      * @brief Per-object post-config hook: applies the (non-genome) demo function to a produced individual.
      */
@@ -677,7 +677,7 @@ using GFunctionIndividualFactory = Gem::Geneva::Genome::GIndividualFactory<GFunc
 //! [constraints:declaration#1]
 class GDoubleSumConstraint // NOLINT(cppcoreguidelines-special-member-functions)
   : public Gem::Common::
-        GReflectiveInterfaceT<GDoubleSumConstraint, gen::GGenomeConstraint> {
+        GReflectiveInterfaceT<GDoubleSumConstraint, Genome::GGenomeConstraint> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -719,7 +719,7 @@ protected:
     /**
      * @brief Checks the constraint: the sum of parameters stays below the constant.
      */
-    double check_(const gen::GGenome *p) const override;
+    double check_(const Genome::GGenome *p) const override;
     //! [constraints:declaration#4]
 
     /**
@@ -743,7 +743,7 @@ private:
  * sign!) for double variables
  */
 class GDoubleSumGapConstraint // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GDoubleSumGapConstraint, gen::GGenomeConstraint> {
+  : public Gem::Common::GReflectiveInterfaceT<GDoubleSumGapConstraint, Genome::GGenomeConstraint> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -781,7 +781,7 @@ protected:
     /**
      * @brief Checks whether the equality constraint (sum of parameters near the constant) is fulfilled.
      */
-    double check_(const gen::GGenome *p) const override;
+    double check_(const Genome::GGenome *p) const override;
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.
@@ -804,7 +804,7 @@ private:
  * a given constraint. Here, valid solutions lie in a sphere around 0
  */
 class GSphereConstraint // NOLINT(cppcoreguidelines-special-member-functions)
-  : public Gem::Common::GReflectiveInterfaceT<GSphereConstraint, gen::GGenomeConstraint> {
+  : public Gem::Common::GReflectiveInterfaceT<GSphereConstraint, Genome::GGenomeConstraint> {
     ///////////////////////////////////////////////////////////////////////
     friend struct Gem::Common::GReflectiveInterfaceAccess;
 
@@ -839,7 +839,7 @@ protected:
     /**
      * @brief Checks whether the constraint (solution within a sphere around 0) is fulfilled.
      */
-    double check_(const gen::GGenome *p) const override;
+    double check_(const Genome::GGenome *p) const override;
 
     /**
      * @brief Adds local configuration options to a GParserBuilder object.

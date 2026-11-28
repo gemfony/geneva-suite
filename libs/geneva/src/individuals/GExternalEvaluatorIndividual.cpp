@@ -606,7 +606,7 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
  * @param c The Config, mutated in place with the discovered run-id and expected result count
  * @return The flat genome structure describing the discovered variables
  */
-static gen::GenomeData authorFlatGenomeFromSetup(
+static Genome::GenomeData authorFlatGenomeFromSetup(
     const boost::json::value &setup_doc,
     GExternalEvaluatorIndividual::Config &c
 ) {
@@ -615,7 +615,7 @@ static gen::GenomeData authorFlatGenomeFromSetup(
     // Author the flat genome: each discovered variable becomes one constrained double group. Fixed
     // variables (min == max) are built with adaptionMode::NEVER; active ones get their Gauss/bi-Gauss
     // adaptor from the OA-owned config (buildAdaptionConfig), not the layout.
-    gen::GGenomeBuilder gb;
+    Genome::GGenomeBuilder gb;
 
     try {
         json::object const &root = setup_doc.as_object();
@@ -695,7 +695,7 @@ static gen::GenomeData authorFlatGenomeFromSetup(
  * @param c The Config supplying the program name / custom options / init mode; mutated in place with the discovered run-id and expected result count
  * @return The flat genome structure (GenomeData) describing the discovered variables
  */
-gen::GenomeData GExternalEvaluatorIndividual::buildGenome(Config &c) {
+Genome::GenomeData GExternalEvaluatorIndividual::buildGenome(Config &c) {
     if(c.program_name.empty()) {
         throw Gem::Common::gem_exception(
             Gem::Common::g_error_streamer() << "Program name was empty" << '\n'
@@ -724,9 +724,9 @@ gen::GenomeData GExternalEvaluatorIndividual::buildGenome(Config &c) {
  * @return A shared pointer to the populated OA-owned adaption configuration
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GExternalEvaluatorIndividual::buildAdaptionConfig(const gen::GGenome &sample, const Config &c) {
-    namespace oa = Gem::Geneva::OptimizationAlgorithms;
-    auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(sample);
+GExternalEvaluatorIndividual::buildAdaptionConfig(const Genome::GGenome &sample, const Config &c) {
+    namespace OA = Gem::Geneva::OptimizationAlgorithms;
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(sample);
     const auto &groups = cfg->doubleGroups();
     for(std::size_t i = 0; i < groups.size(); i++) {
         if(not groups[i].active) {

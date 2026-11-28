@@ -66,7 +66,7 @@
 
 using namespace Gem::Geneva;
 using namespace Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace Gem::Tests {
 
@@ -132,29 +132,29 @@ using Gem::Tests::FailOnce;
  * @param retries The value of max_failed_retries
  * @return The algorithm, holding one individual; empty for an unknown name
  */
-std::shared_ptr<oa::GOptimizationAlgorithmBase>
+std::shared_ptr<OA::GOptimizationAlgorithmBase>
 makeAlgorithm(const std::string &algorithm, std::size_t retries) {
     if(algorithm == "nm") {
-        auto nm = std::make_shared<oa::GNelderMead>();
+        auto nm = std::make_shared<OA::GNelderMead>();
         nm->setMaxFailedRetries(retries);
         return nm;
     }
     if(algorithm == "cgd") {
-        auto cgd = std::make_shared<oa::GConjugateGradientDescent>();
+        auto cgd = std::make_shared<OA::GConjugateGradientDescent>();
         cgd->setNStartingPoints(1);
         cgd->setMaxFailedRetries(retries);
         return cgd;
     }
     if(algorithm == "ps") {
-        auto ps = std::make_shared<oa::GParameterScan>();
+        auto ps = std::make_shared<OA::GParameterScan>();
         ps->setParameterSpecs("d(0, -5., 5., 3), d(1, -5., 5., 3)");
         ps->setMaxFailedRetries(retries);
         return ps;
     }
     if(algorithm == "ea-parent") {
-        auto ea = std::make_shared<oa::GEvolutionaryAlgorithm>();
+        auto ea = std::make_shared<OA::GEvolutionaryAlgorithm>();
         ea->setPopulationSizes(8, 2);
-        auto cfg = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(FailedEvaluationSphere());
+        auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(FailedEvaluationSphere());
         cfg->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         ea->setAdaptionConfig(cfg);
         return ea;

@@ -32,23 +32,23 @@
 #include "common/GGlobalDefines.hpp"
 
 // common is the base of every library of the collection, so it must not take global names
-// from a user. The short names oa, gen, gind and gbm belong to Geneva (its namespace aliases,
+// from a user. The names OA, Genome, Individuals and Benchmarks belong to Geneva (its namespace aliases,
 // geneva/GNamespaceAliases.hpp); a program built on common alone may use them for its own
 // globals. A global variable and a namespace alias of the same name cannot coexist, so this
 // file does not compile while common/GGlobalDefines.hpp declares any of the four aliases.
-// The lower-case names are the point of the test, hence the suppressed naming check.
+// These names are the point of the test, hence the suppressed naming check.
 // NOLINTBEGIN(readability-identifier-naming)
-[[maybe_unused]] static constexpr int oa = 1;
-[[maybe_unused]] static constexpr int gen = 2;
-[[maybe_unused]] static constexpr int gind = 3;
-[[maybe_unused]] static constexpr int gbm = 4;
+[[maybe_unused]] static constexpr int OA = 1;
+[[maybe_unused]] static constexpr int Genome = 2;
+[[maybe_unused]] static constexpr int Individuals = 3;
+[[maybe_unused]] static constexpr int Benchmarks = 4;
 // NOLINTEND(readability-identifier-naming)
 
 TEST_CASE(
     "common leaves the names of Geneva's namespace aliases to the user",
     "[common][defines]"
 ) {
-    CHECK(oa + gen + gind + gbm == 10);
+    CHECK(OA + Genome + Individuals + Benchmarks == 10);
 }
 
 namespace {

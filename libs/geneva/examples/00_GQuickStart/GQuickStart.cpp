@@ -61,29 +61,29 @@
 #include "weft/GArchivePolymorphic.hpp"
 
 namespace geneva = Gem::Geneva;                     // GOptimizer and the optimization monitors
-namespace gen = Gem::Geneva::Genome;                // the genome and its builder
-namespace oa = Gem::Geneva::OptimizationAlgorithms; // algorithms and their adaption
+namespace Genome = Gem::Geneva::Genome;             // the genome and its builder
+namespace OA = Gem::Geneva::OptimizationAlgorithms; // algorithms and their adaption
 
 namespace first {
 
 //! [quickstart-tour-class#1]
 /** A candidate: x and y in [-5, 5], judged by f(x, y) = (x - 1)^2 + (y + 2)^2 */
-class GFirstProblem final : public gen::GGenomeT<GFirstProblem> {
+class GFirstProblem final : public Genome::GGenomeT<GFirstProblem> {
 public:
     using genome_only = void; // the genome is all the state there is
     static constexpr std::string_view class_name = "GFirstProblem";
 
     /** @brief Declares the parameters: two doubles in [-5, 5], both starting at 4 */
     GFirstProblem() {
-        gen::GGenomeBuilder builder;
+        Genome::GGenomeBuilder builder;
         builder.addDoubleGroup(2, -5., 5.).init(4.);
         this->setGenome(builder.build());
     }
     GFirstProblem(const GFirstProblem &) = default;
 
     /** @brief How the parameters are mutated: Gaussian steps, adapted during the run */
-    [[nodiscard]] std::shared_ptr<oa::GAdaptionConfigBase> adaptionConfig() const {
-        auto config = oa::makeAdaptionConfig<oa::GAdaptionConfigBase>(*this);
+    [[nodiscard]] std::shared_ptr<OA::GAdaptionConfigBase> adaptionConfig() const {
+        auto config = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(*this);
         config->groupDouble(0).gauss(0.5, 0.8, 1e-3, 2., 1.);
         return config;
     }

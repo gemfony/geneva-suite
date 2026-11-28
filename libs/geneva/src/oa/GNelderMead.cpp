@@ -703,10 +703,10 @@ void GNelderMead::initRunState_() {
     // The seeds currently sit at positions 0 .. n_simplices_-1. Re-order them so
     // that seed s ends up at vertexPos(s,0) and fill the rest of every block
     // with clones.
-    std::vector<std::shared_ptr<gen::GGenome>> seeds;
+    std::vector<std::shared_ptr<Genome::GGenome>> seeds;
     seeds.reserve(n_simplices_);
     for(std::size_t s = 0; s < n_simplices_; s++) {
-        seeds.push_back(this->at(s)->clone<gen::GGenome>());
+        seeds.push_back(this->at(s)->clone<Genome::GGenome>());
     }
 
     this->clear();

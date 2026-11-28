@@ -50,8 +50,8 @@
 #include "geneva/genome/GGenomeT.hpp"
 #include "geneva/oa/GGeneralizedSimulatedAnnealing.hpp"
 
-namespace gen = Gem::Geneva::Genome;
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace Genome = Gem::Geneva::Genome;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 namespace {
 
@@ -62,13 +62,13 @@ namespace {
  * adaption config. fitness = sum of squares (optimum: the origin, f = 0).
  */
 template <std::size_t N_DIM>
-class SphereGSA : public gen::GGenomeT<SphereGSA<N_DIM>> {
+class SphereGSA : public Genome::GGenomeT<SphereGSA<N_DIM>> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     SphereGSA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N_DIM, -5., 5.).init(3.0); // structure only; GSA needs no adaptor
         this->setGenome(b.build());
     }
@@ -93,13 +93,13 @@ protected:
  * heavy-tailed visiting jumps and generalized acceptance that let GSA escape local optima.
  */
 template <std::size_t N_DIM>
-class RastriginGSA : public gen::GGenomeT<RastriginGSA<N_DIM>> {
+class RastriginGSA : public Genome::GGenomeT<RastriginGSA<N_DIM>> {
 public:
     using genome_only =
         void; // b2: genome-only flat leaf -- opt into GGenomeT's empty localMembers_()
 public:
     RastriginGSA() {
-        gen::GGenomeBuilder b;
+        Genome::GGenomeBuilder b;
         b.addDoubleGroup(N_DIM, -5.12, 5.12).init(3.0); // structure only; GSA needs no adaptor
         this->setGenome(b.build());
     }
@@ -155,7 +155,7 @@ TEST_CASE(
     // f = 5 * 9 = 45 start. Best of three runs (Invariant 18).
     constexpr std::uint32_t ITER = 50;
     auto run = []() {
-        auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+        auto pop = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
         pop->setNChains(4);
         pop->setMaxIteration(ITER);
         pop->setMaxStallIteration(0);
@@ -178,7 +178,7 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("Generalized Simulated Annealing optimizes a 5-dim flat sphere", "[gsa]") {
-    auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+    auto pop = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
     pop->setNChains(8);
     pop->setMaxIteration(3000);
     pop->setMaxStallIteration(0); // 0 == disabled: run the full budget so the chains fully converge
@@ -194,7 +194,7 @@ TEST_CASE("Generalized Simulated Annealing optimizes a 5-dim flat sphere", "[gsa
 /******************************************************************************/
 
 TEST_CASE("Generalized Simulated Annealing optimizes a 10-dim flat sphere", "[gsa]") {
-    auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+    auto pop = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
     pop->setNChains(10);
     pop->setMaxIteration(4000);
     pop->setMaxStallIteration(0); // 0 == disabled: run the full budget so the chains fully converge
@@ -221,7 +221,7 @@ TEST_CASE("Generalized Simulated Annealing: cooling timescale rescues a high-dim
     constexpr std::uint32_t ITER = 8000;
 
     auto run = [](double timescale) {
-        auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+        auto pop = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
         pop->setNChains(16);
         pop->setCoolingTimescale(timescale);
         pop->setMaxIteration(ITER);
@@ -250,7 +250,7 @@ TEST_CASE(
     // Soft bound: the 3.0 start sits at f ~ 5*(9 - 10*cos(6pi)) + 50 = 50 (a high local plateau); a good
     // run should drop well into the low-lying basins, escaping the lattice of local minima. One full run:
     auto run = []() {
-        auto pop = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+        auto pop = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
         pop->setNChains(24);
         pop->setMaxIteration(12000);
         pop->setMaxStallIteration(0); // run the full budget
@@ -281,7 +281,7 @@ TEST_CASE(
 /******************************************************************************/
 
 TEST_CASE("Generalized Simulated Annealing parameter validation", "[oa][gsa-short]") {
-    auto gsa = std::make_shared<oa::GGeneralizedSimulatedAnnealing>();
+    auto gsa = std::make_shared<OA::GGeneralizedSimulatedAnnealing>();
 
     gsa->setNChains(4);
     CHECK(gsa->getNChains() == 4);

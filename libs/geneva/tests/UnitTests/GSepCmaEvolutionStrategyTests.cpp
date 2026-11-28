@@ -39,12 +39,12 @@
 #include "geneva/oa/GSepCmaEvolutionStrategy.hpp"
 #include "geneva/oa/GSepCmaEvolutionStrategy_PersonalityTraits.hpp"
 
-namespace oa = Gem::Geneva::OptimizationAlgorithms;
+namespace OA = Gem::Geneva::OptimizationAlgorithms;
 
 /******************************************************************************/
 
 TEST_CASE("GSepCmaEvolutionStrategy: strategy parameters can be set and read", "[geneva][sepcma]") {
-    oa::GSepCmaEvolutionStrategy p_test;
+    OA::GSepCmaEvolutionStrategy p_test;
 
     CHECK_NOTHROW(p_test.setLambda(20));
     CHECK(p_test.getLambda() == 20);
@@ -63,14 +63,14 @@ TEST_CASE("GSepCmaEvolutionStrategy: strategy parameters can be set and read", "
 }
 
 TEST_CASE("GSepCmaEvolutionStrategy: an invalid initial sigma is refused", "[geneva][sepcma]") {
-    oa::GSepCmaEvolutionStrategy p_test;
+    OA::GSepCmaEvolutionStrategy p_test;
     CHECK_THROWS(p_test.setInitialSigma(-1.));
 }
 
 /******************************************************************************/
 
 TEST_CASE("GSepCmaEvolutionStrategy_PersonalityTraits: rank and pareto tag", "[geneva][sepcma]") {
-    oa::GSepCmaEvolutionStrategy_PersonalityTraits p_test;
+    OA::GSepCmaEvolutionStrategy_PersonalityTraits p_test;
 
     CHECK_NOTHROW(p_test.setRank(42));
     CHECK(p_test.getRank() == 42);

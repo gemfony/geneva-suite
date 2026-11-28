@@ -60,7 +60,7 @@ GParaboloidIndividual2D::GParaboloidIndividual2D()
     // Build a flat genome of two constrained doubles in [M_PAR_MIN, M_PAR_MAX[, each
     // its own Gauss group adapted with the default GDoubleGaussAdaptor configuration.
     // The genome holds structure only; the adaptor lives on the OA config.
-    gen::GGenomeBuilder b;
+    Genome::GGenomeBuilder b;
     for(std::size_t npar = 0; npar < 2; npar++) {
         b.addDouble(M_PAR_MIN, M_PAR_MIN, M_PAR_MAX);
     }
@@ -81,7 +81,7 @@ GParaboloidIndividual2D::GParaboloidIndividual2D()
  * @return A shared pointer to the populated OA-owned adaption config
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-GParaboloidIndividual2D::buildAdaptionConfig(const gen::GGenome &sample) {
+GParaboloidIndividual2D::buildAdaptionConfig(const Genome::GGenome &sample) {
     auto cfg =
         OptimizationAlgorithms::makeAdaptionConfig<OptimizationAlgorithms::GAdaptionConfigBase>(
             sample
@@ -130,8 +130,8 @@ void GParaboloidIndividual2D::describeConfig(Gem::Common::GParserBuilder &gpb, C
  * @param c The configuration providing the parameter bounds
  * @return The structure-only genome data
  */
-gen::GenomeData GParaboloidIndividual2D::buildGenome(const Config &c) {
-    gen::GGenomeBuilder b;
+Genome::GenomeData GParaboloidIndividual2D::buildGenome(const Config &c) {
+    Genome::GGenomeBuilder b;
     for(std::size_t npar = 0; npar < 2; npar++) {
         b.addDouble(
             c.par_min,
@@ -153,7 +153,7 @@ gen::GenomeData GParaboloidIndividual2D::buildGenome(const Config &c) {
  */
 std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
 GParaboloidIndividual2D::buildAdaptionConfig(
-    const gen::GGenome &sample,
+    const Genome::GGenome &sample,
     [[maybe_unused]] const Config &c
 ) {
     return buildAdaptionConfig(sample);
@@ -166,7 +166,7 @@ GParaboloidIndividual2D::buildAdaptionConfig(
  * @param cp A copy of another GParaboloidIndividual2D
  */
 GParaboloidIndividual2D::GParaboloidIndividual2D(const GParaboloidIndividual2D &cp)
-  : gen::GGenomeT<GParaboloidIndividual2D>(cp)
+  : Genome::GGenomeT<GParaboloidIndividual2D>(cp)
   , M_PAR_MIN(-10.)
   , M_PAR_MAX(10) { /* nothing */
 }

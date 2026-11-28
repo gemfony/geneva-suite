@@ -141,7 +141,7 @@ bool GSwarmAlgorithm_PersonalityTraits::checkNoPositionUpdateAndReset() {
  * @param p A shared pointer to the personally best individual to be registered
  */
 void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(
-    const std::shared_ptr<gen::GGenome> &p
+    const std::shared_ptr<Genome::GGenome> &p
 ) {
     checkThat(nullptr != p, "Got empty smart pointer.");
     checkThat(p->is_processed(), "Got individual which isn't processed.");
@@ -165,7 +165,7 @@ void GSwarmAlgorithm_PersonalityTraits::registerPersonalBest(
  *
  * @return A shared pointer to the personally best individual
  */
-std::shared_ptr<gen::GGenome> GSwarmAlgorithm_PersonalityTraits::getPersonalBest() const {
+std::shared_ptr<Genome::GGenome> GSwarmAlgorithm_PersonalityTraits::getPersonalBest() const {
     checkThat(nullptr != personal_best_, "Tried to retrieve personal_best_ while pointer is empty");
 
     return personal_best_;
@@ -182,7 +182,7 @@ std::shared_ptr<gen::GGenome> GSwarmAlgorithm_PersonalityTraits::getPersonalBest
  * resetting the stored quality tuple to (0., 0.).
  */
 void GSwarmAlgorithm_PersonalityTraits::resetPersonalBest() {
-    personal_best_ = std::shared_ptr<gen::GGenome>(); // empty
+    personal_best_ = std::shared_ptr<Genome::GGenome>(); // empty
     personal_best_quality_ = std::make_tuple(0., 0.);
 }
 

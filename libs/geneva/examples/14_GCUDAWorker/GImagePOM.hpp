@@ -136,7 +136,7 @@ private:
  * raw_fitness() are needed, so the monitor is problem-type-agnostic and can be registered by a program
  * that loads the concrete image individual from a runtime module (it never names GImageIndividual).
  */
-class GImagePOM final : public oa::GBasePluggableOM {
+class GImagePOM final : public OA::GBasePluggableOM {
     ///////////////////////////////////////////////////////////////////////
 
     /**
@@ -157,7 +157,7 @@ class GImagePOM final : public oa::GBasePluggableOM {
     void serialize(archive_type &ar, [[maybe_unused]] const unsigned int version) {
         // The member list is derived from the single localMembers() declaration
         // so serialize()/load_()/compare_() stay in sync (no silently-dropped member).
-        Gem::Common::archive_named_base<oa::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
+        Gem::Common::archive_named_base<OA::GBasePluggableOM>(ar, "GBasePluggableOM", *this);
         Gem::Common::serialize_members(ar, this->localMembers_());
     }
 
@@ -182,7 +182,7 @@ public:
      *  in-flight output queue is per-instance runtime state, so a clone starts with its own
      *  (lazily created) writer rather than sharing the original's queue. */
     GImagePOM(const GImagePOM &cp)
-      : oa::GBasePluggableOM(cp)
+      : OA::GBasePluggableOM(cp)
       , resultImageDirectory_(cp.resultImageDirectory_)
       , emitBestOnly_(cp.emitBestOnly_) {
         /* writer_ intentionally left null */
@@ -207,12 +207,12 @@ public:
 protected:
     /************************************************************************/
     /** @brief Loads the data of another object */
-    void load_(const oa::GBasePluggableOM *cp) override {
+    void load_(const OA::GBasePluggableOM *cp) override {
         // Check that we are dealing with a GImagePOM reference independent of this object
         const GImagePOM *p_load = Gem::Common::g_convert_and_compare(cp, this);
 
         // Load the parent classes' data ...
-        oa::GBasePluggableOM::load_(cp);
+        OA::GBasePluggableOM::load_(cp);
 
         // ... and then our local data
         Gem::Common::g_load_members(this->localMembers_(), p_load->localMembers_());
@@ -227,7 +227,7 @@ protected:
 
     /** @brief Searches for compliance with expectations with respect to another object of the same type */
     void compare_(
-        const oa::GBasePluggableOM &cp,
+        const OA::GBasePluggableOM &cp,
         const Gem::Common::expectation &e,
         const double &limit
     ) const final {
@@ -239,7 +239,7 @@ protected:
         GToken token("GImagePOM", e, limit);
 
         // Compare our parent data ...
-        Gem::Common::compare_base_t<oa::GBasePluggableOM>(*this, *p_load, token);
+        Gem::Common::compare_base_t<OA::GBasePluggableOM>(*this, *p_load, token);
 
         // ... and then our local data
         g_compare_members(this->localMembers_(), p_load->localMembers_(), token);
@@ -259,7 +259,7 @@ private:
 
     /************************************************************************/
     /** @brief Creates a deep clone of this object */
-    [[nodiscard]] oa::GBasePluggableOM *clone_() const override {
+    [[nodiscard]] OA::GBasePluggableOM *clone_() const override {
         return new GImagePOM(*this);
     }
 
@@ -273,7 +273,7 @@ private:
      * iteration, and during finalization).
      */
     void
-    informationFunction_(infoMode im, oa::GOptimizationAlgorithmBase const *const goa) override {
+    informationFunction_(infoMode im, OA::GOptimizationAlgorithmBase const *const goa) override {
         switch(im) {
         case Gem::Geneva::infoMode::INFOINIT: {
             // Make sure the target directory for result images exists.
@@ -301,7 +301,7 @@ private:
             }
 
             auto best_ptr = goa->Interface::GOptimizerIT<
-                oa::GOptimizationAlgorithmBase>::getBestIterationIndividual<Genome::GGenome>();
+                OA::GOptimizationAlgorithmBase>::getBestIterationIndividual<Genome::GGenome>();
 
             // Snapshot everything the output needs into by-value data (cheap), so the actual work --
             // the CPU rasterise (renderToRGB) and the PNG encode/write -- can run off the optimization
@@ -312,7 +312,7 @@ private:
             const int width = tgt.width;
             const int height = tgt.height;
             const std::uint32_t iteration =
-                goa->Interface::GOptimizerIT<oa::GOptimizationAlgorithmBase>::getIteration();
+                goa->Interface::GOptimizerIT<OA::GOptimizationAlgorithmBase>::getIteration();
             const double fitness = best_ptr->raw_fitness(0);
             const std::string resultFileName = resultImageDirectory_ + std::to_string(iteration) +
                                                "_" + std::to_string(fitness) +

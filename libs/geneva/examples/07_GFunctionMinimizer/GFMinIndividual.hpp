@@ -104,7 +104,7 @@ const targetFunction GO_DEF_TARGETFUNCTION = targetFunction::GFM_PARABOLA;
  * This individual searches for a minimum of a number of predefined functions, each capable
  * of processing their input in multiple dimensions.
  */
-class GFMinIndividual : public gen::GGenomeT<GFMinIndividual> {
+class GFMinIndividual : public Genome::GGenomeT<GFMinIndividual> {
     /////////////////////////////////////////////////////////////////////////////
     // The archive still default-constructs the concrete type on load; GReflectiveInterfaceAccess lets the mixin reach
     // the private localMembers_() below (serialize/load_/compare_/clone_/name_ are all generated from it).
@@ -164,10 +164,10 @@ public:
     /** @brief Registers the config-file options, binding them to the passed Config */
     static void describeConfig(Gem::Common::GParserBuilder &gpb, Config &c);
     /** @brief Builds the flat genome's structure: one shared constrained-double group of par_dim values */
-    static gen::GenomeData buildGenome(const Config &c);
+    static Genome::GenomeData buildGenome(const Config &c);
     /** @brief The OA-owned adaption config: the shared double group gets the configured Gauss adaptor */
     static std::shared_ptr<OptimizationAlgorithms::GAdaptionConfigBase>
-    buildAdaptionConfig(const gen::GGenome &sample, const Config &c);
+    buildAdaptionConfig(const Genome::GGenome &sample, const Config &c);
     /** @brief Per-object post-config hook: the target function and the seed sigma for getAverageSigma() */
     static void applyConfig(GFMinIndividual &ind, const Config &c);
 

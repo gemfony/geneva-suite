@@ -133,7 +133,7 @@ void GOptimizer::registerDefaultAlgorithm(const std::shared_ptr<GOABase> &defaul
  *
  * @param pluggable_om A smart pointer to the pluggable optimization monitor to register (must not be empty)
  */
-void GOptimizer::registerPluggableOM(const std::shared_ptr<oa::GBasePluggableOM> &pluggable_om) {
+void GOptimizer::registerPluggableOM(const std::shared_ptr<OA::GBasePluggableOM> &pluggable_om) {
     if(pluggable_om) {
         pluggable_monitors_cnt_.push_back(pluggable_om);
     }
@@ -316,7 +316,7 @@ GOptimizer &GOptimizer::operator&(std::string const &mn) {
  * @param cc_ptr A smart pointer to a factory that produces optimizable entities (must not be empty)
  */
 void GOptimizer::registerContentCreator(
-    const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr
+    const std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> &cc_ptr
 ) {
     // A user-compiled-in individual: claim the single slot, so a later plugin load (or a second
     // registration) is refused by the one-individual-per-process guard.
@@ -333,7 +333,7 @@ void GOptimizer::registerContentCreator(
  * @param source Where this content creator came from (for the diagnostic on a double claim)
  */
 void GOptimizer::claimContentCreator_(
-    const std::shared_ptr<Gem::Common::GFactoryT<gen::GGenome>> &cc_ptr,
+    const std::shared_ptr<Gem::Common::GFactoryT<Genome::GGenome>> &cc_ptr,
     individualSource source
 ) {
     auto sourceStr = [](individualSource s) -> const char * {
@@ -564,7 +564,7 @@ void GOptimizer::fillPopulationFromContentCreator() {
  */
 void GOptimizer::createIndividualsFromContentCreator() {
     for(std::size_t ind = 0; ind < algorithms_cnt_.at(0)->getDefaultPopulationSize(); ind++) {
-        std::shared_ptr<gen::GGenome> const p_ind = (*content_creator_ptr_)();
+        std::shared_ptr<Genome::GGenome> const p_ind = (*content_creator_ptr_)();
         if(p_ind) {
             this->push_back(p_ind);
         }
@@ -647,7 +647,7 @@ void GOptimizer::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
 
         // Unload the individuals from the last algorithm and store them again in this object
         if(copy_best_individuals_only_) {
-            for(auto &best_ind_ptr : alg_ptr->getBestGlobalIndividuals<gen::GGenome>()) {
+            for(auto &best_ind_ptr : alg_ptr->getBestGlobalIndividuals<Genome::GGenome>()) {
                 this->push_back(std::move(best_ind_ptr));
             }
         }
@@ -674,7 +674,7 @@ void GOptimizer::runAlgorithmChain(std::uint32_t first_algorithm_offset) {
  */
 void GOptimizer::registerAdaptionConfig(
     const std::string &oa_mnemonic,
-    std::shared_ptr<oa::GAdaptionConfigBase> config
+    std::shared_ptr<OA::GAdaptionConfigBase> config
 ) {
     if(config) {
         adaption_config_registry_[oa_mnemonic] = std::move(config);
@@ -707,13 +707,13 @@ void GOptimizer::sortIndividualsByFitness() {
  *
  * @return Copies of the best individuals of the run, best first
  */
-std::vector<std::unique_ptr<gen::GGenome>> GOptimizer::bestsOfRun_() const {
-    auto last_bests = this->lastAlgorithm_().getBestGlobalIndividuals<gen::GGenome>();
+std::vector<std::unique_ptr<Genome::GGenome>> GOptimizer::bestsOfRun_() const {
+    auto last_bests = this->lastAlgorithm_().getBestGlobalIndividuals<Genome::GGenome>();
     if(not copy_best_individuals_only_) {
-        gen::GGenomeFixedSizePriorityQueue bests(last_bests.size());
+        Genome::GGenomeFixedSizePriorityQueue bests(last_bests.size());
         bests.add(std::move(last_bests), false);
         for(auto const &alg_ptr : algorithms_cnt_ | std::views::take(algorithms_cnt_.size() - 1)) {
-            bests.add(alg_ptr->getBestGlobalIndividuals<gen::GGenome>(), false);
+            bests.add(alg_ptr->getBestGlobalIndividuals<Genome::GGenome>(), false);
         }
         last_bests = bests.cloneToVector();
     }
@@ -749,7 +749,7 @@ GOABase const &GOptimizer::lastAlgorithm_() const {
  *
  * @return A copy of the best individual found
  */
-std::unique_ptr<gen::GGenome> GOptimizer::getBestGlobalIndividual_() const {
+std::unique_ptr<Genome::GGenome> GOptimizer::getBestGlobalIndividual_() const {
     return std::move(this->bestsOfRun_().front());
 }
 
@@ -759,7 +759,7 @@ std::unique_ptr<gen::GGenome> GOptimizer::getBestGlobalIndividual_() const {
  *
  * @return Copies of the best individuals found, best first
  */
-std::vector<std::unique_ptr<gen::GGenome>> GOptimizer::getBestGlobalIndividuals_() const {
+std::vector<std::unique_ptr<Genome::GGenome>> GOptimizer::getBestGlobalIndividuals_() const {
     return this->bestsOfRun_();
 }
 
@@ -769,8 +769,8 @@ std::vector<std::unique_ptr<gen::GGenome>> GOptimizer::getBestGlobalIndividuals_
  *
  * @return A copy of the best individual of the last iteration
  */
-std::unique_ptr<gen::GGenome> GOptimizer::getBestIterationIndividual_() const {
-    return this->lastAlgorithm_().getBestIterationIndividual<gen::GGenome>();
+std::unique_ptr<Genome::GGenome> GOptimizer::getBestIterationIndividual_() const {
+    return this->lastAlgorithm_().getBestIterationIndividual<Genome::GGenome>();
 }
 
 /******************************************************************************/
@@ -779,8 +779,8 @@ std::unique_ptr<gen::GGenome> GOptimizer::getBestIterationIndividual_() const {
  *
  * @return Copies of the best individuals of the last iteration, best first
  */
-std::vector<std::unique_ptr<gen::GGenome>> GOptimizer::getBestIterationIndividuals_() const {
-    return this->lastAlgorithm_().getBestIterationIndividuals<gen::GGenome>();
+std::vector<std::unique_ptr<Genome::GGenome>> GOptimizer::getBestIterationIndividuals_() const {
+    return this->lastAlgorithm_().getBestIterationIndividuals<Genome::GGenome>();
 }
 
 /******************************************************************************/

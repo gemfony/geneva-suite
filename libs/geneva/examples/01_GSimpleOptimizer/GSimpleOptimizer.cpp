@@ -54,8 +54,9 @@ int main(int argc, char **argv) {
         //-----------------------------------------------------------------------
         // Create a factory for GFunctionIndividual objects and perform
         // any necessary initial work.
-        auto const gfi_ptr =
-            std::make_shared<gind::GFunctionIndividualFactory>("./config/GFunctionIndividual.json");
+        auto const gfi_ptr = std::make_shared<Individuals::GFunctionIndividualFactory>(
+            "./config/GFunctionIndividual.json"
+        );
 
         // Add a content creator so GOptimizer can generate its own individuals, if necessary
         go.registerContentCreator(gfi_ptr);
@@ -65,7 +66,7 @@ int main(int argc, char **argv) {
         // hands it over before they run.
         {
             //! [adaptors-goptimizer-register]
-            auto sample = gfi_ptr->get_as<gind::GFunctionIndividual>();
+            auto sample = gfi_ptr->get_as<Individuals::GFunctionIndividual>();
             auto cfg = gfi_ptr->getAdaptionConfig(*sample);
             go.registerAdaptionConfig("ea", cfg);
             go.registerAdaptionConfig("sa", cfg);
@@ -80,7 +81,7 @@ int main(int argc, char **argv) {
         go.registerDefaultAlgorithm("ea");
 
         // Perform the actual optimization
-        auto const p = go.optimize().getBestGlobalIndividual<gind::GFunctionIndividual>();
+        auto const p = go.optimize().getBestGlobalIndividual<Individuals::GFunctionIndividual>();
 
         // Here you can do something with the best individual ("p") found.
         // We simply print its content here, by means of an operator<< implemented

@@ -481,7 +481,7 @@ std::vector<std::size_t> GSepCmaEvolutionStrategy::rankPopulation() const {
  * Pareto front.
  */
 std::vector<std::size_t> GSepCmaEvolutionStrategy::rankPopulationPareto() const {
-    std::vector<const gen::GGenome *> pop;
+    std::vector<const Genome::GGenome *> pop;
     pop.reserve(this->size());
     for(const auto &i : *this) {
         pop.push_back(&(*i));

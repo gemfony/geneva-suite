@@ -129,7 +129,7 @@ bool GType::getSigmaRecombination() const {
 /******************************************************************************/
 
 void GType::extractCurrentParetoIndividuals(
-    std::vector<std::unique_ptr<gen::GGenome>> &pareto_inds
+    std::vector<std::unique_ptr<Genome::GGenome>> &pareto_inds
 ) {
     pareto_inds.clear();
     // An individual is on the (first) Pareto front iff no other individual strictly dominates it. Computed
@@ -145,7 +145,7 @@ void GType::extractCurrentParetoIndividuals(
             }
         }
         if(not dominated) {
-            pareto_inds.push_back(this->at(i)->clone<gen::GGenome>());
+            pareto_inds.push_back(this->at(i)->clone<Genome::GGenome>());
         }
     }
 }
@@ -222,7 +222,7 @@ std::vector<TunableParam> GType::tunableManifest() {
 
 /******************************************************************************/
 
-void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals) {
+void GType::updateGlobalBestsPQ_(Genome::GGenomeFixedSizePriorityQueue &best_individuals) {
     constexpr bool donotreplace = false;
     constexpr bool replace = true;
 
@@ -243,7 +243,7 @@ void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_indivi
     case sortingMode::MUCOMMANU_PARETO: {
         // extractCurrentParetoIndividuals() already hands out fresh clones, so the archive takes
         // those over rather than cloning them a second time.
-        std::vector<std::unique_ptr<gen::GGenome>> pareto_inds;
+        std::vector<std::unique_ptr<Genome::GGenome>> pareto_inds;
         this->extractCurrentParetoIndividuals(pareto_inds);
         best_individuals.add(std::move(pareto_inds), replace);
     } break;
@@ -252,7 +252,7 @@ void GType::updateGlobalBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_indivi
 
 /******************************************************************************/
 
-void GType::updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_individuals) {
+void GType::updateIterationBestsPQ_(Genome::GGenomeFixedSizePriorityQueue &best_individuals) {
     // The archive describes this iteration only: its content is replaced, in every mode
     constexpr bool replace = true;
 
@@ -272,7 +272,7 @@ void GType::updateIterationBestsPQ_(gen::GGenomeFixedSizePriorityQueue &best_ind
     case sortingMode::MUPLUSNU_PARETO:
     case sortingMode::MUCOMMANU_PARETO: {
         // See updateGlobalBestsPQ_(): the extracted individuals are already clones.
-        std::vector<std::unique_ptr<gen::GGenome>> pareto_inds;
+        std::vector<std::unique_ptr<Genome::GGenome>> pareto_inds;
         this->extractCurrentParetoIndividuals(pareto_inds);
         best_individuals.add(std::move(pareto_inds), replace);
     } break;
@@ -774,7 +774,7 @@ void GType::selectParetoParents(bool include_parents) {
     // distance. The leading n_parents_ become the survivors. Crowding makes an over-full front keep a
     // well-SPREAD subset (the former implementation kept a RANDOM subset of the first front and ranked the
     // remainder by a single-objective scalar, which lost coverage of the trade-off surface).
-    std::vector<const gen::GGenome *> eligible;
+    std::vector<const Genome::GGenome *> eligible;
     eligible.reserve(sz - start);
     for(std::size_t i = start; i < sz; ++i) {
         eligible.push_back(&(*this->at(i)));
@@ -784,7 +784,7 @@ void GType::selectParetoParents(bool include_parents) {
 
     // Rebuild the population: eligible individuals in NSGA-II order (so [0, n_parents_) are the survivors),
     // then -- for mu,nu -- the discarded old parents at the tail (overwritten by the next recombination).
-    std::vector<std::unique_ptr<gen::GGenome>> reordered;
+    std::vector<std::unique_ptr<Genome::GGenome>> reordered;
     reordered.reserve(sz);
     for(std::size_t const local : order) {
         reordered.push_back(std::move(this->data_cnt_[start + local]));
