@@ -47,10 +47,10 @@
 #include "common/GChecks.hpp"
 #include "common/GCommonEnums.hpp" // For the serialization mode
 #include "common/GCommonHelperFunctionsT.hpp"
+#include "common/GConfigurableI.hpp" // the configuration facet
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
-#include "common/GParserBuilder.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp" // the codecs behind toStream/fromStream
 
 namespace Gem::Common {
@@ -69,7 +69,10 @@ class GCommonInterfaceT
   // The problem here is that GCommonInterfaceT<g_class_type> is usually the base class of g_class_type and thus an incomplete
   // type at the time type traits are applied. Hence we use another (trivial) base class that simplifies
   // detection.
-  : private gemfony_common_interface_indicator {
+  : private gemfony_common_interface_indicator
+  // The configuration facet: addConfigurationOptions(), writeConfigFile(), readConfigFile() and the
+  // hook addConfigurationOptions_()
+  , public GConfigurableI {
 public:
     /***************************************************************************/
     /**
@@ -231,54 +234,6 @@ public:
     template <typename self_type>
     std::string report(this const self_type &self) {
         return self.toString(Gem::Common::serializationMode::GEM_JSON);
-    }
-
-    /******************************************************************************/
-    /**
-     * Adds local configuration options to a GParserBuilder object.
-     *
-     * @param gpb The GParserBuilder object to which configuration options should be added
-     */
-    void addConfigurationOptions(Gem::Common::GParserBuilder &gpb) {
-        addConfigurationOptions_(gpb);
-    }
-
-    /******************************************************************************/
-    /**
-     * Writes a configuration file to disk
-     *
-     * @param config_file The name of the configuration file to be written
-     * @param header A header to be prepended to the configuration file
-     */
-    void writeConfigFile(std::filesystem::path const &config_file, const std::string &header) {
-        // This class will handle the interaction with configuration files
-        Gem::Common::GParserBuilder gpb;
-
-        // Recursively add configuration options to gpb,
-        // starting with the most derived class
-        addConfigurationOptions(gpb);
-
-        // Write out the configuration file
-        gpb.writeConfigFile(config_file, header, true);
-    }
-
-    /******************************************************************************/
-    /**
-     * Reads a configuration file from disk
-     *
-     * @param config_file The name of the configuration file to be parsed
-     * @throws gem_exception if the file cannot be read or applied (GParserBuilder::parseConfigFile())
-     */
-    void readConfigFile(std::filesystem::path const &config_file) {
-        // This class will handle the interaction with configuration files
-        Gem::Common::GParserBuilder gpb;
-
-        // Recursively add configuration options to gpb,
-        // starting with the most derived class
-        addConfigurationOptions(gpb);
-
-        // Read in the configuration file
-        gpb.parseConfigFile(config_file);
     }
 
     /***************************************************************************/
@@ -478,17 +433,6 @@ protected:
                 "expectation of inequality is always violated."
             );
         }
-    }
-
-    /******************************************************************************/
-    /**
-     * Adds local configuration options to a GParserBuilder object. This is a protected, virtual version
-     * of this function that is overloaded in derived classes.
-     *
-     * @param gpb The GParserBuilder object to which configuration options should be added
-     */
-    virtual void addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
-        // No local data, no relevant parent classes, hence nothing to do
     }
 
 private:

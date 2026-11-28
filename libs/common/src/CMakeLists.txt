@@ -31,6 +31,7 @@ SET ( COMMONSOURCES
     GCommonEnums.cpp
     GCommonHelperFunctions.cpp
     GConfigEmission.cpp
+    GConfigurableI.cpp
     GExceptions.cpp
 	GExpectationChecksT.cpp
 	GFatalReport.cpp
