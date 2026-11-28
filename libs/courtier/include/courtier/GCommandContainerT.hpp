@@ -47,14 +47,15 @@
 // Boost headers go here
 
 // Geneva headers go here
-#include "common/GArchiveNamed.hpp" // archive_named (named-member emitter)
-#include "common/GExceptions.hpp"   // describeException()
-#include "common/GLogger.hpp"       // the warning of processWorkFrame()
+#include "common/GArchiveNamed.hpp"                  // archive_named (named-member emitter)
+#include "common/GExceptions.hpp"                    // describeException()
+#include "common/GLogger.hpp"                        // the warning of processWorkFrame()
+#include "common/GSerializationHelperFunctionsT.hpp" // archiveToString(), archiveFromString()
 #include "courtier/GCourtierEnums.hpp"
 #include "courtier/GProcessable.hpp"
 #include "courtier/GProcessingOutcome.hpp"
 #include "courtier/GWireProtocolT.hpp"  // the library seam (tag + payload type)
-#include "weft/GArchivePolymorphic.hpp" // GArchive codecs for the GEM_BINARY / GEM_JSON wire arm
+#include "weft/GArchivePolymorphic.hpp" // the smart-pointer arm of the payload
 
 namespace Gem::Courtier {
 
@@ -364,60 +365,26 @@ public:
     //-------------------------------------------------------------------------
     /** @brief Archives the head @param mode The serialization format @return The bytes */
     [[nodiscard]] std::string headToString(Gem::Common::serializationMode mode) const {
-        return toString_(head_, "head", mode);
+        return Gem::Common::archiveToString("head", head_, mode);
     }
     /** @brief Archives the payload @param mode The serialization format @return The bytes */
     [[nodiscard]] std::string payloadToString(Gem::Common::serializationMode mode) const {
-        return toString_(payload_, "payload", mode);
+        // The blob send-once interning lives inside the work item's own save() (an ambient
+        // GWireSerializationScope, if any, is honoured there).
+        return Gem::Common::archiveToString("payload", payload_, mode);
     }
     /** @brief Reads the head; the payload is left as it is
      *  @param bytes The archived head @param mode The serialization format */
     void headFromString(std::string_view bytes, Gem::Common::serializationMode mode) {
-        fromString_(bytes, "head", head_, mode);
+        Gem::Common::archiveFromString("head", head_, bytes, mode);
     }
     /** @brief Reads the payload @param bytes The archived payload
      *  @param mode The serialization format */
     void payloadFromString(std::string_view bytes, Gem::Common::serializationMode mode) {
-        fromString_(bytes, "payload", payload_, mode);
+        Gem::Common::archiveFromString("payload", payload_, bytes, mode);
     }
 
 private:
-    //-------------------------------------------------------------------------
-    /** @brief Archives @p value under @p name @param value What is archived
-     *  @param name Its name in the archive @param mode The format @return The bytes */
-    template <typename value_type>
-    static std::string
-    toString_(const value_type &value, const char *name, Gem::Common::serializationMode mode) {
-        if(mode == Gem::Common::serializationMode::GEM_JSON) {
-            Gem::Weft::GJsonOArchive oa;
-            oa &Gem::Weft::make_nvp(name, value);
-            return oa.str();
-        }
-        // GArchive flat-binary codec. The blob send-once interning lives inside the work item's
-        // own save() (an ambient GWireSerializationScope, if any, is honoured there).
-        Gem::Weft::GBinaryOArchive oa;
-        oa &Gem::Weft::make_nvp(name, value);
-        return oa.str();
-    }
-
-    /** @brief Reads @p value from @p bytes @param bytes The archive @param name Its name in it
-     *  @param value Where it is read to @param mode The format */
-    template <typename value_type>
-    static void fromString_(
-        std::string_view bytes,
-        const char *name,
-        value_type &value,
-        Gem::Common::serializationMode mode
-    ) {
-        if(mode == Gem::Common::serializationMode::GEM_JSON) {
-            Gem::Weft::GJsonIArchive ia(bytes);
-            ia &Gem::Weft::make_nvp(name, value);
-            return;
-        }
-        Gem::Weft::GBinaryIArchive ia(bytes);
-        ia &Gem::Weft::make_nvp(name, value);
-    }
-
     //-------------------------------------------------------------------------
     // Data
 

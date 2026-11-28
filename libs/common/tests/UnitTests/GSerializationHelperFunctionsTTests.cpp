@@ -158,3 +158,72 @@ TEST_CASE(
         CHECK_FALSE(sharedPtrFromString<TestPayload>(s, mode));
     }
 }
+
+// ---------------------------------------------------------------------------
+// archiveToString / archiveFromString and the file pair: a named value of any
+// archivable type, in the codec the mode names.
+
+TEST_CASE(
+    "GSerializationHelperFunctionsT: a named value round-trips through both modes",
+    "[common][serialization-helpers]"
+) {
+    TestPayload const in(5, -0.75, "gamma");
+    std::vector<int> const numbers{1, 2, 3};
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        INFO("mode " << static_cast<int>(mode));
+        TestPayload out;
+        archiveFromString("payload", out, archiveToString("payload", in, mode), mode);
+        CHECK(out == in);
+
+        std::vector<int> read_numbers;
+        archiveFromString("numbers", read_numbers, archiveToString("numbers", numbers, mode), mode);
+        CHECK(read_numbers == numbers);
+    }
+
+    // The string of sharedPtrToString() is the archive of the pointer under the object name
+    auto const ptr = std::make_shared<TestPayload>(in);
+    CHECK(
+        sharedPtrToString(ptr, serializationMode::GEM_JSON) ==
+        archiveToString(detail::OBJECT_STRING_TAG, ptr, serializationMode::GEM_JSON)
+    );
+}
+
+TEST_CASE(
+    "GSerializationHelperFunctionsT: a named value round-trips through a file",
+    "[common][serialization-helpers]"
+) {
+    auto const path =
+        std::filesystem::temp_directory_path() / "GSerializationHelperFunctionsT-archive.txt";
+    TestPayload const in(11, 2.5, "delta");
+    for(auto const mode : {serializationMode::GEM_BINARY, serializationMode::GEM_JSON}) {
+        INFO("mode " << static_cast<int>(mode));
+        archiveToFile(path, "payload", in, mode);
+        TestPayload out;
+        archiveFromFile(path, "payload", out, mode);
+        CHECK(out == in);
+    }
+
+    // A refused write leaves the file as it was
+    auto const unknown = static_cast<serializationMode>(99);
+    CHECK_THROWS_AS(archiveToFile(path, "payload", TestPayload{}, unknown), gem_exception);
+    TestPayload out;
+    archiveFromFile(path, "payload", out, serializationMode::GEM_JSON);
+    CHECK(out == in);
+
+    std::filesystem::remove(path);
+    CHECK_THROWS_AS(
+        archiveFromFile(path, "payload", out, serializationMode::GEM_JSON),
+        gem_exception
+    );
+}
+
+TEST_CASE(
+    "GSerializationHelperFunctionsT: a named value refuses a mode that is not one of the two",
+    "[common][serialization-helpers]"
+) {
+    auto const unknown = static_cast<serializationMode>(99);
+    TestPayload value(1, 2.0, "x");
+    CHECK_THROWS_AS(archiveToString("payload", value, unknown), gem_exception);
+    std::string const text = archiveToString("payload", value, serializationMode::GEM_BINARY);
+    CHECK_THROWS_AS(archiveFromString("payload", value, text, unknown), gem_exception);
+}

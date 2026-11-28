@@ -37,22 +37,19 @@
 #include "common/GExpectationChecksT.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
+#include "common/GSerializationHelperFunctionsT.hpp" // archiveToFile() -- training-data persistence
 #include "common/GSingletonT.hpp"
 #include "geneva/genome/GGenome.hpp"
 #include "geneva/genome/GGenomeBuilder.hpp"
 #include "geneva/oa/GAdaption.hpp"
 #include "geneva/oa/GAdaptionConfig.hpp"
 #include "weft/GArchivePolymorphic.hpp" // GEM_REGISTER_ARCHIVABLE (GArchive polymorphic-pointer dispatch)
-#include "weft/GJsonArchive.hpp"        // GJson[IO]Archive -- training-data disk persistence codec
 #include <array>
 #include <cmath>
 #include <cstddef>
-#include <filesystem>
 #include <format>
 #include <fstream>
 #include <geneva/individuals/GNeuralNetworkIndividual.hpp>
-#include <istream>
-#include <iterator>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -259,23 +256,9 @@ void networkData::compare(
  * @param network_data_file The name of the file the data should be saved to (GArchive JSON)
  */
 void networkData::saveToDisk(const std::string &network_data_file) const {
-    std::ofstream tr_dat(network_data_file);
-
-    if(not tr_dat) {
-        throw Gem::Common::gem_exception(
-            Gem::Common::g_error_streamer()
-            << "Data file " << network_data_file << " could not be opened for writing." << '\n'
-        );
-    }
-
-    // Save the data via the GArchive JSON codec (self-describing, human-readable on disk).
-    {
-        Gem::Weft::GJsonOArchive oa;
-        oa &Gem::Weft::make_nvp("networkData", const_cast<networkData &>(*this));
-        tr_dat << oa.str();
-    }
-
-    tr_dat.close();
+    // The GArchive JSON codec: self-describing, readable on disk
+    using enum Gem::Common::serializationMode;
+    Gem::Common::archiveToFile(network_data_file, "networkData", *this, GEM_JSON);
 }
 
 /******************************************************************************/
@@ -285,40 +268,22 @@ void networkData::saveToDisk(const std::string &network_data_file) const {
  * @param network_data_file The name of the file from which the data should be loaded (GArchive JSON)
  */
 void networkData::loadFromDisk(const std::string &network_data_file) {
-    std::ifstream tr_dat(network_data_file.c_str());
-
-    if(not tr_dat) {
-        std::ostringstream error;
-        error << "In networkData::loadFromDisk(const std::string&):" << '\n'
-              << "Data file " << network_data_file << " could not be opened for reading." << '\n';
-
-        if(not std::filesystem::exists(network_data_file.c_str())) {
-            error << "File does not exist." << '\n';
-        }
-
-        throw Gem::Common::gem_exception(Gem::Common::g_error_streamer() << error.str() << '\n');
-    }
-
-    // Load the data via the GArchive JSON codec. A deserialization failure (a truncated file, or --
-    // most commonly -- a training-data file written by an incompatible Geneva version) otherwise
-    // escapes as an uncaught exception; catch it and bail out with an actionable diagnostic instead.
+    // A file that is missing or cannot be decoded (a truncated file, or -- most commonly -- a
+    // training-data file written by an incompatible Geneva version) otherwise escapes as an
+    // uncaught exception; catch it and bail out with an actionable diagnostic instead.
     networkData loaded(0);
     try {
-        std::string content(
-            (std::istreambuf_iterator<char>(tr_dat)),
-            std::istreambuf_iterator<char>()
-        );
-        Gem::Weft::GJsonIArchive ia(content);
-        ia &Gem::Weft::make_nvp("networkData", loaded);
+        using enum Gem::Common::serializationMode;
+        Gem::Common::archiveFromFile(network_data_file, "networkData", loaded, GEM_JSON);
     }
     catch(const std::exception &e) {
         throw Gem::Common::gem_exception(
             Gem::Common::g_error_streamer()
-            << "Failed to deserialise the training-data file" << '\n'
+            << "Failed to read the training-data file" << '\n'
             << "  " << network_data_file << '\n'
             << "as a GArchive JSON archive. Reason:" << '\n'
             << "  " << e.what() << '\n'
-            << "The file is most likely stale or was written by an incompatible version." << '\n'
+            << "The file is missing, stale or was written by an incompatible version." << '\n'
             << "Regenerate it with:" << '\n'
             << "  GNeuralNetwork --trainingDataFile " << network_data_file
             << " --trainingDataType <1-4> --nDataSets <N>" << '\n'

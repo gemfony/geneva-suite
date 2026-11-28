@@ -49,8 +49,7 @@
 #include "geneva/GenevaHelperFunctions.hpp"
 #include "geneva/oa/GPositionPersonalityTraits.hpp"
 #include "geneva/oa/GPostProcessorT.hpp"
-#include "weft/GBinaryArchive.hpp"
-#include "weft/GJsonArchive.hpp"
+#include "weft/GArchive.hpp" // make_nvp()
 #include "weft/GPolymorphicRegistry.hpp"
 #include <algorithm>
 #include <chrono>
@@ -163,14 +162,7 @@ void readCheckpointFile(
     // exactly like the networked wire; otherwise the codec throws deep inside (an unknown archive tag).
     // Translate that, and a file that is no checkpoint, into actionable guidance.
     try {
-        if(Gem::Common::serializationMode::GEM_BINARY == ser_mode) {
-            Gem::Weft::GBinaryIArchive ia(data);
-            ia &Gem::Weft::make_nvp("checkpoint", cp);
-        }
-        else {
-            Gem::Weft::GJsonIArchive ia(data);
-            ia &Gem::Weft::make_nvp("checkpoint", cp);
-        }
+        Gem::Common::archiveFromString("checkpoint", cp, data, ser_mode);
     }
     catch(const std::exception &e) {
         throw Gem::Common::gem_exception(
@@ -1770,7 +1762,7 @@ void GOptimizationAlgorithmBase::retainIntegrableLateReturns(
 /**
  * @brief Writes a checkpoint: the mnemonic of this algorithm as the first field, then the
  * algorithm with its population (see GCheckpointFile). An existing file is replaced as a whole
- * (Gem::Common::replaceFileAtomically()).
+ * (Gem::Common::archiveToFile()).
  *
  * @param output_file The path of the file the checkpoint is written to
  */
@@ -1786,22 +1778,7 @@ void GOptimizationAlgorithmBase::saveCheckpoint(std::filesystem::path const &out
         .read_algorithm_of = {}
     };
     Gem::Common::serializationMode const ser_mode = this->getCheckpointSerializationMode();
-    Gem::Common::replaceFileAtomically(
-        output_file,
-        [&cp, ser_mode](std::ostream &os) {
-            if(Gem::Common::serializationMode::GEM_BINARY == ser_mode) {
-                Gem::Weft::GBinaryOArchive oa;
-                oa &Gem::Weft::make_nvp("checkpoint", cp);
-                os << oa.str();
-            }
-            else {
-                Gem::Weft::GJsonOArchive oa;
-                oa &Gem::Weft::make_nvp("checkpoint", cp);
-                os << oa.str();
-            }
-        },
-        "GOptimizationAlgorithmBase::saveCheckpoint()"
-    );
+    Gem::Common::archiveToFile(output_file, "checkpoint", cp, ser_mode);
 }
 
 /******************************************************************************/

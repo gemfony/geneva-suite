@@ -36,9 +36,11 @@
 
 #include <atomic>
 #include <chrono>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // Boost headers go here
@@ -66,40 +68,144 @@ inline constexpr char const *OBJECT_STRING_TAG = "object";
 
 /******************************************************************************/
 /**
- * Writes the object a shared_ptr points to into an archive of the given codec and returns the text.
+ * The refusal of a serialization mode that is not one of the two, stated once for both directions.
  *
- * @tparam oarchive_type The output archive of the codec (Gem::Weft::GBinaryOArchive or GJsonOArchive)
- * @tparam T The pointee type
- * @param gt_ptr The pointer to the object to be serialized (an empty pointer is stored as empty)
- * @return The text of the archive
+ * @param mode The serialization mode that names no codec
+ * @throws gem_exception always
  */
-template <typename oarchive_type, typename T>
-std::string toArchiveString(std::shared_ptr<T> &gt_ptr) {
-    oarchive_type oa;
-    oa &Gem::Weft::make_nvp(OBJECT_STRING_TAG, gt_ptr);
-    return oa.str();
-}
-
-/******************************************************************************/
-/**
- * Reads an object from the text of an archive of the given codec.
- *
- * @tparam iarchive_type The input archive of the codec (Gem::Weft::GBinaryIArchive or GJsonIArchive)
- * @tparam T The pointee type
- * @param gt_string The text of the archive; it outlives the archive, which may refer to it
- * @return A shared_ptr to the restored object (empty if the archive holds an empty pointer)
- */
-template <typename iarchive_type, typename T>
-std::shared_ptr<T> fromArchiveString(const std::string &gt_string) {
-    std::shared_ptr<T> gt_ptr;
-    iarchive_type ia(gt_string);
-    ia &Gem::Weft::make_nvp(OBJECT_STRING_TAG, gt_ptr);
-    return gt_ptr;
+[[noreturn]] inline void refuseSerializationMode(serializationMode mode) {
+    throw gem_exception(
+        g_error_streamer() << "unknown serialization mode " << static_cast<int>(mode) << '\n'
+    );
 }
 
 /******************************************************************************/
 
 } /* namespace detail */
+
+/******************************************************************************/
+/**
+ * Writes one named value into an archive of the codec that @p mode names and returns the
+ * archive's text: the flat binary codec for GEM_BINARY, the self-describing JSON codec for
+ * GEM_JSON. The value may be of any type the GArchive (Weft) codecs know: one with a serialize()
+ * member or a gem_archive_serialize() overload, a standard container, a std::variant, a smart
+ * pointer to a type registered with GEM_REGISTER_ARCHIVABLE, and so on. archiveFromString() reads
+ * the text back.
+ *
+ * @tparam value_type The type of the value
+ * @param name The name of the value in the archive (its root name; the binary codec writes no names)
+ * @param value The value to be written
+ * @param mode The codec (GEM_BINARY or GEM_JSON)
+ * @return The text of the archive
+ * @throws gem_exception for a serialization mode that is not one of the two
+ */
+template <typename value_type>
+std::string archiveToString(char const *name, value_type const &value, serializationMode mode) {
+    switch(mode) {
+        using enum serializationMode;
+    case GEM_BINARY: {
+        Gem::Weft::GBinaryOArchive oa;
+        oa &Gem::Weft::make_nvp(name, value);
+        return oa.str();
+    }
+    case GEM_JSON: {
+        Gem::Weft::GJsonOArchive oa;
+        oa &Gem::Weft::make_nvp(name, value);
+        return oa.str();
+    }
+    }
+    detail::refuseSerializationMode(mode);
+}
+
+/******************************************************************************/
+/**
+ * Reads one named value from the text of an archive of the codec that @p mode names, as
+ * archiveToString() writes it.
+ *
+ * @tparam value_type The type of the value
+ * @param name The name of the value in the archive (its root name; the binary codec reads no names)
+ * @param value Receives the value
+ * @param text The text of the archive
+ * @param mode The codec (GEM_BINARY or GEM_JSON) the text was written in
+ * @throws gem_exception for a serialization mode that is not one of the two
+ * @throws Gem::Weft::weft_exception (or another std::exception from the value's serialize()) if
+ *         the text cannot be decoded
+ */
+template <typename value_type>
+void archiveFromString(
+    char const *name,
+    value_type &value,
+    std::string_view text,
+    serializationMode mode
+) {
+    switch(mode) {
+        using enum serializationMode;
+    case GEM_BINARY: {
+        Gem::Weft::GBinaryIArchive ia(text);
+        ia &Gem::Weft::make_nvp(name, value);
+        return;
+    }
+    case GEM_JSON: {
+        Gem::Weft::GJsonIArchive ia(text);
+        ia &Gem::Weft::make_nvp(name, value);
+        return;
+    }
+    }
+    detail::refuseSerializationMode(mode);
+}
+
+/******************************************************************************/
+/**
+ * Writes one named value into a file, as archiveToString() writes it. An existing file is replaced
+ * as a whole (replaceFileAtomically()): a reader, and a process that is ended while it writes, sees
+ * the old file or the new one. If the value cannot be written, the file is left as it was.
+ *
+ * @tparam value_type The type of the value
+ * @param path The file to be written (its directory must exist)
+ * @param name The name of the value in the archive
+ * @param value The value to be written
+ * @param mode The codec (GEM_BINARY or GEM_JSON)
+ * @throws gem_exception for a serialization mode that is not one of the two, or if the file cannot
+ *         be written
+ */
+template <typename value_type>
+void archiveToFile(
+    std::filesystem::path const &path,
+    char const *name,
+    value_type const &value,
+    serializationMode mode
+) {
+    replaceFileAtomically(
+        path,
+        [name, &value, mode](std::ostream &os) { os << archiveToString(name, value, mode); },
+        "Gem::Common::archiveToFile()"
+    );
+}
+
+/******************************************************************************/
+/**
+ * Reads one named value from a file that archiveToFile() (or a file holding the text of
+ * archiveToString()) wrote.
+ *
+ * @tparam value_type The type of the value
+ * @param path The file to be read
+ * @param name The name of the value in the archive
+ * @param value Receives the value
+ * @param mode The codec (GEM_BINARY or GEM_JSON) the file was written in
+ * @throws gem_exception for a serialization mode that is not one of the two, or if the file does
+ *         not exist or cannot be read
+ * @throws Gem::Weft::weft_exception (or another std::exception from the value's serialize()) if
+ *         the content cannot be decoded
+ */
+template <typename value_type>
+void archiveFromFile(
+    std::filesystem::path const &path,
+    char const *name,
+    value_type &value,
+    serializationMode mode
+) {
+    archiveFromString(name, value, loadTextDataFromFile(path), mode);
+}
 
 /******************************************************************************/
 /**
@@ -116,17 +222,7 @@ std::shared_ptr<T> fromArchiveString(const std::string &gt_string) {
 template <typename T>
 std::string
 sharedPtrToString(std::shared_ptr<T> gt_ptr, const Gem::Common::serializationMode &ser_mod) {
-    switch(ser_mod) {
-        using enum Gem::Common::serializationMode;
-    case GEM_BINARY:
-        return detail::toArchiveString<Gem::Weft::GBinaryOArchive>(gt_ptr);
-    case GEM_JSON:
-        return detail::toArchiveString<Gem::Weft::GJsonOArchive>(gt_ptr);
-    }
-
-    throw gem_exception(
-        g_error_streamer() << "unknown serialization mode " << static_cast<int>(ser_mod) << '\n'
-    );
+    return archiveToString(detail::OBJECT_STRING_TAG, gt_ptr, ser_mod);
 }
 
 /******************************************************************************/
@@ -145,17 +241,9 @@ sharedPtrToString(std::shared_ptr<T> gt_ptr, const Gem::Common::serializationMod
 template <typename T>
 std::shared_ptr<T>
 sharedPtrFromString(const std::string &gt_string, const Gem::Common::serializationMode &ser_mod) {
-    switch(ser_mod) {
-        using enum Gem::Common::serializationMode;
-    case GEM_BINARY:
-        return detail::fromArchiveString<Gem::Weft::GBinaryIArchive, T>(gt_string);
-    case GEM_JSON:
-        return detail::fromArchiveString<Gem::Weft::GJsonIArchive, T>(gt_string);
-    }
-
-    throw gem_exception(
-        g_error_streamer() << "unknown serialization mode " << static_cast<int>(ser_mod) << '\n'
-    );
+    std::shared_ptr<T> gt_ptr;
+    archiveFromString(detail::OBJECT_STRING_TAG, gt_ptr, gt_string, ser_mod);
+    return gt_ptr;
 }
 
 /******************************************************************************/

@@ -256,6 +256,26 @@ TEST_CASE("The head of a frame is read by itself", "[courtier][serialization]") 
 
 /******************************************************************************/
 /**
+ * A serialization mode that is not one of the two is refused in both directions. Regression: a frame
+ * took every mode other than JSON for the binary codec, so it wrote and read binary bytes for it.
+ */
+TEST_CASE(
+    "A frame refuses a serialization mode that is not one of the two",
+    "[courtier][serialization]"
+) {
+    const auto unknown = static_cast<Gem::Common::serializationMode>(99);
+    const auto sent = makeWorkFrame();
+    CHECK_THROWS_AS(container_to_string(sent, unknown), Gem::Common::gem_exception);
+
+    const std::string message =
+        container_to_string(sent, Gem::Common::serializationMode::GEM_BINARY);
+    test_container_type got{GFrameKind::NONE};
+    CHECK_THROWS_AS(container_from_string(message, got, unknown), Gem::Common::gem_exception);
+    CHECK(got.kind() == GFrameKind::NONE);
+}
+
+/******************************************************************************/
+/**
  * The HELLO is what a client of one release reads from a server of another, so its binary layout
  * is fixed: the length of the head (four bytes, least significant first), then in the head the kind
  * (two bytes) and the fields as they are listed here, a text as its length (eight bytes) and its
