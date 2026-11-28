@@ -81,6 +81,7 @@ gem_common_test(GChecksTests                   S  GChecksTests.cpp GChecksDebugA
 gem_common_test(GCommonHelperFunctionsTests    M  GCommonHelperFunctionsTests.cpp)
 gem_common_test(GCommonHelperFunctionsTTests   S  GCommonHelperFunctionsTTests.cpp)
 gem_common_test(GCommonInterfaceTTests         S  GCommonInterfaceTTests.cpp)
+gem_common_test(GConfigurableITests           S  GConfigurableITests.cpp)
 gem_common_test(GCommonMathHelperFunctionsTTests
                                                   S  GCommonMathHelperFunctionsTTests.cpp)
 gem_common_test(GContainerTTests               S  GContainerTTests.cpp)

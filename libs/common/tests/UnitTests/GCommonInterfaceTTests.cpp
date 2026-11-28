@@ -29,6 +29,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include <concepts>
 #include <filesystem>
 #include <iterator>
 #include <memory>
@@ -42,6 +43,7 @@
 
 #include "common/GCommonEnums.hpp"
 #include "common/GCommonInterfaceT.hpp"
+#include "common/GConfigurableI.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
 #include "common/GSerializationHelperFunctionsT.hpp"
@@ -114,6 +116,11 @@ GEM_REGISTER_ARCHIVABLE(
 
 TEST_CASE("GCommonInterfaceT: TestObj satisfies gemfony_common_interface", "[common][interface]") {
     STATIC_REQUIRE(gemfony_common_interface<TestObj>);
+}
+
+TEST_CASE("GCommonInterfaceT: TestObj has the configuration facet", "[common][interface]") {
+    // writeConfigFile(), readConfigFile() and the hook come from the one class that holds them
+    STATIC_REQUIRE(std::derived_from<TestObj, GConfigurableI>);
 }
 
 // ---------------------------------------------------------------------------

@@ -1192,15 +1192,23 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
 - **common: the command-line part of the parser builder has a header of its own,
   `common/GCommandLineParser.hpp`** (source-breaking for programs that register command-line
   options). It holds the command-line proxies (`GCLParsableI` and its two derived classes) and
-  Boost.ProgramOptions; `GParserBuilder.hpp`, which every class of the common interface includes
-  for its configuration files, no longer brings in Boost.ProgramOptions, nor the whole of
-  Boost.JSON. A program that calls `registerCLParameter()`, `registerCLFlag()` or
+  Boost.ProgramOptions; `GParserBuilder.hpp`, which holds the configuration files, no longer
+  brings in Boost.ProgramOptions, nor the whole of Boost.JSON. A program that calls `registerCLParameter()`, `registerCLFlag()` or
   `registerCLRepeatableParameter()` includes `common/GCommandLineParser.hpp`; without it the
   compiler reports an incomplete `GCLParsableI` (or the linker a missing
   `registerCLRepeatableParameter()`). `courtier/GLauncherT.hpp` includes it, so a program whose
   options are registered through the launcher needs nothing new. `GLogger.hpp` no longer includes
   eight standard headers and `common/GTupleIO.hpp` that it did not use; a file that relied on
   them includes them itself.
+- **common: the configuration facet is a class of its own, `GConfigurableI`**
+  (`common/GConfigurableI.hpp`), a public base of `GCommonInterfaceT`. It holds
+  `addConfigurationOptions()`, `writeConfigFile()`, `readConfigFile()` and the hook
+  `addConfigurationOptions_()`, with the same signatures and behaviour as before; a class that
+  overrides the hook changes nothing. Its header only names `GParserBuilder`, so
+  `GCommonInterfaceT.hpp` (and with it `GGenome.hpp`) no longer includes `common/GParserBuilder.hpp`
+  (source-breaking): a file that registers options or uses the parser builder otherwise, and got
+  it only through `GCommonInterfaceT.hpp` or `GGenome.hpp`, includes `common/GParserBuilder.hpp`
+  itself. A factory header (`GFactoryT.hpp`, `geneva/GOptimizer.hpp`) still brings it in.
 - **common: `condnotset()` was removed.** It raised an error when a function was called although a
   compile-time switch was not set; its callers left with the self-test mechanism.
 - **common: `GEM_DEPRECATED(message)` is the standard `[[deprecated]]`.** It stands in front of the
