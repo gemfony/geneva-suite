@@ -94,7 +94,7 @@ static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
         );
     }
 
-    // A startSize < 0 means random initialization in the range [minSize, maxSize]
+    // A start_size < 0 means a random radius in the range [min_size, max_size[
     if(c.start_size >= 0. && c.start_size < c.min_size) {
         // Cannot be < 0 as minSize may not be <= 0
         throw Gem::Common::gem_exception(
@@ -103,7 +103,7 @@ static void validateBuildGenomeConfig(const GImageIndividual::Config &c) {
         );
     }
 
-    if(c.start_size > c.max_size) {
+    if(c.start_size >= c.max_size) {
         throw Gem::Common::gem_exception(
             Gem::Common::g_error_streamer() << "Invalid values for maxSize and startSize provided: "
                                             << c.max_size << " / " << c.start_size << '\n'
@@ -178,11 +178,9 @@ Genome::GenomeData GImageIndividual::buildGenome(const Config &c) {
         auto cy = addParam(gimage_fp_t(0), gimage_fp_t(0), gimage_fp_t(1));
         locGauss(cy);
 
-        // radius: startSize >= 0 seeds it (else random init below); the main adaptor.
-        const gimage_fp_t radius_init =
-            static_cast<gimage_fp_t>(c.start_size >= 0. ? c.start_size : c.min_size);
+        // radius: drawn by applyConfig(), which then applies start_size; the main adaptor.
         auto rad = addParam(
-            radius_init,
+            static_cast<gimage_fp_t>(c.min_size),
             static_cast<gimage_fp_t>(c.min_size),
             static_cast<gimage_fp_t>(c.max_size)
         );
@@ -244,8 +242,9 @@ Genome::GenomeData GImageIndividual::buildGenome(const Config &c) {
 	 * Per-object post-config hook. The factory installs the shared, structure-only genome (above) on the
 	 * produced individual; this then sets the individual's local members and randomly initialises the
 	 * ACTIVE parameters within their bounds (inactive frozen-alpha / frozen-background groups keep their
-	 * seeds). The Gauss adaption config is NOT stored on the individual -- it is authored separately by
-	 * buildAdaptionConfig() and owned by the optimization algorithm.
+	 * seeds). A start_size >= 0 then sets every radius to it. The Gauss adaption config is NOT stored
+	 * on the individual -- it is authored separately by buildAdaptionConfig() and owned by the
+	 * optimization algorithm.
 	 */
 void GImageIndividual::applyConfig(GImageIndividual &ind, const Config &c) {
     ind.nTriangles_ = c.n_triangles;
@@ -254,6 +253,17 @@ void GImageIndividual::applyConfig(GImageIndividual &ind, const Config &c) {
     ind.changeBGColor_ = c.change_bg_color;
 
     ind.randomInit(activityMode::ACTIVEONLY);
+
+    // Among the active values a triangle has 9, or 10 when its alpha is mutated (buildGenome()); the
+    // radius is the third of them.
+    if(c.start_size >= 0.) {
+        const std::size_t stride = c.mutate_alpha_channel ? 10 : 9;
+        auto values = ind.parameterValues<gimage_fp_t>(activityMode::ACTIVEONLY);
+        for(std::size_t t_cnt = 0; t_cnt < c.n_triangles; t_cnt++) {
+            values.at(t_cnt * stride + 2) = static_cast<gimage_fp_t>(c.start_size);
+        }
+        ind.assignValueVector(values, activityMode::ACTIVEONLY);
+    }
 }
 
 /******************************************************************************/
@@ -449,18 +459,18 @@ void GImageIndividual::describeConfig(Gem::Common::GParserBuilder &gpb, Config &
     );
 
     comment = "";
-    comment += "The start size of the triangle in percent of the canvas;";
-    comment += "The allowed value range is [minSize,maxSize];";
-    comment += "A value < 0 means random in the range [minSize,maxSize];";
+    comment += "The size every triangle starts with, in percent of the canvas;";
+    comment += "The allowed value range is [min_size,max_size[;";
+    comment += "A value < 0 (the default) draws each size at random in [min_size,max_size[;";
     gpb.registerFileParameter<double>(
         "start_size",
         c.start_size,
-        GII_DEF_MINSIZE,
+        GII_DEF_STARTSIZE,
         Gem::Common::VAR_IS_ESSENTIAL,
         comment
     );
 
-    // A value < 0 means random in the range [minSize,maxSize]
+    // A value < 0 means random in the range [min_size,max_size[
     if(c.start_size >= 0.) {
         checkValueRange(
             c.start_size,

@@ -140,6 +140,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   parents, a child's σ in each Gauss group is the mean of the parents' σ in that group,
   clamped to the group's band. Before, the first group's mean was written into every group,
   so a genome with groups of different bands (example 14) lost its per-group σ.
+- **Example 14's `start_size` works.** A value >= 0 is the radius every triangle starts
+  with; the random initialization drew every radius anew, so the key had no effect. Its
+  default is now -1, a random radius in `[min_size, max_size)`, which is what the example
+  did before.
 
 ## 4. Configuration files
 

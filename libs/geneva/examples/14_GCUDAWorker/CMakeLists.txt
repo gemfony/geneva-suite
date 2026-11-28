@@ -145,6 +145,22 @@ ADD_TEST (
 SET_TESTS_PROPERTIES ( GCUDAWorker_CPU PROPERTIES LABELS "geneva;example" TIMEOUT 300 )
 GEM_TEST_SIZE(GCUDAWorker_CPU L)
 
+# The individual on its own, without a target image or a device: what its configuration makes of a
+# produced genome (start_size).
+IF ( GEM_BUILD_TESTS )
+	ADD_EXECUTABLE ( GImageIndividualTests GImageIndividualTests.cpp GImageIndividual.cpp )
+	TARGET_INCLUDE_DIRECTORIES ( GImageIndividualTests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} )
+	IF ( GIMAGE_USE_FLOAT )
+		TARGET_COMPILE_DEFINITIONS ( GImageIndividualTests PRIVATE GIMAGE_USE_FLOAT )
+	ENDIF ()
+	TARGET_LINK_LIBRARIES ( GImageIndividualTests PRIVATE
+		${GENEVA_LIBRARIES} ${Boost_LIBRARIES} Catch2::Catch2WithMain )
+	ADD_TEST ( NAME GImageIndividualTests COMMAND GImageIndividualTests
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR} )
+	SET_TESTS_PROPERTIES ( GImageIndividualTests PROPERTIES LABELS "geneva;example" )
+	GEM_TEST_SIZE ( GImageIndividualTests S )
+ENDIF ()
+
 # A networked run: a server and three clients, all of them ranks of the MPI consumer (the launcher
 # that starts the processes is the only infrastructure this needs, so the test exists only where the
 # MPI consumer is built). Each client evaluates against the target image it loaded itself; an

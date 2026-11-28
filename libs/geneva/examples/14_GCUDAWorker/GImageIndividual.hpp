@@ -74,7 +74,7 @@ class GAdaptionConfigBase;
 } // namespace OptimizationAlgorithms
 
 constexpr std::size_t GII_DEF_NTRIANGLES = static_cast<std::size_t>(300);
-constexpr double GII_DEF_STARTSIZE = 0.;
+constexpr double GII_DEF_STARTSIZE = -1.; // < 0: random in [min_size, max_size[
 constexpr double GII_DEF_MINSIZE = 0.;
 constexpr double GII_DEF_MAXSIZE = 0.3;
 constexpr double GII_DEF_MINOPAQUENESS = 0.3;
