@@ -78,9 +78,9 @@ TEST_CASE(
     CHECK(store->setOnce("a", std::make_shared<IntProvider>("a", 1)));
     CHECK(store->setOnce("b", std::make_shared<IntProvider>("b", 2)));
 
-    CHECK(store->exists("a"));
-    CHECK(store->exists("b"));
-    CHECK_FALSE(store->exists("c"));
+    CHECK(store->contains("a"));
+    CHECK(store->contains("b"));
+    CHECK_FALSE(store->contains("c"));
 
     std::shared_ptr<GProviderT<int>> p;
     REQUIRE(store->get("a", p));
@@ -97,7 +97,7 @@ TEST_CASE("GProviderStoreT: the store is a process-global singleton", "[common][
     first->setOnce("singleton_key", std::make_shared<IntProvider>("singleton_key", 42));
 
     auto second = providerStore<int>();
-    REQUIRE(second->exists("singleton_key"));
+    REQUIRE(second->contains("singleton_key"));
     std::shared_ptr<GProviderT<int>> q;
     REQUIRE(second->get("singleton_key", q));
     CHECK(*q->provide() == 42);

@@ -1262,9 +1262,9 @@ namespace Gem::Common {
  */
 template <>
 std::shared_ptr<Gem::Geneva::Individuals::networkData> TFactory_GSingletonT() {
-    if(neuralNetworkOptions()->exists("trainingDataFile")) {
+    if(neuralNetworkOptions()->contains("trainingDataFile")) {
         return std::make_shared<Gem::Geneva::Individuals::networkData>(
-            neuralNetworkOptions()->get("trainingDataFile")
+            neuralNetworkOptions()->at("trainingDataFile")
         );
     }
     return std::make_shared<Gem::Geneva::Individuals::networkData>(

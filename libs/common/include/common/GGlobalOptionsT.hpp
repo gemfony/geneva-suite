@@ -44,7 +44,8 @@
 #include "common/GChecks.hpp"
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
-#include "common/GSingletonT.hpp" // for the gsingleton_never_destroy opt-in below
+#include "common/GSingletonT.hpp"              // for the gsingleton_never_destroy opt-in below
+#include "common/concurrency/GStoreCommon.hpp" // the KeyedStore concept
 #include "common/concurrency/GThreadSafeKeyedStoreT.hpp" // the shared thread-safe key->value store
 
 namespace Gem::Common {
@@ -62,7 +63,8 @@ namespace Gem::Common {
  * suited well for frequent querying.
  *
  * The thread-safe storage itself is the shared Gem::Common::Concurrency::GThreadSafeKeyedStoreT; this
- * class adds the global-option vocabulary (the throwing get(key) accessor, key-description helpers) on top.
+ * class adds the throwing at(key) accessor and the key description on top, under the same names as the
+ * wrapped store otherwise (the KeyedStore concept of common/concurrency/GStoreCommon.hpp).
  *
  * @tparam T The type of the option values stored in this option store
  */
@@ -95,7 +97,7 @@ public:
 	 * @param value An output parameter that receives the option's value if the key exists
 	 * @return A boolean indicating whether retrieval of the option was successful
 	 */
-    bool get(const std::string &key, T &value) {
+    bool get(const std::string &key, T &value) const {
         return store_.get(key, value);
     }
 
@@ -103,17 +105,14 @@ public:
     /**
 	 * @brief Retrieves an option from the map, returning it as the function result.
 	 *
-	 * Throws @c gem_exception when the key does not exist (previously, the
-	 * function used @c map::operator[] which silently inserted a default-
-	 * constructed value — surprising for a read-only accessor and a source of
-	 * silent map growth / null-deref bugs in callers that forgot to call
-	 * @c exists() first).
+	 * Like @c std::map::at, it throws @c gem_exception when the key does not exist,
+	 * and it never inserts a default-constructed value for a missing key.
 	 *
 	 * @param key The name of the option that should be retrieved
 	 * @return The value associated with the given key
 	 * @throw gem_exception if the key is not present in the option map
 	 */
-    T get(const std::string &key) {
+    T at(const std::string &key) const {
         auto value = store_.get(key);
         checkThat(
             value.has_value(),
@@ -121,7 +120,7 @@ public:
             key,
             "\" is not present in the global options map.",
             '\n',
-            "Use exists(key) to check before calling, or get(key, value) "
+            "Use contains(key) to check before calling, or get(key, value) "
             "which signals absence via its return value."
         );
         return *value;
@@ -168,7 +167,7 @@ public:
 	 * @param key The name of the option that should be checked for existence
 	 * @return A boolean that indicates whether a given option is available
 	 */
-    [[nodiscard]] bool exists(const std::string &key) const {
+    [[nodiscard]] bool contains(const std::string &key) const {
         return store_.contains(key);
     }
 
@@ -199,36 +198,23 @@ public:
 	 * @return A single string holding all option keys, separated by ", "
 	 */
     [[nodiscard]] std::string getKeyDescription() const {
-        const std::vector<std::string> keys = store_.keys(); // key order
-        return keys | std::views::join_with(std::string_view(", ")) |
+        return keys() | std::views::join_with(std::string_view(", ")) |
                std::ranges::to<std::string>();
     }
 
     /************************************************************************/
     /**
-	 * @brief Retrieves a vector of all keys.
+	 * @brief Returns a snapshot of all keys, in key order.
 	 *
-	 * The caller's vector is cleared and repopulated with all option keys, in key order.
-	 *
-	 * @param keys An output vector that is cleared and then filled with all option keys
+	 * @return A vector holding all option keys
 	 */
-    void getKeyVector(std::vector<std::string> &keys) const {
-        keys = store_.keys();
+    [[nodiscard]] std::vector<std::string> keys() const {
+        return store_.keys();
     }
 
     /************************************************************************/
     /**
-	 * @brief Retrieves a vector of all content items
-	 *
-	 * @param content An output vector that is cleared and then filled with all stored option values
-	 */
-    void getContentVector(std::vector<T> &content) const {
-        content = store_.values();
-    }
-
-    /************************************************************************/
-    /**
-	 * @brief Returns a fresh vector containing all stored values, captured under a
+	 * @brief Returns a snapshot of all stored values, in key order, captured under a
 	 * single mutex acquisition.
 	 *
 	 * Prefer this over keys-then-get loops at the call site: it is both atomic (no
@@ -237,7 +223,7 @@ public:
 	 *
 	 * @return A vector holding a snapshot of all stored option values
 	 */
-    [[nodiscard]] std::vector<T> getContentSnapshot() const {
+    [[nodiscard]] std::vector<T> values() const {
         return store_.values();
     }
 
@@ -246,6 +232,8 @@ private:
     // Holds the actual data — a shared thread-safe key->value store.
     Gem::Common::Concurrency::GThreadSafeKeyedStoreT<std::string, T> store_{};
 };
+
+static_assert(Gem::Common::Concurrency::KeyedStore<GGlobalOptionsT<int>, std::string, int>);
 
 /******************************************************************************/
 /**

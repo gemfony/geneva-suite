@@ -45,6 +45,7 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/concurrency/GStoreCommon.hpp"
 
 namespace Gem::Common::Concurrency {
 
@@ -59,7 +60,7 @@ namespace Gem::Common::Concurrency {
  * Two collaborating roles, one store:
  *
  *  - BLOB STORE: @c id -> blob. Both ends of a link cache what they have seen, so a later id-only
- *    reference resolves locally.
+ *    reference resolves locally. This face satisfies the KeyedStore concept (GStoreCommon.hpp).
  *  - PER-PEER ACK TRACKING: for each peer, the set of ids that peer is known to already hold, so a
  *    given blob is sent to a given peer exactly once and referenced by id thereafter. A peer's set is
  *    dropped when its session ends (@c forgetPeer) -- on reconnect it starts empty and is sent every
@@ -69,7 +70,7 @@ namespace Gem::Common::Concurrency {
  * growing without limit. Eviction never breaks correctness: evicting a blob also drops that id from
  * EVERY peer's ack set, so the next send of that blob to any peer inlines it in full again. A sender
  * uses internFor(), which caches, acknowledges and decides in one step under one lock: done one
- * after the other (has, put, peerHas, markPeerHas), an eviction by another thread in between can
+ * after the other (contains, set, peerHas, markPeerHas), an eviction by another thread in between can
  * leave an acknowledgement for a blob the store no longer holds.
  *
  * @tparam id_type   The content id (the content-derived key). Needs equality and a hash (see @p hash_type).
@@ -94,7 +95,7 @@ public:
 
     /** @brief Whether a blob for the given id is cached.
      *  @param id The content id to look up. @return true iff the blob is present. */
-    bool has(const id_type &id) const {
+    bool contains(const id_type &id) const {
         std::scoped_lock const lk(mtx_);
         return blobs_.contains(id);
     }
@@ -103,7 +104,7 @@ public:
      *  @param id The content id to look up.
      *  @param out Receives the blob on a hit (left unchanged on a miss).
      *  @return true on a hit (out written), false on a miss. */
-    bool tryGet(const id_type &id, blob_type &out) const {
+    bool get(const id_type &id, blob_type &out) const {
         std::scoped_lock const lk(mtx_);
         auto it = blobs_.find(id);
         if(it == blobs_.end()) {
@@ -117,7 +118,7 @@ public:
     /** @brief Caches a blob under its id (idempotent; refreshes recency on a repeat). Enforces the
      *  capacity bound afterwards.
      *  @param id The content id. @param blob The blob to cache. */
-    void put(const id_type &id, blob_type blob) {
+    void set(const id_type &id, blob_type blob) {
         std::scoped_lock const lk(mtx_);
         auto it = blobs_.find(id);
         if(it != blobs_.end()) {
@@ -193,6 +194,12 @@ public:
         return blobs_.size();
     }
 
+    /** @brief @return true iff no blob is cached (per-peer ack state is not counted). */
+    bool empty() const {
+        std::scoped_lock const lk(mtx_);
+        return blobs_.empty();
+    }
+
     /** @brief @return The number of peers with recorded ack state. */
     std::size_t trackedPeers() const {
         std::scoped_lock const lk(mtx_);
@@ -210,7 +217,7 @@ public:
 private:
     /***************************************************************************/
     /** @brief One cached blob plus its position in the LRU recency list. @c lru_pos is mutable because
-     *  a read (@c tryGet, a const op) refreshes recency. */
+     *  a read (@c get, a const op) refreshes recency. */
     struct Entry {
         blob_type blob; ///< the cached blob
         mutable typename std::list<id_type>::iterator
@@ -258,6 +265,8 @@ private:
         peer_acked_;           ///< per-peer set of ids the peer holds
     std::size_t capacity_ = 0; ///< max blobs retained (0 == unbounded)
 };
+
+static_assert(KeyedStore<GContentAddressedStoreT<int>, int, std::string>);
 
 /******************************************************************************/
 

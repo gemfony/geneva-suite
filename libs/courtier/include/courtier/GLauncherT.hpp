@@ -567,7 +567,7 @@ int GLauncherT<processable_type>::run_(GProducerDescriptionI &description, Progr
         "created when needed; in it, a networked consumer's end-of-run report courtier.csv"
     );
     std::vector<GConsumerProviderPtrT<processable_type>> providers =
-        consumerCatalog<processable_type>()->getContentSnapshot();
+        consumerCatalog<processable_type>()->values();
     std::ranges::sort(providers, {}, [](const auto &p) { return p->getMnemonic(); });
     for(const auto &p : providers) {
         p->registerOptions(gpb_);
@@ -772,7 +772,7 @@ int GLauncherT<processable_type>::runSubmitter_(
     if(refresh_) { // the files of the consumers, which are not built under --update-configs
         GNetworkedTimeoutConfig timeout_config;
         timeout_config.load("./config/GNetworkedConsumer.json");
-        for(const auto &p : consumerCatalog<processable_type>()->getContentSnapshot()) {
+        for(const auto &p : consumerCatalog<processable_type>()->values()) {
             p->materializeConfigFiles();
         }
     }
@@ -899,7 +899,7 @@ std::string GLauncherT<processable_type>::listing_(const GProducerDescriptionI &
 template <ProcessableItem processable_type>
 std::string consumerListing(const std::optional<GConsumerModules> &location) {
     std::vector<std::string> names;
-    for(const auto &p : consumerCatalog<processable_type>()->getContentSnapshot()) {
+    for(const auto &p : consumerCatalog<processable_type>()->values()) {
         names.push_back(p->getMnemonic());
     }
     if(location) {
@@ -921,7 +921,7 @@ template <ProcessableItem processable_type>
 GConsumerProviderPtrT<processable_type>
 consumerProvider(const std::string &mnemonic, const std::optional<GConsumerModules> &location) {
     auto catalog = consumerCatalog<processable_type>();
-    if(not catalog->exists(mnemonic)) {
+    if(not catalog->contains(mnemonic)) {
         if(not location) {
             throw detail::consumerError(
                 "No module provides the consumer \"" + mnemonic + "\" (available: " +
@@ -948,7 +948,7 @@ consumerProvider(const std::string &mnemonic, const std::optional<GConsumerModul
                 "\" could not be loaded:\n" + e.what()
             );
         }
-        if(not catalog->exists(mnemonic)) {
+        if(not catalog->contains(mnemonic)) {
             throw detail::consumerError(
                 "The module " + module.string() + " does not provide the consumer \"" + mnemonic +
                 "\"."

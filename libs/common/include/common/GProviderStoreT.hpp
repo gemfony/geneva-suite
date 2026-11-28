@@ -61,7 +61,8 @@ namespace Gem::Common {
  *  - @c GProviderStoreT<T> (this) -- a mutable, keyed, iterable map of named providers; and
  *  - @c Gem::Common::Concurrency::GLoadOnceCellT<T> -- one load-once-then-immutable payload.
  * Growing a bespoke registry (a table + switch, an ad-hoc mutex + map) or a bespoke load-once constant (a
- * hand-rolled @c once_flag + @c atomic) instead of these is an Inv-2 violation.
+ * hand-rolled @c once_flag + @c atomic) instead of these is an Inv-2 violation. The keyed shape is the
+ * KeyedStore concept (@c common/concurrency/GStoreCommon.hpp), which @c GGlobalOptionsT static_asserts.
  *
  * @tparam T The interface type the registered providers hand out (e.g. an optimization-algorithm base)
  */

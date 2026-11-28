@@ -159,10 +159,9 @@ void GOptimizationDescription::addOptions(Gem::Common::GParserBuilder &gpb) {
     }
 
     std::string listing;
-    std::vector<std::string> keys;
-    oaFactoryStore()->getKeyVector(keys);
+    const std::vector<std::string> keys = oaFactoryStore()->keys();
     for(const auto &key : keys) {
-        listing += std::format("{}:  {}\n", key, oaFactoryStore()->get(key)->getName());
+        listing += std::format("{}:  {}\n", key, oaFactoryStore()->at(key)->getName());
     }
     gpb.beginCLSection("Optimization options", "Options of the optimization algorithms");
     gpb.registerCLParameter<std::string>(
@@ -185,7 +184,7 @@ void GOptimizationDescription::addOptions(Gem::Common::GParserBuilder &gpb) {
         "checkpoint settings, threads and report interval come from this job's configuration and "
         "command line, and only the optimization monitors registered by this job observe the run"
     );
-    for(const auto &factory : oaFactoryStore()->getContentSnapshot()) {
+    for(const auto &factory : oaFactoryStore()->values()) {
         factory->addCLOptions(gpb);
     }
 }

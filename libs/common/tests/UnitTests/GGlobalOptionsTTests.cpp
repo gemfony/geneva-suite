@@ -55,13 +55,14 @@ TEST_CASE(
     static_assert(not std::is_copy_assignable_v<GGlobalOptionsT<int>>);
     static_assert(not std::is_move_assignable_v<GGlobalOptionsT<int>>);
     static_assert(std::is_same_v<GGlobalOptionsT<int>::value_type, int>);
+    static_assert(Gem::Common::Concurrency::KeyedStore<GGlobalOptionsT<int>, std::string, int>);
 }
 
 // ---------------------------------------------------------------------------
-// set / get / size / empty / exists
+// set / get / at / size / empty / contains
 
 TEST_CASE(
-    "GGlobalOptionsT: set/get round-trip via out-parameter and direct accessor",
+    "GGlobalOptionsT: set/get round-trip via out-parameter and at()",
     "[common][global-options]"
 ) {
     GGlobalOptionsT<int> opts;
@@ -72,32 +73,32 @@ TEST_CASE(
     opts.set("beta", 2);
     CHECK_FALSE(opts.empty());
     CHECK(opts.size() == 2);
-    CHECK(opts.exists("alpha"));
-    CHECK(opts.exists("beta"));
-    CHECK_FALSE(opts.exists("gamma"));
+    CHECK(opts.contains("alpha"));
+    CHECK(opts.contains("beta"));
+    CHECK_FALSE(opts.contains("gamma"));
 
     int v = -1;
     REQUIRE(opts.get("alpha", v));
     CHECK(v == 1);
 
-    CHECK(opts.get("beta") == 2);
+    CHECK(opts.at("beta") == 2);
 }
 
 TEST_CASE(
-    "GGlobalOptionsT::get(key) throws on missing key (no silent insert)",
+    "GGlobalOptionsT::at(key) throws on missing key (no silent insert)",
     "[common][global-options]"
 ) {
-    // The fixed get(key) overload no longer uses map::operator[], so missing
+    // at(key) does not use map::operator[], so missing
     // keys must throw rather than silently inserting a default-constructed
     // value (the historical surprise we documented).
     GGlobalOptionsT<int> opts;
     opts.set("present", 42);
 
-    CHECK_THROWS_AS(opts.get("absent"), gem_exception);
+    CHECK_THROWS_AS(opts.at("absent"), gem_exception);
 
-    // Crucially — the failed get() must not have grown the map.
+    // Crucially — the failed at() must not have grown the map.
     CHECK(opts.size() == 1);
-    CHECK_FALSE(opts.exists("absent"));
+    CHECK_FALSE(opts.contains("absent"));
 }
 
 TEST_CASE(
@@ -125,13 +126,13 @@ TEST_CASE(
     GGlobalOptionsT<int> opts;
 
     CHECK(opts.setOnce("k", 10)); // first insert succeeds
-    CHECK(opts.get("k") == 10);
+    CHECK(opts.at("k") == 10);
 
     CHECK_FALSE(opts.setOnce("k", 99)); // second setOnce: no-op
-    CHECK(opts.get("k") == 10);
+    CHECK(opts.at("k") == 10);
 
     opts.set("k", 99); // plain set overwrites
-    CHECK(opts.get("k") == 99);
+    CHECK(opts.at("k") == 99);
 }
 
 // ---------------------------------------------------------------------------
@@ -146,7 +147,7 @@ TEST_CASE(
     opts.set("b", 2);
 
     CHECK(opts.remove("a"));
-    CHECK_FALSE(opts.exists("a"));
+    CHECK_FALSE(opts.contains("a"));
     CHECK(opts.size() == 1);
 
     CHECK_FALSE(opts.remove("a")); // already gone
@@ -155,7 +156,7 @@ TEST_CASE(
 }
 
 // ---------------------------------------------------------------------------
-// getKeyDescription / getKeyVector / getContentVector / getContentSnapshot
+// getKeyDescription / keys / values
 
 TEST_CASE(
     "GGlobalOptionsT: getKeyDescription lists all keys in map order",
@@ -179,15 +180,14 @@ TEST_CASE(
 }
 
 TEST_CASE(
-    "GGlobalOptionsT::getKeyVector clears caller vector and refills with stored keys",
+    "GGlobalOptionsT::keys returns the stored keys in key order",
     "[common][global-options]"
 ) {
     GGlobalOptionsT<int> opts;
-    opts.set("k1", 10);
     opts.set("k2", 20);
+    opts.set("k1", 10);
 
-    std::vector<std::string> keys{"stale", "data"}; // pre-existing content
-    opts.getKeyVector(keys);
+    const std::vector<std::string> keys = opts.keys();
 
     // map order ⇒ sorted by key
     REQUIRE(keys.size() == 2);
@@ -195,33 +195,26 @@ TEST_CASE(
     CHECK(keys[1] == "k2");
 }
 
-TEST_CASE(
-    "GGlobalOptionsT::getContentVector returns values in key order",
-    "[common][global-options]"
-) {
+TEST_CASE("GGlobalOptionsT::values returns values in key order", "[common][global-options]") {
     GGlobalOptionsT<int> opts;
     opts.set("z", 100);
     opts.set("a", 1);
     opts.set("m", 50);
 
-    std::vector<int> values{999}; // pre-existing content, must be cleared
-    opts.getContentVector(values);
+    const std::vector<int> values = opts.values();
     REQUIRE(values.size() == 3);
     CHECK(values[0] == 1);   // 'a'
     CHECK(values[1] == 50);  // 'm'
     CHECK(values[2] == 100); // 'z'
 }
 
-TEST_CASE(
-    "GGlobalOptionsT::getContentSnapshot returns a fresh value vector",
-    "[common][global-options]"
-) {
+TEST_CASE("GGlobalOptionsT::values returns a fresh value vector", "[common][global-options]") {
     GGlobalOptionsT<int> opts;
     opts.set("a", 1);
     opts.set("b", 2);
     opts.set("c", 3);
 
-    auto snap = opts.getContentSnapshot();
+    auto snap = opts.values();
     REQUIRE(snap.size() == 3);
     CHECK(snap[0] == 1);
     CHECK(snap[1] == 2);
@@ -229,15 +222,15 @@ TEST_CASE(
 
     // Snapshot is by-value; mutating it must not change the map.
     snap[0] = -99;
-    CHECK(opts.get("a") == 1);
+    CHECK(opts.at("a") == 1);
 }
 
 TEST_CASE(
-    "GGlobalOptionsT::getContentSnapshot on an empty map yields an empty vector",
+    "GGlobalOptionsT::values on an empty map yields an empty vector",
     "[common][global-options]"
 ) {
     GGlobalOptionsT<int> const opts;
-    auto snap = opts.getContentSnapshot();
+    auto snap = opts.values();
     CHECK(snap.empty());
 }
 
@@ -252,12 +245,12 @@ TEST_CASE(
     opts.set("greeting", std::string{"hello"});
     opts.set("farewell", std::string{"bye"});
 
-    CHECK(opts.get("greeting") == "hello");
+    CHECK(opts.at("greeting") == "hello");
     std::string v;
     REQUIRE(opts.get("farewell", v));
     CHECK(v == "bye");
 
-    auto snap = opts.getContentSnapshot();
+    auto snap = opts.values();
     REQUIRE(snap.size() == 2);
     // map iteration: "farewell" < "greeting"
     CHECK(snap[0] == "bye");
@@ -307,7 +300,7 @@ TEST_CASE(
                 std::this_thread::yield();
             }
             for(int i = 0; i < kReadPasses; ++i) {
-                auto snap = opts.getContentSnapshot();
+                auto snap = opts.values();
                 for(int const v : snap) {
                     if(v < 0 || v >= kMaxValue) {
                         ++out_of_range;

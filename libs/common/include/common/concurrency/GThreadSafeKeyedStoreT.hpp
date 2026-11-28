@@ -45,13 +45,15 @@
 // Boost headers go here
 
 // Geneva headers go here
+#include "common/concurrency/GStoreCommon.hpp"
 
 namespace Gem::Common::Concurrency {
 
 /******************************************************************************/
 /**
  * A thread-safe key -> value store: a mutex-guarded ordered map with the usual lookup / insert / erase /
- * snapshot operations, each performed under a single lock. It is the shared building block for the many
+ * snapshot operations, each performed under a single lock. It satisfies the KeyedStore concept
+ * (GStoreCommon.hpp). It is the shared building block for the many
  * "occasional access, must be thread-safe" maps (e.g. global option stores), replacing
  * hand-rolled @c std::map + @c std::mutex pairs at the call site.
  *
@@ -226,6 +228,8 @@ private:
     /// Notified under mutex_ when the last entry goes (remove(), clear())
     mutable std::condition_variable emptied_;
 };
+
+static_assert(KeyedStore<GThreadSafeKeyedStoreT<int, int>, int, int>);
 
 /******************************************************************************/
 

@@ -250,8 +250,7 @@ TEST_CASE(
 ) {
     std::vector<std::string> const listed =
         mnemonicsOf(static_cast<registered_algorithm_types const *>(nullptr));
-    std::vector<std::string> stored;
-    oaFactoryStore()->getKeyVector(stored);
+    std::vector<std::string> stored = oaFactoryStore()->keys();
     std::ranges::sort(stored);
 
     std::vector<std::string> missing_from_list;

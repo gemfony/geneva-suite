@@ -67,19 +67,19 @@ bool demo_content_addressed_store() {
 
     // Intern two blobs (recency, most- to least-recently-used: 2, 1). A peer is told it holds blob 1;
     // we resolve blob 2 by id. (We deliberately do NOT read blob 1 -- a read would refresh its recency.)
-    store.put(1, "layout-A");
-    store.put(2, "layout-B");
+    store.set(1, "layout-A");
+    store.set(2, "layout-B");
     store.markPeerHas(/*peer*/ 42, /*id*/ 1);
     std::string blob;
-    ok = ok && store.tryGet(2, blob) && blob == "layout-B";
+    ok = ok && store.get(2, blob) && blob == "layout-B";
     ok = ok && store.peerHas(42, 1);
-    std::cout << "  interned 2 blobs; peer 42 holds blob 1; tryGet(2) -> \"" << blob << "\"\n";
+    std::cout << "  interned 2 blobs; peer 42 holds blob 1; get(2) -> \"" << blob << "\"\n";
 
     // A capacity bound evicts the least-recently-used blob (id 1) -- and crucially clears that id from
     // every peer's ack set, so the source can never reference a blob it can no longer answer.
     store.setCapacity(1);
-    ok = ok && !store.has(1) && !store.peerHas(42, 1) && store.has(2);
-    std::cout << "  after setCapacity(1): has(1)=" << store.has(1)
+    ok = ok && !store.contains(1) && !store.peerHas(42, 1) && store.contains(2);
+    std::cout << "  after setCapacity(1): contains(1)=" << store.contains(1)
               << ", peer 42 still holds blob 1? " << std::boolalpha << store.peerHas(42, 1)
               << " (LRU blob evicted, ack cleared)\n";
 
