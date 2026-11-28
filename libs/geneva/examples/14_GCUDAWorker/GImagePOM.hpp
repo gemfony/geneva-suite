@@ -366,8 +366,7 @@ private:
     /// std::future is neither copyable nor comparable, and there is nothing meaningful to
     /// persist). Sole ownership: the copy constructor above deliberately does not carry the
     /// writer over, so no second owner of one writer ever exists.
-    std::unique_ptr<AsyncImageWriter>
-        writer_; // NOLINT(misc-non-private-member-variables-in-classes)
+    std::unique_ptr<AsyncImageWriter> writer_;
 };
 
 /******************************************************************************/

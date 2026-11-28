@@ -92,9 +92,7 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Root(
-            *this
-        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Root(*this);
     }
 
     friend struct Gem::Weft::access;
@@ -138,9 +136,7 @@ protected:
 
 private:
     [[nodiscard]] Root *clone_() const override {
-        return new Derived(
-            *this
-        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Derived(*this);
     }
 
     friend struct Gem::Weft::access;
@@ -171,9 +167,7 @@ protected:
 
 private:
     [[nodiscard]] Unchangeable *clone_() const override {
-        return new Unchangeable(
-            *this
-        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new Unchangeable(*this);
     }
 
     friend struct Gem::Weft::access;
@@ -230,9 +224,7 @@ protected:
 
 private:
     [[nodiscard]] CacheHolder *clone_() const override {
-        return new CacheHolder(
-            *this
-        ); // NOLINT(cppcoreguidelines-owning-memory): clone_() hands out ownership
+        return new CacheHolder(*this);
     }
 
     friend struct Gem::Weft::access;

@@ -316,8 +316,7 @@ private:
  * @return A reference to the one process-wide budget
  */
 inline GThreadBudget &threadBudget() {
-    static GThreadBudget *budget =
-        new GThreadBudget(); // NOLINT(cppcoreguidelines-owning-memory) -- deliberate never-destroy
+    static GThreadBudget *budget = new GThreadBudget(); // deliberately never destroyed
     return *budget;
 }
 

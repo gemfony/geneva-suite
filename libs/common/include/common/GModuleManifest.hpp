@@ -92,7 +92,7 @@
  * bump rule. A plain counter -- it is not derived from GEM_VERSION and does not follow it.
  */
 // A macro, not an enum: it is part of the plain-C contract of this header.
-// NOLINTNEXTLINE(cppcoreguidelines-macro-to-enum,modernize-macro-to-enum)
+// NOLINTNEXTLINE(modernize-macro-to-enum)
 #define GEM_MODULE_ABI_VERSION 6u
 
 /* Two-level stringization, and the Geneva version as a "MAJOR.MINOR.PATCH[-PRERELEASE]" string literal

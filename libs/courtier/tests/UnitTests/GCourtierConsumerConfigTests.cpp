@@ -386,7 +386,7 @@ TEST_CASE(
         GMPICascadeConfig{.pauseMin = microseconds(0)}.check(),
         Gem::Common::gem_exception
     );
-    // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange): the value that is refused
+    // An unknown layout, the value that check() refuses
     constexpr auto UNKNOWN_LAYOUT = static_cast<Gem::Courtier::GMPICascadeLayout>(7);
     CHECK_THROWS_AS(
         (GMPICascadeConfig{.layout = UNKNOWN_LAYOUT}.check()),

@@ -97,7 +97,7 @@ struct LineageId {
       : value(mint_submission_uuid()) { /* a copy is a new item */
     }
     LineageId(LineageId &&) noexcept = default;
-    // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- deliberate: assignment keeps our own lineage (see block comment above)
+    // NOLINTNEXTLINE(bugprone-unhandled-self-assignment) -- deliberate: assignment keeps our own lineage (see block comment above)
     LineageId &operator=(const LineageId & /* cp */) {
         return *this; /* keep our own lineage on load */
     }
@@ -154,7 +154,7 @@ struct SubmissionMarks {
     SubmissionMarks(const SubmissionMarks & /* cp */) noexcept { /* a copy carries no marks */
     }
     SubmissionMarks(SubmissionMarks &&) noexcept = default;
-    // NOLINTNEXTLINE(bugprone-unhandled-self-assignment,cert-oop54-cpp) -- deliberate: assignment keeps our own marks (see block comment above)
+    // NOLINTNEXTLINE(bugprone-unhandled-self-assignment) -- deliberate: assignment keeps our own marks (see block comment above)
     SubmissionMarks &operator=(const SubmissionMarks & /* cp */) noexcept {
         return *this; /* keep the marks of this slot */
     }

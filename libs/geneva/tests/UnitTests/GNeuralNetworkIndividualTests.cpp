@@ -197,8 +197,8 @@ TEST_CASE("The header of the trained network compiles as C++17", "[individuals][
     const std::string command = std::string("\"") + GENEVA_TEST_CXX_COMPILER +
                                 "\" -std=c++17 -fsyntax-only -Werror -x c++ \"" + header.string() +
                                 "\" > \"" + log.string() + "\" 2>&1";
-    const int status =
-        std::system(command.c_str()); // NOLINT(cert-env33-c): the build's own compiler
+    // NOLINTNEXTLINE(bugprone-command-processor): the build's own compiler
+    const int status = std::system(command.c_str());
     std::ifstream in(log);
     INFO(std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()));
     CHECK(status == 0);

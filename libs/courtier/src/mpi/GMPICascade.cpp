@@ -558,9 +558,7 @@ MPI_Comm GMPICascade::split_(const std::function<GMPICascadeConfig()> &config_on
     config_.groupSize = Gem::Common::narrow<std::uint16_t>(packed[1]);
     // An unknown value is kept as it is, so that check() refuses it with its number.
     config_.layout =
-        static_cast<GMPICascadeLayout>( // NOLINT(clang-analyzer-optin.core.EnumCastOutOfRange)
-            Gem::Common::narrow<Gem::Common::ENUMBASETYPE>(packed[2])
-        );
+        static_cast<GMPICascadeLayout>(Gem::Common::narrow<Gem::Common::ENUMBASETYPE>(packed[2]));
     config_.pauseMin = std::chrono::microseconds(packed[3]);
     config_.pauseMax = std::chrono::microseconds(packed[4]);
     config_.check(); // on every rank alike, after the broadcast

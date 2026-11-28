@@ -50,7 +50,6 @@
 namespace {
 
 // A plain-C array, as the manifest takes one
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays)
 const GemContribution CONTRIBUTIONS[] = {
     {.kind = Gem::Tests::TEST_KIND_FIRST,
      .name_or_mnemonic = "first",

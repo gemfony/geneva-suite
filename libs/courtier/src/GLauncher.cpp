@@ -50,7 +50,6 @@ namespace Gem::Courtier {
  */
 void claimItemType(const std::type_info &item_type) {
     // Never destroyed: a launcher may be built while statics are torn down elsewhere
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     static auto *record = new Gem::Common::Concurrency::GLoadOnceCellT<std::string>();
     const std::string &claimed =
         record->getOrCompute([&] { return std::string(item_type.name()); });

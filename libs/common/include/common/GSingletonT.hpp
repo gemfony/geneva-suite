@@ -195,7 +195,7 @@ private:
             // end of its life. No test can show that defect with libstdc++, whose destroyed
             // std::atomic<std::shared_ptr> keeps its pointer, so a use appears to work; a
             // lifetime sanitizer would see it.
-            // NOLINTNEXTLINE(cppcoreguidelines-owning-memory) -- deliberately never deleted
+            // NOLINTNEXTLINE(readability-identifier-naming) -- changed behind a const pointer: a variable
             static storage_type *const s = new storage_type;
             return *s;
         }

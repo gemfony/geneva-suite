@@ -908,7 +908,7 @@ TEST_CASE("Peer rules (in-process): an on_peer that throws is counted out", "[co
         if(standard) {
             throw std::runtime_error("on_peer refused by the test");
         }
-        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
+        throw 42; // NOLINT(bugprone-std-exception-baseclass) -- not a std::exception, on purpose
     });
     auto first_end = listener->connect_(io.executor());
     REQUIRE(first_end != nullptr);

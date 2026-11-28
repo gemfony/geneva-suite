@@ -165,7 +165,7 @@ void GFaultyContainer::process_([[maybe_unused]] const std::vector<bool> &res_ve
     case fault_mode::THROW_FATAL:
         // Deliberately throw something that is NOT a std::exception, so it exercises
         // process()'s catch(...) fallback rather than its catch(std::exception&) branch.
-        throw "GFaultyContainer: injected non-std::exception"; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp)
+        throw "GFaultyContainer: injected non-std::exception"; // NOLINT(bugprone-std-exception-baseclass)
     }
 }
 

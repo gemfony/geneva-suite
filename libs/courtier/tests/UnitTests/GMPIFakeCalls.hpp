@@ -270,7 +270,7 @@ private:
         if(standard) {
             throw std::runtime_error("GMPIFakeCalls: a fault armed by the test");
         }
-        throw 42; // NOLINT(hicpp-exception-baseclass,cert-err60-cpp) -- not a std::exception, on purpose
+        throw 42; // NOLINT(bugprone-std-exception-baseclass) -- not a std::exception, on purpose
     }
 
     /** @brief Records a violation; the mutex is held */

@@ -80,17 +80,17 @@ void *operator new(std::size_t size) {
     if(counting() && ++allocationsCounted() == failingAllocation()) {
         throw std::bad_alloc();
     }
-    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc)
     if(void *p = std::malloc(size == 0 ? 1 : size)) {
         return p;
     }
     throw std::bad_alloc();
 }
 void operator delete(void *p) noexcept {
-    std::free(p); // NOLINT(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    std::free(p); // NOLINT(cppcoreguidelines-no-malloc)
 }
 void operator delete(void *p, [[maybe_unused]] std::size_t size) noexcept {
-    std::free(p); // NOLINT(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory)
+    std::free(p); // NOLINT(cppcoreguidelines-no-malloc)
 }
 
 // NOTE: Catch2 assertion macros are NOT thread-safe, so callables running inside

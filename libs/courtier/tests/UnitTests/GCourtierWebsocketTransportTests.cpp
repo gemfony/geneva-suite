@@ -138,7 +138,7 @@ GWebsocketPeer::GOptions withPing(std::chrono::milliseconds ping) {
 }
 
 /// Another address of this host where its loopback network spans 127.0.0.0/8 (Linux)
-const std::string OTHER_LOOPBACK = "127.0.0.2"; // NOLINT(cert-err58-cpp)
+const std::string OTHER_LOOPBACK = "127.0.0.2";
 
 /** @brief @return Whether a socket can be bound to @p address, an address of this host */
 bool isLocalAddress(const std::string &address) {
