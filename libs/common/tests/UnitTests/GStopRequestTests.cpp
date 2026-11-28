@@ -34,50 +34,17 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <sys/wait.h>
-#include <unistd.h>
 
 #include <csignal>
-#include <cstdlib>
 
 #include "common/GStopRequest.hpp"
 
+#include "GChildProcess.hpp"
+
 using namespace Gem::Common;
+using namespace Gem::Common::Tests;
 
 namespace {
-
-/** @brief The exit code of a child whose checks all held */
-constexpr int CHILD_PASSED = 0;
-/** @brief The exit code of a child whose check failed */
-constexpr int CHILD_FAILED = 1;
-
-/**
- * @brief Runs @p body in a child process and returns how the child ended
- *
- * @param body Returns the child's exit code; an exception ends the child with 2
- * @return The status of waitpid()
- */
-template <typename body_type>
-int inChild(body_type const &body) {
-    const pid_t child = ::fork();
-    REQUIRE(child >= 0);
-    if(child == 0) {
-        int code = 2;
-        try {
-            code = body();
-        }
-        catch(...) { // NOLINT(bugprone-empty-catch): the exit code reports it
-        }
-        std::_Exit(code);
-    }
-    int status = 0;
-    REQUIRE(::waitpid(child, &status, 0) == child);
-    return status;
-}
-
-/** @brief Whether the child ended normally with CHILD_PASSED */
-bool passed(int status) {
-    return WIFEXITED(status) && WEXITSTATUS(status) == CHILD_PASSED;
-}
 
 /** @brief The handler of @p signum in this process */
 void (*handlerOf(int signum))(int) {

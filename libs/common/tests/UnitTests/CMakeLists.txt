@@ -78,7 +78,7 @@ gem_common_test(GThreadSafeKeyedStoreTTests    S  GThreadSafeKeyedStoreTTests.cp
 gem_common_test(GThreadSafeSetTTests           S  GThreadSafeSetTTests.cpp)
 gem_common_test(GChecksTests                   S  GChecksTests.cpp GChecksDebugActiveTests.cpp
                                                   GChecksDebugAbsentTests.cpp)
-gem_common_test(GCommonHelperFunctionsTests    S  GCommonHelperFunctionsTests.cpp)
+gem_common_test(GCommonHelperFunctionsTests    M  GCommonHelperFunctionsTests.cpp)
 gem_common_test(GCommonHelperFunctionsTTests   S  GCommonHelperFunctionsTTests.cpp)
 gem_common_test(GCommonInterfaceTTests         S  GCommonInterfaceTTests.cpp)
 gem_common_test(GCommonMathHelperFunctionsTTests
@@ -91,6 +91,7 @@ gem_common_test(GExceptionsTests               S  GExceptionsTests.cpp)
 gem_common_test(GExpectationChecksTTests       S  GExpectationChecksTTests.cpp)
 gem_common_test(GFactoryTTests                 S  GFactoryTTests.cpp)
 gem_common_test(GFatalReportTests              S  GFatalReportTests.cpp)
+gem_common_test(GFileExchangeRunTests          S  GFileExchangeRunTests.cpp)
 gem_common_test(GFixedSizePriorityQueueTTests  S  GFixedSizePriorityQueueTTests.cpp)
 gem_common_test(GGemCommitTests             S  GGemCommitTests.cpp)
 gem_common_test(GGlobalDefinesTests            S  GGlobalDefinesTests.cpp)

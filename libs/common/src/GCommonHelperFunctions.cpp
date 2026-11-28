@@ -46,6 +46,7 @@
 #include <iomanip>
 #include <iterator>
 #include <memory>
+#include <optional>
 #include <random>
 #include <sstream>
 #include <string>
@@ -59,12 +60,17 @@
 #if defined(__linux__)
 #include <sched.h> // sched_getaffinity
 #endif
+#if not defined(_MSC_VER)
+#include <sys/wait.h> // WIFSIGNALED, WTERMSIG, WEXITSTATUS
+#endif
 
 // Boost.Process v2, built with boost.process.fs=std (INSTALL): BOOST_PROCESS_USE_STD_FS is set for
 // this library in its CMakeLists.txt, so the process paths are std::filesystem paths
 #include <boost/asio/io_context.hpp>
+#include <boost/asio/steady_timer.hpp>
 #include <boost/process/v2/environment.hpp>
 #include <boost/process/v2/process.hpp>
+#include <boost/process/v2/start_dir.hpp>
 #include <boost/process/v2/stdio.hpp>
 #include <boost/system/error_code.hpp>
 
@@ -74,6 +80,7 @@
 #include "common/GErrorStreamer.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GStopRequest.hpp"
 
 namespace {
 /******************************************************************************/
@@ -352,43 +359,51 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p) {
 
 /******************************************************************************/
 /**
- * Runs an external program without a shell and waits for it to end (see the declaration for the
- * contract).
+ * Runs an external program without a shell and waits for it to end, within the given limits (see
+ * the declaration for the contract). The end of the program is noticed at once; the time limit and
+ * the stop request are looked at every 100 ms, and only while one of them applies.
  *
- * @param program The program to run; a name without a directory part is looked up in PATH
+ * @param program The program to run; a name without a directory part is looked up in PATH, a
+ * relative path is taken relative to the caller's working directory
  * @param arguments The arguments, each passed to the program as one argument, unchanged
  * @param command_output_file_name A file that receives the program's standard output and standard
  * error (truncated first); empty to let the program inherit both
- * @param full_command Output parameter: the command written as a shell would show it (words quoted
- * where needed), for messages only
- * @return 0 on success, else the program's exit status or the number of the signal that ended it
+ * @param limits The working directory, the time limit, whether a stop request ends the program, and
+ * the grace between SIGTERM and SIGKILL
+ * @return How the program ended, its exit status or signal, the command as a shell would show it,
+ * and how long it ran
  * @throws gem_exception if the program is not found, the output file cannot be opened, or the
  * program cannot be started or waited for
  */
-int runExternalCommand(
+GProgramResult runExternalCommand(
     std::filesystem::path const &program,
     std::vector<std::string> const &arguments,
     std::filesystem::path const &command_output_file_name,
-    std::string &full_command
+    GProgramLimits const &limits
 ) {
     namespace bp = boost::process::v2;
+    using clock = std::chrono::steady_clock;
 
-    full_command = shellQuotedForDisplay(program.string());
+    GProgramResult result;
+    result.command = shellQuotedForDisplay(program.string());
     for(auto const &argument : arguments) {
-        full_command += ' ' + shellQuotedForDisplay(argument);
+        result.command += ' ' + shellQuotedForDisplay(argument);
     }
     if(not command_output_file_name.empty()) {
-        full_command += " > " + shellQuotedForDisplay(command_output_file_name.string()) + " 2>&1";
+        result.command +=
+            " > " + shellQuotedForDisplay(command_output_file_name.string()) + " 2>&1";
     }
 
-    // A name without a directory part is looked up in PATH, as the shell used to do
-    std::filesystem::path const executable =
-        program.has_parent_path() ? program : bp::environment::find_executable(program);
+    // A name without a directory part is looked up in PATH, as the shell used to do. A relative path
+    // is made absolute here, because the child resolves it only after changing its directory.
+    std::filesystem::path const executable = program.has_parent_path()
+                                               ? std::filesystem::absolute(program)
+                                               : bp::environment::find_executable(program);
     if(executable.empty()) {
         throw gem_exception(
             g_error_streamer() << "In runExternalCommand(): program " << program.string()
                                << " was not found in PATH" << '\n'
-                               << "Command: " << full_command << '\n'
+                               << "Command: " << result.command << '\n'
         );
     }
 
@@ -402,7 +417,7 @@ int runExternalCommand(
                 g_error_streamer() << "In runExternalCommand(): cannot open the output file "
                                    << command_output_file_name.string() << ": "
                                    << std::generic_category().message(open_error) << '\n'
-                                   << "Command: " << full_command << '\n'
+                                   << "Command: " << result.command << '\n'
             );
         }
     }
@@ -412,30 +427,99 @@ int runExternalCommand(
     // leak into it.
     boost::asio::io_context context;
     boost::system::error_code ec;
-    auto child = bp::default_process_launcher()(
-        context,
-        ec,
-        executable,
-        arguments,
-        bp::process_stdio{
-            .in = {},
-            .out = output_file ? output_file.get() : stdout,
-            .err = output_file ? output_file.get() : stderr
-        }
-    );
-    int exit_code = 0;
+    // Not const: the launcher calls the setup hooks of non-const objects only and skips the others
+    bp::process_stdio stdio{
+        .in = {},
+        .out = output_file ? output_file.get() : stdout,
+        .err = output_file ? output_file.get() : stderr
+    };
+    auto const start = clock::now();
+    auto child = limits.working_directory.empty()
+                   ? bp::default_process_launcher()(context, ec, executable, arguments, stdio)
+                   : bp::default_process_launcher()(
+                         context,
+                         ec,
+                         executable,
+                         arguments,
+                         stdio,
+                         bp::process_start_dir{limits.working_directory}
+                     );
+
     if(not ec) {
-        exit_code = child.wait(ec);
+        bool ended = false;
+        boost::asio::steady_timer timer(context);
+        child.async_wait([&](boost::system::error_code const &wait_error, int /* exit_code */) {
+            ended = true;
+            ec = wait_error;
+            timer.cancel();
+        });
+
+        // Ends the program when a limit is reached: SIGTERM first, SIGKILL after the grace
+        std::optional<ProgramEnd> ended_by;
+        clock::time_point kill_at;
+        std::function<void(boost::system::error_code const &)> watch =
+            [&](boost::system::error_code const &timer_error) {
+                if(timer_error or ended) {
+                    return;
+                }
+                auto const now = clock::now();
+                boost::system::error_code ignored; // the program may have ended meanwhile
+                if(not ended_by) {
+                    if(limits.end_on_stop_request and stopRequested()) {
+                        ended_by = ProgramEnd::STOP_REQUEST;
+                    }
+                    else if(limits.time_limit.count() > 0 and now - start >= limits.time_limit) {
+                        ended_by = ProgramEnd::TIME_LIMIT;
+                    }
+                    if(ended_by) {
+                        child.request_exit(ignored);
+                        kill_at = now + limits.grace;
+                    }
+                }
+                else if(now >= kill_at) {
+                    child.terminate(ignored); // also reaps it; the wait above then completes
+                    return;
+                }
+                timer.expires_after(std::chrono::milliseconds(100));
+                timer.async_wait(watch);
+            };
+        if(limits.end_on_stop_request or limits.time_limit.count() > 0) {
+            watch({});
+        }
+
+        context.run();
+
+        if(not ec) {
+#if defined(_MSC_VER)
+            result.code = child.exit_code(); // no signals on Windows
+#else
+            int const status = child.native_exit_code();
+            if(WIFSIGNALED(status)) {
+                result.end = ProgramEnd::SIGNALLED;
+                result.code = WTERMSIG(status);
+            }
+            else {
+                result.code = WEXITSTATUS(status);
+            }
+#endif
+            if(ended_by) {
+                result.end = *ended_by;
+            }
+            else if(limits.end_on_stop_request and stopRequested()) {
+                result.end = ProgramEnd::STOP_REQUEST;
+            }
+        }
     }
+    result.duration = clock::now() - start;
     if(ec) {
         throw gem_exception(
             g_error_streamer() << "In runExternalCommand(): the program could not be run: "
                                << ec.message() << '\n'
-                               << "Command: " << full_command << '\n'
+                               << "Command: " << result.command << '\n'
         );
     }
 
-    return exit_code;
+    return result;
 }
 
 /******************************************************************************/

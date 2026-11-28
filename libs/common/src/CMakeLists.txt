@@ -34,6 +34,7 @@ SET ( COMMONSOURCES
     GExceptions.cpp
 	GExpectationChecksT.cpp
 	GFatalReport.cpp
+	GFileExchangeRun.cpp
 	GJsonIO.cpp
 	GLogger.cpp
 	GModuleLoader.cpp

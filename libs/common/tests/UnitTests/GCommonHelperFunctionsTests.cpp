@@ -33,6 +33,7 @@
 #include <algorithm>
 #include <atomic>
 #include <chrono>
+#include <csignal>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -53,8 +54,12 @@
 #include "common/GCommonHelperFunctions.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GLogger.hpp"
+#include "common/GStopRequest.hpp"
+
+#include "GChildProcess.hpp"
 
 using namespace Gem::Common;
+using namespace Gem::Common::Tests;
 
 // Each filesystem TEST_CASE uses a unique path inside the system temp dir so
 // concurrent runs do not collide.
@@ -741,17 +746,16 @@ TEST_CASE(
     // Regression: the former implementation joined the arguments into one string for system(), so
     // the shell split "two  words here" into three arguments
     auto const out = scratch("external-command-spaces.txt");
-    std::string full_command;
-    int const code = runExternalCommand(
+    auto const run = runExternalCommand(
         "sh",
         {"-c", R"(printf '%s|%s' "$#" "$1")", "sh", "two  words here"},
-        out,
-        full_command
+        out
     );
-    CHECK(code == 0);
+    CHECK(run.end == ProgramEnd::EXITED);
+    CHECK(run.code == 0);
     CHECK(fileContent(out) == "1|two  words here");
     // Shown as a shell would need it: words with spaces or quotes in single quotes
-    CHECK(full_command.starts_with(
+    CHECK(run.command.starts_with(
         "sh -c 'printf '\\''%s|%s'\\'' \"$#\" \"$1\"' sh 'two  words here' > "
     ));
     std::filesystem::remove(out);
@@ -766,39 +770,156 @@ TEST_CASE(
         std::ofstream old(out);
         old << "content of an earlier run that must be gone";
     }
-    std::string full_command;
-    int const code =
-        runExternalCommand("sh", {"-c", "echo to-stdout; echo to-stderr >&2"}, out, full_command);
-    CHECK(code == 0);
+    auto const run = runExternalCommand("sh", {"-c", "echo to-stdout; echo to-stderr >&2"}, out);
+    CHECK(run.code == 0);
     CHECK(fileContent(out) == "to-stdout\nto-stderr\n");
     std::filesystem::remove(out);
 }
 
 TEST_CASE(
-    "runExternalCommand: returns the exit status or the signal that ended the program",
+    "runExternalCommand: tells an exit status from the signal that ended the program",
     "[common][helper-nonT][external-command]"
 ) {
-    std::string full_command;
-    CHECK(runExternalCommand("sh", {"-c", "exit 3"}, {}, full_command) == 3);
-    CHECK(runExternalCommand("sh", {"-c", "exit 0"}, {}, full_command) == 0);
-    CHECK(runExternalCommand("sh", {"-c", "kill -TERM $$"}, {}, full_command) == 15);
+    auto const three = runExternalCommand("sh", {"-c", "exit 3"}, {});
+    CHECK(three.end == ProgramEnd::EXITED);
+    CHECK(three.code == 3);
+    auto const zero = runExternalCommand("sh", {"-c", "exit 0"}, {});
+    CHECK(zero.end == ProgramEnd::EXITED);
+    CHECK(zero.code == 0);
+    // Regression: the int the function returned before said 15 here, as for "exit 15"
+    auto const killed = runExternalCommand("sh", {"-c", "kill -TERM $$"}, {});
+    CHECK(killed.end == ProgramEnd::SIGNALLED);
+    CHECK(killed.code == SIGTERM);
+    auto const fifteen = runExternalCommand("sh", {"-c", "exit 15"}, {});
+    CHECK(fifteen.end == ProgramEnd::EXITED);
+    CHECK(fifteen.code == 15);
 }
 
 TEST_CASE(
     "runExternalCommand: a missing program raises gem_exception",
     "[common][helper-nonT][external-command]"
 ) {
-    std::string full_command;
     // With a directory part the path is used as given; without one PATH is searched
-    CHECK_THROWS_AS(
-        runExternalCommand("/gem-no-such-directory/gem-no-such-program", {"x"}, {}, full_command),
-        gem_exception
+    CHECK_THROWS_WITH(
+        runExternalCommand("/gem-no-such-directory/gem-no-such-program", {"x"}, {}),
+        Catch::Matchers::ContainsSubstring("Command: /gem-no-such-directory/gem-no-such-program x")
     );
-    CHECK(full_command == "/gem-no-such-directory/gem-no-such-program x");
-    CHECK_THROWS_AS(
-        runExternalCommand("gem-no-such-program-in-path", {}, {}, full_command),
-        gem_exception
+    CHECK_THROWS_AS(runExternalCommand("gem-no-such-program-in-path", {}, {}), gem_exception);
+}
+
+TEST_CASE(
+    "runExternalCommand: the time limit ends the program with SIGTERM",
+    "[common][helper-nonT][external-command]"
+) {
+    auto const run = runExternalCommand(
+        "sh",
+        {"-c", "exec sleep 30"},
+        {},
+        GProgramLimits{.time_limit = std::chrono::seconds(1)}
     );
+    CHECK(run.end == ProgramEnd::TIME_LIMIT);
+    CHECK(run.code == SIGTERM);
+    CHECK(run.duration >= std::chrono::seconds(1));
+    CHECK(run.duration < std::chrono::seconds(5));
+}
+
+TEST_CASE(
+    "runExternalCommand: a program that ignores SIGTERM is killed after the grace",
+    "[common][helper-nonT][external-command]"
+) {
+    // exec keeps the ignored SIGTERM, so no orphaned sleep outlives the test
+    auto const run = runExternalCommand(
+        "sh",
+        {"-c", "trap '' TERM; exec sleep 30"},
+        {},
+        GProgramLimits{.time_limit = std::chrono::seconds(1), .grace = std::chrono::seconds(1)}
+    );
+    CHECK(run.end == ProgramEnd::TIME_LIMIT);
+    CHECK(run.code == SIGKILL);
+    CHECK(run.duration >= std::chrono::seconds(2));
+    CHECK(run.duration < std::chrono::seconds(6));
+}
+
+TEST_CASE(
+    "runExternalCommand: the program runs in the working directory and a relative path still works",
+    "[common][helper-nonT][external-command]"
+) {
+    auto const dir = freshDir("external-command-working-directory");
+    // Deeper than any test directory, so that the relative path below cannot reach the script from
+    // there through ".." clamped at the root
+    auto const work = dir / "w/o/r/k/i/n/g/d/i/r/e/c/t/o/r/y";
+    std::filesystem::create_directories(work);
+    auto const script = dir / "where.sh";
+    {
+        std::ofstream out(script);
+        out << "#!/bin/sh\npwd\n";
+    }
+    std::filesystem::permissions(
+        script,
+        std::filesystem::perms::owner_exec,
+        std::filesystem::perm_options::add
+    );
+    auto const out = dir / "output.txt";
+
+    // Relative to the caller's working directory, which is not the program's
+    auto const relative = std::filesystem::relative(script, std::filesystem::current_path());
+    REQUIRE(relative.is_relative());
+    REQUIRE(not std::filesystem::exists(work / relative));
+    auto const run =
+        runExternalCommand(relative, {}, out, GProgramLimits{.working_directory = work});
+    CHECK(run.end == ProgramEnd::EXITED);
+    CHECK(run.code == 0);
+    CHECK(
+        std::filesystem::path(trimWhitespace(fileContent(out))) == std::filesystem::canonical(work)
+    );
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE(
+    "runExternalCommand: a stop request ends the program when the limits say so",
+    "[common][helper-nonT][external-command][stop-request]"
+) {
+    // The stop flag cannot be cleared, so each case runs in a child process of its own. The program
+    // asks for the stop itself: it sends SIGUSR1 to the process that started it.
+    CHECK(passed(inChild([] {
+        installStopHandlers();
+        auto const run = runExternalCommand(
+            "sh",
+            {"-c", "kill -USR1 $PPID; exec sleep 30"},
+            {},
+            GProgramLimits{.end_on_stop_request = true}
+        );
+        bool const held = run.end == ProgramEnd::STOP_REQUEST and run.code == SIGTERM and
+                          run.duration < std::chrono::seconds(5);
+        return held ? CHILD_PASSED : CHILD_FAILED;
+    })));
+
+    // A program that ends by itself after the request counts as ended by it as well
+    CHECK(passed(inChild([] {
+        installStopHandlers();
+        auto const run = runExternalCommand(
+            "sh",
+            {"-c", "kill -USR1 $PPID; exit 0"},
+            {},
+            GProgramLimits{.end_on_stop_request = true}
+        );
+        return run.end == ProgramEnd::STOP_REQUEST and run.code == 0 ? CHILD_PASSED : CHILD_FAILED;
+    })));
+}
+
+TEST_CASE(
+    "runExternalCommand: without end_on_stop_request a stop request does not end the program",
+    "[common][helper-nonT][external-command][stop-request]"
+) {
+    CHECK(passed(inChild([] {
+        installStopHandlers();
+        auto const run =
+            runExternalCommand("sh", {"-c", "kill -USR1 $PPID; sleep 0.5; exit 4"}, {});
+        bool const held = stopRequested() and run.end == ProgramEnd::EXITED and run.code == 4 and
+                          run.duration >= std::chrono::milliseconds(500);
+        return held ? CHILD_PASSED : CHILD_FAILED;
+    })));
 }
 
 TEST_CASE(
@@ -815,14 +936,12 @@ TEST_CASE(
                 auto const out = scratch("external-command-thread-" + std::to_string(t) + ".txt");
                 std::string const word = "thread " + std::to_string(t) + " says hello";
                 for(int i = 0; i < calls_per_thread; ++i) {
-                    std::string full_command;
-                    int const code = runExternalCommand(
+                    auto const run = runExternalCommand(
                         "sh",
                         {"-c", R"(printf '%s' "$1"; exit "$2")", "sh", word, std::to_string(t % 3)},
-                        out,
-                        full_command
+                        out
                     );
-                    if(code != t % 3 or fileContent(out) != word) {
+                    if(run.code != t % 3 or fileContent(out) != word) {
                         ++failures[static_cast<std::size_t>(t)];
                     }
                 }

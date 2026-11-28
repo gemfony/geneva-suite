@@ -259,13 +259,13 @@ std::vector<double> GExternalEvaluatorIndividual::evaluate() {
     // Perform the external evaluation. The full per-criterion result vector is returned (the caller writes
     // each criterion); an error / invalid path fills it with the worst case and flags the individual.
     std::vector<double> results(n_results_, 0.);
-    std::string command;
-    int const error_code = Gem::Common::runExternalCommand(
+    auto const run = Gem::Common::runExternalCommand(
         std::filesystem::path(program_name_),
         arguments,
-        std::filesystem::path(command_output_file_name),
-        command
+        std::filesystem::path(command_output_file_name)
     );
+    std::string const &command = run.command;
+    int const error_code = run.code;
 
     if(error_code) { // Something went wrong -- worst-case the results and flag the individual
         this->appendWorstCaseOnCommandError_(
@@ -546,13 +546,13 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
     { // Give the external program the opportunity to perform initial work
         std::vector<std::string> arguments = customOptionArguments(c.custom_options);
         arguments.emplace_back("--init");
-        std::string command;
-        int const error_code = Gem::Common::runExternalCommand(
+        auto const run = Gem::Common::runExternalCommand(
             std::filesystem::path(c.program_name),
             arguments,
-            std::filesystem::path(),
-            command
+            std::filesystem::path()
         );
+        std::string const &command = run.command;
+        int const error_code = run.code;
         if(error_code) {
             throw Gem::Common::gem_exception(
                 Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
@@ -569,13 +569,13 @@ static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual:
         arguments.push_back("--setup");
         arguments.push_back("--output=" + setup_file_name);
         arguments.push_back("--initvalues=" + c.init_values);
-        std::string command;
-        int const error_code = Gem::Common::runExternalCommand(
+        auto const run = Gem::Common::runExternalCommand(
             std::filesystem::path(c.program_name),
             arguments,
-            std::filesystem::path(),
-            command
+            std::filesystem::path()
         );
+        std::string const &command = run.command;
+        int const error_code = run.code;
         if(error_code) {
             throw Gem::Common::gem_exception(
                 Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
@@ -813,13 +813,13 @@ void GExternalEvaluatorIndividual::finalize(const Config &c) {
     std::vector<std::string> arguments = customOptionArguments(c.custom_options);
     arguments.emplace_back("--finalize");
 
-    std::string command;
-    int const error_code = Gem::Common::runExternalCommand(
+    auto const run = Gem::Common::runExternalCommand(
         std::filesystem::path(c.program_name),
         arguments,
-        std::filesystem::path(),
-        command
+        std::filesystem::path()
     );
+    std::string const &command = run.command;
+    int const error_code = run.code;
     if(error_code) {
         GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): Error" << '\n'
                    << "Execution of external command failed." << '\n'
@@ -867,13 +867,13 @@ void GExternalEvaluatorIndividual::archive(
     arguments.emplace_back("--archive");
     arguments.push_back("--input=" + parameterfile_name);
 
-    std::string command;
-    int const error_code = Gem::Common::runExternalCommand(
+    auto const run = Gem::Common::runExternalCommand(
         std::filesystem::path(arch.front()->getProgramName()),
         arguments,
-        std::filesystem::path(),
-        command
+        std::filesystem::path()
     );
+    std::string const &command = run.command;
+    int const error_code = run.code;
     if(error_code) {
         throw Gem::Common::gem_exception(
             Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'

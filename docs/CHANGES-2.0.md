@@ -992,12 +992,25 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   `Gem::Common::runExternalCommand` starts the program through Boost.Process with an argument
   vector instead of `system()`: each argument arrives unchanged, spaces included, and shell syntax
   (pipes, redirections, `$VAR`, globs, quotes) is no longer interpreted -- a program that needs it
-  is given a script. A name without a directory part is still looked up in `PATH`. It now returns
-  the program's exit status (1, where `system()` returned 256), or the number of the signal that
-  ended the program, and raises `gem_exception` when the program is not found or cannot be started.
-  `GExternalEvaluatorIndividual` passes file names without the quotes it used to add for the shell,
-  and splits its `custom_options` at whitespace into separate arguments; quotes in them are not
-  interpreted.
+  is given a script. A name without a directory part is still looked up in `PATH`. It raises
+  `gem_exception` when the program is not found or cannot be started; what it returns is the next
+  entry. `GExternalEvaluatorIndividual` passes file names without the quotes it used to add for the
+  shell, and splits its `custom_options` at whitespace into separate arguments; quotes in them are
+  not interpreted.
+- **common: `runExternalCommand()` takes limits and returns how the program ended; a run with file
+  exchange is a building block.** The signature is now `GProgramResult runExternalCommand(program,
+  arguments, output_file, GProgramLimits const &limits = {})`; the `int` return and the
+  `full_command` out-parameter are gone. `GProgramLimits` gives the working directory, a wall-clock
+  `time_limit`, `end_on_stop_request` and the `grace` between SIGTERM and SIGKILL. `GProgramResult`
+  says how the program ended (`ProgramEnd`: `EXITED`, `SIGNALLED`, `TIME_LIMIT`, `STOP_REQUEST`), its
+  exit status or signal number (the old `int` could not tell `exit 15` from SIGTERM), the `command`
+  as a shell would show it, and the `duration`. A relative program path is taken relative to the
+  caller's working directory. New in `common/GFileExchangeRun.hpp`: `GRunDirectory`, a directory of
+  its own per run that is removed at its end unless kept, and `runWithFileExchange(GFileExchangeSpec,
+  parent)`, which writes the inputs into such a directory, optionally links the entries of a template
+  directory into it, runs the program within its limits (inside the directory or not), and returns
+  the result file's content only after an exit with 0 -- an interrupted run gives no result -- with
+  the tail of the program's output for messages (`GFileExchangeResult`).
 - **geneva: `Go2` is `GOptimizer`** (source-breaking; the behaviour is unchanged). The "2" of the
   old name was a pun on `goto`, not a version. What a user changes:
   - the class `Gem::Geneva::Go2` is `Gem::Geneva::GOptimizer`, its header `geneva/Go2.hpp` is

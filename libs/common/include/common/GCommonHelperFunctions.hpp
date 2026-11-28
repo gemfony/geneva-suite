@@ -100,20 +100,71 @@ std::vector<std::string> loadTextLinesFromFile(std::filesystem::path const &p);
 
 /******************************************************************************/
 /**
- * @brief Runs an external program and waits for it to end.
+ * @brief How a program started by runExternalCommand() ended
+ */
+enum class ProgramEnd {
+    EXITED,      ///< it ended by itself with an exit status
+    SIGNALLED,   ///< a signal ended it that runExternalCommand() did not send
+    TIME_LIMIT,  ///< runExternalCommand() ended it: the time limit was reached
+    STOP_REQUEST ///< a stop was requested (stopRequested()) while it ran
+};
+
+/******************************************************************************/
+/**
+ * @brief What runExternalCommand() may do besides waiting for the program to end
+ */
+struct GProgramLimits {
+    /** @brief The program's working directory; empty: the caller's */
+    std::filesystem::path working_directory;
+    /** @brief Wall-clock time after which the program is ended; 0: none */
+    std::chrono::seconds time_limit{0};
+    /** @brief Whether a stop request (stopRequested()) ends the program */
+    bool end_on_stop_request = false;
+    /** @brief Time between SIGTERM and SIGKILL when the program is ended */
+    std::chrono::seconds grace{10};
+};
+
+/******************************************************************************/
+/**
+ * @brief How a program started by runExternalCommand() ended, for the caller's decision and messages
+ */
+struct GProgramResult {
+    /** @brief How it ended */
+    ProgramEnd end = ProgramEnd::EXITED;
+    /** @brief The exit status, or the number of the signal that ended it */
+    int code = 0;
+    /** @brief The command as a shell would show it, for messages only */
+    std::string command;
+    /** @brief Wall-clock time from the start to the end */
+    std::chrono::duration<double> duration{};
+};
+
+/******************************************************************************/
+/**
+ * @brief Runs an external program and waits for it to end, within the given limits.
  *
  * The program is started directly, without a shell: each element of the argument list reaches it as
  * one argument, unchanged -- spaces and quotes included. Shell syntax (pipes, redirections, \$VAR,
  * globs, quoting) is therefore not interpreted; a program that needs it is given a script to run. A
- * program name without a directory part is looked up in PATH. Standard input is inherited; standard
- * output and standard error go to the output file when one is given, otherwise they are inherited.
- * It changes no process-wide signal disposition; several threads may call it at once.
+ * program name without a directory part is looked up in PATH; a relative path is taken relative to
+ * the caller's working directory, also when the program runs in another one. Standard input is
+ * inherited; standard output and standard error go to the output file when one is given, otherwise
+ * they are inherited. It changes no process-wide signal disposition; several threads may call it at
+ * once.
+ *
+ * A program that reaches the time limit, or that runs when a stop is requested and the limits say
+ * end_on_stop_request, gets SIGTERM and, if it is still running after the grace, SIGKILL. The
+ * program stays in the caller's process group, so Ctrl-C and a hangup of the terminal reach it too;
+ * a program that starts further programs passes SIGTERM on to them (or replaces itself with exec),
+ * otherwise they outlive it. With end_on_stop_request a program that ends while a stop is requested
+ * counts as ended by the stop request even if it exited by itself: a batch system's warning may have
+ * reached it as well, and what it wrote may be incomplete.
  */
-int runExternalCommand(
+GProgramResult runExternalCommand(
     std::filesystem::path const &program,
     std::vector<std::string> const &arguments,
     std::filesystem::path const &command_output_file_name,
-    std::string &full_command
+    GProgramLimits const &limits = {}
 );
 
 /******************************************************************************/
