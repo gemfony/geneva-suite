@@ -78,7 +78,7 @@ gem_common_test(GThreadSafeKeyedStoreTTests    S  GThreadSafeKeyedStoreTTests.cp
 gem_common_test(GThreadSafeSetTTests           S  GThreadSafeSetTTests.cpp)
 gem_common_test(GChecksTests                   S  GChecksTests.cpp GChecksDebugActiveTests.cpp
                                                   GChecksDebugAbsentTests.cpp)
-gem_common_test(GCommonHelperFunctionsTests    S  GCommonHelperFunctionsTests.cpp)
+gem_common_test(GCommonHelperFunctionsTests    M  GCommonHelperFunctionsTests.cpp)
 gem_common_test(GCommonHelperFunctionsTTests   S  GCommonHelperFunctionsTTests.cpp)
 gem_common_test(GCommonInterfaceTTests         S  GCommonInterfaceTTests.cpp)
 gem_common_test(GCommonMathHelperFunctionsTTests
