@@ -136,6 +136,10 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   bounds, the GD/CGD step, the PSO velocity fraction): `1.0` = the full range. The same
   default works for any range. Rates/probabilities (`sigma_sigma`, `ad_prob`, …) are
   unchanged.
+- **The EA recombines σ per Gauss group.** With `recombine_sigma` (the default) and several
+  parents, a child's σ in each Gauss group is the mean of the parents' σ in that group,
+  clamped to the group's band. Before, the first group's mean was written into every group,
+  so a genome with groups of different bands (example 14) lost its per-group σ.
 
 ## 4. Configuration files
 

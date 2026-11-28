@@ -59,6 +59,7 @@
 #include <memory>
 #include <ostream>
 #include <ranges>
+#include <span>
 #include <sstream>
 #include <tuple>
 #include <utility>
@@ -315,7 +316,7 @@ void GType::addConfigurationOptions_(Gem::Common::GParserBuilder &gpb) {
 
     gpb.registerFileParameter<bool>("recombine_sigma", true, [this](bool r) {
         this->setSigmaRecombination(r);
-    }) << "Whether to intermediate-recombine the per-individual sigma after recombination";
+    }) << "Whether to average the parents' sigmas into the children's, per Gauss group";
 }
 
 /******************************************************************************/
@@ -650,10 +651,12 @@ void GType::driveGlobalSigmaController() {
  *
  * The base recombine() copies the chosen parent's whole slot (sigma scratch included) into each child,
  * so each child inherits exactly ONE parent's sigma. For the per-individual-sigma modes (SELF_ADAPT /
- * SELF_ADAPT_SCALED) we additionally average the surviving parents' sigma into every child -- the
- * "intermediate recombination of sigma" the classic GParChild lacks, which reduces sigma's variance and
- * markedly improves fine convergence. A no-op for the global-sigma modes (every slot already shares one
- * sigma) and when sigma-recombination is disabled.
+ * SELF_ADAPT_SCALED) we additionally average the surviving parents' sigma into every child, group
+ * by group: the child's sigma in Gauss group i becomes the mean of the parents' sigmas in group i,
+ * clamped to group i's [min_sigma, max_sigma] (recombineSigmaPerGroup()). This is the "intermediate
+ * recombination of sigma" the classic GParChild lacks, which reduces sigma's variance and markedly
+ * improves fine convergence. A no-op for the global-sigma modes (every slot already shares one
+ * sigma), with a single parent, and when sigma-recombination is disabled.
  */
 void GType::recombine() {
     GParChild::recombine();
@@ -675,25 +678,11 @@ void GType::recombine() {
         return; // nothing to average with a single parent
     }
 
-    // Mean of the parents' representative sigma.
-    double sum = 0.;
-    std::size_t cnt = 0;
-    for(std::size_t i = 0; i < np; ++i) {
-        const double s = readRepresentativeSigma(this->at(i)->scratch(), *cfg, -1.);
-        if(s >= 0.) {
-            sum += s;
-            ++cnt;
-        }
-    }
-    if(cnt == 0) {
-        return;
-    }
-    const double mean_sigma = sum / static_cast<double>(cnt);
-
-    // Write the mean into every child's scratch (children are at [np, size())).
-    for(auto const &child : GOptimizationAlgorithmBase::data_cnt_ | std::views::drop(np)) {
-        writeGlobalSigma(child->scratch(), *cfg, mean_sigma);
-    }
+    // Children are at [np, size()).
+    std::span<const std::unique_ptr<Genome::GGenome>> const population(
+        GOptimizationAlgorithmBase::data_cnt_
+    );
+    recombineSigmaPerGroup(population.first(np), population.subspan(np), *cfg);
 }
 
 /******************************************************************************/

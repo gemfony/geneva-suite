@@ -33,12 +33,15 @@
 #include "common/GGlobalDefines.hpp"
 
 // Standard header files go here
+#include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <span>
 #include <string>
 #include <vector>
 
 // Geneva headers go here
+#include "common/GCommonMathHelperFunctionsT.hpp"
 #include "geneva/genome/GAdaptionAuxKeys.hpp"
 #include "geneva/genome/GAdaptionKernels.hpp"
 #include "geneva/genome/GAuxiliaryStore.hpp"
@@ -511,11 +514,68 @@ inline void writeGlobalSigma(
 }
 
 /******************************************************************************/
+
+/**
+ * @brief The intermediate recombination of sigma, group by group: each child's sigma in Gauss group
+ * i (double + float channels) becomes the mean of the parents' sigmas in group i, clamped to group
+ * i's [min_sigma, max_sigma]. Groups with different bands (e.g. coordinates and radii) thus keep
+ * their own sigmas. A parent or child without a channel's Gauss block is left out; the int Gauss
+ * and the bi-Gauss sigmas are left alone.
+ *
+ * @param parents The individuals whose sigmas are averaged.
+ * @param children The individuals whose sigmas are overwritten.
+ * @param cfg The shared adaption config supplying the per-channel group specs.
+ */
+inline void recombineSigmaPerGroup(
+    std::span<const std::unique_ptr<detail::GGenome>> parents,
+    std::span<const std::unique_ptr<detail::GGenome>> children,
+    const GAdaptionConfigBase &cfg
+) {
+    using namespace Gem::Geneva::Genome;
+
+    auto recombineChannel = [&]<typename T>(const std::vector<GroupSpec<T>> &groups, AuxKey key) {
+        using state_type = GaussState<adaption_fp_t<T>>;
+        std::vector<double> sum(groups.size(), 0.);
+        std::size_t n_parents = 0;
+        for(auto const &parent : parents) {
+            if(not parent->scratch().hasAux(key)) {
+                continue;
+            }
+            std::span<const state_type> const st = parent->scratch().metaRecords<state_type>(key);
+            for(std::size_t gi = 0; gi < groups.size(); ++gi) {
+                sum[gi] += groups[gi].has_gauss ? static_cast<double>(st[gi].sigma) : 0.;
+            }
+            ++n_parents;
+        }
+        for(auto const &child : children) {
+            if(n_parents == 0 || not child->scratch().hasAux(key)) {
+                continue;
+            }
+            std::span<state_type> const st = child->scratch().metaRecords<state_type>(key);
+            for(std::size_t gi = 0; gi < groups.size(); ++gi) {
+                if(groups[gi].has_gauss) {
+                    st[gi].sigma =
+                        static_cast<adaption_fp_t<T>>(sum[gi] / static_cast<double>(n_parents));
+                    Gem::Common::enforceRangeConstraint(
+                        st[gi].sigma,
+                        groups[gi].gauss.min_sigma,
+                        groups[gi].gauss.max_sigma,
+                        "recombineSigmaPerGroup()"
+                    );
+                }
+            }
+        }
+    };
+
+    recombineChannel(cfg.doubleGroups(), AUXKEY_GAUSS_DOUBLE);
+    recombineChannel(cfg.floatGroups(), AUXKEY_GAUSS_FLOAT);
+}
+
+/******************************************************************************/
 /**
  * @brief Reads back one representative per-group sigma from a scratch store (the first installed Gauss
  * group, double channel preferred, else float). Used by the global-σ controllers to recover the seed
- * sigma at setup and to read the per-individual sigma when intermediate-recombining σ. Returns the
- * fallback when no Gauss state is present.
+ * sigma at setup. Returns the fallback when no Gauss state is present.
  *
  * @param scratch The per-individual auxiliary store to read from.
  * @param cfg The shared adaption config supplying the per-channel group specs.

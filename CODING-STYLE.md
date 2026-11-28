@@ -481,9 +481,9 @@ Inv 16). A number of older idioms have been retired, most of it enforced by the 
   the old `boost::uint32_t`. The intent — explicit, portable widths instead of a bare `int` — is unchanged.
 - **`noexcept` instead of `throw()`.** Exception specifications use `noexcept`; the obsolete dynamic `throw()`
   form is gone.
-- **No `using namespace` in a header**, also not inside a function body: it would reach into every file that
-  includes the header. In the file that holds `main()` it is acceptable, and in tests it does not matter.
-  `using namespace std;` is not used; `std::vector` is written with its scope. The check
+- **No `using namespace` at file or namespace scope of a header**: there it would reach into every file that
+  includes the header. Inside a function body, and at file scope of a source file, it is acceptable (maintainer
+  decision, 2026-11-21). `using namespace std;` is not used; `std::vector` is written with its scope. The check
   `google-build-using-namespace` is switched off, because it would also flag the allowed uses, so the rule is
   kept in review.
 - **No `#define` for constants, and no function-like macros.** A named constant is an `inline constexpr`
@@ -524,8 +524,9 @@ auto histogram = std::make_shared<GHistogram1D>(100, 0., 1.);
 
 Two long-standing rules carry over unchanged. **const-correctness** is taken seriously: anything that can be
 `const` should be, from member functions that do not mutate their object to parameters passed by reference.
-And **non-const global variables are forbidden** — Geneva is heavily multi-threaded, and mutable global state
-is a race waiting to happen.
+And **non-const global variables are avoided** — Geneva is heavily multi-threaded, and mutable global state
+is a race waiting to happen. Where one is needed (a mutex that guards a process-wide resource, for example), it is
+named as section 4 says.
 
 ## 7. Concurrency
 
@@ -544,7 +545,7 @@ responsibility of the author and the reviewer (they are also noted at the foot o
 
 - the presence and completeness of Doxygen comments on every file, class, function and member;
 - the exact license banner at the top of each file;
-- no `using namespace` in a header (its check would also flag the uses that are allowed);
+- no `using namespace` at file or namespace scope of a header (its check would also flag the uses that are allowed);
 - the preference for `typename` over `class` in template parameter lists;
 - the `G` prefix and the `T` / `I` suffixes, which are conventions rather than rules;
 - the file-naming and one-class-per-file rules, which live at the filesystem level;

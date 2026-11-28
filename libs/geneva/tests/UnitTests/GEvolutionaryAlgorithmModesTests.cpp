@@ -219,7 +219,105 @@ protected:
     }
 };
 
+/******************************************************************************/
+/**
+ * A genome with two labelled double groups ("loc" and "main", like the coordinates and the radii of
+ * example 14) whose Gauss adaptors get different sigma bands on the OA-owned config.
+ */
+class TwoBandGenome : public Genome::GGenomeT<TwoBandGenome> {
+public:
+    using genome_only = void; // a genome-only flat leaf: GGenomeT's empty localMembers_()
+
+    TwoBandGenome() {
+        Genome::GGenomeBuilder b;
+        b.addDoubleGroup(3, -1., 1.).label("loc");
+        b.addDoubleGroup(4, -1., 1.).label("main");
+        this->setGenome(b.build());
+    }
+    TwoBandGenome(const TwoBandGenome &) = default;
+
+protected:
+    std::vector<double> evaluate() override {
+        double s = 0.;
+        for(double const x : this->template parameterValues<double>()) {
+            s += x * x;
+        }
+        return {s};
+    }
+};
+
+/**
+ * An EA whose first recombination starts from known per-group parent sigmas and records the sigmas
+ * the children leave it with.
+ */
+class SigmaRecombinationProbe : public OA::GEvolutionaryAlgorithm {
+public:
+    std::vector<std::vector<double>> parent_sigmas; ///< [parent][group], written before recombining
+    std::vector<std::vector<double>> child_sigmas;  ///< [child][group], read after recombining
+
+protected:
+    void recombine() override {
+        if(not child_sigmas.empty()) {
+            OA::GEvolutionaryAlgorithm::recombine();
+            return;
+        }
+        for(std::size_t i = 0; i < parent_sigmas.size(); ++i) {
+            auto const states = this->at(i)->scratch().metaRecords<Genome::GaussState<double>>(
+                Genome::AUXKEY_GAUSS_DOUBLE
+            );
+            for(std::size_t gi = 0; gi < parent_sigmas[i].size(); ++gi) {
+                states[gi].sigma = parent_sigmas[i][gi];
+            }
+        }
+        OA::GEvolutionaryAlgorithm::recombine();
+        for(std::size_t ci = this->getNParents(); ci < this->size(); ++ci) {
+            child_sigmas.push_back(
+                OA::readAdaptionSigmas(
+                    this->at(ci)->scratch(),
+                    *this->getAdaptionConfig(),
+                    "GDoubleGaussAdaptor"
+                )
+            );
+        }
+    }
+};
+
 } /* anonymous namespace */
+
+/******************************************************************************/
+
+TEST_CASE("ea recombines the sigma of each Gauss group by itself", "[ea][oa]") {
+    // With recombine_sigma (the default) and several parents, each child's sigma in group i is the
+    // mean of the parents' sigmas in group i, inside group i's band. Regression: recombine()
+    // averaged one representative sigma (the first group's) and wrote it into every group, so
+    // "main" got the "loc" value 0.02, below its band [0.05, 0.5].
+    auto p = std::make_shared<SigmaRecombinationProbe>();
+    p->setPopulationSizes(8, 3);
+    p->setMaxIteration(1);
+    p->setMaxStallIteration(0);
+    p->setReportIteration(0);
+    p->setEmitTerminationReason(false);
+    TwoBandGenome const src;
+    p->push_back(src.clone());
+    auto cfg = OA::makeAdaptionConfig<OA::GAdaptionConfigBase>(src);
+    cfg->forLabel("loc").gauss(0.02, 0.8, 0.001, 0.1, 1.);
+    cfg->forLabel("main").gauss(0.2, 0.8, 0.05, 0.5, 1.);
+    p->setAdaptionConfig(cfg);
+    p->parent_sigmas = {{0.01, 0.1}, {0.02, 0.2}, {0.03, 0.3}};
+    REQUIRE(p->getSigmaRecombination());
+    p->optimize();
+
+    REQUIRE(p->child_sigmas.size() == 5);
+    for(auto const &sigmas : p->child_sigmas) {
+        REQUIRE(sigmas.size() == 2);
+        CHECK(std::abs(sigmas[0] - 0.02) < 1e-12);
+        CHECK(std::abs(sigmas[1] - 0.2) < 1e-12);
+        CHECK(sigmas[0] >= 0.001);
+        CHECK(sigmas[0] <= 0.1);
+        CHECK(sigmas[1] >= 0.05);
+        CHECK(sigmas[1] <= 0.5);
+    }
+}
 
 /******************************************************************************/
 
