@@ -122,8 +122,9 @@ public:
 
     GWireBlobRegistry() = default;
 
-    // The generic store supplies the blob store (has / tryGet / put), capacity (setCapacity), per-peer
-    // tracking (internFor / peerHas / markPeerHas / forgetPeer) and introspection (size / trackedPeers / clear). Only
+    // The generic store supplies the blob store (contains / get / set), capacity (setCapacity), per-peer
+    // tracking (internFor / peerHas / markPeerHas / forgetPeer) and introspection (size / empty / trackedPeers /
+    // clear). Only
     // the two domain-named per-peer aliases are added here, matching this header's "blob" vocabulary and
     // the existing call sites; everything else is inherited unchanged.
 

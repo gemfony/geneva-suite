@@ -2588,7 +2588,7 @@ std::string consumerRejectionMessage(const std::filesystem::path &path) {
 /** @brief Whether the consumer catalogue of GGenome holds @p mnemonic @param mnemonic The consumer
  *  @return true if a module provided it */
 bool knownConsumer(const std::string &mnemonic) {
-    return Gem::Courtier::consumerCatalog<GGenome>()->exists(mnemonic);
+    return Gem::Courtier::consumerCatalog<GGenome>()->contains(mnemonic);
 }
 
 } // anonymous namespace

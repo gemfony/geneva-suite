@@ -57,6 +57,7 @@ TEST_CASE(
     static_assert(std::is_default_constructible_v<Store>);
     static_assert(not std::is_copy_constructible_v<Store>);
     static_assert(not std::is_copy_assignable_v<Store>);
+    static_assert(KeyedStore<Store, std::string, int>);
 }
 
 // ---------------------------------------------------------------------------

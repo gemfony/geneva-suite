@@ -342,7 +342,7 @@ TEST_CASE("ea self-registers its mnemonic in the OA factory store", "[ea][oa]") 
     // The GInitializerT registrant in the library's single algorithm-registration translation unit
     // (src/oa/GBuiltinAlgorithms.cpp) runs at library load and inserts the "ea" mnemonic into the global
     // store, so GOptimizer / the examples can select it by name.
-    CHECK(oaFactoryStore()->exists("ea"));
+    CHECK(oaFactoryStore()->contains("ea"));
     CHECK((OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>{}.getMnemonic() == "ea"));
 }
 

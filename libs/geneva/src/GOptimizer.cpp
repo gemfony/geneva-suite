@@ -430,7 +430,7 @@ GOptimizer &GOptimizer::optimize_(std::uint32_t offset) {
  */
 void GOptimizer::refreshAllConfigs_() {
     // Every registered optimization-algorithm factory: producing one algorithm parses its config file.
-    for(auto const &provider : oaFactoryStore()->getContentSnapshot()) {
+    for(auto const &provider : oaFactoryStore()->values()) {
         try {
             (void)provider->provide();
         }

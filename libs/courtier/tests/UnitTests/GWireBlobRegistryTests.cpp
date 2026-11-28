@@ -42,32 +42,36 @@ GWireBlobId id(std::uint64_t hi, std::uint64_t lo) {
 } // namespace
 
 /******************************************************************************/
-TEST_CASE("GWireBlobRegistry: blob store put/has/get", "[wire][blob]") {
+TEST_CASE("GWireBlobRegistry: blob store set/contains/get", "[wire][blob]") {
+    static_assert(
+        Gem::Common::Concurrency::KeyedStore<GWireBlobRegistry, GWireBlobId, std::string>
+    );
+
     GWireBlobRegistry reg;
     const auto a = id(1, 2);
     const auto b = id(3, 4);
 
-    CHECK_FALSE(reg.has(a));
+    CHECK_FALSE(reg.contains(a));
     std::string out;
-    CHECK_FALSE(reg.tryGet(a, out));
+    CHECK_FALSE(reg.get(a, out));
 
-    reg.put(a, "blob-A");
-    CHECK(reg.has(a));
-    CHECK(reg.tryGet(a, out));
+    reg.set(a, "blob-A");
+    CHECK(reg.contains(a));
+    CHECK(reg.get(a, out));
     CHECK(out == "blob-A");
     CHECK(reg.size() == 1);
 
     // A second id is distinct; an unrelated id stays a miss.
-    reg.put(b, "blob-B");
+    reg.set(b, "blob-B");
     CHECK(reg.size() == 2);
-    CHECK(reg.tryGet(b, out));
+    CHECK(reg.get(b, out));
     CHECK(out == "blob-B");
-    CHECK_FALSE(reg.has(id(9, 9)));
+    CHECK_FALSE(reg.contains(id(9, 9)));
 
-    // put() of an existing id refreshes the blob, not the count.
-    reg.put(a, "blob-A2");
+    // set() of an existing id refreshes the blob, not the count.
+    reg.set(a, "blob-A2");
     CHECK(reg.size() == 2);
-    CHECK(reg.tryGet(a, out));
+    CHECK(reg.get(a, out));
     CHECK(out == "blob-A2");
 }
 
@@ -103,22 +107,22 @@ TEST_CASE("GWireBlobRegistry: LRU eviction respects the capacity bound", "[wire]
     GWireBlobRegistry reg;
     reg.setCapacity(2);
 
-    reg.put(id(1, 0), "one");
-    reg.put(id(2, 0), "two");
+    reg.set(id(1, 0), "one");
+    reg.set(id(2, 0), "two");
     CHECK(reg.size() == 2);
 
     // Touch id(1) so it becomes most-recently-used; inserting a third must then evict id(2).
     std::string out;
-    CHECK(reg.tryGet(id(1, 0), out));
-    reg.put(id(3, 0), "three");
+    CHECK(reg.get(id(1, 0), out));
+    reg.set(id(3, 0), "three");
     CHECK(reg.size() == 2);
-    CHECK(reg.has(id(1, 0)));       // recently used -> retained
-    CHECK_FALSE(reg.has(id(2, 0))); // least recently used -> evicted
-    CHECK(reg.has(id(3, 0)));       // just inserted -> retained
+    CHECK(reg.contains(id(1, 0)));       // recently used -> retained
+    CHECK_FALSE(reg.contains(id(2, 0))); // least recently used -> evicted
+    CHECK(reg.contains(id(3, 0)));       // just inserted -> retained
 
-    // Eviction does not break correctness: a re-put restores the blob.
-    reg.put(id(2, 0), "two-again");
-    CHECK(reg.has(id(2, 0)));
+    // Eviction does not break correctness: a second set() restores the blob.
+    reg.set(id(2, 0), "two-again");
+    CHECK(reg.contains(id(2, 0)));
     CHECK(reg.size() == 2); // and the bound still holds (id(1) or id(3) evicted)
 }
 
@@ -131,16 +135,16 @@ TEST_CASE("GWireBlobRegistry: evicting a blob also clears its per-peer acks", "[
     reg.setCapacity(2);
     const GWirePeerId p = 7;
 
-    reg.put(id(1, 0), "L1");
+    reg.set(id(1, 0), "L1");
     reg.markPeerHasBlob(p, id(1, 0));
-    reg.put(id(2, 0), "L2");
+    reg.set(id(2, 0), "L2");
     reg.markPeerHasBlob(p, id(2, 0));
     REQUIRE(reg.peerHasBlob(p, id(1, 0)));
     REQUIRE(reg.peerHasBlob(p, id(2, 0)));
 
     // Inserting a third blob evicts the least-recently-used (id 1) -- and with it, peer p's ack for id 1.
-    reg.put(id(3, 0), "L3");
-    CHECK_FALSE(reg.has(id(1, 0)));
+    reg.set(id(3, 0), "L3");
+    CHECK_FALSE(reg.contains(id(1, 0)));
     CHECK_FALSE(reg.peerHasBlob(p, id(1, 0))); // ack cleared -> the server will re-inline id 1
     CHECK(reg.peerHasBlob(p, id(2, 0)));       // id 2 still present -> ack retained
 }

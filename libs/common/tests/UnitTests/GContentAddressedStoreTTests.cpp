@@ -53,37 +53,40 @@ TEST_CASE(
     static_assert(std::is_default_constructible_v<Store>);
     static_assert(not std::is_copy_constructible_v<Store>);
     static_assert(not std::is_copy_assignable_v<Store>);
+    static_assert(KeyedStore<Store, int, std::string>); // the blob face
 }
 
 // ---------------------------------------------------------------------------
-// Blob store: put / has / tryGet
+// Blob store: set / contains / get
 
-TEST_CASE("GContentAddressedStoreT: put/has/tryGet round-trip", "[common][content-store]") {
+TEST_CASE("GContentAddressedStoreT: set/contains/get round-trip", "[common][content-store]") {
     Store s;
     CHECK(s.size() == 0);
-    CHECK_FALSE(s.has(1));
+    CHECK(s.empty());
+    CHECK_FALSE(s.contains(1));
 
     std::string out = "stale";
-    CHECK_FALSE(s.tryGet(1, out));
+    CHECK_FALSE(s.get(1, out));
     CHECK(out == "stale"); // miss leaves out untouched
 
-    s.put(1, "blob-1");
-    CHECK(s.has(1));
+    s.set(1, "blob-1");
+    CHECK(s.contains(1));
     CHECK(s.size() == 1);
-    REQUIRE(s.tryGet(1, out));
+    CHECK_FALSE(s.empty());
+    REQUIRE(s.get(1, out));
     CHECK(out == "blob-1");
 }
 
 TEST_CASE(
-    "GContentAddressedStoreT: put is idempotent and overwrites in place",
+    "GContentAddressedStoreT: set is idempotent and overwrites in place",
     "[common][content-store]"
 ) {
     Store s;
-    s.put(1, "first");
-    s.put(1, "second"); // same id -> overwrite, not a second entry
+    s.set(1, "first");
+    s.set(1, "second"); // same id -> overwrite, not a second entry
     CHECK(s.size() == 1);
     std::string out;
-    REQUIRE(s.tryGet(1, out));
+    REQUIRE(s.get(1, out));
     CHECK(out == "second");
 }
 
@@ -96,30 +99,30 @@ TEST_CASE(
 ) {
     Store s;
     s.setCapacity(2);
-    s.put(1, "a");
-    s.put(2, "b");
-    s.put(3, "c"); // exceeds cap 2 -> id 1 (oldest) evicted
+    s.set(1, "a");
+    s.set(2, "b");
+    s.set(3, "c"); // exceeds cap 2 -> id 1 (oldest) evicted
     CHECK(s.size() == 2);
-    CHECK_FALSE(s.has(1));
-    CHECK(s.has(2));
-    CHECK(s.has(3));
+    CHECK_FALSE(s.contains(1));
+    CHECK(s.contains(2));
+    CHECK(s.contains(3));
 }
 
 TEST_CASE(
-    "GContentAddressedStoreT: a tryGet refreshes recency so the touched id survives",
+    "GContentAddressedStoreT: a get refreshes recency so the touched id survives",
     "[common][content-store]"
 ) {
     Store s;
     s.setCapacity(2);
-    s.put(1, "a");
-    s.put(2, "b"); // recency (MRU->LRU): 2, 1
+    s.set(1, "a");
+    s.set(2, "b"); // recency (MRU->LRU): 2, 1
 
     std::string out;
-    REQUIRE(s.tryGet(1, out)); // touch 1 -> recency: 1, 2
-    s.put(3, "c");             // evict LRU == 2, not 1
-    CHECK(s.has(1));           // survived because it was touched
-    CHECK_FALSE(s.has(2));     // evicted
-    CHECK(s.has(3));
+    REQUIRE(s.get(1, out));     // touch 1 -> recency: 1, 2
+    s.set(3, "c");              // evict LRU == 2, not 1
+    CHECK(s.contains(1));       // survived because it was touched
+    CHECK_FALSE(s.contains(2)); // evicted
+    CHECK(s.contains(3));
 }
 
 TEST_CASE(
@@ -127,22 +130,22 @@ TEST_CASE(
     "[common][content-store]"
 ) {
     Store s;
-    s.put(1, "a");
-    s.put(2, "b");
-    s.put(3, "c");
-    s.put(4, "d"); // unbounded so far
+    s.set(1, "a");
+    s.set(2, "b");
+    s.set(3, "c");
+    s.set(4, "d"); // unbounded so far
     CHECK(s.size() == 4);
     s.setCapacity(2); // shrink -> evicts the two LRU (1, 2)
     CHECK(s.size() == 2);
-    CHECK(s.has(3));
-    CHECK(s.has(4));
+    CHECK(s.contains(3));
+    CHECK(s.contains(4));
 }
 
 TEST_CASE("GContentAddressedStoreT: capacity 0 means unbounded", "[common][content-store]") {
     Store s;
     s.setCapacity(0);
     for(int i = 0; i < 1000; ++i) {
-        s.put(i, "x");
+        s.set(i, "x");
     }
     CHECK(s.size() == 1000);
 }
@@ -178,34 +181,39 @@ TEST_CASE(
     // otherwise the source would reference an id by content it can no longer answer (a deadlock).
     Store s;
     s.setCapacity(1);
-    s.put(1, "a");
+    s.set(1, "a");
     s.markPeerHas(7, 1);
     s.markPeerHas(8, 1);
     REQUIRE(s.peerHas(7, 1));
     REQUIRE(s.peerHas(8, 1));
 
-    s.put(2, "b"); // cap 1 -> id 1 evicted
-    CHECK_FALSE(s.has(1));
+    s.set(2, "b"); // cap 1 -> id 1 evicted
+    CHECK_FALSE(s.contains(1));
     CHECK_FALSE(s.peerHas(7, 1)); // ack cleared on eviction
     CHECK_FALSE(s.peerHas(8, 1));
 }
 
 TEST_CASE("GContentAddressedStoreT: clear resets blobs and acks", "[common][content-store]") {
     Store s;
-    s.put(1, "a");
+    s.set(1, "a");
     s.markPeerHas(7, 1);
     s.clear();
     CHECK(s.size() == 0);
     CHECK(s.trackedPeers() == 0);
-    CHECK_FALSE(s.has(1));
+    CHECK_FALSE(s.contains(1));
     CHECK_FALSE(s.peerHas(7, 1));
+    CHECK(s.empty());
+
+    // empty() counts blobs only: a peer's acknowledgement alone leaves the store empty.
+    s.markPeerHas(7, 1);
+    CHECK(s.empty());
 }
 
 // ---------------------------------------------------------------------------
-// Concurrency: many threads put / tryGet / mark must stay consistent and bounded.
+// Concurrency: many threads set / get / mark must stay consistent and bounded.
 
 TEST_CASE(
-    "GContentAddressedStoreT: concurrent put/get/ack remains consistent and bounded",
+    "GContentAddressedStoreT: concurrent set/get/ack remains consistent and bounded",
     "[common][content-store][concurrency]"
 ) {
     Store s;
@@ -225,11 +233,10 @@ TEST_CASE(
             }
             for(int i = 0; i < kPerWriter; ++i) {
                 const int id = w * kPerWriter + i;
-                s.put(id, "v");
+                s.set(id, "v");
                 s.markPeerHas(w, id);
                 std::string out;
-                (void)
-                    s.tryGet(id, out); // may already be evicted under churn; just must not corrupt
+                (void)s.get(id, out); // may already be evicted under churn; just must not corrupt
             }
         });
     }
@@ -261,18 +268,18 @@ TEST_CASE(
         return std::string("blob");
     };
     CHECK(s.internFor(7, 1, make)); // new: cached, and peer 7 gets it in full
-    CHECK(s.has(1));
+    CHECK(s.contains(1));
     CHECK(s.peerHas(7, 1));
     CHECK_FALSE(s.internFor(7, 1, make)); // peer 7 holds it: referred to by id
     CHECK(s.internFor(8, 1, make));       // another peer gets it in full, from the cache
     CHECK(built == 1);                    // built only while it was absent
     std::string out;
-    CHECK(s.tryGet(1, out));
+    CHECK(s.get(1, out));
     CHECK(out == "blob");
 }
 
 /**
- * Regression: a sender that cached and acknowledged with four calls (has, put, peerHas,
+ * Regression: a sender that cached and acknowledged with four calls (contains, set, peerHas,
  * markPeerHas) could, with an eviction by another thread in between, leave an acknowledgement for
  * a blob the store no longer held. Capacity 1, two ids, two threads; at the end of each round
  * no acknowledgement names an id the store does not hold.
@@ -296,7 +303,7 @@ TEST_CASE(
         a.join();
         b.join();
         for(int id = 0; id < 2; ++id) {
-            if(s.peerHas(7, id) && not s.has(id)) {
+            if(s.peerHas(7, id) && not s.contains(id)) {
                 ++orphans;
             }
         }
@@ -320,7 +327,7 @@ TEST_CASE(
     CHECK(s.internFor(7, 0, [&s, &evictor, &evicting]() {
         evictor = std::thread([&s, &evicting]() {
             evicting.store(true);
-            s.put(1, "1"); // waits for the step's lock
+            s.set(1, "1"); // waits for the step's lock
         });
         while(not evicting.load()) {
             std::this_thread::yield();
@@ -329,7 +336,7 @@ TEST_CASE(
         return std::string("0");
     }));
     evictor.join();
-    CHECK(s.has(1));
-    CHECK_FALSE(s.has(0));
+    CHECK(s.contains(1));
+    CHECK_FALSE(s.contains(0));
     CHECK_FALSE(s.peerHas(7, 0)); // no acknowledgement without its blob
 }

@@ -253,8 +253,8 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
             auto fresh = std::make_shared<GGenomeLayout>();
             archive_named(ar, "layout_", *fresh);
             this->setLayout(fresh);
-            if(ctx != nullptr && ctx->registry != nullptr && not ctx->registry->has(wid)) {
-                ctx->registry->put(wid, layoutToWireBlob(*fresh));
+            if(ctx != nullptr && ctx->registry != nullptr && not ctx->registry->contains(wid)) {
+                ctx->registry->set(wid, layoutToWireBlob(*fresh));
             }
             return;
         }
@@ -263,7 +263,7 @@ class GGenome // NOLINT(cppcoreguidelines-special-member-functions)
         // the item as failed (the server then sends it every blob in full again).
         std::string blob;
         const bool have =
-            (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->tryGet(wid, blob);
+            (ctx != nullptr) && (ctx->registry != nullptr) && ctx->registry->get(wid, blob);
         if(not have || blob.empty()) {
             throw Gem::Common::gem_exception(
                 Gem::Common::g_error_streamer()

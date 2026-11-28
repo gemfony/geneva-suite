@@ -1206,6 +1206,15 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   module ABI names "the names of the contribution kinds" (was "the contribution-kind numbering").
   The gates run after the shared object is loaded, so a refused module's static initializers have
   run and it stays mapped: a program ends after a refused module rather than going on.
+- **common: the keyed stores use one vocabulary, stated as the concept `KeyedStore`**
+  (`common/concurrency/GStoreCommon.hpp`: `contains()`, `get(key, out)`, `set()`, `size()`,
+  `empty()`), which `GThreadSafeKeyedStoreT`, `GGlobalOptionsT` (and with it `GProviderStoreT`)
+  and `GContentAddressedStoreT` assert. *Migration* (source-breaking, no aliases):
+  `GGlobalOptionsT`: `exists()` → `contains()`, `getContentSnapshot()` → `values()`,
+  `getKeyVector(out)` → `out = keys()`, `getContentVector(out)` → `out = values()`, the throwing
+  `get(key)` → `at(key)` (the out-parameter `get(key, out)` stays and is now `const`);
+  `GContentAddressedStoreT` (and courtier's `GWireBlobRegistry`): `has()` → `contains()`,
+  `tryGet()` → `get()`, `put()` → `set()`; it gained `empty()` (blobs only).
 
 ## 8. Checkpointing
 

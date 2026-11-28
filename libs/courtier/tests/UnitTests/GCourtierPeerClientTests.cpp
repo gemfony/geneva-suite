@@ -824,8 +824,8 @@ class GLayoutItem final : public Gem::Courtier::GProcessingContainerT<GLayoutIte
             interned =
                 ctx != nullptr && ctx->enabled && ctx->may_intern_blobs && ctx->registry != nullptr;
             if(interned) {
-                if(not ctx->registry->has(id)) {
-                    ctx->registry->put(id, layout_);
+                if(not ctx->registry->contains(id)) {
+                    ctx->registry->set(id, layout_);
                 }
                 present = not ctx->registry->peerHasBlob(ctx->peer, id);
                 if(present) {
@@ -839,14 +839,13 @@ class GLayoutItem final : public Gem::Courtier::GProcessingContainerT<GLayoutIte
             archive_named(ar, "layout_", layout_);
             if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
                 if(interned && ctx != nullptr && ctx->registry != nullptr) {
-                    ctx->registry->put(id, layout_);
+                    ctx->registry->set(id, layout_);
                 }
             }
             return;
         }
         if constexpr(not Gem::Common::archive_is_saving_v<archive_type>) {
-            if(ctx == nullptr || ctx->registry == nullptr ||
-               not ctx->registry->tryGet(id, layout_)) {
+            if(ctx == nullptr || ctx->registry == nullptr || not ctx->registry->get(id, layout_)) {
                 failedLoads.fetch_add(1);
                 throw std::runtime_error(
                     "the layout is referenced by an id the client does not know"
