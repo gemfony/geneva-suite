@@ -382,7 +382,7 @@ public:
      */
     //! [meta.addcontent]
     static void addContent(
-        const std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> &p,
+        GMetaOptimizerIndividualT<ind_type> &p,
         const std::vector<OA::TunableParam> &manifest
     ) {
         Genome::GGenomeBuilder b;
@@ -406,7 +406,7 @@ public:
             }
         }
 
-        p->setGenome(b.build());
+        p.setGenome(b.build());
     }
     //! [meta.addcontent]
 
@@ -643,7 +643,7 @@ protected:
         // safe because this individual is evaluated by GMetaEvolutionaryAlgorithm on its own orchestration
         // pool -- distinct from that work consumer -- so the inner submission never starves the pool this
         // evaluation runs on.
-        std::shared_ptr<OA::GEvolutionaryAlgorithm> const ea_ptr =
+        std::unique_ptr<OA::GEvolutionaryAlgorithm> const ea_ptr =
             ea.get<OA::GEvolutionaryAlgorithm>();
 
         populateSubEA(*ea_ptr, pop_size, n_parents, sub_adaption_config, amalgamation_likelihood);
@@ -680,7 +680,7 @@ protected:
         //! [meta.populatesubea]
         ea.setPopulationSizes(pop_size, n_parents);
         for(std::size_t ind = 0; ind < pop_size; ind++) {
-            std::shared_ptr<Genome::GGenome> const gi_ptr = ind_factory_->get();
+            std::unique_ptr<Genome::GGenome> const gi_ptr = ind_factory_->get();
             ea.push_back(gi_ptr->clone());
         }
         // Drive the sub-individuals' adaption through the OA-owned config, and set the
@@ -1069,16 +1069,16 @@ protected:
      *
      * @param p_base A smart-pointer to be acted on during post-processing
      */
-    void postProcess_(std::shared_ptr<Genome::GGenome> &p_base) override {
+    void postProcess_(std::unique_ptr<Genome::GGenome> &p_base) override {
         // Convert the base pointer to our local type
-        std::shared_ptr<GMetaOptimizerIndividualT<ind_type>> const p =
+        GMetaOptimizerIndividualT<ind_type> *const p =
             Gem::Common::g_ptr_conversion<Genome::GGenome, GMetaOptimizerIndividualT<ind_type>>(
-                p_base
+                p_base.get()
             );
 
         // Build the search genome from the EA's tunable manifest, with the start values and search
         // ranges read from the configuration file (see describeLocalOptions_())
-        GMetaOptimizerIndividualT<ind_type>::addContent(p, knobs_);
+        GMetaOptimizerIndividualT<ind_type>::addContent(*p, knobs_);
 
         // Finally add the individual factory to p
         p->registerIndividualFactory(ind_factory_);
@@ -1096,9 +1096,9 @@ private:
      * @param gpb The GParserBuilder to which the new object's configuration options are added
      * @return Items of the desired type
      */
-    std::shared_ptr<Genome::GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
+    std::unique_ptr<Genome::GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
         // Will hold the result
-        auto target = std::make_shared<GMetaOptimizerIndividualT<ind_type>>();
+        auto target = std::make_unique<GMetaOptimizerIndividualT<ind_type>>();
 
         // Make the object's local configuration options known
         target->addConfigurationOptions(gpb);

@@ -103,10 +103,10 @@ void GParameterScanFactory::resetCLParameterSpecs() {
  *               post-processed (expected to point at a GParameterScan); its parameter specs are
  *               applied if a non-"empty" command-line specification was set
  */
-void GParameterScanFactory::postProcess_(std::shared_ptr<GOptimizationAlgorithmBase> &p_base) {
+void GParameterScanFactory::postProcess_(std::unique_ptr<GOptimizationAlgorithmBase> &p_base) {
     if(parameter_spec_cl_ != "empty") {
-        std::shared_ptr<GParameterScan> const p =
-            Gem::Common::g_ptr_conversion<GOptimizationAlgorithmBase, GParameterScan>(p_base);
+        GParameterScan *const p =
+            Gem::Common::g_ptr_conversion<GOptimizationAlgorithmBase, GParameterScan>(p_base.get());
 
         p->setParameterSpecs(parameter_spec_cl_);
     }

@@ -254,7 +254,7 @@ protected:
      *
      * @param p The freshly produced individual to install the shared genome on (must be a GGenome)
      */
-    void postProcess_(std::shared_ptr<GGenome> &p) override {
+    void postProcess_(std::unique_ptr<GGenome> &p) override {
         // Build the shared genome exactly once (the cell serialises the first build; later produces read it
         // lock-free) and reuse it for every produced individual.
         const GenomeData &genome =
@@ -288,10 +288,10 @@ private:
      * describeConfig(); the genome itself is installed in postProcess_ once the config has been parsed.
      *
      * @param gpb The parser builder the individual's base configuration options are registered on
-     * @return A shared pointer to the freshly produced (empty-genome) individual
+     * @return The freshly produced (empty-genome) individual
      */
-    std::shared_ptr<GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
-        auto p = std::make_shared<derived_type>();
+    std::unique_ptr<GGenome> getObject_(Gem::Common::GParserBuilder &gpb) override {
+        auto p = std::make_unique<derived_type>();
         p->addConfigurationOptions(gpb);
         return p;
     }

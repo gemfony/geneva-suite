@@ -463,6 +463,56 @@ const target_type *g_ptr_conversion(const base_type *convert_ptr) {
 
 /******************************************************************************/
 /**
+ * @brief Non-const raw-pointer overload of g_ptr_conversion, for a caller that changes the
+ * object through the converted pointer (e.g. the object a std::unique_ptr owns, reached
+ * through get()). The pointer does not own.
+ *
+ * @tparam base_type The source (base) pointer type
+ * @tparam target_type The target (derived) pointer type; must derive from base_type
+ * @param convert_ptr The base pointer to convert (nullptr is returned unchanged)
+ * @return convert_ptr converted to target_type*, or nullptr if the input was nullptr
+ * @throws gem_exception without NDEBUG if the dynamic type is not target_type
+ */
+template <typename base_type, typename target_type>
+    requires std::derived_from<target_type, base_type>
+target_type *g_ptr_conversion(base_type *convert_ptr) {
+    GEM_DEBUG_CHECK(
+        nullptr == convert_ptr || nullptr != dynamic_cast<target_type *>(convert_ptr),
+        "invalid conversion from ",
+        typeid(base_type).name(),
+        " to ",
+        typeid(target_type).name()
+    );
+    return static_cast<target_type *>(convert_ptr);
+}
+
+/******************************************************************************/
+/**
+ * @brief Unique-pointer overload of g_ptr_conversion: the ownership passes to the result.
+ *
+ * @tparam base_type The source (base) pointee type
+ * @tparam target_type The target (derived) pointee type; must derive from base_type
+ * @param convert_ptr The base unique pointer to convert (empty is returned unchanged); it is
+ *        empty afterwards
+ * @return convert_ptr converted to std::unique_ptr<target_type>, or empty if the input was empty
+ * @throws gem_exception without NDEBUG if the dynamic type is not target_type; convert_ptr then
+ *         still owns its object
+ */
+template <typename base_type, typename target_type>
+    requires std::derived_from<target_type, base_type>
+std::unique_ptr<target_type> g_ptr_conversion(std::unique_ptr<base_type> &&convert_ptr) {
+    GEM_DEBUG_CHECK(
+        not convert_ptr || nullptr != dynamic_cast<target_type *>(convert_ptr.get()),
+        "invalid conversion from ",
+        typeid(base_type).name(),
+        " to ",
+        typeid(target_type).name()
+    );
+    return std::unique_ptr<target_type>(static_cast<target_type *>(convert_ptr.release()));
+}
+
+/******************************************************************************/
+/**
  * @brief Shared-pointer overload of g_ptr_conversion.
  *
  * @tparam base_type The source (base) pointee type

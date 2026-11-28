@@ -205,7 +205,7 @@ private:
         const Individuals::GFunctionIndividual::Config &indCfg
     );
 
-    static std::shared_ptr<OA::GOptimizationAlgorithmBase>
+    static std::unique_ptr<OA::GOptimizationAlgorithmBase>
     makeAlgorithm(const AlgorithmEntry &entry);
 
     static GAlgorithmBenchmarkResult aggregate(

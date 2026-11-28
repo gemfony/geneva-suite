@@ -141,9 +141,9 @@ private:
      * @param gpb The parser builder onto which the new algorithm registers its configuration options.
      * @return A newly constructed algorithm of type oa_type, with its configuration options registered.
      */
-    std::shared_ptr<GOptimizationAlgorithmBase>
+    std::unique_ptr<GOptimizationAlgorithmBase>
     getObject_(Gem::Common::GParserBuilder &gpb) override {
-        auto target = std::make_shared<oa_type>();
+        auto target = std::make_unique<oa_type>();
         target->addConfigurationOptions(gpb);
         return target;
     }

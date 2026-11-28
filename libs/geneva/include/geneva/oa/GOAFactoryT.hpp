@@ -191,10 +191,10 @@ public:
 	  * conversion is unsuccessful.
 	  *
 	  * @tparam target_type The type the produced algorithm should be converted to (oa_type by default)
-	  * @return A converted copy of the desired production type
+	  * @return The produced algorithm converted to target_type, owned by the caller alone
 	  */
     template <typename target_type = oa_type>
-    std::shared_ptr<target_type> get() {
+    std::unique_ptr<target_type> get() {
         return Gem::Common::g_ptr_conversion<oa_type, target_type>(
             Gem::Common::GFactoryT<oa_type>::get()
         );
@@ -275,7 +275,8 @@ public:
     /**
 	  * Hands out a freshly configured algorithm -- the provider interface's spelling of the factory's
 	  * get(). Every call re-reads the configuration file and bumps the instance id, which is what
-	  * algorithm chaining (e.g. "ea,gd,swarm") relies on.
+	  * algorithm chaining (e.g. "ea,gd,swarm") relies on. The provider interface hands out shared
+	  * pointers, so the factory's sole-owner product is converted here.
 	  *
 	  * @return A shared pointer to a newly created, configured optimization algorithm
 	  */
@@ -407,9 +408,9 @@ protected:
       *
       * @return An object of the desired algorithm type
       */
-    std::shared_ptr<oa_type> get_() override {
+    std::unique_ptr<oa_type> get_() override {
         // Retrieve a work item using the methods implemented in our parent class
-        std::shared_ptr<oa_type> p_alg = Gem::Common::GFactoryT<oa_type>::get_();
+        std::unique_ptr<oa_type> p_alg = Gem::Common::GFactoryT<oa_type>::get_();
         // Not empty: GFactoryT::get_() refuses an empty product before postProcess_() sees it
 
         // If we have been given a factory function for individuals, fill the object with data
@@ -417,7 +418,7 @@ protected:
             content_creator_ptr_
         ) { // Has a content creation object been registered ? If so, add individuals to the population
             for(std::size_t ind = 0; ind < p_alg->getDefaultPopulationSize(); ind++) {
-                std::shared_ptr<Genome::GGenome> const p_ind = (*content_creator_ptr_)();
+                std::unique_ptr<Genome::GGenome> const p_ind = (*content_creator_ptr_)();
                 if(not p_ind) { // No valid item received, the factory has run empty
                     break;
                 }
@@ -451,7 +452,7 @@ protected:
 	  *
 	  * @param p The freshly produced algorithm onto which the command-line limits are applied
 	  */
-    void postProcess_(std::shared_ptr<oa_type> &p) override {
+    void postProcess_(std::unique_ptr<oa_type> &p) override {
         // Set local options
 
         // The maximum allowed number of iterations
@@ -511,9 +512,9 @@ private:
      *
      * The argument is the parser builder used to register the object's configuration options.
      *
-     * @return A shared pointer to a freshly created algorithm object
+     * @return A freshly created algorithm object
      */
-    std::shared_ptr<oa_type> getObject_(Gem::Common::GParserBuilder &) override = 0;
+    std::unique_ptr<oa_type> getObject_(Gem::Common::GParserBuilder &) override = 0;
 
     /***************************************************************************/
 

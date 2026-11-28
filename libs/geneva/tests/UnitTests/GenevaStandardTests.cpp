@@ -1012,7 +1012,7 @@ TEST_CASE(
 
     auto p = std::make_shared<Meta>();
     const auto manifest = OA::GEvolutionaryAlgorithm::tunableManifest();
-    Meta::addContent(p, manifest);
+    Meta::addContent(*p, manifest);
 
     // The defaults come straight from the manifest, addressed by name.
     CHECK(p->getNParents() == 1);
@@ -1041,7 +1041,7 @@ TEST_CASE(
     setKnob(n::sigma_sigma, 0.5, 0., 1.);
 
     auto q = std::make_shared<Meta>();
-    Meta::addContent(q, custom);
+    Meta::addContent(*q, custom);
     CHECK(q->getNParents() == 3);
     CHECK(q->getNChildren() == 42);
     CHECK(std::abs(q->getMinSigma() - 0.01) < 1e-9);
@@ -1330,7 +1330,7 @@ TEST_CASE("geneva's enums: every value has its name", "[geneva][names]") {
     // The meta-optimizer's report and an individual's JSON carry the names
     using Meta = Individuals::GMetaOptimizerIndividualT<Individuals::GFunctionIndividual>;
     auto p = std::make_shared<Meta>();
-    Meta::addContent(p, OA::GEvolutionaryAlgorithm::tunableManifest());
+    Meta::addContent(*p, OA::GEvolutionaryAlgorithm::tunableManifest());
     CHECK(p->print(false).contains("Optimization target: \"best fitness\""));
     CHECK(p->toJSON().at("transformationPolicy").as_string() == "USESIMPLEEVALUATION");
 }

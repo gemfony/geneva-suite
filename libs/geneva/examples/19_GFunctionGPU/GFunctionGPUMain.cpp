@@ -167,7 +167,7 @@ int runParityCheck(int n, const std::string &consumerConfig) {
         );                                // spread the genome across its range (the factory
                                           // hands back the init value, not a random point)
         gpuBatch.push_back(ind->clone()); // identical-genome copy for the device path
-        cpuInds.push_back(ind);
+        cpuInds.push_back(std::move(ind));
     }
 
     // CPU reference: run each individual's own evaluation through the public process() path (the same

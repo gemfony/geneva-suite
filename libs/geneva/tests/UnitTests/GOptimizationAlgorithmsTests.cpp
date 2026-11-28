@@ -3464,7 +3464,7 @@ TEST_CASE(
 namespace {
 
 using EAFactory = OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>;
-using AlgorithmPtr = std::shared_ptr<OA::GOptimizationAlgorithmBase>;
+using AlgorithmPtr = std::unique_ptr<OA::GOptimizationAlgorithmBase>;
 
 // get() without a template argument compiles through the concrete factory and gives what it gives
 // through the GFactoryT base. While GOAFactoryT's get<target_type>() had no default, the member
@@ -3516,12 +3516,12 @@ TEST_CASE("an algorithm factory's get() returns the algorithm on every path", "[
 
     AlgorithmPtr const direct = factory.get();
     REQUIRE(direct);
-    CHECK(std::dynamic_pointer_cast<OA::GEvolutionaryAlgorithm>(direct));
+    CHECK(dynamic_cast<OA::GEvolutionaryAlgorithm *>(direct.get()) != nullptr);
 
     Gem::Common::GFactoryT<OA::GOptimizationAlgorithmBase> &as_base = factory;
     AlgorithmPtr const through_base = as_base.get();
     REQUIRE(through_base);
-    CHECK(std::dynamic_pointer_cast<OA::GEvolutionaryAlgorithm>(through_base));
+    CHECK(dynamic_cast<OA::GEvolutionaryAlgorithm *>(through_base.get()) != nullptr);
 
     CHECK(factory.get<OA::GEvolutionaryAlgorithm>());
     CHECK(std::dynamic_pointer_cast<OA::GEvolutionaryAlgorithm>(factory.provide()));

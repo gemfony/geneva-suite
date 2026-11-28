@@ -205,7 +205,7 @@ GBenchmarkRunResult GAlgorithmBenchmarkRunner::runOne(
  * in the AlgorithmEntry. The algorithm submits through the process consumer
  * registered via GConsumerRegistryT::setConsumer().
  */
-std::shared_ptr<OA::GOptimizationAlgorithmBase>
+std::unique_ptr<OA::GOptimizationAlgorithmBase>
 GAlgorithmBenchmarkRunner::makeAlgorithm(const AlgorithmEntry &entry) {
     if(entry.mnemonic == "ea") {
         return OA::GOptimizationAlgorithmFactoryT<OA::GEvolutionaryAlgorithm>(entry.configFile)
@@ -225,7 +225,7 @@ GAlgorithmBenchmarkRunner::makeAlgorithm(const AlgorithmEntry &entry) {
         auto p = OA::GOptimizationAlgorithmFactoryT<OA::GConjugateGradientDescent>(entry.configFile)
                      .get<OA::GOptimizationAlgorithmBase>();
         if(entry.mnemonic == "gd") {
-            if(auto cgd = std::dynamic_pointer_cast<OA::GConjugateGradientDescent>(p)) {
+            if(auto *cgd = dynamic_cast<OA::GConjugateGradientDescent *>(p.get())) {
                 cgd->setGradientMethod(OA::gradientMethod::STEEPEST_DESCENT);
             }
         }
