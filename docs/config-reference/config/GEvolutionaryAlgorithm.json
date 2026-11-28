@@ -258,7 +258,7 @@
     },
     "recombine_sigma": {
         "comment": [
-            "Whether to intermediate-recombine the per-individual sigma after recombination"
+            "Whether to average the parents' sigmas into the children's, per Gauss group"
         ],
         "default": true,
         "value": true

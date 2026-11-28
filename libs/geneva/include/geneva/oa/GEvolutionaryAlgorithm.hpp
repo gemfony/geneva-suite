@@ -175,11 +175,13 @@ constexpr auto DEFAULTEASORTINGMODE = sortingMode::MUCOMMANU_SINGLEEVAL;
  *
  * @par Intermediate recombination of \f$\sigma\f$
  * For the per-individual-\f$\sigma\f$ modes (SELF_ADAPT / SELF_ADAPT_SCALED), when @c recombine_sigma is
- * set, every child's \f$\sigma\f$ is replaced after recombination by the mean of the \f$\mu\f$ parents'
- * \f$\sigma\f$,
- * \f[ \sigma_{\text{child}} \leftarrow \frac{1}{\mu}\sum_{i=1}^{\mu}\sigma_i, \f]
+ * set, every child's \f$\sigma\f$ in each Gauss group \f$g\f$ is replaced after recombination by
+ * the mean of the \f$\mu\f$ parents' \f$\sigma\f$ in that group, clamped to the group's
+ * [min_sigma, max_sigma],
+ * \f[ \sigma_{\text{child},g} \leftarrow \frac{1}{\mu}\sum_{i=1}^{\mu}\sigma_{i,g}, \f]
  * the standard σSA variance-reducing stabiliser that the classic GParChild::recombine (values only) omits.
- * It is a no-op for the global-\f$\sigma\f$ modes (every slot already shares one \f$\sigma\f$).
+ * Groups with different sigma bands keep their own sigmas. It is a no-op for the
+ * global-\f$\sigma\f$ modes (every slot already shares one \f$\sigma\f$).
  *
  * @par Reproducing the legacy (pre-adaptive) EA exactly
  * Set @c stepControl = @c SELF_ADAPT and @c recombine_sigma = @c false, leaving the remaining EA settings
@@ -276,7 +278,8 @@ public:
     double getLearningRateConstant() const;
 
     /** @brief Enables/disables intermediate recombination of the per-individual sigma.
-     *  @param r true to average parents' sigma into children after recombination. */
+     *  @param r true to average the parents' sigma of each Gauss group into the children's sigma of
+     *         that group after recombination. */
     void setSigmaRecombination(bool r);
     /** @brief Whether intermediate sigma-recombination is enabled. @return true if enabled. */
     bool getSigmaRecombination() const;
@@ -389,7 +392,7 @@ private:
     stepControl step_control_ = stepControl::SELF_ADAPT_SCALED;
     /** @brief The learning-rate constant c for SELF_ADAPT_SCALED (tau = c/sqrt(2n)). */
     double learning_rate_c_ = 1.;
-    /** @brief Whether to intermediate-recombine the per-individual sigma after recombination. */
+    /** @brief Whether to average the parents' sigmas into the children's, per Gauss group. */
     bool recombine_sigma_ = true;
 
     /** @brief transient: evaluate the population inline -- a choice of the program that nests this
