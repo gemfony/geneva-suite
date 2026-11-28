@@ -45,9 +45,9 @@ clang-tidy -p build path/to/GMyClass.cpp
 
 `.clang-format` is based on the LLVM style, adjusted to Geneva's habits: a four-space indent with tabs never
 used, a hundred-column limit, and constructor-initializer / inheritance lists broken one entry per line with a
-leading comma (§5). `.clang-tidy` enables the `bugprone`, `cert`, `clang-analyzer`, `concurrency`,
+leading comma (§5). `.clang-tidy` enables the `bugprone`, `clang-analyzer`, `concurrency`,
 `cppcoreguidelines`, `modernize`, `performance`, `portability` and `readability` families, with a small set of
-documented exceptions. Its `HeaderFilterRegex` restricts warnings to Geneva's own headers, so noise from Boost
+documented exceptions; the `cert` checks run under the names of those families, each under one name only. Its `HeaderFilterRegex` restricts warnings to Geneva's own headers, so noise from Boost
 and the standard library does not drown out the signal.
 
 The whole tree was formatted once with `.clang-format`; that commit is listed in `.git-blame-ignore-revs`, so
@@ -209,16 +209,18 @@ Each kind of identifier has a fixed case:
 | Entity | Case | Example |
 |---|---|---|
 | Class, struct, enum, union | `CamelCase` | `GParserBuilder` |
-| Namespace, concept | `CamelCase` | `Gem::Geneva`, `MPMCQueue` |
+| Namespace (also an alias), concept | `CamelCase` | `Gem::Geneva`, `Genome`, `MPMCQueue` |
 | Type or template template parameter | `snake_case` ending in `_type` | `archive_type`, `derived_type` |
 | Type parameter without a specific role | a single capital letter, `s` for a pack | `T`, `U`, `F`, `Ts` |
 | Non-type template parameter | `UPPER_CASE` | `N`, `N_DIM`, `CAP` |
 | Function, method | `camelBack` | `setClientMode` |
+| Free function with the prefix `gem_` | `snake_case` | `gem_module_manifest` |
 | Parameter, local variable | `snake_case` | `client_mode` |
 | Private / protected member | `snake_case_` (trailing underscore) | `client_mode_` |
-| Public member (rare, discouraged) | `camelBack` | `someValue` |
+| Public member (plain data structs) | `snake_case`, no trailing underscore | `probes_per_round` |
+| Mutable global, static or `thread_local` variable (rare, §6) | `snake_case`, a `g_` / `t_` prefix allowed | `t_worker_pool` |
 | Enum constant | `UPPER_CASE` | `GEM_BINARY` |
-| Macro, global / static / class constant, `constexpr` variable | `UPPER_CASE` | `CONFIG_EMISSION_FLAG` |
+| Macro; a global / static / class constant or `constexpr` variable that holds a value | `UPPER_CASE` | `CONFIG_EMISSION_FLAG` |
 | Type alias, typedef | unconstrained | `value_type` |
 
 Template parameters follow their own rule (maintainer decision of 2026-11-15). A type parameter -- also a
@@ -246,8 +248,9 @@ void emplace_back(args_type &&...args);
 Two points deserve emphasis, because they changed when the conventions were modernized. First, **local
 variables and function parameters are `snake_case`**, not the camel case the older manual used. Second,
 **private and protected data members are `snake_case` with a trailing underscore**; the trailing underscore is
-retained from the original style, but the body of the name is now lower-case. Public data members — rare and
-discouraged — keep camel case.
+retained from the original style, but the body of the name is now lower-case. Public data members, found in
+plain settings, spec and C-ABI structs, are `snake_case` without the trailing underscore
+(`probes_per_round`); a member that backs a configuration key does not change the key (§4.4).
 
 ```cpp
 // From GOptimizer (excerpt): a camelBack method, a snake_case parameter, a snake_case_ member.
@@ -262,6 +265,25 @@ private:
     // ...
 };
 ```
+
+**Values and variables.** `UPPER_CASE` is for values. A mutable global, static or `thread_local` variable
+(rare: §6) is `snake_case`, with a `g_` or `t_` prefix allowed but not required (`t_worker_pool`); a private
+static data member is named as a private member (`update_in_place_`). Two kinds of `const` object are
+variables too: an object kept only for what its constructor does at start-up (`g_ea_registrant`), and an
+object changed behind a `const` pointer (`static GPolymorphicRegistry *const inst`, never destroyed on
+purpose). clang-tidy cannot tell the second kind from a constant, so its declaration carries a
+`NOLINT(readability-identifier-naming)` that says so.
+
+**Namespaces** are `CamelCase` without exception: a namespace alias (`namespace OA =
+Gem::Geneva::OptimizationAlgorithms`) and a namespace for implementation details (`Detail`) as well.
+
+**Names fixed by a contract** keep the form the contract gives them: the members a class supplies to a
+Geneva concept (`class_name`, `oa_mnemonic`, `oa_algorithm_name`), the traits of an archive (`is_saving`,
+`is_loading`), and the names that mirror the standard library (`param_type`, `is_...` traits, `..._v`
+variable templates, the free functions `to_string` and `from_string`, the `default_seed` of a random
+engine). A free function found by a name fixed outside C++ name lookup -- the C-ABI entry point
+of a module, an archive hook found by ADL -- carries the prefix `gem_` and is `snake_case`
+(`gem_module_manifest`, `gem_archive_serialize`).
 
 ### 4.1 The method-name carve-out (methods containing an underscore)
 
