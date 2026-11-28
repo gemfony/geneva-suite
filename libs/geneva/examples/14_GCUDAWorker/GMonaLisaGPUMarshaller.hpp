@@ -61,11 +61,11 @@ namespace Gem::Geneva::MonaLisa {
  *
  * One kernel launch per batch: minimal kernels, full bulk.
  *
- * The scalar type (gimage_fp_t, see GImageScalar.hpp) is selected at COMPILE TIME: DOUBLE by default,
- * or FLOAT when the example is built with GIMAGE_USE_FLOAT. The marshaller is that scalar end-to-end:
- * GBaseGPUMarshallerT<gimage_fp_t>, so the genome and fitness flat buffers, the device ABI and the CUDA
- * kernel all use it -- no widening/narrowing. The matching device kernel is selected through the default
- * GPU-consumer config.
+ * The scalar type (gimage_fp_t, see GImageScalar.hpp) is selected at COMPILE TIME: FLOAT by default
+ * (the CMake option GIMAGE_USE_FLOAT is ON), or DOUBLE when that option is OFF. The marshaller is
+ * that scalar end-to-end: GBaseGPUMarshallerT<gimage_fp_t>, so the genome and fitness flat buffers,
+ * the device ABI and the CUDA kernel all use it -- no widening/narrowing. The matching device kernel
+ * is selected through the default GPU-consumer config.
  */
 class GMonaLisaGPUMarshaller final : public Gem::Geneva::GBaseGPUMarshallerT<gimage_fp_t> {
 public:

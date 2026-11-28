@@ -78,7 +78,8 @@ using Gem::Geneva::Genome::GroupStructure;
  *
  * - SELF_ADAPT        : classic mutative self-adaptive isotropic Gaussian (σSA). Each group's sigma
  *                       self-adapts log-normally with whatever sigma_sigma the user authored. This is
- *                       what GEvolutionaryAlgorithm ("ea") uses and is the default for every config.
+ *                       the default of every config; GEvolutionaryAlgorithm ("ea") sets its own
+ *                       step_control on the config, SELF_ADAPT_SCALED by default.
  * - SELF_ADAPT_SCALED : as SELF_ADAPT, but the σ self-adaption learning rate is rescaled by the
  *                       parameter count n: a shared-σ group gets sigma_sigma = c/sqrt(2n), a
  *                       per-coordinate (length-1) group gets sigma_sigma = c/sqrt(2*sqrt(n)). This is
