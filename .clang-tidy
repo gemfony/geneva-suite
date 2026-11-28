@@ -390,9 +390,9 @@ CheckOptions:
 #   (Use a Doxygen completeness checker or pre-commit hook instead.)
 # - Exact file header / license block.
 #   (Use a custom regex script in CI.)
-# - No 'using namespace' in a header, also not in a function body.
+# - No 'using namespace' at file or namespace scope of a header.
 #   (google-build-using-namespace is off: it would also flag the uses
-#    allowed in the file of main() and in tests.)
+#    allowed in a function body and at file scope of a source file.)
 # - Prefer 'typename' over 'class' in template parameter lists.
 #   (modernize-use-using covers part of this; full check requires custom.)
 # - Template classes / structs ending with 'T' only.
