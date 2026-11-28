@@ -159,8 +159,9 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   or created anew.
 - **The external-evaluation protocol was rewritten** (a breaking change for external
   evaluators; the bundled `evaluator.py` was rewritten to match). The exchange files of an
-  evaluation are named by an identifier of their own instead of the individual's address, so
-  clients that share a working directory no longer write to the same files.
+  evaluation live in a run directory of its own (next entry on the external evaluator) instead of
+  files named by the individual's address, so clients that share a working directory no longer
+  write to the same files.
 - A generated **configuration reference** lives in `docs/config-reference/`. Programs can
   materialize/refresh their config files with `--update-configs` (programs without Geneva's
   launcher honor it too: `Gem::Common::finishConfigEmission()` logs the end of the pass and the
@@ -1011,6 +1012,25 @@ are in `CHANGES` and `INSTALL`; this file is the practical upgrade guide.
   directory into it, runs the program within its limits (inside the directory or not), and returns
   the result file's content only after an exit with 0 -- an interrupted run gives no result -- with
   the tail of the program's output for messages (`GFileExchangeResult`).
+- **geneva: the external evaluator exchanges its files in run directories, has a time limit, and
+  counts its results right.** `GExternalEvaluatorIndividual` runs `--setup`, `--evaluate` and
+  `--archive` through `runWithFileExchange()`: each exchange gets a directory
+  `<program>-<UUID>` in the working directory, the file names passed to the program are absolute
+  (`--input=<dir>/<parameter_file>.json`, `--output=<dir>/result.json`, `<dir>/setup.json`), the
+  program keeps the caller's working directory, and the directory is removed afterwards, also when
+  the step fails (a failed setup or archive left its file behind). `parameter_file` is now the name
+  of the parameter file in that directory; `remove_exec_temporaries false` keeps the directories.
+  New key `evaluation_time_limit` (seconds, 0 = none, the default): a program that runs longer is
+  ended (SIGTERM, SIGKILL after 10 s) and the evaluation counts as failed; before, a hung program
+  blocked its thread for ever. A program with more than one result (`n_results` > 1) failed every
+  evaluation; its results are now stored. `init_values random` had no effect -- every individual
+  started at the values of the setup; each produced individual now starts at random values within
+  the bounds when the setup asks for it (`initRandom`, else `init_values`); a setup that asks it
+  for only some variables is refused. A setup whose `nVars` differs from the number of its `vars`
+  is refused instead of being cut short. A failing `--finalize` is reported instead of ending the
+  program. Error messages name the command, say whether the program exited or was ended by a
+  signal or the time limit, and carry the last lines of its output instead of all of it. New
+  accessors `setEvaluationTimeLimit()` / `getEvaluationTimeLimit()`.
 - **geneva: `Go2` is `GOptimizer`** (source-breaking; the behaviour is unchanged). The "2" of the
   old name was a pun on `goto`, not a version. What a user changes:
   - the class `Gem::Geneva::Go2` is `Gem::Geneva::GOptimizer`, its header `geneva/Go2.hpp` is

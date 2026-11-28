@@ -55,14 +55,14 @@ ADD_SUBDIRECTORY (evaluator)
 # This example delegates every evaluation to an EXTERNAL program -- the shipped evaluator/evaluator.py,
 # started through its "#!/usr/bin/env python3" shebang. A Python 3 interpreter is therefore a genuine
 # external dependency of the test (not of the build), so the test is registered only where configure
-# time finds one; everything else about it is unconditional (Inv 9). The run itself halts on the stall
-# criterion after a couple of seconds.
+# time finds one; everything else about it is unconditional (Inv 9). The run starts at random values
+# and halts on the stall criterion after about 80 iterations, about 30 s on an idle host (size L).
 FIND_PACKAGE ( Python3 COMPONENTS Interpreter QUIET )
 IF ( Python3_Interpreter_FOUND )
 	ADD_TEST(NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 	SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300)
-	GEM_TEST_SIZE(${EXECUTABLENAME} M)
+	GEM_TEST_SIZE(${EXECUTABLENAME} L)
 ELSE ()
 	MESSAGE ( STATUS
 		"Example 11 (GExternalEvaluator): no Python 3 interpreter found -- its end-to-end test is not registered" )

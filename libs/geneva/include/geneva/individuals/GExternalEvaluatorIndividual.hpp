@@ -97,6 +97,7 @@ constexpr std::size_t GEEI_DEF_NRESULTS = 1;
 const std::string GEEI_DEF_STARTMODE = "random";
 const std::string GEEI_DEF_RUNID = "empty";
 constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
+constexpr std::uint32_t GEEI_DEF_EVALUATIONTIMELIMIT = 0;
 
 /******************************************************************************/
 /**
@@ -121,7 +122,14 @@ constexpr bool GEEI_DEF_REMOVETEMPORARIES = true;
  *
  * The parameter / result / setup files exchanged with the external program are JSON documents
  * (see the shipped evaluator.py reference implementation for the schema). Hence the external
- * program needs to read and write this JSON format.
+ * program needs to read and write this JSON format. Each --setup, --evaluate and --archive
+ * exchanges its files in a run directory of its own, created in the working directory and removed
+ * afterwards (Gem::Common::runWithFileExchange); the file names passed to the program are absolute.
+ * The program itself runs in the caller's working directory. An evaluation that takes longer than
+ * its time limit is ended and counts as failed.
+ *
+ * A program that is ended (time limit) gets SIGTERM; if it starts further programs, it passes the
+ * signal on to them or replaces itself with exec.
  */
 class GExternalEvaluatorIndividual : public Genome::GGenomeT<GExternalEvaluatorIndividual> {
     ///////////////////////////////////////////////////////////////////////
@@ -140,9 +148,9 @@ class GExternalEvaluatorIndividual : public Genome::GGenomeT<GExternalEvaluatorI
             Gem::Common::make_member("program_name_", self.program_name_),
             Gem::Common::make_member("custom_options_", self.custom_options_),
             Gem::Common::make_member("parameter_file_base_name_", self.parameter_file_base_name_),
-            Gem::Common::make_member("n_results_", self.n_results_),
             Gem::Common::make_member("run_id_", self.run_id_),
-            Gem::Common::make_member("remove_exec_temporaries_", self.remove_exec_temporaries_)
+            Gem::Common::make_member("remove_exec_temporaries_", self.remove_exec_temporaries_),
+            Gem::Common::make_member("evaluation_time_limit_", self.evaluation_time_limit_)
         );
     }
 
@@ -177,11 +185,11 @@ public:
     std::string getCustomOptions() const;
 
     /**
-     * @brief Sets the base name of the data exchange file
+     * @brief Sets the name (without ".json") of the parameter file in an evaluation's run directory
      */
     void setExchangeBaseName(const std::string &parameter_file);
     /**
-     * @brief Retrieves the current value of the parameter_file_base_name_ variable
+     * @brief Retrieves the name (without ".json") of the parameter file in an evaluation's run directory
      */
     std::string getExchangeBaseName() const;
 
@@ -204,21 +212,30 @@ public:
     std::string getRunId() const;
 
     /**
-     * @brief Allows to specify whether temporary files should be removed
+     * @brief Allows to specify whether the run directories of the exchanges should be removed
      */
     void setRemoveExecTemporaries(bool remove_exec_temporaries);
     /**
-     * @brief Allows to check whether temporaries should be removed
+     * @brief Allows to check whether the run directories of the exchanges are removed
      */
     bool getRemoveExecTemporaries() const;
+
+    /**
+     * @brief Sets the time after which an evaluation is ended as failed; 0: none
+     */
+    void setEvaluationTimeLimit(std::chrono::seconds evaluation_time_limit);
+    /**
+     * @brief Retrieves the time after which an evaluation is ended as failed; 0: none
+     */
+    std::chrono::seconds getEvaluationTimeLimit() const;
 
     /***************************************************************************/
     /**
      * The configuration read from the config file by GIndividualFactory<GExternalEvaluatorIndividual>.
-     * Besides the Gauss / bi-Gauss adaptor settings and the external-program parameters, two fields
-     * (run_id, n_results_expected) are not parsed from the file but DISCOVERED by buildGenome() when it
-     * queries the external evaluator; buildGenome writes them back so applyConfig() can hand them to each
-     * produced individual.
+     * Besides the Gauss / bi-Gauss adaptor settings and the external-program parameters, three fields
+     * (run_id, n_results_expected, random_start) are not parsed from the file but DISCOVERED by
+     * buildGenome() when it queries the external evaluator; buildGenome writes them back so
+     * applyConfig() can hand them to each produced individual.
      */
     struct Config {
         double ad_prob = GEEI_DEF_ADPROB;
@@ -244,9 +261,11 @@ public:
         std::string parameter_file_base_name = GEEI_DEF_PARFILEBASENAME;
         std::string init_values = GEEI_DEF_STARTMODE;
         bool remove_exec_temporaries = GEEI_DEF_REMOVETEMPORARIES;
+        std::uint32_t evaluation_time_limit = GEEI_DEF_EVALUATIONTIMELIMIT;
         // Discovered by buildGenome() from the external evaluator's setup output (not parsed from file):
         std::string run_id = GEEI_DEF_RUNID;
         std::size_t n_results_expected = GEEI_DEF_NRESULTS;
+        bool random_start = false; ///< whether the setup asked for random start values
     };
 
     /**
@@ -288,27 +307,20 @@ protected:
 
 private:
     /***************************************************************************/
-    /** @brief Worst-cases the results and flags the individual after the external command failed
-     *  (the command-error branch of evaluate()). */
-    void appendWorstCaseOnCommandError_(
-        const std::string &command,
-        int error_code,
-        const std::string &command_output_file_name,
-        std::vector<double> &results
-    );
-    /** @brief Parses+validates the external result file into the per-criterion result vector, honouring
-     *  the isValid flag (the result-parse branch of evaluate()). */
-    void parseExternalResults_(const std::string &result_file_name, std::vector<double> &results);
+    /** @brief Parses+validates the external result document into the per-criterion result vector,
+     *  honouring the isValid flag (the result-parse branch of evaluate()). */
+    std::vector<double>
+    parseExternalResults_(const std::string &result_text, const std::string &command);
 
     /***************************************************************************/
 
     std::string program_name_; ///< The name of the external program to be executed
     std::string
         custom_options_; ///< Any custom options that need to be provided to the external program
-    std::string parameter_file_base_name_; ///< The base name to be assigned to the parameter_file
-    std::size_t n_results_; ///< The number of results to be expected from the evaluation function
-    std::string run_id_;    ///< Identifies this run with a unique id
-    bool remove_exec_temporaries_; ///< Indicates whether temporary files should be removed
+    std::string parameter_file_base_name_; ///< The name of the parameter file in the run directory
+    std::string run_id_;                   ///< Identifies this run with a unique id
+    bool remove_exec_temporaries_; ///< Indicates whether the run directories should be removed
+    std::chrono::seconds evaluation_time_limit_{GEEI_DEF_EVALUATIONTIMELIMIT}; ///< 0: none
 };
 
 /******************************************************************************/

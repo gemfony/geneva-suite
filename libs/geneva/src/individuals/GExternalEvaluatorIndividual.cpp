@@ -33,6 +33,7 @@
 #include "common/GCommonInterfaceT.hpp"
 #include "common/GExceptions.hpp"
 #include "common/GExpectationChecksT.hpp"
+#include "common/GFileExchangeRun.hpp"
 #include "common/GJsonIO.hpp"
 #include "common/GLogger.hpp"
 #include "common/GParserBuilder.hpp"
@@ -85,6 +86,104 @@ static std::vector<std::string> customOptionArguments(const std::string &custom_
 }
 
 /******************************************************************************/
+/**
+ * @brief The name of the result file of an evaluation in its run directory
+ */
+static constexpr std::string_view RESULT_FILE = "result.json";
+
+/**
+ * @brief The name of the setup file in the run directory of --setup
+ */
+static constexpr std::string_view SETUP_FILE = "setup.json";
+
+/******************************************************************************/
+/**
+ * @brief An argument naming a file in the run directory, for the program
+ *
+ * @param option The option, e.g. "--input="
+ * @param name The file's name in the run directory
+ * @return The option with the file's absolute path (Gem::Common::RUN_DIRECTORY stands for the
+ * directory)
+ */
+static std::string runFileArgument(std::string_view option, std::string_view name) {
+    return std::string(option) + std::string(Gem::Common::RUN_DIRECTORY) + "/" + std::string(name);
+}
+
+/******************************************************************************/
+/**
+ * @brief How the program ended, for messages
+ *
+ * @param run How it ended
+ * @param time_limit The time limit of the run
+ * @return E.g. "exited with status 1" or "was ended by signal 9"
+ */
+static std::string
+howItEnded(Gem::Common::GProgramResult const &run, std::chrono::seconds time_limit) {
+    switch(run.end) {
+    case Gem::Common::ProgramEnd::EXITED:
+        return "exited with status " + std::to_string(run.code);
+    case Gem::Common::ProgramEnd::SIGNALLED:
+        return "was ended by signal " + std::to_string(run.code);
+    case Gem::Common::ProgramEnd::TIME_LIMIT:
+        return "was ended: the time limit of " + std::to_string(time_limit.count()) +
+               " s was reached";
+    case Gem::Common::ProgramEnd::STOP_REQUEST:
+        return "was ended by a stop request";
+    }
+    return {};
+}
+
+/******************************************************************************/
+/**
+ * @brief Whether the program ended by itself with status 0
+ */
+static bool succeeded(Gem::Common::GProgramResult const &run) {
+    return run.end == Gem::Common::ProgramEnd::EXITED and run.code == 0;
+}
+
+/******************************************************************************/
+/**
+ * @brief The message of a failed exchange: what went wrong, the command and the last lines of the
+ * program's output
+ *
+ * @param what What went wrong
+ * @param run The exchange
+ * @return The message
+ */
+static std::string failureOf(std::string const &what, Gem::Common::GFileExchangeResult const &run) {
+    std::ostringstream message;
+    message << what << '\n' << "Command: " << run.program.command << '\n';
+    if(not run.output_tail.empty()) {
+        message << "Last lines of the program's output:" << '\n' << run.output_tail << '\n';
+    }
+    return message.str();
+}
+
+/******************************************************************************/
+/**
+ * @brief Runs the program for a step that exchanges no files (--init, --finalize); its output is
+ * the caller's
+ *
+ * @param program_name The program
+ * @param custom_options The configured custom options
+ * @param step The step, e.g. "--init"
+ * @return How the program ended
+ */
+static Gem::Common::GProgramResult runStep(
+    std::string const &program_name,
+    std::string const &custom_options,
+    std::string const &step
+) {
+    std::vector<std::string> arguments = customOptionArguments(custom_options);
+    arguments.push_back(step);
+    return Gem::Common::runExternalCommand(
+        std::filesystem::path(program_name),
+        arguments,
+        std::filesystem::path()
+    );
+}
+
+/******************************************************************************/
 ////////////////////////////////////////////////////////////////////////////////
 /******************************************************************************/
 /**
@@ -94,7 +193,6 @@ GExternalEvaluatorIndividual::GExternalEvaluatorIndividual()
   : program_name_(GEEI_DEF_PROGNAME)
   , custom_options_(GEEI_DEF_CUSTOMOPTIONS)
   , parameter_file_base_name_(GEEI_DEF_PARFILEBASENAME)
-  , n_results_(GEEI_DEF_NRESULTS)
   , run_id_(GEEI_DEF_RUNID)
   , remove_exec_temporaries_(GEEI_DEF_REMOVETEMPORARIES) { /* nothing */
 }
@@ -142,12 +240,9 @@ std::string GExternalEvaluatorIndividual::getCustomOptions() const {
 
 /******************************************************************************/
 /**
- * @brief Sets the base name of the data exchange file.
+ * @brief Sets the name of the parameter file in an evaluation's run directory; ".json" is appended.
  *
- * Note that the individual might add additional characters in order to distinguish between the
- * exchange files of different individuals.
- *
- * @param parameter_file The desired new base name of the exchange file; must be non-empty and not the literal "empty"
+ * @param parameter_file The name; must be non-empty and not the literal "empty"
  */
 void GExternalEvaluatorIndividual::setExchangeBaseName(const std::string &parameter_file) {
     if(parameter_file.empty() || parameter_file == "empty") {
@@ -162,9 +257,9 @@ void GExternalEvaluatorIndividual::setExchangeBaseName(const std::string &parame
 
 /******************************************************************************/
 /**
- * @brief Retrieves the current value of the parameter_file_base_name_ variable.
+ * @brief Retrieves the name of the parameter file in an evaluation's run directory.
  *
- * @return The current base name of the exchange file
+ * @return The name, without ".json"
  */
 std::string GExternalEvaluatorIndividual::getExchangeBaseName() const {
     return parameter_file_base_name_;
@@ -172,7 +267,8 @@ std::string GExternalEvaluatorIndividual::getExchangeBaseName() const {
 
 /******************************************************************************/
 /**
- * @brief Sets the number of results to be expected from the external evaluation program.
+ * @brief Sets the number of results to be expected from the external evaluation program; the
+ * individual stores as many results.
  *
  * @param n_results The number of result values the external program is expected to return; must be greater than 0
  */
@@ -184,26 +280,28 @@ void GExternalEvaluatorIndividual::setNExpectedResults(const std::size_t &n_resu
         );
     }
 
-    n_results_ = n_results;
+    this->setNStoredResults(n_results);
 }
 
 /******************************************************************************/
 /**
  * @brief Retrieves the number of results to be expected from the external evaluation program.
  *
- * @return The number of result values the external program is expected to return
+ * @return The number of result values the external program is expected to return (the number of
+ * stored results)
  */
 std::size_t GExternalEvaluatorIndividual::getNExpectedResults() const {
-    return n_results_;
+    return this->getNStoredResults();
 }
 
 /******************************************************************************/
 /**
  * @brief The actual fitness calculation takes place in an external program.
  *
- * Here we just write a file with the required parameters to disk and execute the program, then
- * parse the result file it produces. On failure the worst-case value is assigned and the individual
- * is flagged as invalid.
+ * The parameters are written into a run directory of this evaluation (Gem::Common::runWithFileExchange),
+ * the program runs within the evaluation time limit, and the result file it writes there is parsed.
+ * A program that fails (exit status, signal, time limit) gives the worst case and flags the
+ * individual as invalid; a missing or malformed result throws.
  *
  * @return The full per-criterion raw result vector obtained from the external evaluation program
  */
@@ -217,135 +315,65 @@ std::vector<double> GExternalEvaluatorIndividual::evaluate() {
     batch_out["n_individuals"] = static_cast<std::size_t>(1);
     batch_out["individuals"] = json::array{this->toJSON()};
 
-    // Exchange file names of this evaluation: an identifier of its own, so that evaluations in other
-    // processes or on other hosts sharing the working directory, and later ones of this object, never
-    // meet the same files
-    std::string const extension = std::string("-") +
-                                  Gem::Common::to_string(this->getAssignedIteration()) + "-" +
-                                  Gem::Common::generate_uuid_v4();
-    std::string const parameterfile_name = parameter_file_base_name_ + extension + ".json";
-    std::string const result_file_name = std::string("result") + extension + ".json";
-    std::string const command_output_file_name = std::string("commandOutput") + extension + ".txt";
+    std::string const parameter_file = parameter_file_base_name_ + ".json";
+    Gem::Common::GFileExchangeSpec spec;
+    spec.program = program_name_;
+    spec.arguments = customOptionArguments(custom_options_);
+    spec.arguments.emplace_back("--evaluate");
+    spec.arguments.push_back(runFileArgument("--input=", parameter_file));
+    spec.arguments.push_back(runFileArgument("--output=", RESULT_FILE));
+    spec.inputs.emplace_back(parameter_file, Gem::Common::prettyPrintJson(batch_out));
+    spec.result = RESULT_FILE;
+    spec.limits.time_limit = evaluation_time_limit_;
+    spec.keep = not remove_exec_temporaries_;
 
-    // RAII guard: remove the three IPC temp files on scope exit, whether normal or via exception.
-    // remove() is a no-op for non-existent files (e.g. result_file_name when the external
-    // program never ran), so all three can be listed unconditionally.
-    struct TempFileGuard {
-        const std::string &param, &result, &cmdOut;
-        bool active;
-        ~TempFileGuard() {
-            if(!active)
-                return;
-            std::filesystem::remove(param);
-            std::filesystem::remove(result);
-            std::filesystem::remove(cmdOut);
-        }
-    } temp_guard{
-        .param = parameterfile_name,
-        .result = result_file_name,
-        .cmdOut = command_output_file_name,
-        .active = remove_exec_temporaries_
-    };
+    auto const run = Gem::Common::runWithFileExchange(spec, ".");
 
-    // Save the parameters to a file for the external evaluation
-    Gem::Common::writeJsonFile(parameterfile_name, batch_out);
-
-    // Collect all command-line arguments
-    std::vector<std::string> arguments = customOptionArguments(custom_options_);
-    arguments.emplace_back("--evaluate");
-    arguments.push_back("--input=" + parameterfile_name);
-    arguments.push_back("--output=" + result_file_name);
-
-    // Perform the external evaluation. The full per-criterion result vector is returned (the caller writes
-    // each criterion); an error / invalid path fills it with the worst case and flags the individual.
-    std::vector<double> results(n_results_, 0.);
-    auto const run = Gem::Common::runExternalCommand(
-        std::filesystem::path(program_name_),
-        arguments,
-        std::filesystem::path(command_output_file_name)
-    );
-    std::string const &command = run.command;
-    int const error_code = run.code;
-
-    if(error_code) { // Something went wrong -- worst-case the results and flag the individual
-        this->appendWorstCaseOnCommandError_(
-            command,
-            error_code,
-            command_output_file_name,
-            results
+    if(not succeeded(run.program)) {
+        // As long as failures do not happen too often, the worst case has but little influence on
+        // the optimization; the flag makes the individual recognizable as invalid
+        this->force_set_error(failureOf(
+            "In GExternalEvaluatorIndividual::evaluate(): the external program " +
+                howItEnded(run.program, evaluation_time_limit_),
+            run
+        ));
+        return std::vector<double>(this->getNStoredResults(), this->getWorstCase());
+    }
+    if(not run.result) {
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << failureOf(
+                "In GExternalEvaluatorIndividual::evaluate(): the external program exited with 0 "
+                "but wrote no result file " +
+                    std::string(RESULT_FILE),
+                run
+            )
         );
     }
-    else { // Everything is o.k., lets retrieve the evaluation from the result file
-        this->parseExternalResults_(result_file_name, results);
-    }
-
-    // Return the full per-criterion result vector (the caller writes each criterion)
-    return results;
+    return this->parseExternalResults_(*run.result, run.program.command);
 }
 
 /******************************************************************************/
 /**
- * @brief Fills the result vector with the worst case and flags the individual as invalid after the
- * external evaluation command failed. Extracted from evaluate() (the command-error branch).
+ * @brief Parses the external evaluation result document into the per-criterion result vector,
+ * validating the individual count / result count and honouring the individual's isValid flag
+ * (worst-casing + flagging on an invalid result). Extracted from evaluate() (the result-parse branch).
  *
- * @param command The command line that was executed
- * @param error_code The non-zero error code returned by the external command
- * @param command_output_file_name The file capturing the external program's output (for diagnostics)
- * @param results The per-criterion result vector to fill with the worst case (modified in place)
+ * @param result_text The JSON result document written by the external evaluation program
+ * @param command The command that wrote it, for messages
+ * @return The per-criterion result vector
  */
-void GExternalEvaluatorIndividual::appendWorstCaseOnCommandError_(
-    const std::string &command,
-    int error_code,
-    const std::string &command_output_file_name,
-    std::vector<double> &results
-) {
-    std::ostringstream error_message;
-
-    error_message << "In GExternalEvaluatorIndividual::evaluate():" << '\n'
-                  << "Execution of external command failed." << '\n'
-                  << "Command: " << command << '\n'
-                  << "Error code: " << error_code << '\n'
-                  << "Program output:" << '\n'
-                  << Gem::Common::loadTextDataFromFile(command_output_file_name) << '\n';
-
-    // O.k., so the external application crashed or returned an error.
-    // All we can do here is to return the worst case. As long as crashes
-    // do not happen too often, this will have but little influence on
-    // the optimization.
-    for(double &r : results) {
-        r = this->getWorstCase();
-    }
-
-    // Make sure the individual can be recognized as invalid by Geneva
-    this->force_set_error(error_message.str());
-}
-
-/******************************************************************************/
-/**
- * @brief Parses the external evaluation result file into the per-criterion result vector, validating the
- * individual count / result count and honouring the individual's isValid flag (worst-casing + flagging on
- * an invalid result). Extracted from evaluate() (the result-parse branch).
- *
- * @param result_file_name The JSON result file written by the external evaluation program
- * @param results The per-criterion result vector to fill (modified in place)
- */
-void GExternalEvaluatorIndividual::parseExternalResults_(
-    const std::string &result_file_name,
-    std::vector<double> &results
+std::vector<double> GExternalEvaluatorIndividual::parseExternalResults_(
+    const std::string &result_text,
+    const std::string &command
 ) {
     namespace json = boost::json;
 
-    // Check that the result file exists
-    if(not std::filesystem::exists(result_file_name)) {
-        throw Gem::Common::gem_exception(
-            Gem::Common::g_error_streamer()
-            << "Result file " << result_file_name << " does not seem to exist." << '\n'
-        );
-    }
+    // Parse the results (GJsonIO throws a gem_exception naming the command on a malformed document)
+    json::value const result_doc =
+        Gem::Common::parseJsonString(result_text, "the result file of " + command);
 
-    // Parse the results (GJsonIO throws a gem_exception with the file name on a malformed file)
-    json::value result_doc = Gem::Common::parseJsonFile(result_file_name);
-
+    std::size_t const n_results = this->getNStoredResults();
+    std::vector<double> results(n_results, 0.);
     try {
         json::object const &root = result_doc.as_object();
 
@@ -362,11 +390,11 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
 
         // Check that the number of results provided by the result file matches the number of expected results
         auto external_n_results = result_individual.at("n_results").to_number<std::size_t>();
-        if(external_n_results != n_results_) {
+        if(external_n_results != n_results) {
             throw Gem::Common::gem_exception(
                 Gem::Common::g_error_streamer()
                 << "Result file provides n_results = " << external_n_results << '\n'
-                << "while we expected " << n_results_ << '\n'
+                << "while we expected " << n_results << '\n'
             );
         }
 
@@ -388,7 +416,7 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
         else { // Extract and store all result values
             json::array const &results_node = result_individual.at("results").as_array();
 
-            for(std::size_t res = 0; res < n_results_; res++) {
+            for(std::size_t res = 0; res < n_results; res++) {
                 results[res] = results_node.at(res).as_object().at("rawResult").to_number<double>();
             }
         }
@@ -398,10 +426,12 @@ void GExternalEvaluatorIndividual::parseExternalResults_(
     }
     catch(const std::exception &e) {
         throw Gem::Common::gem_exception(
-            Gem::Common::g_error_streamer() << "Error reading " << result_file_name << '\n'
-                                            << "with message " << e.what() << '\n'
+            Gem::Common::g_error_streamer()
+            << "Error reading the result file of " << command << '\n'
+            << "with message " << e.what() << '\n'
         );
     }
+    return results;
 }
 
 /******************************************************************************/
@@ -433,9 +463,10 @@ std::string GExternalEvaluatorIndividual::getRunId() const {
 
 /******************************************************************************/
 /**
- * @brief Allows to specify whether temporary files should be removed. This is mostly needed for debugging purposes.
+ * @brief Allows to specify whether the run directories of the exchanges with the external program
+ * are removed afterwards. Keeping them is mostly needed for debugging purposes.
  *
- * @param remove_exec_temporaries If true, the IPC temporary files are removed after each external evaluation
+ * @param remove_exec_temporaries If true, the run directory of each exchange is removed after it
  */
 void GExternalEvaluatorIndividual::setRemoveExecTemporaries(bool remove_exec_temporaries) {
     remove_exec_temporaries_ = remove_exec_temporaries;
@@ -443,12 +474,35 @@ void GExternalEvaluatorIndividual::setRemoveExecTemporaries(bool remove_exec_tem
 
 /******************************************************************************/
 /**
- * @brief Allows to check whether temporaries should be removed.
+ * @brief Allows to check whether the run directories of the exchanges are removed.
  *
- * @return true if IPC temporary files are removed after each external evaluation, false otherwise
+ * @return true if the run directory of each exchange is removed after it, false otherwise
  */
 bool GExternalEvaluatorIndividual::getRemoveExecTemporaries() const {
     return remove_exec_temporaries_;
+}
+
+/******************************************************************************/
+/**
+ * @brief Sets the time after which an evaluation is ended (SIGTERM, then SIGKILL) and counts as
+ * failed.
+ *
+ * @param evaluation_time_limit The wall-clock time limit; 0: none
+ */
+void GExternalEvaluatorIndividual::setEvaluationTimeLimit(
+    std::chrono::seconds evaluation_time_limit
+) {
+    evaluation_time_limit_ = evaluation_time_limit;
+}
+
+/******************************************************************************/
+/**
+ * @brief Retrieves the time after which an evaluation is ended and counts as failed.
+ *
+ * @return The wall-clock time limit; 0: none
+ */
+std::chrono::seconds GExternalEvaluatorIndividual::getEvaluationTimeLimit() const {
+    return evaluation_time_limit_;
 }
 
 /******************************************************************************/
@@ -517,9 +571,9 @@ void GExternalEvaluatorIndividual::describeConfig(Gem::Common::GParserBuilder &g
         "parameter_file",
         c.parameter_file_base_name,
         GEEI_DEF_PARFILEBASENAME
-    ) << "The base name assigned to parameter files"
+    ) << "The name (without .json) of the parameter file"
       << '\n'
-      << "in addition to data identifying this specific evaluation";
+      << "in the run directory of each evaluation";
     gpb.registerFileParameter<std::string>("init_values", c.init_values, GEEI_DEF_STARTMODE)
         << "Indicates, whether individuals should be initialized randomly (random)," << '\n'
         << "with the lower (min) or upper (max) boundary of their value ranges";
@@ -527,7 +581,16 @@ void GExternalEvaluatorIndividual::describeConfig(Gem::Common::GParserBuilder &g
         "remove_exec_temporaries",
         c.remove_exec_temporaries,
         GEEI_DEF_REMOVETEMPORARIES
-    ) << "Indicates, whether files created during external execution should be removed";
+    ) << "Indicates, whether the run directory of each exchange with the external program"
+      << '\n'
+      << "should be removed afterwards";
+    gpb.registerFileParameter<std::uint32_t>(
+        "evaluation_time_limit",
+        c.evaluation_time_limit,
+        GEEI_DEF_EVALUATIONTIMELIMIT
+    ) << "The time in seconds after which an evaluation is ended and counts as failed;"
+      << '\n'
+      << "0: none";
 }
 
 /******************************************************************************/
@@ -539,54 +602,46 @@ void GExternalEvaluatorIndividual::describeConfig(Gem::Common::GParserBuilder &g
  * @return The parsed setup JSON document
  */
 static boost::json::value queryExternalSetup(const GExternalEvaluatorIndividual::Config &c) {
-    namespace json = boost::json;
-
-    json::value setup_doc;
-
-    { // Give the external program the opportunity to perform initial work
-        std::vector<std::string> arguments = customOptionArguments(c.custom_options);
-        arguments.emplace_back("--init");
-        auto const run = Gem::Common::runExternalCommand(
-            std::filesystem::path(c.program_name),
-            arguments,
-            std::filesystem::path()
+    // Give the external program the opportunity to perform initial work
+    if(auto const run = runStep(c.program_name, c.custom_options, "--init"); not succeeded(run)) {
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer()
+            << "The external program " << howItEnded(run, {}) << " in its --init step." << '\n'
+            << "Command: " << run.command << '\n'
         );
-        std::string const &command = run.command;
-        int const error_code = run.code;
-        if(error_code) {
-            throw Gem::Common::gem_exception(
-                Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
-                                                << "Command: " << command << '\n'
-                                                << "Error code: " << error_code << '\n'
-            );
-        }
     }
 
-    { // Now ask the external program for setup information
-        std::vector<std::string> arguments = customOptionArguments(c.custom_options);
-        std::string const setup_file_name =
-            std::string("./setup-") + Gem::Common::generate_uuid_v4() + std::string(".json");
-        arguments.push_back("--setup");
-        arguments.push_back("--output=" + setup_file_name);
-        arguments.push_back("--initvalues=" + c.init_values);
-        auto const run = Gem::Common::runExternalCommand(
-            std::filesystem::path(c.program_name),
-            arguments,
-            std::filesystem::path()
+    // Now ask the external program for setup information
+    Gem::Common::GFileExchangeSpec spec;
+    spec.program = c.program_name;
+    spec.arguments = customOptionArguments(c.custom_options);
+    spec.arguments.emplace_back("--setup");
+    spec.arguments.push_back(runFileArgument("--output=", SETUP_FILE));
+    spec.arguments.push_back("--initvalues=" + c.init_values);
+    spec.result = SETUP_FILE;
+    spec.keep = not c.remove_exec_temporaries;
+
+    auto const run = Gem::Common::runWithFileExchange(spec, ".");
+    if(not succeeded(run.program)) {
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << failureOf(
+                "The external program " + howItEnded(run.program, {}) + " in its --setup step.",
+                run
+            )
         );
-        std::string const &command = run.command;
-        int const error_code = run.code;
-        if(error_code) {
-            throw Gem::Common::gem_exception(
-                Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
-                                                << "Command: " << command << '\n'
-                                                << "Error code: " << error_code << '\n'
-            );
-        }
-        setup_doc = Gem::Common::parseJsonFile(setup_file_name);
-        std::filesystem::remove(std::filesystem::path(setup_file_name));
+    }
+    if(not run.result) {
+        throw Gem::Common::gem_exception(
+            Gem::Common::g_error_streamer() << failureOf(
+                "The external program exited with 0 but wrote no setup file " +
+                    std::string(SETUP_FILE),
+                run
+            )
+        );
     }
 
+    boost::json::value setup_doc =
+        Gem::Common::parseJsonString(*run.result, "the setup file of " + run.program.command);
     if(not setup_doc.is_object()) {
         throw Gem::Common::gem_exception(
             Gem::Common::g_error_streamer()
@@ -639,10 +694,35 @@ static Genome::GenomeData authorFlatGenomeFromSetup(
                 Gem::Common::g_error_streamer() << "No variables were specified" << '\n'
             );
         }
+        if(var_set_node.size() != n_var) {
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "The setup gives nVars " << n_var << " but lists " << var_set_node.size()
+                << " variables" << '\n'
+            );
+        }
 
-        for(std::size_t var_counter = 0; var_counter < n_var && var_counter < var_set_node.size();
-            ++var_counter) {
-            json::object const &var_subtree = var_set_node.at(var_counter).as_object();
+        // A random start: as the setup says per variable (initRandom), else as configured. All
+        // variables start alike, as randomInit() draws every active one.
+        std::size_t n_random = 0;
+        for(json::value const &var : var_set_node) {
+            json::object const &var_subtree = var.as_object();
+            auto const *init_random = var_subtree.if_contains("initRandom");
+            if(init_random ? init_random->as_bool() : c.init_values == "random") {
+                ++n_random;
+            }
+        }
+        if(n_random != 0 and n_random != n_var) {
+            throw Gem::Common::gem_exception(
+                Gem::Common::g_error_streamer()
+                << "The setup asks for a random start of " << n_random << " of its " << n_var
+                << " variables; only all or none are supported" << '\n'
+            );
+        }
+        c.random_start = n_random != 0;
+
+        for(json::value const &var : var_set_node) {
+            json::object const &var_subtree = var.as_object();
             std::string const var_type = json::value_to<std::string>(var_subtree.at("type"));
             if("GConstrainedDoubleObject" == var_type) {
                 auto min_var = var_subtree.at("lowerBoundary").to_number<double>();
@@ -776,7 +856,7 @@ GExternalEvaluatorIndividual::buildAdaptionConfig(const Genome::GGenome &sample,
  *
  * Called by GIndividualFactory::postProcess_ after the genome is installed; applies the
  * external-program parameters and the metadata discovered by buildGenome (run-id, expected result
- * count).
+ * count), and draws random start values within the bounds if the setup asked for them.
  *
  * @param ind The individual to configure (mutated in place)
  * @param c The Config supplying the exchange base name, program name, custom options, expected result count, temporary-removal flag and run-id
@@ -787,45 +867,36 @@ void GExternalEvaluatorIndividual::applyConfig(GExternalEvaluatorIndividual &ind
     ind.setCustomOptions(c.custom_options);
     ind.setNExpectedResults(c.n_results_expected);
     ind.setRemoveExecTemporaries(c.remove_exec_temporaries);
+    ind.setEvaluationTimeLimit(std::chrono::seconds(c.evaluation_time_limit));
     ind.setRunId(c.run_id);
+    if(c.random_start) {
+        ind.randomInit(activityMode::ACTIVEONLY);
+    }
 }
 
 /******************************************************************************/
 /**
  * @brief Teardown hook giving the external evaluator program a chance to perform final work (--finalize).
  *
- * Called by GIndividualFactory's destructor once a genome has been produced. Errors here are fatal.
+ * Called by GIndividualFactory's destructor once a genome has been produced. A failure is reported
+ * (GEM_ERROR) and does not end the program: the caller's remaining work still runs.
  *
  * @param c The Config supplying the program name and custom options used to invoke the external program with --finalize
  */
 void GExternalEvaluatorIndividual::finalize(const Config &c) {
-    if(c.program_name.empty()) {
-        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): Error!" << '\n'
-                   << "Program name was empty" << '\n'
-                   << GEM_LOGEXIT(EXIT_FAILURE);
-    }
-    if(not std::filesystem::exists(c.program_name)) {
-        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): Error!" << '\n'
-                   << "External program " << c.program_name << " does not seem to exist" << '\n'
-                   << GEM_LOGEXIT(EXIT_FAILURE);
+    if(c.program_name.empty() or not std::filesystem::exists(c.program_name)) {
+        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): the external program \""
+                   << c.program_name << "\" does not exist; --finalize was not run" << '\n'
+                   << GEM_ERROR;
+        return;
     }
 
-    std::vector<std::string> arguments = customOptionArguments(c.custom_options);
-    arguments.emplace_back("--finalize");
-
-    auto const run = Gem::Common::runExternalCommand(
-        std::filesystem::path(c.program_name),
-        arguments,
-        std::filesystem::path()
-    );
-    std::string const &command = run.command;
-    int const error_code = run.code;
-    if(error_code) {
-        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): Error" << '\n'
-                   << "Execution of external command failed." << '\n'
-                   << "Command: " << command << '\n'
-                   << "Error code: " << error_code << '\n'
-                   << GEM_LOGEXIT(EXIT_FAILURE);
+    if(auto const run = runStep(c.program_name, c.custom_options, "--finalize");
+       not succeeded(run)) {
+        GEM_LOGGER << "In GExternalEvaluatorIndividual::finalize(): the external program "
+                   << howItEnded(run, {}) << " in its --finalize step." << '\n'
+                   << "Command: " << run.command << '\n'
+                   << GEM_ERROR;
     }
 }
 
@@ -858,31 +929,24 @@ void GExternalEvaluatorIndividual::archive(
     }
     batch_out["individuals"] = std::move(individuals);
 
-    std::string const parameterfile_name =
-        arch.front()->getExchangeBaseName() + "-" + Gem::Common::generate_uuid_v4() + ".json";
+    std::string const parameter_file = arch.front()->getExchangeBaseName() + ".json";
+    Gem::Common::GFileExchangeSpec spec;
+    spec.program = arch.front()->getProgramName();
+    spec.arguments = customOptionArguments(arch.front()->getCustomOptions());
+    spec.arguments.emplace_back("--archive");
+    spec.arguments.push_back(runFileArgument("--input=", parameter_file));
+    spec.inputs.emplace_back(parameter_file, Gem::Common::prettyPrintJson(batch_out));
+    spec.keep = not arch.front()->getRemoveExecTemporaries();
 
-    Gem::Common::writeJsonFile(parameterfile_name, batch_out);
-
-    std::vector<std::string> arguments = customOptionArguments(arch.front()->getCustomOptions());
-    arguments.emplace_back("--archive");
-    arguments.push_back("--input=" + parameterfile_name);
-
-    auto const run = Gem::Common::runExternalCommand(
-        std::filesystem::path(arch.front()->getProgramName()),
-        arguments,
-        std::filesystem::path()
-    );
-    std::string const &command = run.command;
-    int const error_code = run.code;
-    if(error_code) {
+    auto const run = Gem::Common::runWithFileExchange(spec, ".");
+    if(not succeeded(run.program)) {
         throw Gem::Common::gem_exception(
-            Gem::Common::g_error_streamer() << "Execution of external command failed." << '\n'
-                                            << "Command: " << command << '\n'
-                                            << "Error code: " << error_code << '\n'
+            Gem::Common::g_error_streamer() << failureOf(
+                "The external program " + howItEnded(run.program, {}) + " in its --archive step.",
+                run
+            )
         );
     }
-
-    std::filesystem::remove(parameterfile_name);
 }
 
 /******************************************************************************/

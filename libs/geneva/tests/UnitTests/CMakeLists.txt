@@ -56,6 +56,7 @@ SET ( ${EXECUTABLENAME}_SRCS
 	GPersonalityTraitsTests.cpp
 	GSepCmaEvolutionStrategyTests.cpp
 	GTestIndividualsTests.cpp
+	GExternalEvaluatorIndividualTests.cpp
 )
 
 ADD_EXECUTABLE(${EXECUTABLENAME}
