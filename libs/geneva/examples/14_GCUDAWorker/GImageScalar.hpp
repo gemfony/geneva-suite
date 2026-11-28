@@ -33,14 +33,12 @@
  * @file GImageScalar.hpp
  *
  * Compile-time scalar selector for example 14 (the Mona-Lisa problem). By default the whole
- * example -- genome parameter objects, adaptor, host rasteriser, GPU marshaller, device ABI and the
- * runtime CUDA kernel -- runs in DOUBLE precision. Define the macro GIMAGE_USE_FLOAT (e.g. via the
- * CMake option of the same name, settable from genevaConfig.gcfg) to build the example in FLOAT
- * precision instead, so FP32 vs FP64 can be compared.
+ * example -- genome parameters, host rasteriser, GPU marshaller, device ABI and the runtime CUDA
+ * kernel -- runs in FLOAT precision: the CMake option GIMAGE_USE_FLOAT (settable from
+ * genevaConfig.gcfg) is ON by default and defines the macro of the same name. Switch the option
+ * OFF to build the example in DOUBLE precision instead, so FP32 vs FP64 can be compared.
  *
  *   gimage_fp_t                  the scalar type used everywhere in the example.
- *   GIMAGE_CONSTRAINED_OBJECT    the constrained parameter object class (in namespace Genome).
- *   GIMAGE_GAUSS_ADAPTOR         the Gauss adaptor class (in namespace Genome).
  *   GIMAGE_DEFAULT_GPUCONFIG     the default GPU-consumer config (selects the matching kernel).
  */
 
@@ -48,14 +46,10 @@
 namespace Gem::Geneva {
 using gimage_fp_t = float;
 } // namespace Gem::Geneva
-#define GIMAGE_CONSTRAINED_OBJECT GConstrainedFloatObject
-#define GIMAGE_GAUSS_ADAPTOR      GFloatGaussAdaptor
-#define GIMAGE_DEFAULT_GPUCONFIG  "./config/GGPUConsumerFloat.json"
+#define GIMAGE_DEFAULT_GPUCONFIG "./config/GGPUConsumerFloat.json"
 #else
 namespace Gem::Geneva {
 using gimage_fp_t = double;
 } // namespace Gem::Geneva
-#define GIMAGE_CONSTRAINED_OBJECT GConstrainedDoubleObject
-#define GIMAGE_GAUSS_ADAPTOR      GDoubleGaussAdaptor
-#define GIMAGE_DEFAULT_GPUCONFIG  "./config/GGPUConsumer.json"
+#define GIMAGE_DEFAULT_GPUCONFIG "./config/GGPUConsumer.json"
 #endif

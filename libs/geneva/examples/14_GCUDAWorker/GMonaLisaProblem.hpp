@@ -54,10 +54,10 @@
  * (kernels/monalisa_eval_*.cu) replicates the SAME formulas, so a CPU run (via a CPU consumer such as
  * --consumer stc) and a GPU run give the same fitness and the GPU can be cross-checked against the CPU.
  *
- * The scalar type is selected at COMPILE TIME via gimage_fp_t (GImageScalar.hpp): DOUBLE by default,
- * or FLOAT when the example is built with GIMAGE_USE_FLOAT. Double precision makes the CPU/GPU
- * cross-check tight (parity to ~1e-9); float is the faster FP32 path. The matching device kernel is
- * selected through the default GPU-consumer config.
+ * The scalar type is selected at COMPILE TIME via gimage_fp_t (GImageScalar.hpp): FLOAT by default
+ * (the CMake option GIMAGE_USE_FLOAT is ON), or DOUBLE when that option is OFF. Double precision
+ * makes the CPU/GPU cross-check tight (parity to ~1e-9); float is the faster FP32 path. The
+ * matching device kernel is selected through the default GPU-consumer config.
  *
  * Genome layout (flat, == the GGenome::parameterValues() order; alpha-sort disabled so order is canonical):
  *   per triangle (10 scalars): cx, cy, radius, angle1, angle2, angle3, r, g, b, alpha   (all in [0,1])

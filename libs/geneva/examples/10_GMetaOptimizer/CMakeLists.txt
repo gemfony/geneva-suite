@@ -63,7 +63,22 @@ GEM_MATERIALIZE_CONFIGS ( ${EXECUTABLENAME} ${INSTALL_PREFIX_DATA}/examples/${EX
 # convergence-scale meta-optimization raises them in the config, which is what it is for.
 ADD_TEST(NAME ${EXECUTABLENAME} COMMAND ${EXECUTABLENAME}
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
-SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300)
+SET_TESTS_PROPERTIES(${EXECUTABLENAME} PROPERTIES LABELS "geneva;example" TIMEOUT 300
+	FIXTURES_REQUIRED GMetaOptimizer_fresh FIXTURES_SETUP GMetaOptimizer_figure)
 GEM_TEST_SIZE(${EXECUTABLENAME} L)
+
+# The progress figure of the run titles the curve of the best result as such (it was titled "Number
+# of solver calls"). The figure of an earlier run is removed first, so that only this run's counts.
+ADD_TEST(NAME GMetaOptimizerFigureRemoved
+	COMMAND ${CMAKE_COMMAND} -E rm -f ${CMAKE_CURRENT_BINARY_DIR}/records/meta_optimization.C)
+SET_TESTS_PROPERTIES(GMetaOptimizerFigureRemoved PROPERTIES LABELS "geneva;example"
+	FIXTURES_SETUP GMetaOptimizer_fresh)
+GEM_TEST_SIZE(GMetaOptimizerFigureRemoved S)
+ADD_TEST(NAME GMetaOptimizerBestTitle
+	COMMAND ${CMAKE_COMMAND} -E cat ${CMAKE_CURRENT_BINARY_DIR}/records/meta_optimization.C)
+SET_TESTS_PROPERTIES(GMetaOptimizerBestTitle PROPERTIES LABELS "geneva;example"
+	FIXTURES_REQUIRED GMetaOptimizer_figure
+	PASS_REGULAR_EXPRESSION "SetTitle[(]\"Best result as a function of the iteration\"[)]")
+GEM_TEST_SIZE(GMetaOptimizerBestTitle S)
 
 INSTALL ( TARGETS ${EXECUTABLENAME} DESTINATION ${INSTALL_PREFIX_DATA}/examples/${EXECUTABLENAME} )

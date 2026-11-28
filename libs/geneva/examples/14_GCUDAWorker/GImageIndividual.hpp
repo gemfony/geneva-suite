@@ -74,7 +74,7 @@ class GAdaptionConfigBase;
 } // namespace OptimizationAlgorithms
 
 constexpr std::size_t GII_DEF_NTRIANGLES = static_cast<std::size_t>(300);
-constexpr double GII_DEF_STARTSIZE = 0.;
+constexpr double GII_DEF_STARTSIZE = -1.; // < 0: random in [min_size, max_size[
 constexpr double GII_DEF_MINSIZE = 0.;
 constexpr double GII_DEF_MAXSIZE = 0.3;
 constexpr double GII_DEF_MINOPAQUENESS = 0.3;
@@ -115,8 +115,8 @@ typedef std::tuple<std::size_t, std::size_t> SCREENSIZE_t;
 
 // Circle-based triangle model. A host-side inspection/representation (off the fitness/GPU path;
 // populated by getTriangleData()). Its members follow the build's parameter precision
-// (gimage_fp_t = double by default, float when GIMAGE_USE_FLOAT), so getTriangleData() does not
-// narrow the genome values.
+// (gimage_fp_t = float by default, double when GIMAGE_USE_FLOAT is OFF), so getTriangleData() does
+// not narrow the genome values.
 struct CircleTriangle {
     gimage_fp_t r, g, b, a;             // Colors & transparency (0..1)
     gimage_fp_t cx, cy;                 // Middle-coordinates of the circle

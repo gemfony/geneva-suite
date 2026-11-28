@@ -60,6 +60,11 @@ Example-specific settings are config-file keys in config/GImageGeneral.json (edi
   emit_best_only   Only emit an image when the best result improved (default true)
   parity_check_n   If > 0: run a GPU/CPU parity check over this many random individuals and exit
 
+The size of the triangles is set in config/GImageIndividual.json:
+  min_size, max_size  the range of a triangle's radius, as a fraction of the shorter canvas side
+  start_size          the radius every triangle starts with, in [min_size, max_size[; the default
+                      -1 (any value < 0) draws each radius at random in that range instead
+
 Output
 ------
 The best candidate of each iteration is rasterised and written to ./results/ as

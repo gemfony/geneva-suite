@@ -3,7 +3,7 @@ allows to find optimal configuration parameters for a given individual
 type. The target function may be
 - the average amount of calls to the individual's objective function over the course of an optimization
 run, which needs to be minimized, until a given target fitness is surpassed
-- the worst "best fitness" found in a number of consecutive runs
+- the mean "best fitness" found in a number of consecutive runs
 - A combination of both --> multi-criterion optimization
 Thus, with this application, you can tune the parameters of optimization algorithms themselves.
 

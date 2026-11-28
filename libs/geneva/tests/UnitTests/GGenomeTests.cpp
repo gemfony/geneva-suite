@@ -885,6 +885,27 @@ TEST_CASE("GGenome: assignValueVector with the wrong number of values throws", "
 }
 
 /******************************************************************************/
+// The size check counted every parameter whatever the activity mode, so the values of the active
+// parameters alone were refused as the wrong number of values.
+TEST_CASE("GGenome: assignValueVector writes the parameters of its activity mode", "[flat]") {
+    GGenomeBuilder b;
+    b.addDoubleGroup(2, -10., 10.);
+    b.addDoubleGroup(1, 5., 7.).adaptionMode(adaptionMode::NEVER);
+    Sphere ind;
+    ind.setGenome(b.build());
+    auto const inactive = ind.parameterValues<double>(activityMode::INACTIVEONLY);
+
+    std::vector<double> const active{1., -2.};
+    ind.assignValueVector<double>(active, activityMode::ACTIVEONLY);
+    CHECK(ind.parameterValues<double>(activityMode::ACTIVEONLY) == active);
+    CHECK(ind.parameterValues<double>(activityMode::INACTIVEONLY) == inactive);
+    CHECK_THROWS_AS(
+        ind.assignValueVector<double>(std::vector<double>(3, 1.), activityMode::ACTIVEONLY),
+        Gem::Common::gem_exception
+    );
+}
+
+/******************************************************************************/
 // NOLINTNEXTLINE(readability-function-cognitive-complexity) -- one coherent property (the constrained-fold helpers map values into their range) exercised across many boundary/interior inputs in a tight data-driven loop; the length is input breadth, not branching complexity
 TEST_CASE("Constrained fold helpers map into range", "[flat]") {
     // FP: half-open [lo, hi)

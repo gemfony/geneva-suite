@@ -1180,7 +1180,9 @@ class GOptOptMonitorT // NOLINT(cppcoreguidelines-special-member-functions)
         const char *y_label;    ///< The label of its y-axis
     };
     static constexpr std::array<Curve, 8> CURVES{
-        {{"best_fitness", "Number of solver calls", "Best Result (lower is better)"},
+        {{"best_fitness",
+          "Best result as a function of the iteration",
+          "Best Result (lower is better)"},
          {"n_parents", "Number of parents as a function of the iteration", "Number of parents"},
          {"n_children", "Number of children as a function of the iteration", "Number of children"},
          {"adaption_probability",
